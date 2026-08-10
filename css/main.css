@@ -1,0 +1,194 @@
+/* ==========================================================================
+   SOUTH STREET (سوث ستريت) - Main Design System & Theme Engine
+   Saudi Royal Emerald, Gold Accent & Modern Slate Palette
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&family=Tajawal:wght@300;400;500;700;800;900&display=swap');
+
+:root {
+  /* Primary Color Palette */
+  --primary-deep: #064E3B;      /* Saudi Emerald Deep */
+  --primary-main: #047857;      /* Emerald Green */
+  --primary-light: #10B981;     /* Emerald Vivid */
+  --primary-soft: #D1FAE5;      /* Emerald Soft Tint */
+
+  /* Gold & Royal Accent Colors */
+  --gold-main: #D4AF37;         /* Makkah Kaaba Gold */
+  --gold-light: #F3E5AB;        /* Soft Gold Glow */
+  --gold-dark: #9A7B1C;         /* Metallic Gold Border */
+
+  /* Surface & Neutral Dark Mode (Default Premium Slate) */
+  --bg-app: #0F172A;            /* Midnight Slate Navy */
+  --bg-card: #1E293B;           /* Deep Slate Card */
+  --bg-card-hover: #334155;     /* Slate Hover */
+  --bg-glass: rgba(30, 41, 59, 0.85);
+
+  /* Surface & Neutral Light Mode Support */
+  --bg-light-app: #F8FAFC;
+  --bg-light-card: #FFFFFF;
+
+  /* Typography Colors */
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+  --text-gold: #FACC15;
+  --text-emerald: #34D399;
+
+  /* Functional Status Colors */
+  --success: #10B981;
+  --warning: #F59E0B;
+  --danger: #EF4444;
+  --info: #3B82F6;
+
+  /* Borders & Shadows */
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-gold: rgba(212, 175, 55, 0.35);
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.45);
+  --shadow-gold: 0 0 20px rgba(212, 175, 55, 0.25);
+
+  /* Typography */
+  --font-main: 'Tajawal', 'Cairo', system-ui, -apple-system, sans-serif;
+  --font-heading: 'Cairo', 'Tajawal', sans-serif;
+
+  /* Layout Dimensions */
+  --topbar-height: 64px;
+  --bottomnav-height: 68px;
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
+  --radius-full: 9999px;
+
+  /* Animations */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-smooth: 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Base Styles & Resets */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  font-size: 16px;
+  direction: rtl;
+  text-align: right;
+  height: 100%;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-main);
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  line-height: 1.5;
+  min-height: 100vh;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.6);
+}
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--gold-main);
+}
+
+/* Typography Helper Classes */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  line-height: 1.25;
+  color: #FFFFFF;
+}
+
+.text-gold { color: var(--text-gold) !important; }
+.text-emerald { color: var(--text-emerald) !important; }
+.text-muted { color: var(--text-muted) !important; }
+.text-secondary { color: var(--text-secondary) !important; }
+.text-center { text-align: center; }
+
+/* Flex & Grid Utilities */
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.justify-center { justify-content: center; }
+.gap-1 { gap: 0.25rem; }
+.gap-2 { gap: 0.5rem; }
+.gap-3 { gap: 0.75rem; }
+.gap-4 { gap: 1rem; }
+.gap-6 { gap: 1.5rem; }
+.flex-1 { flex: 1; }
+
+/* Grid Layouts */
+.grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+.grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 10px rgba(212, 175, 55, 0.3); }
+  50% { box-shadow: 0 0 25px rgba(212, 175, 55, 0.7); }
+}
+
+@keyframes rippleSound {
+  0% { transform: scale(1); opacity: 0.8; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+
+.animate-fade-in {
+  animation: fadeIn var(--transition-smooth) forwards;
+}
+
+.glow-gold {
+  animation: pulseGlow 2.5s infinite;
+}
+
+/* App Main Container */
+#app-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  width: 100vw;
+  position: relative;
+}
+
+/* View Containers */
+.app-view {
+  display: none;
+  flex: 1;
+  padding: 1.25rem;
+  padding-bottom: calc(var(--bottomnav-height) + 1.5rem);
+  max-width: 1280px;
+  margin: 0 auto;
+  width: 100%;
+  animation: fadeIn var(--transition-smooth) forwards;
+}
+
+.app-view.active {
+  display: block;
+}

@@ -1,0 +1,26 @@
+{
+  "name": "سوث ستريت - وكالة السياحة والعمرة | SOUTH STREET",
+  "short_name": "سوث ستريت",
+  "description": "التطبيق الرسمي لوكالة سوث ستريت لإدارة رحلات العمرة والتواصل الآمن بين المعتمرين والمرشدين والمدراء",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0F172A",
+  "theme_color": "#064E3B",
+  "orientation": "portrait",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='128' fill='%23064E3B'/%3E%3Cpath d='M256 80 L390 180 L390 400 L122 400 L122 180 Z' fill='none' stroke='%23D4AF37' stroke-width='24'/%3E%3Ccircle cx='256' cy='230' r='45' fill='%23D4AF37'/%3E%3Cpath d='M256 290 C200 290 170 330 170 370 L342 370 C342 330 312 290 256 290 Z' fill='%23D4AF37'/%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='128' fill='%23064E3B'/%3E%3Cpath d='M256 80 L390 180 L390 400 L122 400 L122 180 Z' fill='none' stroke='%23D4AF37' stroke-width='24'/%3E%3Ccircle cx='256' cy='230' r='45' fill='%23D4AF37'/%3E%3Cpath d='M256 290 C200 290 170 330 170 370 L342 370 C342 330 312 290 256 290 Z' fill='%23D4AF37'/%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

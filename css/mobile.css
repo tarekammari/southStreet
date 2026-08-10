@@ -1,0 +1,118 @@
+/* ==========================================================================
+   SOUTH STREET (سوث ستريت) - Mobile Layout & PWA Touch Interface
+   ========================================================================== */
+
+/* Mobile Bottom Navigation Bar */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--bottomnav-height);
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  z-index: 99;
+  padding: 0 0.5rem;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--radius-md);
+  transition: var(--transition-fast);
+  cursor: pointer;
+  flex: 1;
+  max-width: 80px;
+}
+
+.nav-item svg {
+  width: 22px;
+  height: 22px;
+  transition: var(--transition-fast);
+}
+
+.nav-item:hover, .nav-item.active {
+  color: var(--gold-main);
+  background: rgba(212, 175, 55, 0.08);
+}
+
+.nav-item.active svg {
+  transform: translateY(-2px) scale(1.1);
+  filter: drop-shadow(0 0 6px rgba(212, 175, 55, 0.6));
+}
+
+.badge-count {
+  position: absolute;
+  top: 4px;
+  right: 18px;
+  background: var(--danger);
+  color: #FFF;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 0.1rem 0.35rem;
+  border-radius: var(--radius-full);
+}
+
+/* Responsive Breakpoints */
+@media (max-width: 768px) {
+  .chat-container {
+    flex-direction: column;
+    height: calc(100vh - var(--topbar-height) - var(--bottomnav-height) - 1rem);
+  }
+
+  .chat-sidebar {
+    width: 100%;
+    height: 180px;
+    border-left: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .chat-sidebar.mobile-hidden {
+    display: none;
+  }
+
+  .chat-main.mobile-full {
+    flex: 1;
+  }
+
+  .message-bubble {
+    max-width: 88%;
+  }
+
+  .grid-cols-2, .grid-cols-3, .grid-cols-4 {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+
+  .counter-dial {
+    width: 170px;
+    height: 170px;
+  }
+
+  .counter-number {
+    font-size: 3.2rem;
+  }
+}
+
+@media (min-width: 769px) {
+  .bottom-nav {
+    max-width: 480px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-radius: var(--radius-full) var(--radius-full) 0 0;
+    border: 1px solid var(--border-gold);
+  }
+}
