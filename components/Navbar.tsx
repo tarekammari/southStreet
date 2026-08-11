@@ -1,10 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
-import { User, UserRole } from '@/types';
-import { User as UserIcon, Globe, LogOut, Shield, Compass, Sparkles } from 'lucide-react';
+import { User } from '@/types';
 import LoginModal from './LoginModal';
 
 interface NavbarProps {
@@ -13,93 +11,139 @@ interface NavbarProps {
   onSelectRole?: (code: string, name: string) => void;
 }
 
+const NAV_LINKS = [
+  { label: 'الرئيسية',       href: '/' },
+  { label: 'عروض العمرة',    href: '#offers-section', scroll: true },
+  { label: 'دليل العمرة',    href: '/portal?tab=rituals' },
+  { label: 'البوابة',        href: '/portal' },
+];
+
 export default function Navbar({ currentUser, onLogout, onSelectRole }: NavbarProps) {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
-  const [lang, setLang] = useState<'ar' | 'fr'>('ar');
+  const [scrolled, setScrolled] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
-  const toggleLanguage = () => {
-    const nextLang = lang === 'ar' ? 'fr' : 'ar';
-    setLang(nextLang);
-    document.documentElement.lang = nextLang;
-    document.documentElement.dir = nextLang === 'ar' ? 'rtl' : 'ltr';
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 10);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  const handleScrollLink = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    if (href.startsWith('#')) {
+      e.preventDefault();
+      document.querySelector(href)?.scrollIntoView({ behavior: 'smooth' });
+      setMobileOpen(false);
+    }
   };
 
   return (
     <>
-      <header className="top-header-clean">
-        <Link href="/" className="flex items-center gap-3 cursor-pointer group">
+      <header
+        className="top-header-clean"
+        style={scrolled ? { background: 'rgba(4,6,18,0.92)', borderBottomColor: 'rgba(255,255,255,0.1)' } : {}}
+      >
+        {/* ── Logo ── */}
+        <Link href="/" className="flex items-center shrink-0" aria-label="South Street Home">
           <img
-            src="/images/south_street_logo.png"
-            alt="SOUTH STREET Logo"
-            className="h-12 w-auto object-contain transition-transform group-hover:scale-105"
+            src="/images/south_street_logo_white_white.png"
+            alt="SOUTH STREET"
+            className="nav-logo-img"
           />
         </Link>
 
-        <ul className="hidden md:flex items-center gap-1 list-none">
-          <li>
-            <Link href="/" className="text-slate-900 font-bold px-3.5 py-1.5 rounded-md hover:bg-slate-100 hover:text-emerald-main transition-all text-sm flex items-center gap-1.5">
-              الرئيسية
-            </Link>
-          </li>
-          <li>
-            <a href="#offers-section" className="text-slate-900 font-bold px-3.5 py-1.5 rounded-md hover:bg-slate-100 hover:text-emerald-main transition-all text-sm flex items-center gap-1.5">
-              عروض العمرة
+        {/* ── Desktop Nav Links — centred ── */}
+        <nav className="hidden md:flex items-center gap-0" aria-label="Primary navigation">
+          {NAV_LINKS.map(({ label, href, scroll }) => (
+            <a
+              key={href}
+              href={href}
+              onClick={scroll ? (e) => handleScrollLink(e as any, href) : undefined}
+              className="relative text-white/75 hover:text-white font-medium text-sm px-4 py-2 transition-colors duration-200 group font-tajawal tracking-wide"
+            >
+              {label}
+              {/* Underline indicator on hover */}
+              <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 group-hover:w-4/5 h-px bg-white/50 transition-all duration-300 rounded-full" />
             </a>
-          </li>
-          <li>
-            <Link href="/portal?tab=rituals" className="text-slate-900 font-bold px-3.5 py-1.5 rounded-md hover:bg-slate-100 hover:text-emerald-main transition-all text-sm flex items-center gap-1.5">
-              <Compass className="w-4 h-4 text-gold-main" />
-              دليل العمرة
-            </Link>
-          </li>
-          <li>
-            <Link href="/portal" className="text-slate-900 font-bold px-3.5 py-1.5 rounded-md hover:bg-slate-100 hover:text-emerald-main transition-all text-sm flex items-center gap-1.5">
-              <Sparkles className="w-4 h-4 text-emerald-main" />
-              البوابة التفاعلية
-            </Link>
-          </li>
-        </ul>
+          ))}
+        </nav>
 
-        <div className="flex items-center gap-3">
+        {/* ── Right Actions ── */}
+        <div className="flex items-center gap-3 shrink-0">
           {currentUser ? (
-            <div className="flex items-center gap-2">
-              <Link href="/portal" className="flex items-center gap-2.5 bg-emerald-deep text-white px-3.5 py-1.5 rounded-lg border border-gold-main text-xs font-bold shadow-sm hover:scale-102 transition-transform">
-                <div className="w-7 h-7 rounded-full bg-gold-main text-slate-900 flex items-center justify-center font-bold text-sm">
-                  {currentUser.avatar || currentUser.name[0]}
+            <>
+              {/* Avatar chip */}
+              <Link
+                href="/portal"
+                className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-full border border-white/15 hover:border-white/30 hover:bg-white/8 transition-all duration-200"
+              >
+                <div className="w-7 h-7 rounded-full bg-amber-400 text-slate-900 flex items-center justify-center font-black text-sm font-cairo shrink-0">
+                  {currentUser.name?.[0]}
                 </div>
-                <div className="flex flex-col text-right">
-                  <span>{currentUser.name}</span>
-                  <span className="text-[10px] text-gold-light font-semibold">{currentUser.roleName}</span>
+                <div className="text-right hidden sm:block">
+                  <p className="text-white font-semibold text-xs leading-none font-tajawal">{currentUser.name}</p>
+                  <p className="text-white/50 text-[10px] leading-none mt-0.5 font-tajawal">{currentUser.roleName}</p>
                 </div>
               </Link>
               <button
                 onClick={onLogout}
-                className="p-2 text-slate-600 hover:text-red-600 hover:bg-slate-100 rounded-lg transition-colors"
+                className="text-white/50 hover:text-red-400 text-xs font-tajawal transition-colors duration-200 cursor-pointer px-2"
                 title="تسجيل خروج"
               >
-                <LogOut className="w-4 h-4" />
+                خروج
               </button>
-            </div>
+            </>
           ) : (
+            /* Primary CTA — Portal button */
             <button
               onClick={() => setIsLoginOpen(true)}
-              className="bg-gradient-to-r from-emerald-main to-emerald-dark text-white font-extrabold text-xs md:text-sm px-4 py-2 rounded-md hover:bg-emerald-light transition-all flex items-center gap-2 shadow-sm"
+              className="relative overflow-hidden font-tajawal font-bold text-sm text-white px-5 py-2.5 cursor-pointer transition-all duration-200 hover:brightness-110 hover:scale-[1.03] group"
+              style={{
+                background: '#2563eb',
+                borderRadius: '12px',
+                boxShadow: '0 2px 16px rgba(37,99,235,0.35)',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 4px 24px rgba(37,99,235,0.55)')}
+              onMouseLeave={e => (e.currentTarget.style.boxShadow = '0 2px 16px rgba(37,99,235,0.35)')}
             >
-              <UserIcon className="w-4 h-4" />
-              بوابة الوكالة والأكواد
+              <span className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-500 bg-gradient-to-r from-transparent via-white/15 to-transparent pointer-events-none" />
+              بوابة الوكالة
             </button>
           )}
 
+          {/* Mobile hamburger */}
           <button
-            onClick={toggleLanguage}
-            className="bg-slate-100 border border-slate-200 text-slate-800 text-xs font-bold px-2.5 py-1.5 rounded-md flex items-center gap-1 hover:bg-slate-200 transition-colors"
+            onClick={() => setMobileOpen(v => !v)}
+            className="md:hidden flex flex-col gap-1 p-2 cursor-pointer"
+            aria-label="Toggle menu"
           >
-            <Globe className="w-3.5 h-3.5" />
-            {lang === 'ar' ? 'FR' : 'AR'}
+            <span className={`w-5 h-px bg-white/80 transition-all duration-300 ${mobileOpen ? 'rotate-45 translate-y-[6px]' : ''}`} />
+            <span className={`w-5 h-px bg-white/80 transition-all duration-300 ${mobileOpen ? 'opacity-0' : ''}`} />
+            <span className={`w-5 h-px bg-white/80 transition-all duration-300 ${mobileOpen ? '-rotate-45 -translate-y-[6px]' : ''}`} />
           </button>
         </div>
       </header>
 
+      {/* ── Mobile Dropdown ── */}
+      {mobileOpen && (
+        <div
+          className="md:hidden fixed top-[68px] inset-x-0 z-[199] py-4 px-6 flex flex-col gap-1 animate-fade-in"
+          style={{ background: 'rgba(4,6,18,0.96)', backdropFilter: 'blur(28px)', borderBottom: '1px solid rgba(255,255,255,0.07)' }}
+        >
+          {NAV_LINKS.map(({ label, href, scroll }) => (
+            <a
+              key={href}
+              href={href}
+              onClick={(e) => { handleScrollLink(e as any, href); setMobileOpen(false); }}
+              className="text-white/80 hover:text-white font-tajawal font-medium text-base py-2.5 border-b border-white/5 last:border-0 transition-colors"
+            >
+              {label}
+            </a>
+          ))}
+        </div>
+      )}
+
+      {/* ── Login Modal ── */}
       {isLoginOpen && (
         <LoginModal
           onClose={() => setIsLoginOpen(false)}

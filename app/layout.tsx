@@ -1,6 +1,23 @@
 import type { Metadata, Viewport } from 'next';
 import { Tajawal, Amiri, Cairo, Aref_Ruqaa } from 'next/font/google';
+import fs from 'fs';
+import path from 'path';
 import './globals.css';
+
+// Ensure all logo and image assets in ./images are synced to ./public/images for Next.js
+try {
+  const srcDir = path.join(process.cwd(), 'images');
+  const destDir = path.join(process.cwd(), 'public', 'images');
+  if (fs.existsSync(srcDir)) {
+    if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+    for (const f of fs.readdirSync(srcDir)) {
+      const sFile = path.join(srcDir, f);
+      if (fs.statSync(sFile).isFile()) {
+        fs.copyFileSync(sFile, path.join(destDir, f));
+      }
+    }
+  }
+} catch (e) {}
 
 const tajawal = Tajawal({
   subsets: ['arabic'],

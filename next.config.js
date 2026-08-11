@@ -11,8 +11,17 @@ if (fs.existsSync(srcDir)) {
   }
   const files = fs.readdirSync(srcDir);
   for (const file of files) {
-    fs.copyFileSync(path.join(srcDir, file), path.join(destDir, file));
+    const srcFile = path.join(srcDir, file);
+    if (fs.statSync(srcFile).isFile()) {
+      fs.copyFileSync(srcFile, path.join(destDir, file));
+    }
   }
+}
+
+// Remove legacy index.html if present so Next.js App Router (app/page.tsx) is the sole handler
+const legacyHtml = path.join(__dirname, 'index.html');
+if (fs.existsSync(legacyHtml)) {
+  try { fs.unlinkSync(legacyHtml); } catch (e) {}
 }
 
 /** @type {import('next').NextConfig} */

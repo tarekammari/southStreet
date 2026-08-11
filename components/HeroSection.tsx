@@ -1,63 +1,39 @@
 'use client';
 
 import React from 'react';
-import { ChevronRight, ChevronLeft, Sliders } from 'lucide-react';
-import KaabaIcon from '@/components/icons/KaabaIcon';
 
 export default function HeroSection() {
-  const scrollToOffers = () => {
-    const el = document.getElementById('offers-section');
-    if (el) el.scrollIntoView({ behavior: 'smooth' });
-  };
-
   return (
-    <section className="hero-clean-section animate-fade-in">
-      {/* Tesla Carousel Edge Navigation Arrows */}
-      <button
-        onClick={scrollToOffers}
-        className="absolute left-6 top-1/2 -translate-y-1/2 z-10 bg-white/80 backdrop-blur-md border border-white/40 text-slate-900 w-11 h-11 rounded-lg flex items-center justify-center cursor-pointer shadow-lg hover:bg-white hover:scale-105 transition-all"
-        title="السابق"
-      >
-        <ChevronLeft className="w-5 h-5" />
-      </button>
+    <section className="hero-clean-section animate-fade-in flex flex-col justify-end items-center pb-12 relative">
+      <div className="relative z-10 bg-slate-900/65 backdrop-blur-2xl border border-white/20 rounded-3xl p-6 md:p-7 max-w-sm w-full text-center shadow-2xl space-y-4 text-white mx-4">
 
-      <button
-        onClick={scrollToOffers}
-        className="absolute right-6 top-1/2 -translate-y-1/2 z-10 bg-white/80 backdrop-blur-md border border-white/40 text-slate-900 w-11 h-11 rounded-lg flex items-center justify-center cursor-pointer shadow-lg hover:bg-white hover:scale-105 transition-all"
-        title="التالي"
-      >
-        <ChevronRight className="w-5 h-5" />
-      </button>
+        {/* Arabesque Spinning Price Badge — Top Left */}
+        <div className="absolute -top-9 -left-9 z-20 w-28 h-28 flex items-center justify-center pointer-events-none">
+          <div className="absolute inset-0 rounded-full border-4 border-dashed border-gold-main arabesque-spin shadow-[0_0_20px_rgba(212,175,55,0.5)]"></div>
+          <div className="absolute inset-2 rounded-full border border-gold-main/40 arabesque-spin" style={{ animationDirection: 'reverse', animationDuration: '28s' }}></div>
 
-      {/* Hero Headline & Subtitle */}
-      <div className="hero-tesla-content">
-        <h1 className="hero-tesla-title">عمرة شهر أوت 2026</h1>
-        <p className="hero-tesla-sub">رحلة إيمانية فاخرة وطيران مباشر بجوار صحن الحرم المكي الشريف</p>
-        <div className="mt-3">
-          <button
-            onClick={scrollToOffers}
-            className="text-gold-main font-extrabold underline underline-offset-4 text-base hover:text-white transition-colors cursor-pointer"
-          >
-            ابتداءً من 215,000 دج • احجز مكانك الآن
-          </button>
+          {/* Red Circle — static inner */}
+          <div className="relative w-[82px] h-[82px] rounded-full bg-gradient-to-br from-red-600 via-red-700 to-rose-900 border-2 border-white flex flex-col items-center justify-center shadow-2xl text-center font-cairo pointer-events-auto">
+            <span className="text-[9px] font-bold text-amber-200 tracking-widest uppercase leading-none font-tajawal">ابتداءً من</span>
+            <span className="text-xl font-black text-white leading-none tracking-tight font-cairo mt-0.5">215,000</span>
+            <span className="text-[9px] font-bold text-amber-200 leading-none mt-0.5 font-tajawal">دج</span>
+          </div>
         </div>
-      </div>
 
-      {/* Dual Center Action Buttons */}
-      <div className="hero-tesla-actions">
+        <div className="space-y-2 pt-3">
+          <h2 className="text-lg md:text-xl font-extrabold text-white font-cairo leading-snug">
+            عمرة شهر أوت 2026 المميزة
+          </h2>
+          <p className="text-xs text-slate-300 font-tajawal font-medium leading-relaxed">
+            طيران مباشر • إقامة فاخرة بجوار صحن الحرم المكي الشريف (350م - 600م)
+          </p>
+        </div>
+
         <button
-          onClick={() => alert('تم تسجيل طلب حجز مقعدك في رحلة شهر أوت 2026. سنتواصل معك مباشرة.')}
-          className="flex-1 bg-gradient-to-r from-emerald-main to-emerald-dark text-white font-extrabold text-base py-3 px-6 rounded-md hover:bg-emerald-light shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+          onClick={() => alert('تم تسجيل طلب حجزك في رحلة شهر أوت 2026. سنتواصل معك مباشرة.')}
+          className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm py-3.5 px-6 rounded-xl shadow-xl transition-all duration-200 cursor-pointer border border-emerald-400/60 font-tajawal tracking-wide"
         >
-          <KaabaIcon className="w-5 h-5 text-gold-main" />
           احجز الآن
-        </button>
-        <button
-          onClick={scrollToOffers}
-          className="flex-1 bg-white/90 backdrop-blur-md text-slate-900 font-extrabold text-base py-3 px-6 rounded-md hover:bg-white shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
-        >
-          <Sliders className="w-5 h-5 text-emerald-main" />
-          استكشف العروض
         </button>
       </div>
     </section>

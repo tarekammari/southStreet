@@ -20,9 +20,10 @@ const crypto       = require('crypto');
 const cors         = require('cors');
 const helmet       = require('helmet');
 const rateLimit    = require('express-rate-limit');
-const path         = require('path');
-const fs           = require('fs');
-const { v4: uuidv4 } = require('uuid');
+const next         = require('next');
+const dev          = process.env.NODE_ENV !== 'production';
+const nextApp      = next({ dev, dir: __dirname });
+const handleNext   = nextApp.getRequestHandler();
 
 // ─────────────────────────────────────────────
 // CONFIG
@@ -227,9 +228,6 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/images', express.static(path.join(__dirname, 'images')));
 app.use('/assets/images', express.static(path.join(__dirname, 'images')));
 
-// Serve static frontend
-app.use(express.static(path.join(__dirname, '.'), { index: 'index.html' }));
-
 // Auth Rate Limiter
 const authLimiter = rateLimit({
   windowMs: parseInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS || '900000'),
@@ -363,6 +361,11 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => { onlineUsers.delete(socket.id); socket.to('all-users').emit('presence:offline', { userId: user.sub }); });
 });
 
-httpServer.listen(PORT, () => {
-  console.log(`🕋 SOUTH STREET SERVER RUNNING AT http://localhost:${PORT}`);
+// All non-API routes delegated to Next.js 15 App Router (app/page.tsx, app/portal/page.tsx, etc.)
+app.all('*', (req, res) => handleNext(req, res));
+
+nextApp.prepare().then(() => {
+  httpServer.listen(PORT, () => {
+    console.log(`🕋 SOUTH STREET NEXT.JS SERVER RUNNING AT http://localhost:${PORT}`);
+  });
 });

@@ -57,35 +57,53 @@ body {
   background: var(--primary-green);
 }
 
-/* Tesla Clean Header */
+/* ── Luxury Dark-Glass Navbar ── */
 .top-header-clean {
-  height: 64px;
-  background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  height: 68px;
+  background: rgba(4, 6, 18, 0.72);
+  backdrop-filter: blur(28px) saturate(160%);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: 200;
   padding: 0 2.5rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+  transition: background 0.3s ease, box-shadow 0.3s ease;
 }
 
-/* Hero Section */
+.top-header-clean:hover {
+  background: rgba(4, 6, 18, 0.82);
+  box-shadow: 0 1px 40px rgba(0, 0, 0, 0.3);
+}
+
+.nav-logo-img {
+  height: 44px;
+  width: auto;
+  object-fit: contain;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.nav-logo-img:hover {
+  opacity: 0.85;
+  transform: scale(1.03);
+}
+
+/* Full Screen Height Hero Section */
 .hero-clean-section {
   position: relative;
   width: 100%;
-  height: calc(88vh - 64px);
-  min-height: 520px;
+  height: 100vh;
+  min-height: 100vh;
+  margin-top: -68px;
+  padding-top: 68px;
   background: url('/images/kaaba_sharifa_home_page.png') center/cover no-repeat;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
-  padding: 3.5rem 2rem 4rem;
+  padding-bottom: 5rem;
   overflow: hidden;
 }
 
@@ -93,34 +111,78 @@ body {
   content: '';
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.65) 100%);
+  background: linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.01) 50%, rgba(0,0,0,0.18) 100%);
   z-index: 1;
 }
 
-.hero-tesla-content {
-  position: relative;
+/* Smooth blend from hero into section 2 */
+.hero-clean-section::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 120px;
+  background: linear-gradient(to bottom, transparent 0%, rgba(4,6,18,0.5) 100%);
   z-index: 2;
-  text-align: center;
-  color: #ffffff;
-  max-width: 850px;
+  pointer-events: none;
 }
 
-.hero-tesla-title {
-  font-size: 3.8rem;
-  font-weight: 900;
-  line-height: 1.15;
-  margin-bottom: 0.6rem;
-  font-family: var(--font-ruqaa), 'Aref Ruqaa', serif;
-  text-shadow: 0 4px 18px rgba(0,0,0,0.6);
+/* ══════════════════════════════════════════
+   SAKHR AI AGENT — SIRI-LEVEL ANIMATIONS
+══════════════════════════════════════════ */
+
+/* Fluid orb color shift — like Siri */
+@keyframes sakhrFluid {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
 
-.hero-tesla-sub {
-  font-size: 1.35rem;
-  font-weight: 700;
-  color: #f1f5f9;
-  font-family: var(--font-cairo), 'Cairo', sans-serif;
-  text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+/* Outer breathe pulse ring */
+@keyframes sakhrBreath {
+  0%, 100% { transform: scale(1);   opacity: 0.7; }
+  50%       { transform: scale(1.18); opacity: 0.25; }
 }
+
+/* Spinning dashed orbit ring */
+@keyframes sakhrOrbit {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* Arabesque / price badge spin */
+@keyframes arabesqueSpin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* Point arrow */
+@keyframes pointArrow {
+  0%, 100% { transform: translateY(0)  translateX(0); }
+  50%       { transform: translateY(6px) translateX(-6px); }
+}
+
+/* ── Applied classes ── */
+.sakhr-orb {
+  background: linear-gradient(270deg, #2563eb, #6d28d9, #0ea5e9, #1d4ed8, #7c3aed);
+  background-size: 400% 400%;
+  animation: sakhrFluid 5s ease infinite;
+}
+
+.sakhr-breath {
+  animation: sakhrBreath 2.6s ease-in-out infinite;
+}
+
+.sakhr-orbit {
+  animation: sakhrOrbit 9s linear infinite;
+}
+
+.arabesque-spin {
+  animation: arabesqueSpin 20s linear infinite;
+}
+
+.ai-sphere-pulse { animation: sakhrBreath 2.5s infinite ease-in-out; }
+.ai-orbit-ring   { animation: sakhrOrbit 8s linear infinite; }
+.ai-arrow-bounce { animation: pointArrow 1.2s infinite ease-in-out; }
 
 .hero-tesla-actions {
   position: relative;
@@ -131,6 +193,40 @@ body {
   gap: 1.5rem;
   width: 100%;
   max-width: 620px;
+}
+
+.btn-blue-primary {
+  background: #2563eb;
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 1.05rem;
+  padding: 0.85rem 2rem;
+  border-radius: 12px;
+  border: 1px solid #1d4ed8;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.4);
+  transition: all 0.2s ease;
+}
+.btn-blue-primary:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+.btn-blue-secondary {
+  background: #ffffff;
+  color: #2563eb;
+  font-weight: 800;
+  font-size: 1.05rem;
+  padding: 0.85rem 2rem;
+  border-radius: 12px;
+  border: 2px solid #2563eb;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  transition: all 0.2s ease;
+}
+.btn-blue-secondary:hover {
+  background: #eff6ff;
+  transform: translateY(-1px);
 }
 
 /* Counter Wheel Dial */

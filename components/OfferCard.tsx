@@ -52,7 +52,7 @@ export default function OfferCard({ offer, onSelect }: OfferCardProps) {
           </div>
           <button
             onClick={() => onSelect(offer)}
-            className="bg-gradient-to-r from-emerald-main to-emerald-dark hover:bg-emerald-light text-white font-extrabold text-xs px-4 py-2 rounded-lg transition-colors shadow-sm"
+            className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs px-4 py-2.5 rounded-lg transition-colors shadow-sm cursor-pointer"
           >
             التفاصيل والحجز
           </button>

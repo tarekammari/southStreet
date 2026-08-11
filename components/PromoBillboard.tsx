@@ -40,16 +40,14 @@ export default function PromoBillboard() {
           <div className="flex flex-wrap items-center gap-4 pt-4">
             <button
               onClick={() => alert('تم تسجيل طلب حجزك في رحلة شهر أوت 2026!')}
-              className="bg-gradient-to-r from-gold-dark via-gold-main to-gold-dark text-slate-950 font-black text-base px-6 py-3 rounded-xl shadow-lg hover:scale-102 transition-all flex items-center gap-2 cursor-pointer"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-black text-base px-6 py-3 rounded-xl shadow-lg hover:scale-102 transition-all flex items-center cursor-pointer border border-blue-500"
             >
-              <KaabaIcon className="w-5 h-5 text-slate-950" />
               احجز مقعدك في رحلة أوت الآن
             </button>
             <button
               onClick={() => alert('تشغيل فيديو معاينة الفنادق والرحلة')}
-              className="bg-white/15 hover:bg-white/25 text-white border border-white/40 font-bold text-sm px-5 py-3 rounded-xl transition-all flex items-center gap-2 cursor-pointer"
+              className="bg-white hover:bg-slate-100 text-slate-900 border border-white font-bold text-sm px-5 py-3 rounded-xl transition-all flex items-center cursor-pointer shadow-md"
             >
-              <PlayCircle className="w-5 h-5 text-gold-main" />
               شاهد فيديو الرحلة
             </button>
           </div>

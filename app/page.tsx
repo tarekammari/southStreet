@@ -6,7 +6,8 @@ import HeroSection from '@/components/HeroSection';
 import PromoBillboard from '@/components/PromoBillboard';
 import OfferCard from '@/components/OfferCard';
 import { Offer, User } from '@/types';
-import { Search, SlidersHorizontal, Sparkles } from 'lucide-react';
+import SakhrAgent from '@/components/SakhrAgent';
+import AgencySection from '@/components/AgencySection';
 import Link from 'next/link';
 
 const OFFERS_DATA: Offer[] = [
@@ -82,70 +83,14 @@ export default function HomePage() {
       />
 
       <main className="flex-1">
-        {/* Tesla Style Hero Section */}
+        {/* Section 1 — Hero */}
         <HeroSection />
 
-        {/* Search Panel */}
-        <section className="max-w-5xl mx-auto -mt-8 relative z-20 px-6">
-          <div className="bg-white border-2 border-gold-main rounded-2xl p-6 shadow-xl space-y-4">
-            <div className="flex items-center gap-2 font-bold text-slate-900 text-sm border-b border-slate-100 pb-2">
-              <Search className="w-4 h-4 text-gold-main" />
-              <span>بحث سريع في أفضل عروض العمرة والحج</span>
-            </div>
+        {/* Section 2 — Agency Presentation with sliding background */}
+        <AgencySection />
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
-              <div>
-                <label className="block text-slate-600 font-bold mb-1">الولاية</label>
-                <select
-                  value={selectedWilaya}
-                  onChange={(e) => setSelectedWilaya(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 text-right focus:outline-none focus:border-gold-main"
-                >
-                  <option value="">جميع الولايات (عنابة، العاصمة...)</option>
-                  <option value="برج بوعريريج">برج بوعريريج</option>
-                  <option value="الجزائر العاصمة">الجزائر العاصمة</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-slate-600 font-bold mb-1">تاريخ الانطلاق</label>
-                <select className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 text-right focus:outline-none focus:border-gold-main">
-                  <option>شهر أوت 2026</option>
-                  <option>سبتمبر 2026</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-slate-600 font-bold mb-1">مدة العمرة</label>
-                <input
-                  type="text"
-                  placeholder="مثال: 15 يوم"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 text-right focus:outline-none focus:border-gold-main"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-600 font-bold mb-1">أقصى السعر</label>
-                <input
-                  type="text"
-                  placeholder="مثال: 250,000 دج"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 text-right focus:outline-none focus:border-gold-main"
-                />
-              </div>
-            </div>
-
-            <button
-              onClick={() => {
-                const el = document.getElementById('offers-section');
-                if (el) el.scrollIntoView({ behavior: 'smooth' });
-              }}
-              className="w-full bg-gradient-to-r from-emerald-main to-emerald-dark hover:bg-emerald-light text-white font-extrabold text-xs py-3 rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
-            >
-              <Search className="w-4 h-4 text-gold-main" />
-              تطبيق التصفية والبحث في العروض
-            </button>
-          </div>
-        </section>
+        {/* AI Agent Sakhr (floating) */}
+        <SakhrAgent />
 
         {/* Promo Billboard */}
         <PromoBillboard />
@@ -153,8 +98,7 @@ export default function HomePage() {
         {/* Offers Grid */}
         <section id="offers-section" className="max-w-6xl mx-auto px-6 pb-16 space-y-8">
           <div className="text-center space-y-2">
-            <div className="inline-flex items-center gap-2 bg-emerald-soft text-emerald-main px-3 py-1 rounded-full text-xs font-bold border border-emerald-light">
-              <Sparkles className="w-4 h-4 text-gold-main" />
+            <div className="inline-flex items-center gap-2 bg-emerald-soft text-emerald-main px-3.5 py-1 rounded-full text-xs font-bold border border-emerald-light">
               باقات حصرية ومضمونة
             </div>
             <h2 className="text-3xl font-black text-slate-900 font-ruqaa">أحدث عروض العمرة والحج المضافة</h2>
@@ -218,7 +162,7 @@ export default function HomePage() {
       <footer className="bg-slate-950 text-white pt-12 pb-6 border-t border-slate-800">
         <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-8 pb-8 border-b border-slate-800">
           <div className="space-y-3">
-            <img src="/images/south_street_logo.png" alt="SOUTH STREET" className="h-12 w-auto object-contain" />
+            <img src="/images/south_street_logo_white_white.png" alt="SOUTH STREET" className="h-12 w-auto object-contain" />
             <p className="text-xs text-slate-400 leading-relaxed font-amiri">
               وكالة سوث ستريت للرحلات والتنظيم الفاخر للعمرة والحج. تواصل مشفر بالكامل وخيارات إقامة فاخرة بجوار الحرم المكي الشريف.
             </p>

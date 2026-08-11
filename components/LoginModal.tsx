@@ -115,10 +115,9 @@ export default function LoginModal({ onClose, onSelectRole }: LoginModalProps) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-gradient-to-r from-gold-dark via-gold-main to-gold-dark text-slate-950 font-black py-2.5 rounded-lg hover:brightness-110 transition-all text-sm flex items-center justify-center gap-2 shadow-lg"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-3 rounded-xl transition-all text-sm flex items-center justify-center shadow-lg border border-blue-500 cursor-pointer"
           >
-            <Lock className="w-4 h-4" />
-            {loading ? 'جاري التحقق والتوصيل...' : '🔐 إقران الجهاز والاتصال بالمستكشف'}
+            {loading ? 'جاري التحقق والتوصيل...' : 'إقران الجهاز والاتصال بالمستكشف'}
           </button>
         </form>
 
@@ -127,33 +126,33 @@ export default function LoginModal({ onClose, onSelectRole }: LoginModalProps) {
           <div className="flex flex-wrap gap-1.5 justify-center">
             <button
               onClick={() => handleQuickRole('ADMIN-2026', 'د. عبد الرحمن العتيبي')}
-              className="bg-slate-800 hover:bg-slate-700 text-gold-main text-[11px] font-bold px-2.5 py-1.5 rounded border border-gold-main/30 flex items-center gap-1"
+              className="bg-slate-800 hover:bg-slate-700 text-gold-main text-[11px] font-bold px-3 py-1.5 rounded-lg border border-gold-main/30 cursor-pointer"
             >
-              <Crown className="w-3 h-3 text-gold-main" /> مدير ADMIN
+              مدير ADMIN
             </button>
             <button
               onClick={() => handleQuickRole('MANAGER-99', 'الأستاذ طارق السعيد')}
-              className="bg-slate-800 hover:bg-slate-700 text-emerald-400 text-[11px] font-bold px-2.5 py-1.5 rounded border border-emerald-500/30 flex items-center gap-1"
+              className="bg-slate-800 hover:bg-slate-700 text-emerald-400 text-[11px] font-bold px-3 py-1.5 rounded-lg border border-emerald-500/30 cursor-pointer"
             >
-              <Briefcase className="w-3 h-3 text-emerald-400" /> مسير MANAGER
+              مسير MANAGER
             </button>
             <button
               onClick={() => handleQuickRole('GUIDE-777', 'الشيخ أحمد بن علي')}
-              className="bg-slate-800 hover:bg-slate-700 text-amber-400 text-[11px] font-bold px-2.5 py-1.5 rounded border border-amber-500/30 flex items-center gap-1"
+              className="bg-slate-800 hover:bg-slate-700 text-amber-400 text-[11px] font-bold px-3 py-1.5 rounded-lg border border-amber-500/30 cursor-pointer"
             >
-              <UserCheck className="w-3 h-3 text-amber-400" /> مرشد GUIDE
+              مرشد GUIDE
             </button>
             <button
               onClick={() => handleQuickRole('ACC-404', 'الأستاذ ياسين الفاسي')}
-              className="bg-slate-800 hover:bg-slate-700 text-sky-400 text-[11px] font-bold px-2.5 py-1.5 rounded border border-sky-500/30 flex items-center gap-1"
+              className="bg-slate-800 hover:bg-slate-700 text-sky-400 text-[11px] font-bold px-3 py-1.5 rounded-lg border border-sky-500/30 cursor-pointer"
             >
-              <CreditCard className="w-3 h-3 text-sky-400" /> محاسب ACC
+              محاسب ACC
             </button>
             <button
               onClick={() => handleQuickRole('PILGRIM-101', 'محمد عبد الله الشمري')}
-              className="bg-slate-800 hover:bg-slate-700 text-emerald-300 text-[11px] font-bold px-2.5 py-1.5 rounded border border-emerald-400/30 flex items-center gap-1"
+              className="bg-slate-800 hover:bg-slate-700 text-emerald-300 text-[11px] font-bold px-3 py-1.5 rounded-lg border border-emerald-400/30 cursor-pointer"
             >
-              <KaabaIcon className="w-3 h-3 text-emerald-300" /> معتمر PILGRIM
+              معتمر PILGRIM
             </button>
           </div>
         </div>
