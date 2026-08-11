@@ -44,63 +44,312 @@ a{text-decoration:none;color:inherit;}input,select,textarea{font-family:inherit;
 @keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 .animate-fade-in{animation:fadeIn .4s ease forwards;}
 
-/* ===================== CLEAN TOP HEADER ===================== */
-.top-header-clean{height:var(--topbar-height);background:#ffffff;border-bottom:1px solid var(--border-subtle);position:sticky;top:0;z-index:100;padding:0 2.5rem;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,0.03);}
-.brand-logo-clean{font-size:1.85rem;font-weight:900;color:var(--primary-green);letter-spacing:-0.5px;display:flex;align-items:center;gap:.6rem;font-family:var(--font-ruqaa);cursor:pointer;}
-.brand-logo-clean i{color:var(--gold-dark);font-size:1.6rem;}
+/* ===================== TESLA STYLE NAVBAR ===================== */
+.top-header-clean {
+  height: 64px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  padding: 0 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+}
 
-.header-nav-links{display:flex;align-items:center;gap:2rem;list-style:none;}
-.h-link{font-size:1.05rem;font-weight:700;color:var(--text-secondary);cursor:pointer;transition:.2s ease;display:flex;align-items:center;gap:.4rem;font-family:var(--font-naskh);}
-.h-link:hover,.h-link.active{color:var(--primary-green);font-weight:800;}
+.brand-logo-clean {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+}
 
-.header-left-actions{display:flex;align-items:center;gap:1rem;}
-.btn-portal-green{background:linear-gradient(135deg,var(--primary-green),var(--primary-light));color:#ffffff;font-weight:800;font-size:1.02rem;padding:.55rem 1.5rem;border-radius:var(--radius-full);border:none;cursor:pointer;transition:.2s ease;box-shadow:0 4px 14px rgba(4,120,87,0.25);display:inline-flex;align-items:center;gap:.45rem;font-family:var(--font-naskh);}
-.btn-portal-green:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(4,120,87,0.35);}
+.nav-logo-img {
+  height: 52px;
+  width: auto;
+  object-fit: contain;
+  transition: transform 0.2s ease;
+}
 
-.btn-lang-icon{background:#f1f5f9;border:1px solid var(--border-subtle);padding:.4rem .85rem;border-radius:var(--radius-sm);cursor:pointer;font-weight:700;font-size:.85rem;display:flex;align-items:center;gap:.35rem;transition:.15s ease;}
-.lang-btn:hover{background:#e2e8f0;}
+.brand-logo-clean:hover .nav-logo-img {
+  transform: scale(1.03);
+}
 
-/* ===================== CLEAN HERO SPLIT WITH KAABA POSTCARD ON LEFT ===================== */
-.hero-clean-section{background:linear-gradient(180deg,#f0fdf4 0%,#ffffff 100%);padding:3.5rem 2.5rem 3rem;border-bottom:1px solid var(--border-subtle);}
-.hero-clean-grid{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:1.1fr 1fr;gap:3.5rem;align-items:center;}
+.header-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  list-style: none;
+}
 
-/* Left Column: Kaaba Sharifa Postcard Card (Carte Postale) */
-.postcard-wrapper{position:relative;perspective:1000px;}
-.carte-postale-card{background:#ffffff;border:3px solid var(--gold-main);border-radius:24px;padding:1rem;box-shadow:0 18px 45px rgba(0,0,0,0.12);transform:rotate(-2deg);transition:.35s cubic-bezier(.16,1,.3,1);position:relative;overflow:hidden;}
-.carte-postale-card:hover{transform:rotate(0deg) translateY(-6px);box-shadow:0 24px 55px rgba(0,0,0,0.18);}
+.h-link {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #171a20;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--font-ar);
+  padding: 0.45rem 1rem;
+  border-radius: 6px;
+}
 
-.postcard-img-box{position:relative;width:100%;height:380px;border-radius:16px;overflow:hidden;background:#e2e8f0;}
-.postcard-img{width:100%;height:100%;object-fit:cover;transition:.4s ease;}
-.carte-postale-card:hover .postcard-img{transform:scale(1.04);}
+.h-link:hover, .h-link.active {
+  color: #047857;
+  background: rgba(0, 0, 0, 0.05);
+}
 
-/* Postcard Stamp & Details */
-.postcard-stamp{position:absolute;top:18px;right:18px;background:rgba(255,255,255,0.92);backdrop-filter:blur(8px);border:1.5px dashed var(--gold-dark);color:var(--primary-green);padding:.4rem.9rem;border-radius:10px;font-size:.82rem;font-weight:800;font-family:var(--font-naskh);box-shadow:0 4px 12px rgba(0,0,0,0.15);display:flex;align-items:center;gap:.4rem;}
-.postcard-footer-caption{margin-top:.85rem;display:flex;align-items:center;justify-content:space-between;padding:0 .3rem;color:var(--text-secondary);font-size:.9rem;font-family:var(--font-ruqaa);}
+.header-left-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
 
-/* Right Column: Clean Text & Search */
-.hero-text-side{display:flex;flex-direction:column;align-items:flex-start;text-align:right;}
-.hero-tag-clean{font-size:.9rem;font-weight:800;color:var(--primary-green);background:var(--primary-soft);padding:.3rem .9rem;border-radius:var(--radius-full);display:inline-block;margin-bottom:.85rem;border:1px solid var(--border-emerald);font-family:var(--font-naskh);}
+.btn-portal-green {
+  background: linear-gradient(135deg, #047857 0%, #065f46 100%);
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 0.92rem;
+  padding: 0.55rem 1.4rem;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-family: var(--font-ar);
+}
 
-.hero-title-ruqaa{font-size:3.6rem;font-weight:900;color:var(--primary-green);line-height:1.2;margin-bottom:.6rem;font-family:var(--font-ruqaa);}
-.hero-sub-ruqaa{font-size:1.6rem;color:var(--gold-dark);margin-bottom:1.5rem;font-family:var(--font-ruqaa);font-weight:700;}
+.btn-portal-green:hover {
+  background: #059669;
+  box-shadow: 0 4px 12px rgba(4, 120, 87, 0.25);
+}
 
-/* ===================== CLEAN SEARCH BAR (3 TABS) ===================== */
-.search-clean-box{width:100%;background:#ffffff;border:1.5px solid var(--border-subtle);border-radius:var(--radius-lg);box-shadow:0 10px 30px rgba(0,0,0,0.06);overflow:hidden;}
-.search-tabs-row{display:flex;background:#f8fafc;border-bottom:1.5px solid var(--border-subtle);}
-.stab-item{flex:1;text-align:center;padding:.85rem;font-weight:800;font-size:1rem;color:var(--text-secondary);cursor:pointer;transition:.2s ease;display:flex;align-items:center;justify-content:center;gap:.45rem;border-bottom:3px solid transparent;font-family:var(--font-naskh);}
-.stab-item.active{color:var(--primary-green);background:#ffffff;border-bottom-color:var(--primary-green);}
-.stab-item:hover:not(.active){background:#f1f5f9;}
+.btn-lang-icon {
+  background: rgba(0, 0, 0, 0.05);
+  border: none;
+  padding: 0.5rem 0.85rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: #171a20;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: all 0.2s ease;
+}
 
-.search-form-clean{padding:1.4rem;}
-.sgrid-clean{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-bottom:1.1rem;}
-.scol{display:flex;flex-direction:column;gap:.35rem;}
-.slabel{font-size:.88rem;font-weight:800;color:var(--text-secondary);font-family:var(--font-naskh);}
+.btn-lang-icon:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
 
-.sfield-input{width:100%;background:#f8fafc;border:1.5px solid var(--border-subtle);border-radius:10px;padding:.7rem .95rem;font-size:.95rem;color:var(--text-primary);outline:none;transition:.15s ease;}
-.sfield-input:focus{border-color:var(--primary-green);background:#ffffff;}
+/* ===================== TESLA STYLE HERO SECTION ===================== */
+.hero-clean-section {
+  position: relative;
+  width: 100%;
+  height: calc(88vh - 64px);
+  min-height: 540px;
+  background: url('images/kaaba_sharifa_home_page.png') center/cover no-repeat;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3.5rem 2rem 4rem;
+  overflow: hidden;
+}
 
-.btn-search-primary{width:100%;background:linear-gradient(135deg,var(--primary-green),var(--primary-light));color:#ffffff;font-weight:900;font-size:1.15rem;padding:.75rem;border-radius:10px;border:none;cursor:pointer;font-family:var(--font-naskh);box-shadow:0 4px 14px rgba(4,120,87,0.25);transition:.2s ease;}
-.btn-search-primary:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(4,120,87,0.35);}
+/* Subtle gradient overlay to make text pop */
+.hero-clean-section::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.15) 50%, rgba(0,0,0,0.55) 100%);
+  z-index: 1;
+}
+
+.hero-tesla-content {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  color: #ffffff;
+  max-width: 850px;
+}
+
+.hero-tesla-title {
+  font-size: 3.8rem;
+  font-weight: 900;
+  letter-spacing: -0.5px;
+  line-height: 1.15;
+  margin-bottom: 0.6rem;
+  font-family: var(--font-ruqaa);
+  text-shadow: 0 4px 18px rgba(0,0,0,0.5);
+}
+
+.hero-tesla-sub {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #f1f5f9;
+  margin-bottom: 0.5rem;
+  font-family: var(--font-naskh);
+  text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+}
+
+.hero-tesla-sub-link {
+  color: #d4af37;
+  text-decoration: underline;
+  text-underline-offset: 5px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.hero-tesla-sub-link:hover {
+  color: #ffffff;
+}
+
+/* Tesla Dual Center Action Buttons */
+.hero-tesla-actions {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  width: 100%;
+  max-width: 620px;
+}
+
+.btn-tesla-primary {
+  flex: 1;
+  background: linear-gradient(135deg, #047857 0%, #065f46 100%);
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 1.05rem;
+  padding: 0.75rem 2rem;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-ar);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.btn-tesla-primary:hover {
+  background: #059669;
+  transform: translateY(-1px);
+}
+
+.btn-tesla-secondary {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  color: #171a20;
+  font-weight: 800;
+  font-size: 1.05rem;
+  padding: 0.75rem 2rem;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-ar);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.btn-tesla-secondary:hover {
+  background: #ffffff;
+  transform: translateY(-1px);
+}
+
+/* Tesla Navigation Arrows */
+.hero-arrow-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  color: #171a20;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 1.1rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.hero-arrow-btn:hover {
+  background: #ffffff;
+  transform: translateY(-50%) scale(1.08);
+}
+
+.hero-arrow-left { left: 24px; }
+.hero-arrow-right { right: 24px; }
+
+.btn-hero-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px rgba(4, 120, 87, 0.4);
+}
+
+.btn-hero-secondary {
+  background: rgba(255, 255, 255, 0.9);
+  color: #047857;
+  border: 1.5px solid #047857;
+  font-weight: 800;
+  font-size: 1.02rem;
+  padding: 0.85rem 1.8rem;
+  border-radius: 14px;
+  cursor: pointer;
+  font-family: var(--font-ar);
+  transition: all 0.25s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-hero-secondary:hover {
+  background: #ecfdf5;
+  transform: translateY(-2px);
+}
+
+.hero-trust-bar {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  padding-top: 1.2rem;
+  border-top: 1px solid rgba(186, 230, 253, 0.9);
+  width: 100%;
+}
+
+.hero-trust-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #334155;
+  font-family: var(--font-ar);
+}
+
+.hero-trust-item i {
+  color: #047857;
+  font-size: 1.1rem;
+}
 
 /* ===================== PROMO BILLBOARD / PUB PANEL ===================== */
 .pub-banner-section{max-width:1200px;margin:3rem auto;padding:0 2.5rem;}
@@ -148,7 +397,12 @@ a{text-decoration:none;color:inherit;}input,select,textarea{font-family:inherit;
 .footer-max-width{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:2.25rem;padding-bottom:2.25rem;border-bottom:1px solid rgba(255,255,255,0.12);}
 
 @media(max-width:968px){
+  .top-header-clean { padding: 0 1.5rem; }
+  .hero-clean-section { padding: 2rem 1.5rem; }
+  .hero-glass-container { padding: 2rem 1.5rem; }
   .hero-clean-grid{grid-template-columns:1fr;gap:2.5rem;}
+  .postcard-wrapper { grid-column: 1; }
+  .hero-text-side { grid-column: 1; }
   .pub-billboard-card{flex-direction:column;text-align:center;padding:1.75rem 1.25rem;}
   .pub-visual-side{width:100%;margin-top:1rem;}
   .pub-poster-img{width:100%;height:180px;}
@@ -158,21 +412,22 @@ a{text-decoration:none;color:inherit;}input,select,textarea{font-family:inherit;
 </head>
 <body>
 
-<!-- Clean Top Header -->
+<!-- Clean Tesla Style Top Header -->
 <header class="top-header-clean">
-  <div class="brand-logo-clean" onclick="goLanding()">
-    <img src="images/south_street_logo.png" alt="Logo" style="height:52px;object-fit:contain;"/>
+  <div class="brand-logo-clean" onclick="goLanding()" title="سوث ستريت SOUTH STREET">
+    <img src="images/south_street_logo.png" alt="SOUTH STREET Logo" class="nav-logo-img"/>
   </div>
 
   <ul class="header-nav-links">
     <li class="h-link active" onclick="goLanding()">الرئيسية</li>
-    <li class="h-link" onclick="openHajjPage()">الحج</li>
-    <li class="h-link" onclick="switchTab('rituals')">كل ما يتعلق بالعمرة <i class="fa-solid fa-chevron-down" style="font-size:.75rem;"></i></li>
-    <li class="h-link" onclick="scrollToFooter()">الاتصال</li>
+    <li class="h-link" onclick="filterOffers()">عروض العمرة</li>
+    <li class="h-link" onclick="openHajjPage()">عروض الحج</li>
+    <li class="h-link" onclick="switchTab('rituals')">دليل العمرة</li>
+    <li class="h-link" onclick="scrollToFooter()">عن الوكالة</li>
   </ul>
 
   <div class="header-left-actions">
-    <button class="btn-portal-green" onclick="openLoginModal()"><i class="fa-solid fa-user-lock"></i> بوابة الوكالات</button>
+    <button class="btn-portal-green" onclick="openLoginModal()"><i class="fa-solid fa-user"></i> بوابة الوكالات</button>
     <button class="btn-lang-icon" onclick="toggleLanguage()"><i class="fa-solid fa-globe"></i> FR</button>
   </div>
 </header>
@@ -197,7 +452,7 @@ const OFFERS_DATA = [
     departure_date: 'الاثنين، 10 أوت 2026', airline: 'الخطوط الجوية الجزائرية',
     makkah_hotel: 'فندق منارات غزة / ميسان المقام', makkah_dist: '350م - 600م',
     price_quin: '215,000 دج', views: 6,
-    img: '/assets/images/hotel_makkah.png'
+    img: 'images/kaaba_sharifa_home_page.png'
   },
   {
     id: 'OFF-02', code: '05-99-780-002',
@@ -206,7 +461,7 @@ const OFFERS_DATA = [
     departure_date: 'الخميس، 15 أوت 2026', airline: 'الخطوط السعودية',
     makkah_hotel: 'فندق سويس أوتيل المقام', makkah_dist: '50م من الحرم',
     price_quin: '295,000 دج', views: 9,
-    img: '/assets/images/clock_tower.png'
+    img: 'images/kaaba_sharifa_home_page.png'
   }
 ];
 
@@ -269,45 +524,29 @@ function render() {
   if (activeTab === 'landing') { mv.innerHTML = renderLandingPage(); setTimeout(renderSearchPanel, 30); return; }
 }
 
-/* ── CLEAN HOMEPAGE WITH KAABA CARTE POSTALE ON LEFT ── */
+/* ── TESLA INSPIRED HOMEPAGE ── */
 function renderLandingPage() {
   return `
   <div class="animate-fade-in">
-    <!-- Clean Hero Split Section -->
+    <!-- Tesla Full-Screen Hero Section -->
     <section class="hero-clean-section">
-      <div class="hero-clean-grid">
+      <!-- Carousel Edge Navigation Arrows (Tesla style) -->
+      <button class="hero-arrow-btn hero-arrow-left" onclick="filterOffers()" title="السابق"><i class="fa-solid fa-chevron-left"></i></button>
+      <button class="hero-arrow-btn hero-arrow-right" onclick="filterOffers()" title="التالي"><i class="fa-solid fa-chevron-right"></i></button>
 
-        <!-- LEFT COLUMN: Kaaba Sharifa Postcard Card (Carte Postale) -->
-        <div class="postcard-wrapper">
-          <div class="carte-postale-card">
-            <div class="postcard-stamp">
-              <i class="fa-solid fa-kaaba"></i> مكة المكرمة • Carte Postale
-            </div>
-            <div class="postcard-img-box">
-              <img src="/assets/images/kaaba_sharifa_home_page.jpg" class="postcard-img" alt="الكعبة المشرفة - مكة المكرمة" onerror="this.src='images/kaaba_sharifa_home_page.jpg'"/>
-            </div>
-            <div class="postcard-footer-caption">
-              <span>🕋 البقاع المقدسة • مكة المكرمة</span>
-            </div>
-          </div>
+      <!-- Tesla Top Center Title & Subtitle -->
+      <div class="hero-tesla-content">
+        <h1 class="hero-tesla-title">عمرة شهر أوت 2026</h1>
+        <p class="hero-tesla-sub">رحلة إيمانية فاخرة وطيران مباشر بجوار صحن الحرم المكي الشريف</p>
+        <div style="font-size:1.05rem;margin-top:0.4rem;">
+          <span class="hero-tesla-sub-link" onclick="filterOffers()">ابتداءً من 215,000 دج • احجز مكانك الآن</span>
         </div>
+      </div>
 
-        <!-- RIGHT COLUMN: Clean Agency Headlines & Search -->
-        <div class="hero-text-side">
-          <span class="hero-tag-clean"><i class="fa-solid fa-kaaba"></i> وكالة الرحلات والتنظيم الفاخر للعمرة والحج</span>
-          <h1 class="hero-title-ruqaa">رحلتك الإيمانية الفاخرة إلى البقاع المقدسة</h1>
-
-          <!-- Clean Search Box -->
-          <div class="search-clean-box">
-            <div class="search-tabs-row">
-              <div class="stab-item ${searchTabMode==='quick'?'active':''}" onclick="setSearchTab('quick')"><i class="fa-solid fa-bolt"></i> بحث سريع</div>
-              <div class="stab-item ${searchTabMode==='advanced'?'active':''}" onclick="setSearchTab('advanced')"><i class="fa-solid fa-sliders"></i> بحث متقدم</div>
-              <div class="stab-item ${searchTabMode==='special'?'active':''}" onclick="setSearchTab('special')"><i class="fa-solid fa-star"></i> طلب خاص</div>
-            </div>
-            <div class="search-form-clean" id="search-panel-content"></div>
-          </div>
-        </div>
-
+      <!-- Tesla Dual Center Action Buttons -->
+      <div class="hero-tesla-actions">
+        <button class="btn-tesla-primary" onclick="alert('تأكيد حجز مقعدك في رحلة شهر أوت 2026')"><i class="fa-solid fa-kaaba"></i> احجز الآن</button>
+        <button class="btn-tesla-secondary" onclick="filterOffers()"><i class="fa-solid fa-sliders"></i> استكشف العروض</button>
       </div>
     </section>
 
@@ -332,7 +571,7 @@ function renderLandingPage() {
         </div>
 
         <div class="pub-visual-side">
-          <img src="/assets/images/hotel_makkah.png" class="pub-poster-img" alt="عمرة شهر أوت 2026"/>
+          <img src="images/kaaba_sharifa_home_page.png" class="pub-poster-img" alt="عمرة شهر أوت 2026"/>
           <div class="pub-price-sticker">ابتداءً من 215,000 دج</div>
         </div>
       </div>

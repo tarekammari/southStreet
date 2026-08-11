@@ -223,24 +223,9 @@ app.use(cors({ origin: '*', credentials: true }));
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Serve generated images and video from brain folder / local folder
-const brainPath = 'C:/Users/hp/.gemini/antigravity-ide/brain/68d9087b-a1f7-4ebf-afe5-eba6035e678b';
-app.use(['/assets/images/south_street_logo.png', '/images/south_street_logo.png'], (req, res) => {
-  const localLogo = path.join(__dirname, 'images', 'south_street_logo.png');
-  if (fs.existsSync(localLogo)) return res.sendFile(localLogo);
-  return res.sendFile(path.join(brainPath, 'south_street_logo_1786373181761.png'));
-});
-app.use(['/assets/images/kaaba_sharifa_home_page.mp4', '/images/kaaba_sharifa_home_page.mp4'], (req, res) => {
-  const localVideo = path.join(__dirname, 'images', 'kaaba_sharifa_home_page.mp4');
-  if (fs.existsSync(localVideo)) return res.sendFile(localVideo);
-  const altVideo = path.join(brainPath, 'kaaba_sharifa_home_page_1786361363796.png');
-  return res.sendFile(altVideo);
-});
-app.use(['/assets/images/kaaba_sharifa_home_page.jpg', '/images/kaaba_sharifa_home_page.jpg'], (req, res) => res.sendFile(path.join(brainPath, 'kaaba_sharifa_home_page_1786361363796.png')));
-app.use('/assets/images/hero_makkah.png', (req, res) => res.sendFile(path.join(brainPath, 'hero_makkah_1786358918892.png')));
-app.use('/assets/images/hotel_makkah.png', (req, res) => res.sendFile(path.join(brainPath, 'hotel_makkah_1786358931207.png')));
-app.use('/assets/images/clock_tower.png', (req, res) => res.sendFile(path.join(brainPath, 'clock_tower_1786358940829.png')));
-app.use('/assets/images/vip_transport.png', (req, res) => res.sendFile(path.join(brainPath, 'vip_transport_1786358954891.png')));
+// Serve static images from local 'images' directory
+app.use('/images', express.static(path.join(__dirname, 'images')));
+app.use('/assets/images', express.static(path.join(__dirname, 'images')));
 
 // Serve static frontend
 app.use(express.static(path.join(__dirname, '.'), { index: 'index.html' }));
