@@ -1,69 +1,44 @@
 'use client';
 
 import React from 'react';
-import { Flame, PlaneTakeoff, Hotel, ShieldCheck, PlayCircle } from 'lucide-react';
-import KaabaIcon from '@/components/icons/KaabaIcon';
+import { motion } from 'framer-motion';
 
 export default function PromoBillboard() {
   return (
-    <section className="max-w-6xl mx-auto my-12 px-6">
-      <div className="bg-gradient-to-r from-emerald-deep via-emerald-dark to-slate-950 rounded-3xl border-2 border-gold-main p-8 md:p-10 shadow-2xl relative overflow-hidden text-white flex flex-col md:flex-row items-center justify-between gap-8">
-        <div className="flex-1 space-y-4">
-          <div className="inline-flex items-center gap-2 bg-gradient-to-r from-gold-dark to-gold-main text-slate-950 font-black text-xs px-4 py-1.5 rounded-full shadow-md">
-            <Flame className="w-4 h-4 text-red-600 fill-red-600" />
-            عرض خاص محدود الأسرة • خروج شهر أوت 2026
-          </div>
+    <motion.section
+      id="direct-flight-section"
+      initial={{ opacity: 0, y: 35 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: '-50px' }}
+      transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+      className="w-full my-4 md:my-6 px-3 sm:px-6 font-tajawal"
+    >
+      {/* ── FULL WIDTH CONTAINER WITH RAW AIR ALGÉRIE BACKGROUND ── */}
+      <div className="relative w-full h-[500px] sm:h-[600px] md:h-[700px] rounded-2xl md:rounded-3xl overflow-hidden flex items-end justify-center pb-8 sm:pb-12 text-center group">
 
-          <h2 className="text-3xl md:text-4xl font-black font-ruqaa leading-tight">
-            عمرة شهر أوت المميزة: <span className="text-gold-main">رحلة إيمانية مباشرة إلى البقاع المقدسة</span>
+        {/* RAW BACKGROUND IMAGE — FULL BLEED WITH SMOOTH ENTRANCE ZOOM EFFECT */}
+        <motion.img
+          src="/images/AIR_ALGERIA.jpg"
+          alt="Air Algérie Plane Direct Flight to Saudi Arabia"
+          initial={{ scale: 1.08 }}
+          whileInView={{ scale: 1 }}
+          transition={{ duration: 1.4, ease: 'easeOut' }}
+          className="absolute inset-0 w-full h-full object-cover object-center"
+        />
+
+        {/* BIGGER TEXT INSIDE A MORE TRANSPARENT LABEL WITH 12PX CORNER RADIUS */}
+        <motion.div
+          initial={{ opacity: 0, y: 25 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.3, ease: 'easeOut' }}
+          className="relative z-10 bg-black/25 backdrop-blur-sm px-8 py-3.5 sm:px-10 sm:py-4 rounded-[12px] border border-white/20 text-white shadow-2xl max-w-fit mx-4"
+        >
+          <h2 className="text-xl sm:text-2xl md:text-3xl font-black font-cairo tracking-wide text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)]">
+            رحلة طيران مباشرة إلى البقاع المقدسة
           </h2>
+        </motion.div>
 
-          <p className="text-slate-200 text-sm md:text-base font-amiri leading-relaxed max-w-2xl">
-            استمتع بأرقى خدمات الإقامة الفاخرة في مكة المكرمة بالقرب من الحرم المكي الشريف (فندق منارات غزة وميسان المقام) مع مرافقة إرشاديّة مفرغة وطيران مباشر عبر الخطوط الجوية الجزائرية والسعودية.
-          </p>
-
-          <div className="flex flex-wrap gap-3 pt-2">
-            <div className="bg-white/10 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-white/20 text-xs font-bold flex items-center gap-2">
-              <PlaneTakeoff className="w-4 h-4 text-gold-main" />
-              رحلات مباشرة من الجزائر ووهران وعنابة
-            </div>
-            <div className="bg-white/10 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-white/20 text-xs font-bold flex items-center gap-2">
-              <Hotel className="w-4 h-4 text-gold-main" />
-              350م - 600م فقط عن صحن الحرم
-            </div>
-            <div className="bg-white/10 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-white/20 text-xs font-bold flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-gold-main" />
-              تواصل ومكالمات مشفرة طوال الرحلة
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-4 pt-4">
-            <button
-              onClick={() => alert('تم تسجيل طلب حجزك في رحلة شهر أوت 2026!')}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-black text-base px-6 py-3 rounded-xl shadow-lg hover:scale-102 transition-all flex items-center cursor-pointer border border-blue-500"
-            >
-              احجز مقعدك في رحلة أوت الآن
-            </button>
-            <button
-              onClick={() => alert('تشغيل فيديو معاينة الفنادق والرحلة')}
-              className="bg-white hover:bg-slate-100 text-slate-900 border border-white font-bold text-sm px-5 py-3 rounded-xl transition-all flex items-center cursor-pointer shadow-md"
-            >
-              شاهد فيديو الرحلة
-            </button>
-          </div>
-        </div>
-
-        <div className="relative shrink-0 w-full md:w-72">
-          <img
-            src="/images/kaaba_sharifa_home_page.png"
-            alt="عمرة شهر أوت 2026"
-            className="w-full h-52 object-cover rounded-2xl border-2 border-gold-main shadow-2xl"
-          />
-          <div className="absolute -bottom-3 -right-3 bg-red-600 text-white font-black text-sm px-4 py-1.5 rounded-xl shadow-lg border-2 border-white">
-            ابتداءً من 215,000 دج
-          </div>
-        </div>
       </div>
-    </section>
+    </motion.section>
   );
 }

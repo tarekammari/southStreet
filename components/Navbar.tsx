@@ -21,10 +21,30 @@ const NAV_LINKS = [
 export default function Navbar({ currentUser, onLogout, onSelectRole }: NavbarProps) {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [visible, setVisible] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 10);
+    let lastScrollY = window.scrollY;
+
+    const onScroll = () => {
+      const currentScrollY = window.scrollY;
+      setScrolled(currentScrollY > 10);
+
+      if (currentScrollY <= 10) {
+        setVisible(true);
+      } else if (currentScrollY > lastScrollY && currentScrollY > 60) {
+        // Scrolling DOWN -> Hide navbar smoothly
+        setVisible(false);
+        setMobileOpen(false);
+      } else if (currentScrollY < lastScrollY) {
+        // Scrolling UP -> Show navbar smoothly
+        setVisible(true);
+      }
+
+      lastScrollY = currentScrollY;
+    };
+
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
@@ -40,8 +60,8 @@ export default function Navbar({ currentUser, onLogout, onSelectRole }: NavbarPr
   return (
     <>
       <header
-        className="top-header-clean"
-        style={scrolled ? { background: 'rgba(4,6,18,0.92)', borderBottomColor: 'rgba(255,255,255,0.1)' } : {}}
+        className={`top-header-clean ${visible ? 'translate-y-0' : '-translate-y-full'}`}
+        style={scrolled ? { background: 'rgba(4,6,18,0.95)', borderBottomColor: 'rgba(255,255,255,0.12)', boxShadow: '0 8px 30px rgba(0,0,0,0.5)' } : {}}
       >
         {/* ── Logo ── */}
         <Link href="/" className="flex items-center shrink-0" aria-label="South Street Home">

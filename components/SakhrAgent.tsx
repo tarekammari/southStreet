@@ -137,19 +137,19 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
       {/* ════════════════════════════════
            SAKHR FLOATING ORB TRIGGER
       ════════════════════════════════ */}
-      <div className="fixed bottom-8 right-8 z-50 flex flex-col items-center gap-2 select-none">
+      <div className="fixed bottom-4 right-4 sm:bottom-8 sm:right-8 z-50 flex flex-col items-center gap-1.5 select-none">
         <button
           onClick={() => {
             setIsOpen((v) => !v);
             if (isOpen) stopSpeaking();
           }}
           aria-label="مساعد صخر الذكي"
-          className="relative w-[88px] h-[88px] rounded-full focus:outline-none group cursor-pointer"
+          className="relative w-[68px] h-[68px] sm:w-[88px] sm:h-[88px] rounded-full focus:outline-none group cursor-pointer"
         >
           {/* ── Breath rings (3 layers) ── */}
-          <span className="absolute -inset-5 rounded-full sakhr-breath opacity-20 pointer-events-none"
+          <span className="absolute -inset-3 sm:-inset-5 rounded-full sakhr-breath opacity-20 pointer-events-none"
             style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.9), transparent 65%)' }} />
-          <span className="absolute -inset-3 rounded-full sakhr-breath opacity-30 pointer-events-none"
+          <span className="absolute -inset-2 sm:-inset-3 rounded-full sakhr-breath opacity-30 pointer-events-none"
             style={{ animationDelay: '0.5s', background: 'radial-gradient(circle, rgba(56,189,248,0.8), transparent 65%)' }} />
           <span className="absolute -inset-1 rounded-full sakhr-breath opacity-50 pointer-events-none"
             style={{ animationDelay: '1s', background: 'radial-gradient(circle, rgba(124,58,237,0.6), transparent 65%)' }} />
@@ -158,21 +158,19 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
           <span className="absolute inset-0 rounded-full border-2 border-dashed border-indigo-400/50 sakhr-orbit pointer-events-none" />
 
           {/* ── Main fluid orb ── */}
-          <span className="absolute inset-0 rounded-full sakhr-orb shadow-[0_0_40px_rgba(99,102,241,0.6),0_0_80px_rgba(56,189,248,0.3)] group-hover:shadow-[0_0_60px_rgba(99,102,241,0.8),0_0_100px_rgba(56,189,248,0.5)] transition-shadow duration-500 flex flex-col items-center justify-center gap-0.5">
-            <span className="absolute top-3 left-1/3 w-5 h-2 rounded-full bg-white/25 rotate-12 blur-sm pointer-events-none" />
-            <span className="text-white font-black leading-none drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]"
-              style={{ fontFamily: 'Cairo, sans-serif', fontSize: '1.9rem' }}>
+          <span className="absolute inset-0 rounded-full sakhr-orb shadow-[0_0_30px_rgba(99,102,241,0.6)] group-hover:shadow-[0_0_50px_rgba(99,102,241,0.8)] transition-shadow duration-500 flex flex-col items-center justify-center gap-0.5">
+            <span className="absolute top-2 left-1/3 w-4 h-1.5 sm:w-5 sm:h-2 rounded-full bg-white/25 rotate-12 blur-sm pointer-events-none" />
+            <span className="text-white font-black leading-none drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)] text-xl sm:text-3xl font-cairo">
               صخر
             </span>
-            <span className="text-white/70 tracking-[0.2em] leading-none"
-              style={{ fontFamily: 'Tajawal, sans-serif', fontSize: '0.48rem' }}>
+            <span className="text-white/70 tracking-[0.15em] leading-none text-[7px] sm:text-[9px] font-tajawal">
               {isSpeaking ? 'صوت مباشر' : 'AI AGENT'}
             </span>
           </span>
         </button>
 
-        {/* ── Label pill ── */}
-        <span className="text-[11px] font-bold text-white/90 font-tajawal bg-indigo-950/80 backdrop-blur-md px-3 py-1 rounded-full border border-white/15 shadow-lg flex items-center gap-1.5">
+        {/* ── Label pill — Hidden on small mobile screens to keep view clean ── */}
+        <span className="hidden sm:flex text-[11px] font-bold text-white/90 font-tajawal bg-indigo-950/80 backdrop-blur-md px-3 py-1 rounded-full border border-white/15 shadow-lg items-center gap-1.5">
           {isSpeaking && <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>}
           <span>{isSpeaking ? 'يتحدث الآن...' : 'مساعدك الذكي صخر'}</span>
         </span>
@@ -183,7 +181,7 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
       ════════════════════════════════ */}
       {isOpen && (
         <div
-          className="fixed bottom-36 right-8 z-50 w-[380px] max-w-[93vw] flex flex-col rounded-3xl overflow-hidden shadow-2xl animate-fade-in"
+          className="fixed bottom-24 right-3 sm:bottom-36 sm:right-8 z-50 w-[calc(100vw-24px)] sm:w-[380px] max-w-[93vw] flex flex-col rounded-3xl overflow-hidden shadow-2xl animate-fade-in"
           style={{
             background: 'rgba(8, 10, 26, 0.96)',
             backdropFilter: 'blur(32px)',

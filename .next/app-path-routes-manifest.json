@@ -1,0 +1,11 @@
+{
+  "/_not-found/page": "/_not-found",
+  "/api/ai/sakhr/route": "/api/ai/sakhr",
+  "/api/audit/route": "/api/audit",
+  "/api/auth/connect/route": "/api/auth/connect",
+  "/api/messages/route": "/api/messages",
+  "/api/receipts/route": "/api/receipts",
+  "/api/users/route": "/api/users",
+  "/page": "/",
+  "/portal/page": "/portal"
+}

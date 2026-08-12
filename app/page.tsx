@@ -8,7 +8,9 @@ import OfferCard from '@/components/OfferCard';
 import { Offer, User } from '@/types';
 import SakhrAgent from '@/components/SakhrAgent';
 import AgencySection from '@/components/AgencySection';
+import StaffSection from '@/components/StaffSection';
 import Link from 'next/link';
+import { motion } from 'framer-motion';
 
 const OFFERS_DATA: Offer[] = [
   {
@@ -82,39 +84,56 @@ export default function HomePage() {
         onSelectRole={handleSelectRole}
       />
 
-      <main className="flex-1">
+      <main className="flex-1 relative bg-slate-app">
         {/* Section 1 — Hero */}
-        <HeroSection />
+        <section className="relative z-10 w-full mb-4 md:mb-6 px-3 sm:px-6">
+          <HeroSection />
+        </section>
 
-        {/* Section 2 — Agency Presentation with sliding background */}
-        <AgencySection />
+        {/* Section 2 — Agency Presentation (Full Width & Height Slideshow) */}
+        <section id="agency-section" className="relative z-10 w-full my-4 md:my-6 px-3 sm:px-6">
+          <AgencySection />
+        </section>
 
         {/* AI Agent Sakhr (floating) */}
         <SakhrAgent />
 
-        {/* Promo Billboard */}
-        <PromoBillboard />
+        {/* Rest of home page sections */}
+        <div className="relative z-10">
+          {/* Section 3 — Promo Billboard */}
+          <PromoBillboard />
 
-        {/* Offers Grid */}
-        <section id="offers-section" className="max-w-6xl mx-auto px-6 pb-16 space-y-8">
-          <div className="text-center space-y-2">
-            <div className="inline-flex items-center gap-2 bg-emerald-soft text-emerald-main px-3.5 py-1 rounded-full text-xs font-bold border border-emerald-light">
-              باقات حصرية ومضمونة
+          {/* Section 4 — Staff, Director & Religious Guides */}
+          <StaffSection />
+
+          {/* Section 5 — Offers Grid */}
+          <section id="offers-section" className="max-w-6xl mx-auto px-6 my-4 md:my-6 pb-20 space-y-8">
+            <motion.div
+              initial={{ opacity: 0, y: 25 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
+              className="text-center space-y-2"
+            >
+              <div className="inline-flex items-center gap-2 bg-emerald-100/80 text-emerald-800 px-3.5 py-1 rounded-full text-xs font-bold border border-emerald-200">
+                باقات حصرية ومضمونة
+              </div>
+              <h2 className="text-3xl font-black text-slate-900 font-cairo">أحدث عروض العمرة والحج المضافة</h2>
+              <p className="text-slate-500 text-xs max-w-md mx-auto font-tajawal">اختر باقتك المفضلة للإقامة في مكة والمدينة بأرقى الفنادق الفاخرة والطيران المباشر</p>
+            </motion.div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {OFFERS_DATA.map((offer, index) => (
+                <OfferCard
+                  key={offer.id}
+                  offer={offer}
+                  index={index}
+                  onSelect={(off) => setSelectedOffer(off)}
+                />
+              ))}
             </div>
-            <h2 className="text-3xl font-black text-slate-900 font-ruqaa">أحدث عروض العمرة والحج المضافة</h2>
-            <p className="text-slate-500 text-xs max-w-md mx-auto">اختر باقتك المفضلة للإقامة في مكة والمدينة بأرقى الفنادق الفاخرة والطيران المباشر</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {OFFERS_DATA.map((offer) => (
-              <OfferCard
-                key={offer.id}
-                offer={offer}
-                onSelect={(off) => setSelectedOffer(off)}
-              />
-            ))}
-          </div>
-        </section>
+          </section>
+        </div>
       </main>
 
       {/* Offer Detail Modal */}

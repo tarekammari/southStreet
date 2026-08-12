@@ -64,14 +64,16 @@ body {
   backdrop-filter: blur(28px) saturate(160%);
   -webkit-backdrop-filter: blur(28px) saturate(160%);
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 200;
   padding: 0 2.5rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  transition: background 0.3s ease, box-shadow 0.3s ease;
+  transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), background 0.3s ease, box-shadow 0.3s ease;
 }
 
 .top-header-clean:hover {
@@ -96,7 +98,7 @@ body {
   width: 100%;
   height: 100vh;
   min-height: 100vh;
-  margin-top: -68px;
+  margin-top: 0;
   padding-top: 68px;
   background: url('/images/kaaba_sharifa_home_page.png') center/cover no-repeat;
   display: flex;
@@ -111,19 +113,17 @@ body {
   content: '';
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.01) 50%, rgba(0,0,0,0.18) 100%);
+  background: linear-gradient(180deg, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.05) 50%, rgba(0,0,0,0.35) 100%);
   z-index: 1;
 }
 
-/* Smooth blend from hero into section 2 */
-.hero-clean-section::after {
-  content: '';
-  position: absolute;
-  bottom: 0; left: 0; right: 0;
-  height: 120px;
-  background: linear-gradient(to bottom, transparent 0%, rgba(4,6,18,0.5) 100%);
-  z-index: 2;
-  pointer-events: none;
+/* Hide scrollbar utility for thumbnail rows */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 /* ══════════════════════════════════════════
@@ -183,6 +183,46 @@ body {
 .ai-sphere-pulse { animation: sakhrBreath 2.5s infinite ease-in-out; }
 .ai-orbit-ring   { animation: sakhrOrbit 8s linear infinite; }
 .ai-arrow-bounce { animation: pointArrow 1.2s infinite ease-in-out; }
+
+/* ── Modern Section & Card Transition Keyframes ── */
+@keyframes floatGlow {
+  0%, 100% { transform: translateY(0px) scale(1); filter: brightness(1); }
+  50%      { transform: translateY(-8px) scale(1.02); filter: brightness(1.08); }
+}
+
+@keyframes lightSheen {
+  0% { transform: translateX(-100%) rotate(25deg); }
+  100% { transform: translateX(200%) rotate(25deg); }
+}
+
+.animate-float-glow {
+  animation: floatGlow 6s ease-in-out infinite;
+}
+
+.sheen-effect {
+  position: relative;
+  overflow: hidden;
+}
+.sheen-effect::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    60deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.15) 50%,
+    transparent 70%
+  );
+  transform: translateX(-100%) rotate(25deg);
+  transition: transform 0.8s ease-in-out;
+  pointer-events: none;
+}
+.sheen-effect:hover::after {
+  transform: translateX(100%) rotate(25deg);
+}
 
 .hero-tesla-actions {
   position: relative;

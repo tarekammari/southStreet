@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Navbar from '@/components/Navbar';
 import ChatModule from '@/components/ChatModule';
 import UmrahCounter from '@/components/UmrahCounter';
@@ -15,7 +15,7 @@ import KaabaIcon from '@/components/icons/KaabaIcon';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 
-export default function PortalPage() {
+function PortalContent() {
   const searchParams = useSearchParams();
   const initialTab = searchParams.get('tab') || 'dashboard';
 
@@ -246,5 +246,13 @@ export default function PortalPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function PortalPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-app flex items-center justify-center text-slate-400 font-tajawal text-sm">جاري تحميل البوابة...</div>}>
+      <PortalContent />
+    </Suspense>
   );
 }
