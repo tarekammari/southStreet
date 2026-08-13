@@ -1,162 +1,259 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ShieldCheck, Lock, User as UserIcon, Key, X, Crown, Briefcase, UserCheck, CreditCard } from 'lucide-react';
-import KaabaIcon from '@/components/icons/KaabaIcon';
+import { ShieldCheck, Lock, Mail, FileCheck, X, Upload, AlertTriangle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 interface LoginModalProps {
   onClose: () => void;
-  onSelectRole: (code: string, name: string) => void;
+  onSelectRole?: (code: string, name: string) => void;
 }
 
 export default function LoginModal({ onClose, onSelectRole }: LoginModalProps) {
-  const [name, setName] = useState('');
-  const [code, setCode] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [fileKey, setFileKey] = useState('');
+  const [fileName, setFileName] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
+  const [step, setStep] = useState<1 | 2>(1);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
   const router = useRouter();
 
-  const handleLogin = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!code) {
-      setError('يرجى إدخال رمز الأمان الخصوصي');
-      return;
-    }
-
+  const processAutoLogin = async (currentEmail: string, currentPassword: string, keyContent: string) => {
     setLoading(true);
     setError('');
 
     try {
-      const res = await fetch('/api/auth/connect', {
+      const res = await fetch('/api/admin/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, code }),
+        body: JSON.stringify({ email: currentEmail, password: currentPassword, fileKey: keyContent })
       });
 
       const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || 'رمز الوصول غير صحيح أو منتهي الصلاحية.');
-      } else {
+
+      if (!res.ok && data.status !== 'REQUIRES_FILE_KEY' && data.status !== 'PENDING_APPROVAL') {
+        setError(data.error || 'بيانات الدخول غير صحيحة');
+        setLoading(false);
+        return;
+      }
+
+      if (data.status === 'REQUIRES_FILE_KEY') {
+        setStep(2);
+        setLoading(false);
+        return;
+      }
+
+      if (data.status === 'PENDING_APPROVAL') {
+        setError(`حسابك في انتظار موافقة مدير الوكالة.`);
+        setLoading(false);
+        return;
+      }
+
+      if (data.status === 'SUCCESS') {
         localStorage.setItem('south_street_token', data.token);
         localStorage.setItem('south_street_user', JSON.stringify(data.user));
-        onSelectRole(code, name || data.user.name);
-        router.push('/portal');
+        if (onSelectRole) onSelectRole(data.user.role, data.user.name);
+
+        if (data.user.role === 'SUPER_ADMIN' || data.user.role === 'AGENCY_MANAGER') {
+          router.push('/admin');
+        } else {
+          router.push('/portal');
+        }
+        onClose();
       }
     } catch (err) {
-      setError('تعذر الاتصال بالخادم. يرجى إعادة المحاولة.');
+      setError('تعذر الاتصال بخادم الأمان. يرجى إعادة المحاولة.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleQuickRole = (roleCode: string, roleName: string) => {
-    setCode(roleCode);
-    setName(roleName);
-    onSelectRole(roleCode, roleName);
+  const handleFileRead = (file: File) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = (event.target?.result as string) || '';
+      setFileKey(text);
+      setFileName(file.name);
+      // AUTOMATIC INSTANT LOGIN!
+      processAutoLogin(email, password, text);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleFileRead(file);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleFileRead(file);
+  };
+
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    processAutoLogin(email, password, fileKey);
   };
 
   return (
-    <div className="modal-overlay animate-fade-in" onClick={onClose}>
+    <div className="modal-overlay animate-fade-in flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-md z-50 fixed inset-0 font-cairo" dir="rtl" onClick={onClose}>
       <div
-        className="bg-slate-900 border-2 border-gold-main rounded-2xl p-6 w-full max-w-md shadow-2xl text-right text-white relative"
+        style={{ backgroundColor: '#ffffff', color: '#0f172a' }}
+        className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-10 w-full max-w-3xl shadow-2xl text-right text-slate-900 relative transition-all"
         onClick={(e) => e.stopPropagation()}
       >
         <button
           onClick={onClose}
-          className="absolute top-4 left-4 text-slate-400 hover:text-white p-1 rounded-lg transition-colors"
+          style={{ backgroundColor: '#f1f5f9' }}
+          className="absolute top-5 left-5 text-slate-500 hover:text-slate-900 p-2 rounded-2xl border border-slate-200 transition"
         >
           <X className="w-5 h-5" />
         </button>
 
-        <div className="text-center mb-5">
-          <div className="w-16 h-16 rounded-2xl bg-emerald-dark border border-gold-main text-gold-main flex items-center justify-center text-3xl mx-auto mb-3 shadow-lg">
-            🕋
-          </div>
-          <h3 className="text-xl font-black text-gold-main font-ruqaa">إقران الوصول والرمز الخاص</h3>
-          <p className="text-xs text-slate-400 mt-1">سوث ستريت • نظام الاتصال المشفر AES-256</p>
-        </div>
-
-        {error && (
-          <div className="bg-red-950/80 border border-red-500/50 text-red-200 text-xs p-3 rounded-lg mb-4 text-center font-bold">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-slate-300 mb-1.5">الاسم الكامل أو المعرف (اختياري)</label>
-            <div className="relative">
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="مثال: محمد عبد الله أو USR-005"
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-gold-main transition-colors text-right"
-              />
-              <UserIcon className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+        {/* Wide Two-Column Layout */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
+          
+          {/* Left Column: Big Transparent Logo & Welcome Banner */}
+          <div className="md:col-span-5 flex flex-col items-center justify-center text-center p-4 border-b md:border-b-0 md:border-l border-slate-200">
+            <img
+              src="/images/south_street_logo_trans.png"
+              alt="South Street Agency"
+              className="h-24 sm:h-28 w-auto object-contain mb-4 transition-transform hover:scale-105"
+            />
+            <h3 className="text-2xl font-black text-slate-900">بوابة ساوث ستريت</h3>
+            <p className="text-xs text-slate-500 mt-2 font-bold leading-relaxed">
+              منصة ساوث ستريت الموحدة لإدارة وخدمات ضيوف الرحمن
+            </p>
+            <div
+              style={{ backgroundColor: '#ecfdf5', color: '#047857', borderColor: '#a7f3d0' }}
+              className="mt-4 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+              <span>اتصال آمن ومحمّي</span>
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-300 mb-1.5">كود الوصول الخصوصي (Access Code)</label>
-            <div className="relative">
-              <input
-                type="text"
-                value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
-                placeholder="مثال: PILGRIM-101 أو ADMIN-2026"
-                className="w-full bg-slate-800 border border-gold-main/60 rounded-lg px-3.5 py-2.5 text-sm text-gold-main font-mono font-bold tracking-wider focus:outline-none focus:border-gold-main transition-colors text-right uppercase"
-              />
-              <Key className="w-4 h-4 text-gold-main absolute left-3 top-3" />
-            </div>
-          </div>
+          {/* Right Column: Clean Form & Automatic Key Attachment */}
+          <div className="md:col-span-7 space-y-5">
+            {error && (
+              <div
+                style={{ backgroundColor: '#fef2f2', color: '#b91c1c', borderColor: '#fca5a5' }}
+                className="text-xs p-3.5 rounded-2xl border flex items-center gap-2"
+              >
+                <AlertTriangle className="w-4 h-4 shrink-0 text-red-500" />
+                <span>{error}</span>
+              </div>
+            )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-3 rounded-xl transition-all text-sm flex items-center justify-center shadow-lg border border-blue-500 cursor-pointer"
-          >
-            {loading ? 'جاري التحقق والتوصيل...' : 'إقران الجهاز والاتصال بالمستكشف'}
-          </button>
-        </form>
+            <form onSubmit={handleFormSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1.5">البريد الإلكتروني</label>
+                <div className="relative">
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="admin@southstreet.dz"
+                    style={{ backgroundColor: '#f8fafc', color: '#0f172a', borderColor: '#cbd5e1' }}
+                    className="w-full rounded-2xl pl-10 pr-4 py-3 text-xs focus:outline-none focus:border-emerald-600 focus:bg-white transition shadow-sm border"
+                  />
+                  <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                </div>
+              </div>
 
-        <div className="mt-6 pt-4 border-t border-slate-800 text-center">
-          <p className="text-xs text-slate-400 mb-2.5 font-bold">تجربة الأكواد الخمسة الجاهزة فوراً:</p>
-          <div className="flex flex-wrap gap-1.5 justify-center">
-            <button
-              onClick={() => handleQuickRole('ADMIN-2026', 'د. عبد الرحمن العتيبي')}
-              className="bg-slate-800 hover:bg-slate-700 text-gold-main text-[11px] font-bold px-3 py-1.5 rounded-lg border border-gold-main/30 cursor-pointer"
-            >
-              مدير ADMIN
-            </button>
-            <button
-              onClick={() => handleQuickRole('MANAGER-99', 'الأستاذ طارق السعيد')}
-              className="bg-slate-800 hover:bg-slate-700 text-emerald-400 text-[11px] font-bold px-3 py-1.5 rounded-lg border border-emerald-500/30 cursor-pointer"
-            >
-              مسير MANAGER
-            </button>
-            <button
-              onClick={() => handleQuickRole('GUIDE-777', 'الشيخ أحمد بن علي')}
-              className="bg-slate-800 hover:bg-slate-700 text-amber-400 text-[11px] font-bold px-3 py-1.5 rounded-lg border border-amber-500/30 cursor-pointer"
-            >
-              مرشد GUIDE
-            </button>
-            <button
-              onClick={() => handleQuickRole('ACC-404', 'الأستاذ ياسين الفاسي')}
-              className="bg-slate-800 hover:bg-slate-700 text-sky-400 text-[11px] font-bold px-3 py-1.5 rounded-lg border border-sky-500/30 cursor-pointer"
-            >
-              محاسب ACC
-            </button>
-            <button
-              onClick={() => handleQuickRole('PILGRIM-101', 'محمد عبد الله الشمري')}
-              className="bg-slate-800 hover:bg-slate-700 text-emerald-300 text-[11px] font-bold px-3 py-1.5 rounded-lg border border-emerald-400/30 cursor-pointer"
-            >
-              معتمر PILGRIM
-            </button>
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1.5">كلمة المرور</label>
+                <div className="relative">
+                  <input
+                    type="password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    style={{ backgroundColor: '#f8fafc', color: '#0f172a', borderColor: '#cbd5e1' }}
+                    className="w-full rounded-2xl pl-10 pr-4 py-3 text-xs focus:outline-none focus:border-emerald-600 focus:bg-white transition shadow-sm border"
+                  />
+                  <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                </div>
+              </div>
+
+              {step === 2 && (
+                <div className="animate-fade-in space-y-2">
+                  <label className="block text-xs font-bold text-emerald-800">
+                    أرفق أو أسقط ملف المفتاح (.key) لتأكيد دخول المدير:
+                  </label>
+
+                  {/* Clean Drag & Drop Zone */}
+                  <div
+                    onDrop={handleDrop}
+                    onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                    onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
+                    style={{
+                      backgroundColor: isDragging ? '#ecfdf5' : fileName ? '#f0fdf4' : '#f8fafc',
+                      borderColor: isDragging || fileName ? '#10b981' : '#cbd5e1'
+                    }}
+                    className="border-2 border-dashed rounded-2xl p-5 text-center transition cursor-pointer relative"
+                  >
+                    <input
+                      type="file"
+                      accept=".key,.pem,.txt"
+                      onChange={handleFileChange}
+                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    />
+
+                    <div className="flex flex-col items-center justify-center space-y-2 pointer-events-none">
+                      <Upload className={`w-8 h-8 ${fileName ? 'text-emerald-600' : 'text-slate-400'}`} />
+                      {fileName ? (
+                        <div>
+                          <p className="text-xs font-bold text-emerald-800 flex items-center gap-1.5 justify-center">
+                            <FileCheck className="w-4 h-4 text-emerald-600" /> {fileName}
+                          </p>
+                          <p className="text-[11px] text-emerald-600 font-bold mt-1 animate-pulse">
+                            جاري التحقق والولوج تلقائياً...
+                          </p>
+                        </div>
+                      ) : (
+                        <div>
+                          <p className="text-xs font-bold text-slate-800">أسقط ملف southstreet_admin.key هنا</p>
+                          <p className="text-[11px] text-slate-500 mt-0.5">أو انقر لاختيار الملف من الجهاز</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
+                style={{ backgroundColor: '#059669' }}
+                className="w-full hover:bg-emerald-700 text-white font-bold py-3.5 rounded-2xl shadow-lg transition text-xs flex items-center justify-center gap-2 cursor-pointer mt-2"
+              >
+                {loading ? (
+                  <span className="flex items-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                    جاري التحقق والدخول...
+                  </span>
+                ) : (
+                  <>
+                    <ShieldCheck className="w-4 h-4" />
+                    {step === 2 ? 'تأكيد ودخول البوابة' : 'تسجيل الدخول'}
+                  </>
+                )}
+              </button>
+            </form>
           </div>
         </div>
       </div>
     </div>
   );
 }
+
+

@@ -24,3 +24,10 @@ npm-debug.log*
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Keys, Secret files & Local Test Scripts
+*.key
+SAKHAR_KEY*.txt
+test_gemini.js
+test_sakhr_endpoint.js
+gemini_api_debug.log

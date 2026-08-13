@@ -1,4 +1,13 @@
-export type UserRole = 'admin' | 'manager' | 'murshid' | 'accountant' | 'pilgrim';
+export type UserRole =
+  | 'admin'
+  | 'manager'
+  | 'murshid'
+  | 'accountant'
+  | 'pilgrim'
+  | 'SUPER_ADMIN'
+  | 'AGENCY_MANAGER'
+  | 'AGENCY_AGENT'
+  | 'PILGRIM_USER';
 
 export interface User {
   id: string;
@@ -6,6 +15,7 @@ export interface User {
   name: string;
   role: UserRole;
   roleName: string;
+  email?: string;
   phone?: string;
   avatar?: string;
   room?: string;
