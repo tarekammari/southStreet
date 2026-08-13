@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#064e3b"/>
+      <stop offset="50%" stop-color="#047857"/>
+      <stop offset="100%" stop-color="#022c22"/>
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+    <linearGradient id="thobeGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#f1f5f9"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="6" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="400" height="500" rx="24" fill="url(#bg1)"/>
+  
+  <!-- Subtle Geometric Pattern -->
+  <circle cx="200" cy="150" r="140" fill="none" stroke="#ffffff" stroke-opacity="0.06" stroke-width="2"/>
+  <circle cx="200" cy="150" r="100" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="1.5" stroke-dasharray="6 6"/>
+
+  <!-- Golden Arch Background -->
+  <path d="M 100 280 C 100 130, 300 130, 300 280 L 300 500 L 100 500 Z" fill="#ffffff" fill-opacity="0.05"/>
+
+  <!-- Male Silhouette / Character Representation -->
+  <g filter="url(#shadow)">
+    <!-- Head Ghutra / Shemagh White -->
+    <path d="M 140 160 Q 200 90 260 160 Q 275 220 270 280 L 255 340 L 145 340 L 130 280 Q 125 220 140 160 Z" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
+    
+    <!-- Agal (Black cord) -->
+    <ellipse cx="200" cy="140" rx="55" ry="12" fill="#0f172a"/>
+    <ellipse cx="200" cy="145" rx="53" ry="10" fill="#1e293b"/>
+
+    <!-- Face Tone -->
+    <path d="M 160 165 C 160 215, 240 215, 240 165 Z" fill="#f5d0a9"/>
+    
+    <!-- Beard & Features -->
+    <path d="M 160 180 Q 200 240 240 180 Q 230 230 200 235 Q 170 230 160 180 Z" fill="#1e293b"/>
+    <!-- Smiling Mouth -->
+    <path d="M 185 200 Q 200 210 215 200" fill="none" stroke="#78350f" stroke-width="2.5" stroke-linecap="round"/>
+
+    <!-- White Thobe Body -->
+    <path d="M 110 340 L 145 250 Q 200 265 255 250 L 290 340 L 320 500 L 80 500 Z" fill="url(#thobeGrad)"/>
+    <!-- Thobe Collar & Buttons -->
+    <path d="M 185 255 L 215 255 L 210 360 L 190 360 Z" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1"/>
+    <circle cx="200" cy="275" r="3" fill="#94a3b8"/>
+    <circle cx="200" cy="300" r="3" fill="#94a3b8"/>
+    <circle cx="200" cy="325" r="3" fill="#94a3b8"/>
+
+    <!-- Green Agency Lanyard -->
+    <path d="M 155 260 L 180 340 L 220 340 L 245 260" fill="none" stroke="#059669" stroke-width="6"/>
+    <!-- ID Card Badge -->
+    <rect x="175" y="340" width="50" height="70" rx="6" fill="#ffffff" stroke="#059669" stroke-width="2"/>
+    <rect x="180" y="345" width="40" height="20" rx="3" fill="#047857"/>
+    <text x="200" y="358" font-family="sans-serif" font-size="9" font-weight="bold" fill="#ffffff" text-anchor="middle">SOUTH STREET</text>
+    <circle cx="200" cy="380" r="8" fill="#d97706"/>
+    <text x="200" y="383" font-family="sans-serif" font-size="7" font-weight="bold" fill="#ffffff" text-anchor="middle">Guide</text>
+  </g>
+
+  <!-- Name Banner overlay -->
+  <rect x="30" y="430" width="340" height="50" rx="14" fill="#022c22" fill-opacity="0.9" stroke="url(#goldGrad)" stroke-width="1.5"/>
+  <text x="200" y="452" font-family="sans-serif" font-size="16" font-weight="bold" fill="#fbbf24" text-anchor="middle">الشيخ د. عبد الرحمن النوي</text>
+  <text x="200" y="470" font-family="sans-serif" font-size="11" font-weight="500" fill="#a7f3d0" text-anchor="middle">مرشد ديني أول — مكة المكرمة</text>
+</svg>

@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgS3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4c1d95"/>
+      <stop offset="50%" stop-color="#6d28d9"/>
+      <stop offset="100%" stop-color="#2e1065"/>
+    </linearGradient>
+    <linearGradient id="goldS3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a"/>
+      <stop offset="100%" stop-color="#ca8a04"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="400" height="500" rx="24" fill="url(#bgS3)"/>
+
+  <!-- Female Professional Staff Silhouette -->
+  <g>
+    <!-- Elegant Blue/Purple Headscarf -->
+    <path d="M 140 160 C 140 100, 260 100, 260 160 Q 275 220 270 290 L 130 290 Q 125 220 140 160 Z" fill="#6d28d9" stroke="#a78bfa" stroke-width="1.5"/>
+    <path d="M 160 160 C 160 205, 240 205, 240 160 Z" fill="#f5d0a9"/>
+
+    <!-- Professional Blazer -->
+    <path d="M 90 340 L 130 250 Q 200 265 270 250 L 310 340 L 340 500 L 60 500 Z" fill="#3b0764"/>
+    <path d="M 175 255 L 225 255 L 210 360 L 190 360 Z" fill="#ffffff"/>
+  </g>
+
+  <!-- Name Banner -->
+  <rect x="30" y="430" width="340" height="50" rx="14" fill="#2e1065" fill-opacity="0.9" stroke="url(#goldS3)" stroke-width="1.5"/>
+  <text x="200" y="452" font-family="sans-serif" font-size="16" font-weight="bold" fill="#fef08a" text-anchor="middle">الأستاذة سارة بن علي</text>
+  <text x="200" y="470" font-family="sans-serif" font-size="11" font-weight="500" fill="#c4b5fd" text-anchor="middle">مسؤولة التأشيرات وخدمة العملاء</text>
+</svg>

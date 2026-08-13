@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgFem" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b0764"/>
+      <stop offset="50%" stop-color="#581c87"/>
+      <stop offset="100%" stop-color="#1e1b4b"/>
+    </linearGradient>
+    <linearGradient id="goldFem" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a"/>
+      <stop offset="100%" stop-color="#ca8a04"/>
+    </linearGradient>
+    <filter id="glowFem" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="400" height="500" rx="24" fill="url(#bgFem)"/>
+
+  <!-- Golden Mosque Arch & Moon Halo (facing away towards Kaaba) -->
+  <path d="M 200 40 C 110 130, 80 200, 80 340 L 320 340 C 320 200, 290 130, 200 40 Z" fill="#ffffff" fill-opacity="0.05" stroke="#fef08a" stroke-opacity="0.2" stroke-width="2"/>
+  <circle cx="200" cy="120" r="45" fill="none" stroke="url(#goldFem)" stroke-width="2" opacity="0.6"/>
+
+  <!-- FEMALE GUIDE SILHOUETTE FROM BEHIND (FACE 100% HIDDEN) -->
+  <g>
+    <!-- Dark Elegant Hijab (Viewed from Behind) -->
+    <path d="M 140 160 C 140 100, 260 100, 260 160 Q 275 220 270 290 L 130 290 Q 125 220 140 160 Z" fill="#09090b" stroke="#3f3f46" stroke-width="1.5"/>
+    <path d="M 160 150 C 160 110, 240 110, 240 150 C 245 190 240 250 240 280 L 160 280 C 160 250 155 190 160 150 Z" fill="#18181b"/>
+
+    <!-- Black Abaya Shoulders & Back Folds -->
+    <path d="M 90 340 L 130 250 Q 200 265 270 250 L 310 340 L 340 500 L 60 500 Z" fill="#09090b"/>
+    <!-- Fold Highlights on Back -->
+    <path d="M 180 270 L 180 500" stroke="#27272a" stroke-width="3"/>
+    <path d="M 220 270 L 220 500" stroke="#27272a" stroke-width="3"/>
+
+    <!-- Official Female Guide Shoulder Pin Badge -->
+    <rect x="240" y="270" width="30" height="40" rx="4" fill="#ca8a04" stroke="#fef08a" stroke-width="1.5"/>
+    <text x="255" y="286" font-family="sans-serif" font-size="7" font-weight="bold" fill="#ffffff" text-anchor="middle">شؤون</text>
+    <text x="255" y="298" font-family="sans-serif" font-size="7" font-weight="bold" fill="#ffffff" text-anchor="middle">النساء</text>
+
+    <!-- Face Hidden Privacy Shield Ribbon -->
+    <rect x="70" y="380" width="260" height="28" rx="14" fill="#09090b" fill-opacity="0.9" stroke="#eab308" stroke-width="1.5"/>
+    <text x="200" y="398" font-family="sans-serif" font-size="11" font-weight="bold" fill="#fef08a" text-anchor="middle">🔒 تم حجب الوجه احتراماً للخصوصية الشرعية</text>
+  </g>
+
+  <!-- Name Banner -->
+  <rect x="30" y="430" width="340" height="50" rx="14" fill="#18181b" fill-opacity="0.95" stroke="url(#goldFem)" stroke-width="1.5"/>
+  <text x="200" y="452" font-family="sans-serif" font-size="16" font-weight="bold" fill="#fef08a" text-anchor="middle">الأستاذة مريم</text>
+  <text x="200" y="470" font-family="sans-serif" font-size="11" font-weight="500" fill="#f472b6" text-anchor="middle">مرشدة نسائية معتمدة لشؤون النساء والمناسك</text>
+</svg>

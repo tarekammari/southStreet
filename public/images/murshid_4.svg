@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg4" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="50%" stop-color="#334155"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="goldGrad4" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="400" height="500" rx="24" fill="url(#bg4)"/>
+
+  <!-- Male Guide Figure -->
+  <g>
+    <!-- White Saudi Thobe and Ghutra -->
+    <path d="M 145 160 Q 200 95 255 160 Q 270 220 265 280 L 250 340 L 150 340 L 135 280 Q 130 220 145 160 Z" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
+    <ellipse cx="200" cy="140" rx="52" ry="11" fill="#0f172a"/>
+
+    <!-- Face Tone -->
+    <path d="M 160 165 C 160 215, 240 215, 240 165 Z" fill="#e8b88a"/>
+    <path d="M 165 180 Q 200 230 235 180 Q 225 215 200 220 Q 175 215 165 180 Z" fill="#334155"/>
+
+    <!-- Body -->
+    <path d="M 100 330 L 140 240 Q 200 255 260 240 L 300 330 L 330 500 L 70 500 Z" fill="#f8fafc"/>
+    <path d="M 145 240 L 175 320 L 225 320 L 255 240" fill="none" stroke="#059669" stroke-width="5"/>
+    <rect x="175" y="320" width="50" height="70" rx="6" fill="#ffffff" stroke="#059669" stroke-width="2"/>
+    <rect x="180" y="325" width="40" height="18" rx="3" fill="#047857"/>
+    <text x="200" y="337" font-family="sans-serif" font-size="8" font-weight="bold" fill="#ffffff" text-anchor="middle">SOUTH STREET</text>
+  </g>
+
+  <rect x="30" y="430" width="340" height="50" rx="14" fill="#0f172a" fill-opacity="0.9" stroke="url(#goldGrad4)" stroke-width="1.5"/>
+  <text x="200" y="452" font-family="sans-serif" font-size="16" font-weight="bold" fill="#fef08a" text-anchor="middle">الشيخ ياسين العلي</text>
+  <text x="200" y="470" font-family="sans-serif" font-size="11" font-weight="500" fill="#cbd5e1" text-anchor="middle">مرشد التوجيه الروحي والدعم المباشر</text>
+</svg>

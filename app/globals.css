@@ -31,7 +31,10 @@ html {
   text-align: right;
   scroll-behavior: smooth;
   font-family: var(--font-tajawal), 'Tajawal', sans-serif;
+  scroll-padding-top: 88px;
 }
+
+section { scroll-margin-top: 84px; }
 
 body {
   background-color: var(--bg-app);
