@@ -19,7 +19,7 @@ export default function HomePage() {
 
   return <div className="min-h-screen bg-slate-app">
     <Navbar currentUser={currentUser} onLogout={handleLogout} onSelectRole={restoreUser} />
-    <main className="relative overflow-hidden">
+    <main className="relative overflow-hidden pt-20 sm:pt-24 pb-6">
       <section className="relative z-10 w-full px-3 sm:px-6"><HeroSection /></section>
       <section id="agency-section" className="relative z-10 w-full px-3 py-8 sm:px-6 sm:py-12"><AgencySection /></section>
       <PromoBillboard />

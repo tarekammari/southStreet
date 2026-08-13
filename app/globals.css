@@ -95,28 +95,33 @@ body {
   transform: scale(1.03);
 }
 
-/* Full Screen Height Hero Section */
+/* Full Screen Height Hero Section with top spacing & corner radius */
 .hero-clean-section {
   position: relative;
   width: 100%;
-  height: 100vh;
-  min-height: 100vh;
+  height: calc(100vh - 90px);
+  min-height: 560px;
   margin-top: 0;
-  padding-top: 68px;
+  padding-top: 0;
   background: url('/images/kaaba_sharifa_home_page.png') center/cover no-repeat;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
-  align-items: center;
-  padding-bottom: 5rem;
+  justify-content: space-between;
+  border-radius: 1.25rem;
   overflow: hidden;
+}
+
+@media (min-width: 768px) {
+  .hero-clean-section {
+    border-radius: 2rem;
+  }
 }
 
 .hero-clean-section::before {
   content: '';
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: linear-gradient(180deg, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.05) 50%, rgba(0,0,0,0.35) 100%);
+  background: linear-gradient(180deg, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.45) 100%);
   z-index: 1;
 }
 

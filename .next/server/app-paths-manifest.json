@@ -1,12 +1,12 @@
 {
-  "/_not-found/page": "app/_not-found/page.js",
   "/api/ai/sakhr/route": "app/api/ai/sakhr/route.js",
   "/api/audit/route": "app/api/audit/route.js",
-  "/api/auth/connect/route": "app/api/auth/connect/route.js",
   "/api/messages/route": "app/api/messages/route.js",
+  "/api/auth/connect/route": "app/api/auth/connect/route.js",
   "/api/receipts/route": "app/api/receipts/route.js",
   "/api/staff-image/[filename]/route": "app/api/staff-image/[filename]/route.js",
   "/api/users/route": "app/api/users/route.js",
+  "/_not-found/page": "app/_not-found/page.js",
   "/page": "app/page.js",
   "/portal/page": "app/portal/page.js"
 }

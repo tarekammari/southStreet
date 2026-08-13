@@ -101,7 +101,7 @@ export default function AboutSection() {
           </p>
         </div>
 
-        {/* ── CARDS GRID (LIGHT GRAY MODE - SEAMLESS PHOTO MATCHING) ── */}
+        {/* ── CARDS GRID (HIGH CONTRAST WHITE GLASS CONTAINER FOR 100% LEGIBILITY) ── */}
         <div className="relative z-10 max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {TEAM_MEMBERS.map((member) => (
             <motion.div
@@ -110,7 +110,7 @@ export default function AboutSection() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.4 }}
-              className="group relative rounded-2xl h-[420px] sm:h-[460px] w-full overflow-hidden shadow-sm hover:shadow-xl border border-slate-200/90 transition-all duration-500 bg-slate-100 flex flex-col justify-end p-5 text-right"
+              className="group relative rounded-2xl h-[440px] sm:h-[480px] w-full overflow-hidden shadow-md hover:shadow-xl border border-slate-200/90 transition-all duration-500 bg-slate-100 flex flex-col justify-end p-3.5 sm:p-4 text-right"
             >
               {/* FULL CARD BACKGROUND IMAGE (100% COVERAGE OF CARD) */}
               <img
@@ -125,25 +125,22 @@ export default function AboutSection() {
                 }}
               />
 
-              {/* SHORT BOTTOM-ONLY LIGHT GRADIENT MASK (LESS THAN 1/4 CARD HEIGHT ~20%) */}
-              <div className="absolute bottom-0 inset-x-0 h-[22%] bg-gradient-to-t from-white via-white/95 to-transparent pointer-events-none z-10" />
-
-              {/* OVERLAID CONTENT AT VERY BOTTOM */}
-              <div className="relative z-20 space-y-2">
+              {/* OVERLAID CONTENT AT BOTTOM IN A HIGH-CONTRAST WHITE GLASS CONTAINER */}
+              <div className="relative z-20 bg-white/95 backdrop-blur-md rounded-xl sm:rounded-2xl p-4 border border-slate-200/90 shadow-xl space-y-2.5 text-right">
                 <div className="space-y-0.5 font-tajawal">
-                  <h3 className="font-cairo text-lg sm:text-xl font-black text-slate-900 group-hover:text-emerald-600 transition-colors drop-shadow-xs">
+                  <h3 className="font-cairo text-base sm:text-lg font-black text-slate-900 group-hover:text-emerald-600 transition-colors">
                     {member.name}
                   </h3>
                   <p className="text-xs font-bold text-emerald-700 font-cairo">
                     {member.role}
                   </p>
-                  <p className="text-[11px] text-slate-600 leading-snug line-clamp-1">
+                  <p className="text-[11px] text-slate-600 leading-relaxed line-clamp-2">
                     {member.description}
                   </p>
                 </div>
 
                 {/* CONNECT BUTTON */}
-                <div className="pt-1.5 border-t border-slate-200/80">
+                <div className="pt-2 border-t border-slate-200/80">
                   <button
                     onClick={() => alert(`يمكنك التواصل مع ${member.name} عبر بوابة الوكالة أثناء السفر.`)}
                     className="w-full py-2 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs transition-all shadow-md cursor-pointer flex items-center justify-center gap-2 font-tajawal"
