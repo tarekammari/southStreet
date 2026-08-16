@@ -29,7 +29,14 @@ export default function Navbar({ currentUser, onLogout, onSelectRole }: NavbarPr
   useEffect(() => {
     const listener = () => setScrolled(window.scrollY > 12);
     window.addEventListener('scroll', listener, { passive: true });
-    return () => window.removeEventListener('scroll', listener);
+
+    const handleOpenLogin = () => setIsLoginOpen(true);
+    window.addEventListener('southstreet:open-login', handleOpenLogin);
+
+    return () => {
+      window.removeEventListener('scroll', listener);
+      window.removeEventListener('southstreet:open-login', handleOpenLogin);
+    };
   }, []);
 
   // Close dropdown on outside click

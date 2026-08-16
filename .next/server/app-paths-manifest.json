@@ -1,17 +1,4 @@
 {
-  "/api/admin/auth/route": "app/api/admin/auth/route.js",
-  "/api/admin/sakhr-knowledge/route": "app/api/admin/sakhr-knowledge/route.js",
-  "/api/admin/security-key/route": "app/api/admin/security-key/route.js",
-  "/api/admin/users/route": "app/api/admin/users/route.js",
   "/api/ai/sakhr/route": "app/api/ai/sakhr/route.js",
-  "/api/audit/route": "app/api/audit/route.js",
-  "/api/auth/connect/route": "app/api/auth/connect/route.js",
-  "/api/messages/route": "app/api/messages/route.js",
-  "/api/receipts/route": "app/api/receipts/route.js",
-  "/api/staff-image/[filename]/route": "app/api/staff-image/[filename]/route.js",
-  "/api/users/route": "app/api/users/route.js",
-  "/_not-found/page": "app/_not-found/page.js",
-  "/admin/page": "app/admin/page.js",
-  "/page": "app/page.js",
-  "/portal/page": "app/portal/page.js"
+  "/page": "app/page.js"
 }

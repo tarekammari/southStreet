@@ -109,3 +109,239 @@ export interface CallPayload {
   encryptedSdp?: string;
   candidate?: RTCIceCandidateInit;
 }
+
+// ─────────────────────────────────────────────
+// PRODUCTION DOMAIN SCHEMAS
+// ─────────────────────────────────────────────
+
+export interface AgencySettings {
+  agency_name: string;
+  legal_name: string;
+  logo: string;
+  description: string;
+  address: string;
+  city: string;
+  country: string;
+  phone: string;
+  whatsapp: string;
+  email: string;
+  website: string;
+  opening_hours: string;
+  emergency_phone: string;
+  supported_languages: string[];
+  default_currency: string;
+  timezone: string;
+}
+
+export type SeasonType = 'UMRAH' | 'HAJJ';
+export type SeasonStatus = 'DRAFT' | 'UPCOMING' | 'OPEN' | 'CURRENT' | 'FULL' | 'CLOSED' | 'COMPLETED' | 'CANCELLED';
+
+export interface Season {
+  season_id: string;
+  type: SeasonType;
+  islamic_year: string;
+  gregorian_year: string;
+  name: string;
+  start_date: string;
+  end_date: string;
+  status: SeasonStatus;
+  description: string;
+  official_information: string;
+  agency_information: string;
+}
+
+export interface Hotel {
+  hotel_id: string;
+  name: string;
+  city: 'MAKKAH' | 'MADINAH';
+  category: '3_STAR' | '4_STAR' | '5_STAR' | 'VIP';
+  address: string;
+  latitude: number;
+  longitude: number;
+  distance_from_haram: string;
+  description: string;
+  services: string[];
+  images: string[];
+  videos: string[];
+  status: 'ACTIVE' | 'INACTIVE';
+}
+
+export interface Flight {
+  flight_id: string;
+  airline: string;
+  flight_number: string;
+  departure_airport: string;
+  arrival_airport: string;
+  departure_datetime: string;
+  arrival_datetime: string;
+  baggage: string;
+  status: 'SCHEDULED' | 'CONFIRMED' | 'DELAYED' | 'COMPLETED';
+}
+
+export interface Morshid {
+  morshid_id: string;
+  name: string;
+  languages: string[];
+  experience_years: number;
+  specialization: string;
+  phone: string;
+  status: 'AVAILABLE' | 'ASSIGNED' | 'INACTIVE';
+}
+
+export interface PackagePrice {
+  room_type: 'SINGLE' | 'DOUBLE' | 'TRIPLE' | 'QUAD';
+  traveler_type: 'ADULT' | 'CHILD' | 'INFANT';
+  currency: string;
+  amount: number;
+}
+
+export type PackageType = 'ECONOMY' | 'STANDARD' | 'PREMIUM' | 'VIP' | 'FAMILY' | 'GROUP' | 'CUSTOM';
+
+export interface Package {
+  package_id: string;
+  name: string;
+  type: PackageType;
+  season_id: string;
+  season_name: string;
+  description: string;
+  start_date: string;
+  end_date: string;
+  duration_days: number;
+  departure_city: string;
+  departure_airport: string;
+  arrival_airport: string;
+  airline: string;
+  flight_information?: Flight;
+  makkah_hotel_id: string;
+  makkah_hotel_name: string;
+  makkah_hotel_dist: string;
+  madinah_hotel_id: string;
+  madinah_hotel_name: string;
+  madinah_hotel_dist: string;
+  hotel_category: string;
+  morshid_id?: string;
+  morshid_name?: string;
+  prices: PackagePrice[];
+  included_services: string[];
+  excluded_services: string[];
+  booking_conditions: string[];
+  cancellation_policy: string;
+  capacity: number;
+  reserved: number;
+  available: number;
+  status: 'DRAFT' | 'PUBLISHED' | 'FULL' | 'CLOSED';
+  published: boolean;
+  image_url: string;
+}
+
+export interface TravelerInfo {
+  first_name: string;
+  last_name: string;
+  passport_number: string;
+  passport_expiry: string;
+  birth_date: string;
+  gender: 'MALE' | 'FEMALE';
+  traveler_type: 'ADULT' | 'CHILD' | 'INFANT';
+}
+
+export type ReservationStatus =
+  | 'REQUESTED'
+  | 'PENDING'
+  | 'CONFIRMED'
+  | 'PAYMENT_PENDING'
+  | 'PARTIALLY_PAID'
+  | 'PAID'
+  | 'DOCUMENTS_PENDING'
+  | 'READY_FOR_TRAVEL'
+  | 'COMPLETED'
+  | 'CANCELLED'
+  | 'REJECTED';
+
+export interface Reservation {
+  reservation_id: string;
+  reservation_number: string;
+  customer_id: string;
+  customer_name: string;
+  customer_email: string;
+  customer_phone: string;
+  package_id: string;
+  package_name: string;
+  room_type: 'SINGLE' | 'DOUBLE' | 'TRIPLE' | 'QUAD';
+  travelers_count: number;
+  travelers: TravelerInfo[];
+  total_amount: number;
+  paid_amount: number;
+  currency: string;
+  status: ReservationStatus;
+  payment_status: 'UNPAID' | 'PENDING' | 'PARTIALLY_PAID' | 'PAID' | 'REFUNDED';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CustomerDocument {
+  document_id: string;
+  customer_id: string;
+  document_type: 'PASSPORT' | 'ID_CARD' | 'VACCINE_CERT' | 'FAMILY_BOOK' | 'PHOTO';
+  file_name: string;
+  file_url: string;
+  status: 'UPLOADED' | 'UNDER_REVIEW' | 'VERIFIED' | 'REJECTED' | 'EXPIRED';
+  rejection_reason?: string;
+  uploaded_at: string;
+}
+
+export interface MediaAsset {
+  media_id: string;
+  type: 'IMAGE' | 'VIDEO' | 'MAP';
+  title: string;
+  description: string;
+  url: string;
+  thumbnail_url?: string;
+  source: 'AGENCY' | 'HOTEL_PARTNER' | 'OFFICIAL' | 'LICENSED';
+  license: string;
+  approved: boolean;
+  related_entity_type?: 'HOTEL' | 'PACKAGE' | 'DESTINATION';
+  related_entity_id?: string;
+}
+
+export interface AiConversationLog {
+  conversation_id: string;
+  customer_id?: string;
+  prompt: string;
+  response: string;
+  tools_called: string[];
+  language: string;
+  feedback?: 'POSITIVE' | 'NEGATIVE';
+  escalated: boolean;
+  timestamp: string;
+}
+
+export interface AiAction {
+  type: 'navigate' | 'open_modal' | 'apply_filter' | 'select_package' | 'show_map' | 'show_media' | 'start_booking' | 'compare';
+  target?: string;
+  filters?: Record<string, any>;
+  package_id?: string;
+  hotel_id?: string;
+  media_url?: string;
+  lat?: number;
+  lng?: number;
+}
+
+export interface AiCard {
+  type: 'package' | 'hotel' | 'flight' | 'reservation' | 'comparison';
+  data: any;
+}
+
+export interface AiResponsePayload {
+  text: string;
+  actions?: AiAction[];
+  cards?: AiCard[];
+  media?: MediaAsset[];
+  map?: {
+    title: string;
+    latitude: number;
+    longitude: number;
+    zoom?: number;
+  };
+  escalated?: boolean;
+}
+

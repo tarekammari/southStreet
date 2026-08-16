@@ -93,6 +93,41 @@ export default function AdminDashboardPage() {
   // Filter state
   const [aiCategoryFilter, setAiCategoryFilter] = useState<string>('all');
 
+  // Web Learning State
+  const [webUrlInput, setWebUrlInput] = useState('');
+  const [webCategoryInput, setWebCategoryInput] = useState<'packages' | 'requirements' | 'rituals' | 'hotels' | 'flights' | 'pricing' | 'faq'>('faq');
+  const [isWebLearning, setIsWebLearning] = useState(false);
+  const [webLearnMsg, setWebLearnMsg] = useState('');
+
+  const handleWebLearnUrl = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!webUrlInput.trim()) return;
+    setIsWebLearning(true);
+    setWebLearnMsg('');
+
+    try {
+      const res = await fetch('/api/admin/sakhr-learn-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: webUrlInput, category: webCategoryInput })
+      });
+      const data = await res.json();
+      setIsWebLearning(false);
+
+      if (!res.ok) {
+        setWebLearnMsg(`❌ ${data.error || 'تعذر القراءة من الموقع'}`);
+        return;
+      }
+
+      setWebLearnMsg(`🎉 ${data.message}`);
+      setWebUrlInput('');
+      fetchDashboardData();
+    } catch (e: any) {
+      setIsWebLearning(false);
+      setWebLearnMsg('❌ خطأ في الاتصال بالموقع المستهدف.');
+    }
+  };
+
   useEffect(() => {
     // Restore session from localStorage if already authenticated
     const savedUserStr = localStorage.getItem('south_street_user');
@@ -912,6 +947,80 @@ export default function AdminDashboardPage() {
               >
                 <Plus className="w-4 h-4" /> إضافة قاعدة معرفة جديدة
               </button>
+            </div>
+
+            {/* Web Scraper / Internet Learning Card */}
+            <div className="bg-gradient-to-r from-purple-900 to-indigo-900 text-white rounded-3xl p-6 shadow-lg border border-purple-500/30 space-y-4">
+              <div>
+                <h4 className="font-black text-base font-cairo flex items-center gap-2 text-amber-300">
+                  🌐 تعليم صخر AI من رابط موقع إلكتروني (Web URL Knowledge Ingestion)
+                </h4>
+                <p className="text-xs text-purple-200 mt-1">
+                  كمطور، يمكنك إدخال أي رابط موقع من الإنترنت (مثل موقع وزارة الحج نسك، أو ويكيبيديا، أو موقع إخباري)، وسيقوم النظام بقراءة الموقع، استخراج المعلومات ذات الصلة، وتحويلها لقواعد معرفة يفهمها صخر فوراً!
+                </p>
+              </div>
+
+              {webLearnMsg && (
+                <div className="p-3 rounded-2xl bg-white/10 border border-white/20 text-xs font-bold text-white">
+                  {webLearnMsg}
+                </div>
+              )}
+
+              <form onSubmit={handleWebLearnUrl} className="flex flex-col sm:flex-row gap-3">
+                <input
+                  type="url"
+                  required
+                  value={webUrlInput}
+                  onChange={(e) => setWebUrlInput(e.target.value)}
+                  placeholder="https://nusuk.sa أو https://haj.gov.sa"
+                  className="flex-1 bg-white/10 border border-white/20 rounded-2xl px-4 py-3 text-xs text-white placeholder:text-purple-300 focus:outline-none focus:border-amber-400 font-mono"
+                />
+
+                <select
+                  value={webCategoryInput}
+                  onChange={(e: any) => setWebCategoryInput(e.target.value)}
+                  className="bg-slate-900 border border-white/20 text-xs text-white rounded-2xl px-4 py-3"
+                >
+                  <option value="faq">أسئلة عامة (faq)</option>
+                  <option value="requirements">الشروط والوثائق</option>
+                  <option value="rituals">مناسك العمرة والحج</option>
+                  <option value="packages">الباقات والبرامج</option>
+                </select>
+
+                <button
+                  type="submit"
+                  disabled={isWebLearning}
+                  className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black px-6 py-3 rounded-2xl text-xs transition cursor-pointer shadow-md disabled:opacity-50 whitespace-nowrap"
+                >
+                  {isWebLearning ? 'جاري القراءة والتعلم...' : 'استخراج وتأطير المعرفة 🚀'}
+                </button>
+              </form>
+
+              {/* Preset Famous Official Data Sources */}
+              <div className="pt-3 border-t border-purple-500/30 space-y-2">
+                <span className="text-xs text-purple-200 font-bold block">مواقع رسمية معتمدة لتعليم الذكاء الاصطناعي بنقرة واحدة:</span>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { label: '🏛️ منصة نسك الرسمية (nusuk.sa)', url: 'https://www.nusuk.sa', category: 'requirements' },
+                    { label: '🕋 وزارة الحج والعمرة (haj.gov.sa)', url: 'https://www.haj.gov.sa', category: 'requirements' },
+                    { label: '🇸🇦 روح السعودية (visitsaudi.com)', url: 'https://www.visitsaudi.com', category: 'faq' },
+                    { label: '🇩🇿 الديوان الوطني للحج والعمرة (onpo.dz)', url: 'https://www.onpo.dz', category: 'requirements' },
+                    { label: '📖 مناسك العمرة بالويكيبيديا', url: 'https://ar.wikipedia.org/wiki/%D8%B9%D9%85%D8%B1%D8%A9', category: 'rituals' }
+                  ].map((preset, pIdx) => (
+                    <button
+                      key={pIdx}
+                      type="button"
+                      onClick={() => {
+                        setWebUrlInput(preset.url);
+                        setWebCategoryInput(preset.category as any);
+                      }}
+                      className="text-[11px] bg-white/10 hover:bg-white/20 border border-white/20 text-purple-100 px-3 py-1.5 rounded-xl transition cursor-pointer font-bold"
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             {/* Filter Tabs */}
