@@ -327,7 +327,7 @@ export interface AiAction {
 }
 
 export interface AiCard {
-  type: 'package' | 'hotel' | 'flight' | 'reservation' | 'comparison';
+  type: 'package' | 'hotel' | 'flight' | 'reservation' | 'comparison' | 'morshid' | 'action';
   data: any;
 }
 

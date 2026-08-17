@@ -4,8 +4,10 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   ShieldCheck, Lock, Mail, Key, UserPlus, Users, Activity, AlertTriangle,
-  CheckCircle, XCircle, RefreshCw, Cpu, Monitor, Globe, Plus, Trash2, Edit, LogOut, Home
+  CheckCircle, XCircle, RefreshCw, Cpu, Monitor, Globe, Plus, LogOut,
+  Home, Sparkles, ChevronRight
 } from 'lucide-react';
+import AiKnowledgeManager from '@/components/AiKnowledgeManager';
 
 interface UserAccount {
   id: string;
@@ -42,196 +44,175 @@ interface AccessRequest {
   status: 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
 }
 
-interface AiRule {
-  id: string;
-  category: 'packages' | 'requirements' | 'rituals' | 'hotels' | 'flights' | 'pricing' | 'faq';
-  title_ar: string;
-  keywords: string[];
-  response_ar: string;
-  is_active: boolean;
-  updatedBy: string;
-  updatedAt: string;
-}
+// ─── Role badge colours ───────────────────────────────────────
+const ROLE_BADGE: Record<string, string> = {
+  SUPER_ADMIN:    'bg-violet-50 text-violet-700 border-violet-200',
+  AGENCY_MANAGER: 'bg-sky-50    text-sky-700    border-sky-200',
+  AGENCY_AGENT:   'bg-amber-50  text-amber-700  border-amber-200',
+  PILGRIM_USER:   'bg-slate-100 text-slate-600  border-slate-200',
+};
+
+const STATUS_BADGE: Record<string, string> = {
+  APPROVED:         'bg-emerald-50 text-emerald-700 border-emerald-200',
+  PENDING_APPROVAL: 'bg-amber-50   text-amber-700   border-amber-200',
+  REJECTED:         'bg-red-50     text-red-700     border-red-200',
+  SUSPENDED:        'bg-slate-100  text-slate-500   border-slate-200',
+};
+
+type Tab = 'overview' | 'sessions' | 'key' | 'users' | 'ai';
+
+// ─── Tab definitions ──────────────────────────────────────────
+const TABS: { id: Tab; label: string; icon: any }[] = [
+  { id: 'overview', label: 'نظرة عامة',       icon: Activity },
+  { id: 'sessions', label: 'الجلسات والدخول', icon: Monitor },
+  { id: 'key',      label: 'مفتاح الأمان',    icon: Key },
+  { id: 'users',    label: 'الحسابات',         icon: Users },
+  { id: 'ai',       label: 'ذكاء صخر AI',     icon: Sparkles },
+];
 
 export default function AdminDashboardPage() {
-  // Auth state
+  // Auth
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
-  const [loginStep, setLoginStep] = useState<1 | 2>(1);
+  const [isLoggedIn, setIsLoggedIn]   = useState(false);
+  const [loginStep, setLoginStep]     = useState<1 | 2>(1);
 
-  // Login form state
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  // Login form
+  const [email, setEmail]               = useState('');
+  const [password, setPassword]         = useState('');
   const [fileKeyInput, setFileKeyInput] = useState('');
-  const [loginError, setLoginError] = useState('');
+  const [loginError, setLoginError]     = useState('');
   const [loginSuccessMsg, setLoginSuccessMsg] = useState('');
 
-  // Dashboard Data State
-  const [users, setUsers] = useState<UserAccount[]>([]);
-  const [sessions, setSessions] = useState<ActiveSession[]>([]);
+  // Dashboard data
+  const [users, setUsers]               = useState<UserAccount[]>([]);
+  const [sessions, setSessions]         = useState<ActiveSession[]>([]);
   const [accessRequests, setAccessRequests] = useState<AccessRequest[]>([]);
-  const [securityKey, setSecurityKey] = useState('');
-  const [aiRules, setAiRules] = useState<AiRule[]>([]);
-  const [activeTab, setActiveTab] = useState<'overview' | 'sessions' | 'key' | 'users' | 'ai'>('overview');
+  const [securityKey, setSecurityKey]   = useState('');
+  const [activeTab, setActiveTab]       = useState<Tab>('overview');
 
-  // Account Generator Form
-  const [newName, setNewName] = useState('');
-  const [newEmail, setNewEmail] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [newRole, setNewRole] = useState<'SUPER_ADMIN' | 'AGENCY_MANAGER' | 'AGENCY_AGENT' | 'PILGRIM_USER'>('PILGRIM_USER');
-  const [newStatus, setNewStatus] = useState<'APPROVED' | 'PENDING_APPROVAL'>('APPROVED');
-  const [accountGenSuccess, setAccountGenSuccess] = useState('');
+  // Account creator
+  const [newName, setNewName]           = useState('');
+  const [newEmail, setNewEmail]         = useState('');
+  const [newPassword, setNewPassword]   = useState('');
+  const [newRole, setNewRole]           = useState<UserAccount['role']>('PILGRIM_USER');
+  const [newStatus, setNewStatus]       = useState<'APPROVED' | 'PENDING_APPROVAL'>('APPROVED');
+  const [accountMsg, setAccountMsg]     = useState('');
 
-  // AI Rule Form
-  const [ruleModalOpen, setRuleModalOpen] = useState(false);
-  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
-  const [ruleCategory, setRuleCategory] = useState<'packages' | 'requirements' | 'rituals' | 'hotels' | 'flights' | 'pricing' | 'faq'>('packages');
-  const [ruleTitle, setRuleTitle] = useState('');
-  const [ruleKeywords, setRuleKeywords] = useState('');
-  const [ruleResponse, setRuleResponse] = useState('');
-
-  // Filter state
-  const [aiCategoryFilter, setAiCategoryFilter] = useState<string>('all');
-
-  // Web Learning State
-  const [webUrlInput, setWebUrlInput] = useState('');
-  const [webCategoryInput, setWebCategoryInput] = useState<'packages' | 'requirements' | 'rituals' | 'hotels' | 'flights' | 'pricing' | 'faq'>('faq');
+  // Web learn
+  const [webUrlInput, setWebUrlInput]   = useState('');
+  const [webCatInput, setWebCatInput]   = useState<'packages'|'requirements'|'rituals'|'hotels'|'flights'|'pricing'|'faq'>('faq');
   const [isWebLearning, setIsWebLearning] = useState(false);
-  const [webLearnMsg, setWebLearnMsg] = useState('');
+  const [webLearnMsg, setWebLearnMsg]   = useState('');
 
+  // ── Restore session ────────────────────────────────────────
+  useEffect(() => {
+    const savedUser  = localStorage.getItem('south_street_user');
+    const savedToken = localStorage.getItem('south_street_token');
+    if (savedUser && savedToken) {
+      try {
+        const obj = JSON.parse(savedUser);
+        if (obj?.role === 'SUPER_ADMIN' || obj?.role === 'AGENCY_MANAGER') {
+          setCurrentUser(obj);
+          setIsLoggedIn(true);
+        }
+      } catch {}
+    }
+    fetchDashboardData();
+  }, []);
+
+  // ── Fetch ──────────────────────────────────────────────────
+  const fetchDashboardData = async () => {
+    try {
+      const res = await fetch('/api/admin/users');
+      if (res.ok) {
+        const data = await res.json();
+        setUsers(data.users || []);
+        setSessions(data.sessions || []);
+        setAccessRequests(data.accessRequests || []);
+        setSecurityKey(data.securityKey || '');
+      }
+    } catch {}
+  };
+
+  // ── Web Learn ─────────────────────────────────────────────
   const handleWebLearnUrl = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!webUrlInput.trim()) return;
     setIsWebLearning(true);
     setWebLearnMsg('');
-
     try {
       const res = await fetch('/api/admin/sakhr-learn-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: webUrlInput, category: webCategoryInput })
+        body: JSON.stringify({ url: webUrlInput, category: webCatInput })
       });
       const data = await res.json();
       setIsWebLearning(false);
-
-      if (!res.ok) {
-        setWebLearnMsg(`❌ ${data.error || 'تعذر القراءة من الموقع'}`);
-        return;
-      }
-
-      setWebLearnMsg(`🎉 ${data.message}`);
-      setWebUrlInput('');
-      fetchDashboardData();
-    } catch (e: any) {
+      setWebLearnMsg(res.ok ? data.message : (data.error || 'حدث خطأ'));
+      if (res.ok) setWebUrlInput('');
+    } catch {
       setIsWebLearning(false);
-      setWebLearnMsg('❌ خطأ في الاتصال بالموقع المستهدف.');
+      setWebLearnMsg('خطأ في الاتصال');
     }
   };
 
-  useEffect(() => {
-    // Restore session from localStorage if already authenticated
-    const savedUserStr = localStorage.getItem('south_street_user');
-    const savedToken = localStorage.getItem('south_street_token');
-    if (savedUserStr && savedToken) {
-      try {
-        const userObj = JSON.parse(savedUserStr);
-        if (userObj && (userObj.role === 'SUPER_ADMIN' || userObj.role === 'AGENCY_MANAGER')) {
-          setCurrentUser(userObj);
-          setIsLoggedIn(true);
-        }
-      } catch (e) {}
-    }
-    fetchDashboardData();
-  }, []);
-
-  const fetchDashboardData = async () => {
-    try {
-      const resUsers = await fetch('/api/admin/users');
-      if (resUsers.ok) {
-        const data = await resUsers.json();
-        setUsers(data.users || []);
-        setSessions(data.sessions || []);
-        setAccessRequests(data.accessRequests || []);
-        setSecurityKey(data.securityKey || 'SOUTHSTREET-KEY-v1-9F8E7D6C5B4A3928');
-      }
-
-      const resAi = await fetch('/api/admin/sakhr-knowledge');
-      if (resAi.ok) {
-        const dataAi = await resAi.json();
-        setAiRules(dataAi.rules || []);
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
+  // ── Login Step 1 ──────────────────────────────────────────
   const handleLoginStep1 = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
     setLoginSuccessMsg('');
-
     try {
-      const res = await fetch('/api/admin/auth', {
+      const res  = await fetch('/api/admin/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
       const data = await res.json();
-
-      if (!res.ok && data.status !== 'REQUIRES_FILE_KEY' && data.status !== 'PENDING_APPROVAL') {
-        setLoginError(data.error || 'بيانات الدخول غير صحيحة');
-        return;
-      }
-
       if (data.status === 'REQUIRES_FILE_KEY') {
         setLoginStep(2);
-        setLoginSuccessMsg('تم التحقق من الحساب! يرجى رفع أو إدخال مفتاح الأمان (.key)');
+        setLoginSuccessMsg('تم التحقق! يرجى رفع ملف المفتاح الأمني (.key)');
         return;
       }
-
       if (data.status === 'PENDING_APPROVAL') {
-        setLoginError(`🛑 حسابك في انتظار موافقة المدير!\nرقم IP: ${data.ip} | بصمة الجهاز: ${data.pcPrint}`);
+        setLoginError(`حسابك في انتظار موافقة المدير — IP: ${data.ip}`);
         return;
       }
-
       if (data.status === 'SUCCESS') {
         localStorage.setItem('south_street_token', data.token);
         localStorage.setItem('south_street_user', JSON.stringify(data.user));
         setCurrentUser(data.user);
         setIsLoggedIn(true);
         fetchDashboardData();
+        return;
       }
-    } catch (e) {
+      setLoginError(data.error || 'بيانات الدخول غير صحيحة');
+    } catch {
       setLoginError('خطأ في الاتصال بالخادم');
     }
   };
 
+  // ── Login Step 2 ──────────────────────────────────────────
   const handleLoginStep2 = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
-
     try {
-      const res = await fetch('/api/admin/auth', {
+      const res  = await fetch('/api/admin/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, fileKey: fileKeyInput })
       });
       const data = await res.json();
-
-      if (!res.ok) {
-        setLoginError(data.error || 'مفتاح الأمان غير صحيح');
-        return;
-      }
-
       if (data.status === 'SUCCESS') {
         localStorage.setItem('south_street_token', data.token);
         localStorage.setItem('south_street_user', JSON.stringify(data.user));
         setCurrentUser(data.user);
         setIsLoggedIn(true);
         fetchDashboardData();
+      } else {
+        setLoginError(data.error || 'مفتاح الأمان غير صحيح');
       }
-    } catch (e) {
-      setLoginError('خطأ في التحقق من مفتاح الأمان');
+    } catch {
+      setLoginError('خطأ في التحقق من المفتاح');
     }
   };
 
@@ -239,10 +220,7 @@ export default function AdminDashboardPage() {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = (event) => {
-        const text = event.target?.result as string;
-        setFileKeyInput(text);
-      };
+      reader.onload = ev => setFileKeyInput(ev.target?.result as string);
       reader.readAsText(file);
     }
   };
@@ -253,134 +231,74 @@ export default function AdminDashboardPage() {
       if (res.ok) {
         const data = await res.json();
         setSecurityKey(data.securityKey);
-        const element = document.createElement('a');
-        const file = new Blob([data.fileContent], { type: 'text/plain' });
-        element.href = URL.createObjectURL(file);
-        element.download = data.fileName || 'southstreet_admin.key';
-        document.body.appendChild(element);
-        element.click();
-        document.body.removeChild(element);
-        alert('تم توليد مفتاح الأمان الجديد وتنزيل الملف (southstreet_admin.key) بنجاح!');
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([data.fileContent], { type: 'text/plain' }));
+        a.download = data.fileName || 'southstreet_admin.key';
+        a.click();
       }
-    } catch (e) {
-      alert('خطأ في توليد مفتاح الأمان');
-    }
+    } catch {}
   };
 
-  const handleUpdateUserStatus = async (userId: string, newStatus: string) => {
+  const handleUpdateUserStatus = async (userId: string, newStat: string) => {
     try {
       const res = await fetch('/api/admin/users', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, status: newStatus })
+        body: JSON.stringify({ userId, status: newStat })
       });
-      if (res.ok) {
-        fetchDashboardData();
-      }
-    } catch (e) {
-      alert('خطأ في تحديث الحالة');
-    }
+      if (res.ok) fetchDashboardData();
+    } catch {}
   };
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    setAccountGenSuccess('');
+    setAccountMsg('');
     try {
-      const res = await fetch('/api/admin/users', {
+      const res  = await fetch('/api/admin/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newName,
-          email: newEmail,
-          password: newPassword,
-          role: newRole,
-          status: newStatus
-        })
+        body: JSON.stringify({ name: newName, email: newEmail, password: newPassword, role: newRole, status: newStatus })
       });
       const data = await res.json();
-      if (!res.ok) {
-        alert(data.error || 'خطأ في إنشاء الحساب');
-        return;
-      }
-      setAccountGenSuccess(`✨ تم إنشاء حساب ${data.user.name} المشفر بنجاح!`);
-      setNewName('');
-      setNewEmail('');
-      setNewPassword('');
+      if (!res.ok) { setAccountMsg(data.error || 'خطأ في الإنشاء'); return; }
+      setAccountMsg(`تم إنشاء حساب ${data.user?.name} بنجاح`);
+      setNewName(''); setNewEmail(''); setNewPassword('');
       fetchDashboardData();
-    } catch (e) {
-      alert('خطأ في الاتصال');
+    } catch {
+      setAccountMsg('خطأ في الاتصال');
     }
   };
 
-  const handleSaveAiRule = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const payload = {
-        id: editingRuleId || undefined,
-        category: ruleCategory,
-        title_ar: ruleTitle,
-        keywords: ruleKeywords.split(',').map(k => k.trim()).filter(Boolean),
-        response_ar: ruleResponse,
-        is_active: true,
-        updatedBy: currentUser?.email || 'admin@southstreet.dz'
-      };
+  const pendingCount = accessRequests.filter(r => r.status === 'PENDING_APPROVAL').length;
 
-      const method = editingRuleId ? 'PUT' : 'POST';
-      const res = await fetch('/api/admin/sakhr-knowledge', {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      if (res.ok) {
-        setRuleModalOpen(false);
-        setEditingRuleId(null);
-        setRuleTitle('');
-        setRuleKeywords('');
-        setRuleResponse('');
-        fetchDashboardData();
-      }
-    } catch (e) {
-      alert('خطأ في حفظ قاعدة المعرفة');
-    }
-  };
-
-  const handleDeleteRule = async (id: string) => {
-    if (!confirm('هل أنت تأكد من حذف قاعدة المعرفة هذه؟')) return;
-    try {
-      const res = await fetch(`/api/admin/sakhr-knowledge?id=${id}`, { method: 'DELETE' });
-      if (res.ok) fetchDashboardData();
-    } catch (e) {}
-  };
-
-  const filteredAiRules = aiCategoryFilter === 'all' 
-    ? aiRules 
-    : aiRules.filter(r => r.category === aiCategoryFilter);
-
-  // If not logged in, render Pristine Light Mode Login Card
+  // ════════════════════════════════════════════
+  // LOGIN SCREEN
+  // ════════════════════════════════════════════
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen bg-slate-100 text-slate-900 flex items-center justify-center p-4 font-cairo" dir="rtl">
-        <div className="w-full max-w-lg bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-8 shadow-2xl">
-          
-          <div className="text-center mb-6">
-            <div className="flex justify-center mb-3">
-              <img src="/images/south_street_logo_trans.png" alt="South Street Logo" className="h-16 w-auto object-contain" />
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-cairo" dir="rtl">
+        <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-8 shadow-sm">
+
+          <div className="flex flex-col items-center mb-8 gap-3">
+            <img src="/images/south_street_logo_trans.png" alt="South Street" className="h-12 w-auto object-contain" />
+            <div className="text-center">
+              <h1 className="text-xl font-black text-slate-900">لوحة تحكم الإدارة</h1>
+              <p className="text-xs text-slate-500 mt-1">وكالة ساوث ستريت — تشفير AES-256</p>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black text-slate-900">بوابة الأمان والتحكم بالمستخدمين</h1>
-            <p className="text-slate-500 text-xs sm:text-sm mt-1 font-bold">وكالة ساوث ستريت • نظام التشفير الحصين AES-256 والمفتاح الرقمي</p>
           </div>
 
+          {/* Error */}
           {loginError && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-xs p-3.5 rounded-2xl mb-4 flex items-center gap-2 whitespace-pre-line shadow-sm">
-              <AlertTriangle className="w-5 h-5 shrink-0 text-red-500" />
-              <span>{loginError}</span>
+            <div className="flex items-start gap-2 p-3.5 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl mb-4 leading-relaxed">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span className="whitespace-pre-line">{loginError}</span>
             </div>
           )}
 
+          {/* Success */}
           {loginSuccessMsg && (
-            <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs p-3.5 rounded-2xl mb-4 flex items-center gap-2 shadow-sm">
-              <CheckCircle className="w-5 h-5 shrink-0 text-emerald-600" />
+            <div className="flex items-center gap-2 p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl mb-4">
+              <CheckCircle className="w-4 h-4 shrink-0" />
               <span>{loginSuccessMsg}</span>
             </div>
           )}
@@ -390,75 +308,59 @@ export default function AdminDashboardPage() {
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">البريد الإلكتروني</label>
                 <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  type="email" required value={email}
+                  onChange={e => setEmail(e.target.value)}
                   placeholder="admin@southstreet.dz"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-600 focus:bg-white transition shadow-sm"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:bg-white transition"
                 />
               </div>
-
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">كلمة المرور</label>
                 <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  type="password" required value={password}
+                  onChange={e => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-600 focus:bg-white transition shadow-sm"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:bg-white transition"
                 />
               </div>
-
               <button
                 type="submit"
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-2xl shadow-lg shadow-emerald-600/20 transition flex items-center justify-center gap-2 text-xs cursor-pointer"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition text-sm flex items-center justify-center gap-2 cursor-pointer shadow-sm"
               >
-                <Lock className="w-4 h-4" /> تسجيل الدخول والتحقق الأمني
+                <Lock className="w-4 h-4" /> تسجيل الدخول
               </button>
             </form>
           ) : (
             <form onSubmit={handleLoginStep2} className="space-y-4">
-              <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl">
-                <p className="text-xs font-bold text-emerald-900 mb-2 flex items-center gap-1.5">
-                  <Key className="w-4 h-4 text-emerald-600" /> أرفق ملف المفتاح الأمن (.key) لتأكيد الدخول:
+              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl space-y-3">
+                <p className="text-xs font-bold text-emerald-900 flex items-center gap-1.5">
+                  <Key className="w-4 h-4" /> ارفع ملف مفتاح الأمان (.key)
                 </p>
-                <div className="space-y-3">
-                  <div>
-                    <input
-                      type="file"
-                      accept=".key,.txt,.pem"
-                      onChange={handleFileUpload}
-                      className="w-full text-xs text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-emerald-100 file:text-emerald-800 hover:file:bg-emerald-200 cursor-pointer"
-                    />
-                  </div>
-
-                  <div>
-                    <input
-                      type="text"
-                      value={fileKeyInput}
-                      onChange={(e) => setFileKeyInput(e.target.value)}
-                      placeholder="SOUTHSTREET-KEY-v1-9F8E7D6C5B4A3928"
-                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-emerald-800 font-mono focus:outline-none focus:border-emerald-600"
-                    />
-                  </div>
-                </div>
+                <input
+                  type="file" accept=".key,.txt,.pem"
+                  onChange={handleFileUpload}
+                  className="w-full text-xs text-slate-600 file:ml-4 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-emerald-100 file:text-emerald-800 hover:file:bg-emerald-200 cursor-pointer"
+                />
+                <input
+                  type="text" value={fileKeyInput}
+                  onChange={e => setFileKeyInput(e.target.value)}
+                  placeholder="أو الصق محتوى الملف هنا..."
+                  className="w-full bg-white border border-emerald-200 rounded-xl px-3 py-2.5 text-xs text-emerald-800 font-mono focus:outline-none"
+                />
               </div>
-
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={() => setLoginStep(1)}
-                  className="w-1/3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-2xl text-xs transition"
+                  className="w-1/3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl text-xs transition cursor-pointer"
                 >
-                  الرجوع
+                  رجوع
                 </button>
                 <button
                   type="submit"
-                  className="w-2/3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-2xl shadow-lg shadow-emerald-600/20 transition flex items-center justify-center gap-2 text-xs"
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl text-xs transition flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <ShieldCheck className="w-4 h-4" /> تأكيد المفتاح والدخول
+                  <ShieldCheck className="w-4 h-4" /> تأكيد والدخول
                 </button>
               </div>
             </form>
@@ -468,49 +370,48 @@ export default function AdminDashboardPage() {
     );
   }
 
+  // ════════════════════════════════════════════
+  // DASHBOARD
+  // ════════════════════════════════════════════
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-cairo" dir="rtl">
-      
-      {/* Top Header (Big Tech Style: Stripe / Google / Meta) */}
-      <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-xl border-b border-slate-200/80 px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-sm">
+    <div className="min-h-screen bg-slate-50 font-cairo" dir="rtl">
+
+      {/* ── Top Header ────────────────────────────────────── */}
+      <header className="sticky top-0 z-40 bg-white border-b border-slate-200 px-4 sm:px-8 py-0 flex items-center justify-between h-14 shadow-sm">
         <div className="flex items-center gap-3">
-          <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition cursor-pointer" title="الرئيسية">
-            <img src="/images/south_street_logo_trans.png" alt="South Street" className="h-10 w-auto object-contain" />
+          <Link href="/" className="flex items-center gap-2 hover:opacity-75 transition">
+            <img src="/images/south_street_logo_trans.png" alt="South Street" className="h-8 w-auto object-contain" />
           </Link>
-          <div className="h-6 w-px bg-slate-200 mx-1 hidden sm:block"></div>
-          <div>
-            <h1 className="text-base sm:text-lg font-black text-slate-900 leading-none flex items-center gap-2">
-              ساوث ستريت <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">لوحة التحكم والأمان</span>
-            </h1>
-            <span className="inline-flex items-center gap-1.5 text-[11px] text-slate-500 font-bold mt-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> تشفير محصّن بـ AES-256 • بصمة الجهاز مفعلة
+          <div className="h-5 w-px bg-slate-200 hidden sm:block" />
+          <div className="hidden sm:block">
+            <span className="text-sm font-black text-slate-900">لوحة التحكم</span>
+            <span className="inline-flex items-center gap-1 mr-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-[11px] text-emerald-600 font-bold">AES-256</span>
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5">
-          {/* Back to Home Page Button */}
+        <div className="flex items-center gap-2">
           <Link
             href="/"
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs border border-emerald-200 transition shadow-sm"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-600 font-bold text-xs border border-slate-200 transition"
           >
-            <Home className="w-4 h-4 text-emerald-600" />
-            <span className="hidden sm:inline">العودة للموقع الرئيسي</span>
+            <Home className="w-3.5 h-3.5" /> الموقع
           </Link>
 
-          <div className="hidden sm:flex flex-col text-left text-xs bg-slate-100/80 border border-slate-200/80 px-3.5 py-1.5 rounded-2xl">
-            <span className="font-bold text-slate-900">{currentUser?.name}</span>
-            <span className="text-[10px] text-emerald-700 font-mono font-bold">{currentUser?.role}</span>
+          <div className="hidden sm:flex flex-col text-left px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50">
+            <span className="text-xs font-bold text-slate-900 leading-tight">{currentUser?.name}</span>
+            <span className="text-[10px] text-emerald-600 font-mono leading-tight">{currentUser?.role}</span>
           </div>
 
           <button
             onClick={() => {
               localStorage.removeItem('south_street_token');
               localStorage.removeItem('south_street_user');
-              setIsLoggedIn(false);
-              setCurrentUser(null);
+              setIsLoggedIn(false); setCurrentUser(null);
             }}
-            className="p-2.5 rounded-2xl bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-600 border border-slate-200 transition cursor-pointer"
+            className="p-2 rounded-lg border border-slate-200 text-slate-500 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition cursor-pointer"
             title="تسجيل الخروج"
           >
             <LogOut className="w-4 h-4" />
@@ -518,190 +419,168 @@ export default function AdminDashboardPage() {
         </div>
       </header>
 
-      {/* Main Container */}
-      <main className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
-        
-        {/* Navigation Tabs (Google / Meta Segmented Control Bar) */}
-        <div className="bg-white p-1.5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center gap-1.5 overflow-x-auto">
-          <button
-            onClick={() => setActiveTab('overview')}
-            className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 transition whitespace-nowrap cursor-pointer ${
-              activeTab === 'overview'
-                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            <Activity className="w-4 h-4" /> الإحصائيات الحية
-          </button>
-          
-          <button
-            onClick={() => setActiveTab('sessions')}
-            className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 transition whitespace-nowrap cursor-pointer relative ${
-              activeTab === 'sessions'
-                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            <Monitor className="w-4 h-4" /> تتبع الدخول وبصمة الجهاز
-            {accessRequests.filter(r => r.status === 'PENDING_APPROVAL').length > 0 && (
-              <span className="w-5 h-5 rounded-full bg-amber-500 text-slate-950 font-black text-[10px] flex items-center justify-center">
-                {accessRequests.filter(r => r.status === 'PENDING_APPROVAL').length}
-              </span>
-            )}
-          </button>
+      {/* ── Main ──────────────────────────────────────────── */}
+      <main className="max-w-6xl mx-auto p-4 sm:p-6 space-y-5">
 
-          <button
-            onClick={() => setActiveTab('key')}
-            className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 transition whitespace-nowrap cursor-pointer ${
-              activeTab === 'key'
-                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            <Key className="w-4 h-4" /> إدارة مفتاح الأمان (.key)
-          </button>
-
-          <button
-            onClick={() => setActiveTab('users')}
-            className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 transition whitespace-nowrap cursor-pointer ${
-              activeTab === 'users'
-                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            <UserPlus className="w-4 h-4" /> مولد الحسابات
-          </button>
-
-          <button
-            onClick={() => setActiveTab('ai')}
-            className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 transition whitespace-nowrap cursor-pointer ${
-              activeTab === 'ai'
-                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            <Cpu className="w-4 h-4" /> قواعد ذكاء صخر AI
-          </button>
+        {/* ── Tab Navigation ── */}
+        <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
+          {TABS.map(tab => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`relative flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition cursor-pointer ${
+                  isActive
+                    ? 'bg-white border border-slate-200 text-slate-900 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-800 hover:bg-white/60'
+                }`}
+              >
+                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-emerald-600' : 'text-slate-400'}`} />
+                {tab.label}
+                {tab.id === 'sessions' && pendingCount > 0 && (
+                  <span className="w-4 h-4 rounded-full bg-amber-500 text-white text-[9px] font-black flex items-center justify-center">
+                    {pendingCount}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
-        {/* Tab 1: Overview (Metric Widgets) */}
+        {/* ════ Tab 1: Overview ════════════════════════════ */}
         {activeTab === 'overview' && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-              
-              <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm hover:shadow-md transition">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-500">الجلسات الحية أونلاين</span>
-                  <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                    <Activity className="w-5 h-5 animate-pulse" />
-                  </div>
-                </div>
-                <p className="text-3xl sm:text-4xl font-black text-slate-900 mt-3">{sessions.length}</p>
-                <p className="text-xs text-emerald-600 font-bold mt-1 flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span> متصلين الآن بالنظام
-                </p>
-              </div>
+          <div className="space-y-5">
 
-              <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm hover:shadow-md transition">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-500">طلبات انتظار الدخول</span>
-                  <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
-                    <AlertTriangle className="w-5 h-5" />
+            {/* Metric Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {[
+                { label: 'جلسات أونلاين',    value: sessions.length,          sub: 'متصلون الآن',     color: 'text-emerald-600', icon: Activity },
+                { label: 'طلبات معلقة',       value: pendingCount,             sub: 'تنتظر موافقة',    color: 'text-amber-600',   icon: AlertTriangle },
+                { label: 'إجمالي الحسابات',   value: users.length,             sub: 'مسجلون بالنظام', color: 'text-sky-600',     icon: Users },
+                { label: 'حسابات مفعلة',      value: users.filter(u => u.status === 'APPROVED').length, sub: 'APPROVED', color: 'text-violet-600', icon: CheckCircle },
+              ].map((m, i) => {
+                const Icon = m.icon;
+                return (
+                  <div key={i} className="bg-white border border-slate-200 rounded-2xl p-5 hover:shadow-sm transition">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-xs font-semibold text-slate-500">{m.label}</span>
+                      <Icon className={`w-4 h-4 ${m.color}`} />
+                    </div>
+                    <p className={`text-3xl font-black ${m.color}`}>{m.value}</p>
+                    <p className="text-[11px] text-slate-400 mt-1">{m.sub}</p>
                   </div>
-                </div>
-                <p className="text-3xl sm:text-4xl font-black text-slate-900 mt-3">
-                  {accessRequests.filter(r => r.status === 'PENDING_APPROVAL').length}
-                </p>
-                <p className="text-xs text-amber-600 font-bold mt-1">تتطلب موافقة الـ IP وبصمة الجهاز</p>
-              </div>
-
-              <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm hover:shadow-md transition">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-500">إجمالي الحسابات المشفرة</span>
-                  <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                    <Users className="w-5 h-5" />
-                  </div>
-                </div>
-                <p className="text-3xl sm:text-4xl font-black text-slate-900 mt-3">{users.length}</p>
-                <p className="text-xs text-blue-600 font-bold mt-1">حسابات مفعلة ومحفوظة</p>
-              </div>
-
-              <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm hover:shadow-md transition">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-500">قواعد صخر AI المفعلة</span>
-                  <div className="w-10 h-10 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center">
-                    <Cpu className="w-5 h-5" />
-                  </div>
-                </div>
-                <p className="text-3xl sm:text-4xl font-black text-slate-900 mt-3">{aiRules.filter(r => r.is_active).length}</p>
-                <p className="text-xs text-purple-600 font-bold mt-1">قواعد معرفة بالذكاء الاصطناعي</p>
-              </div>
+                );
+              })}
             </div>
 
-            {/* Quick Security Status Card */}
-            <div className="bg-white border border-slate-200/80 rounded-3xl p-6 sm:p-8 shadow-sm">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                    <ShieldCheck className="w-6 h-6 text-emerald-600" /> حالة التشفير والحماية الحصينة
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-1 font-bold">
-                    قاعدة البيانات محصنة بتشفير AES-256، كلمات المرور مفترسة بـ SHA-256 مع Salt، والدخول ثنائي الخيار عبر ملف المفتاح الرقمي (.key).
-                  </p>
+            {/* Security Status */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center shrink-0">
+                    <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900">حالة الحماية</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">تشفير AES-256 • كلمات مرور SHA-256 مع Salt • مصادقة ثنائية بالملف الرقمي</p>
+                  </div>
                 </div>
                 <button
                   onClick={() => setActiveTab('key')}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-3 rounded-2xl text-xs shadow-md shadow-emerald-600/20 transition flex items-center gap-2 whitespace-nowrap cursor-pointer"
+                  className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition cursor-pointer whitespace-nowrap shadow-sm"
                 >
-                  <Key className="w-4 h-4" /> إدارة مفتاح الأمان
+                  <Key className="w-3.5 h-3.5" /> إدارة المفتاح
                 </button>
               </div>
             </div>
-          </div>
-        )}
 
-        {/* Tab 2: Sessions & Access Requests */}
-        {activeTab === 'sessions' && (
-          <div className="space-y-6">
-            {/* Pending Requests Section */}
-            <div className="bg-white border border-amber-200/80 rounded-3xl p-6 shadow-sm">
-              <h3 className="text-base font-black text-amber-800 flex items-center gap-2 mb-4">
-                <AlertTriangle className="w-5 h-5 text-amber-600" /> طلبات الدخول التي تنتظر موافقة المدير (IP & Device Authorization)
-              </h3>
-
-              {accessRequests.filter(r => r.status === 'PENDING_APPROVAL').length === 0 ? (
-                <p className="text-xs text-slate-500 bg-slate-50 p-4 rounded-2xl text-center border border-slate-200/60 font-bold">
-                  لا توجد طلبات أمان جديدة تنتظر الموافقة حالياً.
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {accessRequests.filter(r => r.status === 'PENDING_APPROVAL').map((req) => (
-                    <div key={req.id} className="bg-slate-50 border border-slate-200 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            {/* Pending Requests Quick View */}
+            {pendingCount > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-bold text-amber-900 flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4" />
+                    {pendingCount} طلب دخول يحتاج موافقة
+                  </h3>
+                  <button
+                    onClick={() => setActiveTab('sessions')}
+                    className="text-xs text-amber-700 font-bold flex items-center gap-0.5 hover:underline cursor-pointer"
+                  >
+                    عرض الكل <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {accessRequests.filter(r => r.status === 'PENDING_APPROVAL').slice(0, 3).map(req => (
+                    <div key={req.id} className="flex items-center justify-between bg-white border border-amber-200 rounded-xl px-4 py-2.5">
                       <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-slate-900 text-sm">{req.userName}</span>
-                          <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-700 font-mono font-bold">{req.userRole}</span>
-                        </div>
-                        <p className="text-xs text-slate-500 mt-1 font-mono">{req.userEmail}</p>
-                        
-                        <div className="flex items-center gap-4 text-xs font-mono font-bold text-emerald-700 mt-2">
-                          <span className="flex items-center gap-1.5"><Globe className="w-3.5 h-3.5" /> IP: {req.ip}</span>
-                          <span className="flex items-center gap-1.5"><Monitor className="w-3.5 h-3.5" /> بصمة الجهاز: {req.pcPrint}</span>
-                        </div>
+                        <span className="text-xs font-bold text-slate-900">{req.userName}</span>
+                        <span className="text-[10px] text-slate-500 mr-2 font-mono">{req.ip}</span>
                       </div>
-
-                      <div className="flex items-center gap-2">
+                      <div className="flex gap-1.5">
                         <button
                           onClick={() => handleUpdateUserStatus(req.userId, 'APPROVED')}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg transition cursor-pointer"
                         >
-                          <CheckCircle className="w-4 h-4" /> منح صلاحية الدخول
+                          قبول
                         </button>
                         <button
                           onClick={() => handleUpdateUserStatus(req.userId, 'REJECTED')}
-                          className="bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold px-4 py-2.5 rounded-xl border border-red-200 transition flex items-center gap-1.5 cursor-pointer"
+                          className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 text-[11px] font-bold rounded-lg border border-red-200 transition cursor-pointer"
                         >
-                          <XCircle className="w-4 h-4" /> حظر
+                          رفض
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ════ Tab 2: Sessions ════════════════════════════ */}
+        {activeTab === 'sessions' && (
+          <div className="space-y-5">
+
+            {/* Pending */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-5">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2 mb-4">
+                <AlertTriangle className="w-4 h-4 text-amber-500" />
+                طلبات الدخول المعلقة
+                {pendingCount > 0 && (
+                  <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[11px] font-black">{pendingCount}</span>
+                )}
+              </h3>
+
+              {pendingCount === 0 ? (
+                <p className="text-xs text-slate-400 text-center py-6">لا توجد طلبات معلقة</p>
+              ) : (
+                <div className="space-y-2.5">
+                  {accessRequests.filter(r => r.status === 'PENDING_APPROVAL').map(req => (
+                    <div key={req.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-bold text-slate-900">{req.userName}</span>
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${ROLE_BADGE[req.userRole] || 'bg-slate-100 text-slate-600 border-slate-200'}`}>{req.userRole}</span>
+                        </div>
+                        <p className="text-xs text-slate-500 font-mono">{req.userEmail}</p>
+                        <div className="flex gap-3 text-[11px] text-slate-500 font-mono">
+                          <span className="flex items-center gap-1"><Globe className="w-3 h-3" />{req.ip}</span>
+                          <span className="flex items-center gap-1"><Monitor className="w-3 h-3" />{req.pcPrint}</span>
+                        </div>
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        <button onClick={() => handleUpdateUserStatus(req.userId, 'APPROVED')}
+                          className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition cursor-pointer"
+                        >
+                          <CheckCircle className="w-3.5 h-3.5" /> قبول
+                        </button>
+                        <button onClick={() => handleUpdateUserStatus(req.userId, 'REJECTED')}
+                          className="flex items-center gap-1.5 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold rounded-lg border border-red-200 transition cursor-pointer"
+                        >
+                          <XCircle className="w-3.5 h-3.5" /> حظر
                         </button>
                       </div>
                     </div>
@@ -710,212 +589,191 @@ export default function AdminDashboardPage() {
               )}
             </div>
 
-            {/* Active Sessions Table */}
-            <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm">
-              <h3 className="text-base font-black text-slate-900 flex items-center gap-2 mb-4">
-                <Activity className="w-5 h-5 text-emerald-600" /> الجلسات المتصلة الآن (Active Live Sessions)
+            {/* Active Sessions */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-5">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2 mb-4">
+                <Activity className="w-4 h-4 text-emerald-600" />
+                الجلسات النشطة الآن
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               </h3>
-
               <div className="overflow-x-auto">
                 <table className="w-full text-right text-xs">
                   <thead>
-                    <tr className="border-b border-slate-200 text-slate-500 font-bold uppercase">
-                      <th className="pb-3">المستخدم</th>
-                      <th className="pb-3">الرتبة</th>
-                      <th className="pb-3">العنوان الحركي (IP)</th>
-                      <th className="pb-3">بصمة جهاز الـ PC</th>
-                      <th className="pb-3">وقت الدخول</th>
+                    <tr className="border-b border-slate-100">
+                      {['المستخدم', 'الصلاحية', 'IP', 'بصمة الجهاز', 'وقت الدخول'].map(h => (
+                        <th key={h} className="pb-3 text-[11px] font-bold text-slate-400 uppercase">{h}</th>
+                      ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {sessions.map((sess) => (
-                      <tr key={sess.id} className="hover:bg-slate-50/80 transition">
-                        <td className="py-3.5 font-bold text-slate-900">
+                  <tbody className="divide-y divide-slate-50">
+                    {sessions.map(sess => (
+                      <tr key={sess.id} className="hover:bg-slate-50/60 transition">
+                        <td className="py-3 font-bold text-slate-900">
                           {sess.userName}
-                          <span className="block text-[10px] text-slate-400 font-mono font-normal">{sess.userEmail}</span>
+                          <span className="block text-[10px] font-normal text-slate-400 font-mono">{sess.userEmail}</span>
                         </td>
-                        <td className="py-3.5 font-mono text-emerald-700 font-bold">{sess.userRole}</td>
-                        <td className="py-3.5 font-mono text-slate-700">{sess.ip}</td>
-                        <td className="py-3.5 font-mono text-emerald-800 font-bold">{sess.pcPrint}</td>
-                        <td className="py-3.5 text-slate-500 font-bold">{new Date(sess.loginTime).toLocaleTimeString('ar-DZ')}</td>
+                        <td className="py-3">
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${ROLE_BADGE[sess.userRole] || 'bg-slate-100 text-slate-600 border-slate-200'}`}>{sess.userRole}</span>
+                        </td>
+                        <td className="py-3 font-mono text-slate-600">{sess.ip}</td>
+                        <td className="py-3 font-mono text-slate-600 text-[10px]">{sess.pcPrint}</td>
+                        <td className="py-3 text-slate-500">{new Date(sess.loginTime).toLocaleTimeString('ar-DZ')}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+                {sessions.length === 0 && (
+                  <p className="text-center text-xs text-slate-400 py-8">لا توجد جلسات نشطة</p>
+                )}
               </div>
             </div>
           </div>
         )}
 
-        {/* Tab 3: Security Key Manager */}
+        {/* ════ Tab 3: Security Key ════════════════════════ */}
         {activeTab === 'key' && (
-          <div className="bg-white border border-slate-200/80 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
-            <div>
-              <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                <Key className="w-6 h-6 text-emerald-600" /> إدارة وتوليد مفتاح أمان المدير (Admin Security File Key)
-              </h3>
-              <p className="text-xs text-slate-500 mt-1 font-bold">
-                هذا المفتاح يُطلب كخطوة ثانية (2FA) عند دخول مدراء النظام لحماية القاعدة من الاختراق.
-              </p>
-            </div>
-
-            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 space-y-4">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center shrink-0">
+                <Key className="w-5 h-5 text-emerald-600" />
+              </div>
               <div>
-                <span className="text-xs text-slate-500 font-bold block mb-1.5">المفتاح الأمني المشفر الحالي بالنظام:</span>
-                <span className="text-base sm:text-lg font-mono font-bold text-emerald-800 bg-emerald-50 px-4 py-2 rounded-2xl border border-emerald-200 inline-block shadow-sm">
-                  {securityKey}
-                </span>
-              </div>
-
-              <div className="flex flex-wrap gap-3 pt-2">
-                <button
-                  onClick={handleRegenerateKey}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-md shadow-emerald-600/20 transition flex items-center gap-2 cursor-pointer"
-                >
-                  <RefreshCw className="w-4 h-4" /> توليد وتنزيل مفتاح جديد (southstreet_admin.key)
-                </button>
+                <h3 className="text-base font-black text-slate-900">مفتاح الأمان الرقمي</h3>
+                <p className="text-xs text-slate-500 mt-0.5">يُستخدم كمرحلة ثانية للمصادقة (2FA) عند دخول المدراء. احتفظ بالملف في مكان آمن.</p>
               </div>
             </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">المفتاح الحالي</p>
+              <code className="block font-mono text-sm font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-4 py-3 rounded-xl break-all">
+                {securityKey || 'SOUTHSTREET-KEY-v1-████████████████'}
+              </code>
+            </div>
+
+            <button
+              onClick={handleRegenerateKey}
+              className="flex items-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl transition cursor-pointer shadow-sm"
+            >
+              <RefreshCw className="w-4 h-4" />
+              توليد مفتاح جديد وتنزيل الملف
+            </button>
+            <p className="text-xs text-slate-400">تحذير: توليد مفتاح جديد يعني أن الملف القديم لن يعمل بعد الآن.</p>
           </div>
         )}
 
-        {/* Tab 4: Account Generator */}
+        {/* ════ Tab 4: Accounts ═══════════════════════════ */}
         {activeTab === 'users' && (
-          <div className="space-y-6">
-            {/* Generator Form */}
-            <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm">
-              <h3 className="text-base font-black text-slate-900 flex items-center gap-2 mb-4">
-                <UserPlus className="w-5 h-5 text-emerald-600" /> مولد الحسابات الجديدة (Generate New Account)
+          <div className="space-y-5">
+
+            {/* Create Form */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-6">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2 mb-5">
+                <UserPlus className="w-4 h-4 text-emerald-600" />
+                إنشاء حساب جديد
               </h3>
 
-              {accountGenSuccess && (
-                <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs p-3.5 rounded-2xl mb-4 font-bold shadow-sm">
-                  {accountGenSuccess}
+              {accountMsg && (
+                <div className={`p-3 rounded-xl text-xs font-semibold mb-4 ${accountMsg.includes('خطأ') ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-emerald-50 text-emerald-800 border border-emerald-200'}`}>
+                  {accountMsg}
                 </div>
               )}
 
               <form onSubmit={handleCreateUser} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">اسم المستخدم / الموظف</label>
-                  <input
-                    type="text"
-                    required
-                    value={newName}
-                    onChange={(e) => setNewName(e.target.value)}
-                    placeholder="مثال: عبد القادر الوهراني"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-600 focus:bg-white transition shadow-sm"
-                  />
-                </div>
+                {[
+                  { label: 'الاسم الكامل', value: newName, setter: setNewName, placeholder: 'عبد القادر الوهراني', type: 'text' },
+                  { label: 'البريد الإلكتروني', value: newEmail, setter: setNewEmail, placeholder: 'staff@southstreet.dz', type: 'email' },
+                  { label: 'كلمة المرور', value: newPassword, setter: setNewPassword, placeholder: '••••••••', type: 'password' },
+                ].map(f => (
+                  <div key={f.label}>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">{f.label}</label>
+                    <input
+                      type={f.type} required value={f.value}
+                      onChange={e => f.setter(e.target.value)}
+                      placeholder={f.placeholder}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:bg-white transition"
+                    />
+                  </div>
+                ))}
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">البريد الإلكتروني</label>
-                  <input
-                    type="email"
-                    required
-                    value={newEmail}
-                    onChange={(e) => setNewEmail(e.target.value)}
-                    placeholder="staff@southstreet.dz"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-600 focus:bg-white transition shadow-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">كلمة المرور المشفرة</label>
-                  <input
-                    type="password"
-                    required
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-600 focus:bg-white transition shadow-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">الرتبة والصلاحية</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">الصلاحية</label>
                   <select
                     value={newRole}
                     onChange={(e: any) => setNewRole(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-xs text-slate-900 focus:outline-none focus:border-emerald-600 focus:bg-white transition shadow-sm"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 transition"
                   >
-                    <option value="SUPER_ADMIN">SUPER_ADMIN (مدير الوكالة العام)</option>
-                    <option value="AGENCY_MANAGER">AGENCY_MANAGER (مدير البرامج والعروض)</option>
-                    <option value="AGENCY_AGENT">AGENCY_AGENT (موظف خدمة العملاء)</option>
-                    <option value="PILGRIM_USER">PILGRIM_USER (معتمر / زائر)</option>
+                    <option value="SUPER_ADMIN">مدير النظام العام</option>
+                    <option value="AGENCY_MANAGER">مدير البرامج</option>
+                    <option value="AGENCY_AGENT">موظف خدمة العملاء</option>
+                    <option value="PILGRIM_USER">معتمر / زائر</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">حالة الاعتماد الأولية</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">حالة الحساب</label>
                   <select
                     value={newStatus}
                     onChange={(e: any) => setNewStatus(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-xs text-slate-900 focus:outline-none focus:border-emerald-600 focus:bg-white transition shadow-sm"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 transition"
                   >
-                    <option value="APPROVED">APPROVED (مقبول ومفعل فوراً)</option>
-                    <option value="PENDING_APPROVAL">PENDING_APPROVAL (يتطلب موافقة الـ IP لاحقاً)</option>
+                    <option value="APPROVED">مفعّل فوراً</option>
+                    <option value="PENDING_APPROVAL">يحتاج موافقة لاحقاً</option>
                   </select>
                 </div>
 
                 <div className="flex items-end">
                   <button
                     type="submit"
-                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-2xl text-xs transition flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 cursor-pointer"
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl text-xs transition flex items-center justify-center gap-2 shadow-sm cursor-pointer"
                   >
-                    <UserPlus className="w-4 h-4" /> إنشاء الحساب وتشفيره
+                    <UserPlus className="w-3.5 h-3.5" /> إنشاء الحساب
                   </button>
                 </div>
               </form>
             </div>
 
             {/* Users Table */}
-            <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm">
-              <h3 className="text-base font-black text-slate-900 flex items-center gap-2 mb-4">
-                <Users className="w-5 h-5 text-emerald-600" /> قائمة الحسابات المسجلة بالنظام ({users.length})
+            <div className="bg-white border border-slate-200 rounded-2xl p-5">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2 mb-4">
+                <Users className="w-4 h-4 text-slate-500" />
+                الحسابات المسجلة
+                <span className="text-xs text-slate-400 font-normal">({users.length})</span>
               </h3>
-
               <div className="overflow-x-auto">
                 <table className="w-full text-right text-xs">
                   <thead>
-                    <tr className="border-b border-slate-200 text-slate-500 font-bold uppercase">
-                      <th className="pb-3">اسم المستخدم</th>
-                      <th className="pb-3">البريد</th>
-                      <th className="pb-3">الصلاحية</th>
-                      <th className="pb-3">الحالة الأمنيّة</th>
-                      <th className="pb-3">بصمة الجهاز</th>
-                      <th className="pb-3">إجراءات</th>
+                    <tr className="border-b border-slate-100">
+                      {['الاسم', 'البريد', 'الصلاحية', 'الحالة', 'بصمة الجهاز', 'إجراء'].map(h => (
+                        <th key={h} className="pb-3 text-[11px] font-bold text-slate-400">{h}</th>
+                      ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {users.map((u) => (
-                      <tr key={u.id} className="hover:bg-slate-50/80 transition">
-                        <td className="py-3.5 font-bold text-slate-900">{u.name}</td>
-                        <td className="py-3.5 text-slate-600 font-mono">{u.email}</td>
-                        <td className="py-3.5 font-mono text-emerald-700 font-bold">{u.role}</td>
-                        <td className="py-3.5">
-                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                            u.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                            u.status === 'PENDING_APPROVAL' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                            'bg-red-50 text-red-700 border border-red-200'
-                          }`}>
-                            {u.status}
-                          </span>
+                  <tbody className="divide-y divide-slate-50">
+                    {users.map(u => (
+                      <tr key={u.id} className="hover:bg-slate-50/60 transition">
+                        <td className="py-3 font-bold text-slate-900">{u.name}</td>
+                        <td className="py-3 text-slate-500 font-mono text-[11px]">{u.email}</td>
+                        <td className="py-3">
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${ROLE_BADGE[u.role] || 'bg-slate-100 text-slate-600 border-slate-200'}`}>{u.role}</span>
                         </td>
-                        <td className="py-3.5 font-mono text-emerald-800 text-[11px] font-bold">{u.pcFingerprint}</td>
-                        <td className="py-3.5">
+                        <td className="py-3">
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${STATUS_BADGE[u.status] || STATUS_BADGE.SUSPENDED}`}>{u.status}</span>
+                        </td>
+                        <td className="py-3 font-mono text-[10px] text-slate-400">{u.pcFingerprint || '—'}</td>
+                        <td className="py-3">
                           {u.status === 'PENDING_APPROVAL' ? (
                             <button
                               onClick={() => handleUpdateUserStatus(u.id, 'APPROVED')}
                               className="text-emerald-700 hover:text-emerald-900 font-bold text-xs underline cursor-pointer"
                             >
-                              موافقة
+                              قبول
                             </button>
                           ) : (
                             <button
                               onClick={() => handleUpdateUserStatus(u.id, u.status === 'APPROVED' ? 'SUSPENDED' : 'APPROVED')}
-                              className="text-amber-700 hover:text-amber-900 font-bold text-xs underline cursor-pointer"
+                              className="text-slate-500 hover:text-slate-800 font-bold text-xs underline cursor-pointer"
                             >
-                              {u.status === 'APPROVED' ? 'تجميد الحساب' : 'إعادة تفعيل'}
+                              {u.status === 'APPROVED' ? 'تجميد' : 'تفعيل'}
                             </button>
                           )}
                         </td>
@@ -923,257 +781,28 @@ export default function AdminDashboardPage() {
                     ))}
                   </tbody>
                 </table>
+                {users.length === 0 && (
+                  <p className="text-center text-xs text-slate-400 py-8">لا توجد حسابات مسجلة</p>
+                )}
               </div>
             </div>
           </div>
         )}
 
-        {/* Tab 5: Sakhr AI Knowledge Rules */}
+        {/* ════ Tab 5: AI Knowledge Base ════════════════════ */}
         {activeTab === 'ai' && (
-          <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-slate-200/80 p-6 rounded-3xl shadow-sm">
-              <div>
-                <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                  <Cpu className="w-6 h-6 text-purple-600" /> إدارة قواعد وقاموس صخر AI للذكاء الاصطناعي
-                </h3>
-                <p className="text-xs text-slate-500 mt-1 font-bold">
-                  أضف وعدّل عروض الباقات، أسعار الإقامة، شروط الملف، ومناسك العمرة ليجيب عنها صخر فوراً وبدقة مؤكدة.
-                </p>
-              </div>
-
-              <button
-                onClick={() => { setEditingRuleId(null); setRuleTitle(''); setRuleKeywords(''); setRuleResponse(''); setRuleModalOpen(true); }}
-                className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-5 py-3 rounded-2xl text-xs shadow-md shadow-purple-600/20 transition flex items-center gap-2 whitespace-nowrap cursor-pointer"
-              >
-                <Plus className="w-4 h-4" /> إضافة قاعدة معرفة جديدة
-              </button>
-            </div>
-
-            {/* Web Scraper / Internet Learning Card */}
-            <div className="bg-gradient-to-r from-purple-900 to-indigo-900 text-white rounded-3xl p-6 shadow-lg border border-purple-500/30 space-y-4">
-              <div>
-                <h4 className="font-black text-base font-cairo flex items-center gap-2 text-amber-300">
-                  🌐 تعليم صخر AI من رابط موقع إلكتروني (Web URL Knowledge Ingestion)
-                </h4>
-                <p className="text-xs text-purple-200 mt-1">
-                  كمطور، يمكنك إدخال أي رابط موقع من الإنترنت (مثل موقع وزارة الحج نسك، أو ويكيبيديا، أو موقع إخباري)، وسيقوم النظام بقراءة الموقع، استخراج المعلومات ذات الصلة، وتحويلها لقواعد معرفة يفهمها صخر فوراً!
-                </p>
-              </div>
-
-              {webLearnMsg && (
-                <div className="p-3 rounded-2xl bg-white/10 border border-white/20 text-xs font-bold text-white">
-                  {webLearnMsg}
-                </div>
-              )}
-
-              <form onSubmit={handleWebLearnUrl} className="flex flex-col sm:flex-row gap-3">
-                <input
-                  type="url"
-                  required
-                  value={webUrlInput}
-                  onChange={(e) => setWebUrlInput(e.target.value)}
-                  placeholder="https://nusuk.sa أو https://haj.gov.sa"
-                  className="flex-1 bg-white/10 border border-white/20 rounded-2xl px-4 py-3 text-xs text-white placeholder:text-purple-300 focus:outline-none focus:border-amber-400 font-mono"
-                />
-
-                <select
-                  value={webCategoryInput}
-                  onChange={(e: any) => setWebCategoryInput(e.target.value)}
-                  className="bg-slate-900 border border-white/20 text-xs text-white rounded-2xl px-4 py-3"
-                >
-                  <option value="faq">أسئلة عامة (faq)</option>
-                  <option value="requirements">الشروط والوثائق</option>
-                  <option value="rituals">مناسك العمرة والحج</option>
-                  <option value="packages">الباقات والبرامج</option>
-                </select>
-
-                <button
-                  type="submit"
-                  disabled={isWebLearning}
-                  className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black px-6 py-3 rounded-2xl text-xs transition cursor-pointer shadow-md disabled:opacity-50 whitespace-nowrap"
-                >
-                  {isWebLearning ? 'جاري القراءة والتعلم...' : 'استخراج وتأطير المعرفة 🚀'}
-                </button>
-              </form>
-
-              {/* Preset Famous Official Data Sources */}
-              <div className="pt-3 border-t border-purple-500/30 space-y-2">
-                <span className="text-xs text-purple-200 font-bold block">مواقع رسمية معتمدة لتعليم الذكاء الاصطناعي بنقرة واحدة:</span>
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    { label: '🏛️ منصة نسك الرسمية (nusuk.sa)', url: 'https://www.nusuk.sa', category: 'requirements' },
-                    { label: '🕋 وزارة الحج والعمرة (haj.gov.sa)', url: 'https://www.haj.gov.sa', category: 'requirements' },
-                    { label: '🇸🇦 روح السعودية (visitsaudi.com)', url: 'https://www.visitsaudi.com', category: 'faq' },
-                    { label: '🇩🇿 الديوان الوطني للحج والعمرة (onpo.dz)', url: 'https://www.onpo.dz', category: 'requirements' },
-                    { label: '📖 مناسك العمرة بالويكيبيديا', url: 'https://ar.wikipedia.org/wiki/%D8%B9%D9%85%D8%B1%D8%A9', category: 'rituals' }
-                  ].map((preset, pIdx) => (
-                    <button
-                      key={pIdx}
-                      type="button"
-                      onClick={() => {
-                        setWebUrlInput(preset.url);
-                        setWebCategoryInput(preset.category as any);
-                      }}
-                      className="text-[11px] bg-white/10 hover:bg-white/20 border border-white/20 text-purple-100 px-3 py-1.5 rounded-xl transition cursor-pointer font-bold"
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Filter Tabs */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-2">
-              {['all', 'packages', 'requirements', 'rituals', 'hotels', 'flights', 'pricing', 'faq'].map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => setAiCategoryFilter(cat)}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-                    aiCategoryFilter === cat
-                      ? 'bg-purple-600 text-white shadow-sm'
-                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                  }`}
-                >
-                  {cat === 'all' ? 'جميع القواعد' : cat}
-                </button>
-              ))}
-            </div>
-
-            {/* Rules Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {filteredAiRules.map((rule) => (
-                <div key={rule.id} className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm hover:shadow-md transition space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-purple-700 bg-purple-50 px-3 py-1 rounded-xl border border-purple-200">
-                      {rule.category}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => {
-                          setEditingRuleId(rule.id);
-                          setRuleCategory(rule.category);
-                          setRuleTitle(rule.title_ar);
-                          setRuleKeywords(rule.keywords.join(', '));
-                          setRuleResponse(rule.response_ar);
-                          setRuleModalOpen(true);
-                        }}
-                        className="text-slate-400 hover:text-emerald-600 p-1 cursor-pointer transition"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteRule(rule.id)}
-                        className="text-slate-400 hover:text-red-600 p-1 cursor-pointer transition"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <h4 className="font-bold text-slate-900 text-sm">{rule.title_ar}</h4>
-                  
-                  <div className="flex flex-wrap gap-1.5">
-                    {rule.keywords.map((kw, idx) => (
-                      <span key={idx} className="bg-slate-100 text-slate-700 text-[10px] font-mono font-bold px-2 py-0.5 rounded-lg border border-slate-200">
-                        #{kw}
-                      </span>
-                    ))}
-                  </div>
-
-                  <div className="bg-slate-50 p-3.5 rounded-2xl text-xs text-slate-800 whitespace-pre-line leading-relaxed border border-slate-200/80 font-medium">
-                    {rule.response_ar}
-                  </div>
-                </div>
-              ))}
-            </div>
+          <div className="bg-white border border-slate-200 rounded-2xl p-6">
+            <AiKnowledgeManager
+              userRole="SUPER_ADMIN"
+              userName={currentUser?.name || 'المدير العام'}
+              userEmail={currentUser?.email || 'admin@southstreet.dz'}
+              title="قاعدة معرفة صخر AI"
+              subtitle="أضف الأسئلة والأجوبة التي سيستخدمها صخر تلقائياً عند إجابة المعتمرين"
+            />
           </div>
         )}
 
       </main>
-
-      {/* Modal for Adding / Editing AI Rules */}
-      {ruleModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl space-y-4 text-right text-slate-900">
-            <h3 className="text-lg font-black text-slate-900">
-              {editingRuleId ? 'تعديل قاعدة معرفة صخر AI' : 'إضافة قاعدة معرفة جديدة'}
-            </h3>
-
-            <form onSubmit={handleSaveAiRule} className="space-y-4 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 mb-1.5">فئة القاعدة</label>
-                <select
-                  value={ruleCategory}
-                  onChange={(e: any) => setRuleCategory(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-xs text-slate-900"
-                >
-                  <option value="packages">الباقات والعروض (packages)</option>
-                  <option value="requirements">الشروط والوثائق (requirements)</option>
-                  <option value="rituals">مناسك العمرة والحج (rituals)</option>
-                  <option value="hotels">الفنادق والإقامة (hotels)</option>
-                  <option value="flights">رحلات الطيران (flights)</option>
-                  <option value="pricing">الأسعار والخصومات (pricing)</option>
-                  <option value="faq">أسئلة عامة (faq)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1.5">عنوان القاعدة (للتعريف)</label>
-                <input
-                  type="text"
-                  required
-                  value={ruleTitle}
-                  onChange={(e) => setRuleTitle(e.target.value)}
-                  placeholder="مثال: باقة رمضان المبارك 2026"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-xs text-slate-900"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1.5">الكلمات المفتاحية (مفصولة بفاصلة ,)</label>
-                <input
-                  type="text"
-                  required
-                  value={ruleKeywords}
-                  onChange={(e) => setRuleKeywords(e.target.value)}
-                  placeholder="رمضان, باقة رمضان, 300000"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-xs text-slate-900 font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1.5">إجابة صخر AI التفصيلية (يدعم التنسيق **بالعريض**)</label>
-                <textarea
-                  rows={5}
-                  required
-                  value={ruleResponse}
-                  onChange={(e) => setRuleResponse(e.target.value)}
-                  placeholder="اكتب الإجابة المنظمة التي سيجيب بها صخر..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-xs text-slate-900"
-                />
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setRuleModalOpen(false)}
-                  className="w-1/3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-2xl text-xs transition"
-                >
-                  إلغاء
-                </button>
-                <button
-                  type="submit"
-                  className="w-2/3 bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-2xl text-xs shadow-md shadow-purple-600/20 transition"
-                >
-                  حفظ القاعدة فوراً
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 }

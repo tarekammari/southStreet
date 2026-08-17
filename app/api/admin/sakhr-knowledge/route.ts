@@ -41,7 +41,7 @@ export async function POST(req: Request) {
 
 export async function PUT(req: Request) {
   try {
-    const { id, category, title_ar, keywords, response_ar, is_active } = await req.json();
+    const { id, category, title_ar, keywords, response_ar, is_active, qualityRating, modelAnswer } = await req.json();
 
     if (!id) {
       return NextResponse.json({ error: 'معرف القاعدة مطلوب' }, { status: 400 });
@@ -58,6 +58,8 @@ export async function PUT(req: Request) {
     if (keywords) rule.keywords = Array.isArray(keywords) ? keywords.map((k: string) => k.trim().toLowerCase()) : [keywords];
     if (response_ar) rule.response_ar = response_ar.trim();
     if (typeof is_active === 'boolean') rule.is_active = is_active;
+    if (qualityRating !== undefined) rule.qualityRating = qualityRating;
+    if (modelAnswer !== undefined) rule.modelAnswer = modelAnswer.trim();
     rule.updatedAt = new Date().toISOString();
 
     saveDatabase(db);

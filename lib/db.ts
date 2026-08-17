@@ -55,6 +55,10 @@ export interface AiKnowledgeRule {
   is_active: boolean;
   updatedBy: string;
   updatedAt: string;
+  /** Admin quality rating from live test: good = جيدة, less = مقبولة, bad = ضعيفة */
+  qualityRating?: 'good' | 'less' | 'bad';
+  /** Admin-provided model/ideal answer to improve training */
+  modelAnswer?: string;
 }
 
 export interface DatabaseSchema {
@@ -106,6 +110,26 @@ const DEFAULT_USERS: UserAccount[] = [
     requiresFileKey: true
   },
   {
+    id: 'usr_guide',
+    name: 'الشيخ أحمد بن علي (المرشد الديني)',
+    email: 'guide@southstreet.dz',
+    passwordHash: hashPassword('Guide@2026!'),
+    role: 'AGENCY_AGENT',
+    status: 'APPROVED',
+    createdAt: '2026-08-06T10:00:00Z',
+    requiresFileKey: false
+  },
+  {
+    id: 'usr_accountant',
+    name: 'الأستاذ ياسين الفاسي (محاسب الوكالة)',
+    email: 'accountant@southstreet.dz',
+    passwordHash: hashPassword('Accountant@2026!'),
+    role: 'AGENCY_AGENT',
+    status: 'APPROVED',
+    createdAt: '2026-08-07T11:00:00Z',
+    requiresFileKey: false
+  },
+  {
     id: 'usr_agent',
     name: 'سارة خالد (خدمة العملاء)',
     email: 'agent@southstreet.dz',
@@ -142,8 +166,8 @@ const DEFAULT_AI_KNOWLEDGE: AiKnowledgeRule[] = [
     id: 'rule_august_package',
     category: 'packages',
     title_ar: 'باقة أوت الاقتصادية المميزة',
-    keywords: ['أوت', 'اقتصادية', '215000', '215,000'],
-    response_ar: '🕋 **باقة أوت المميزة (215,000 دج):**\n• طيران مباشر بدون توقف من العاصمة، وهران، وعنابة.\n• إقامة فاخرة بفندق منارات غزة (350م فقط عن صحن الحرم المكي).',
+    keywords: ['أوت', 'اقتصادية', '215000', '215,000', 'منارات غزة'],
+    response_ar: '🕋 **باقة أوت المميزة (215,000 دج):**\n• طيران مباشر بدون توقف من الجزائر، وهران، وعنابة.\n• إقامة فاخرة بفندق منارات غزة (350م فقط عن صحن الحرم المكي).\n• مرافقة دينية وصحية مستمرة طوال الـ 15 يوماً.',
     is_active: true,
     updatedBy: 'admin@southstreet.dz',
     updatedAt: new Date().toISOString()
@@ -152,8 +176,8 @@ const DEFAULT_AI_KNOWLEDGE: AiKnowledgeRule[] = [
     id: 'rule_mawlid_package',
     category: 'packages',
     title_ar: 'باقة المولد النبوي VIP',
-    keywords: ['المولد', 'vip', '295000', '295,000', 'سويس أوتيل'],
-    response_ar: '🌟 **باقة المولد النبوي VIP (295,000 دج):**\n• إقامة VIP بفندق سويس أوتيل برج الساعة (50م فقط عن صحن الحرم).\n• إعاشة بوفيه مفتوح وتأطير ديني خاص.',
+    keywords: ['المولد', 'vip', '295000', '295,000', 'سويس أوتيل', 'برج الساعة'],
+    response_ar: '🌟 **باقة المولد النبوي VIP (295,000 دج):**\n• إقامة VIP بفندق سويس أوتيل برج الساعة (50م فقط عن صحن الحرم).\n• إعاشة بوفيه مفتوح واستقبال وتوديع VIP مع تأطير ديني خاص.',
     is_active: true,
     updatedBy: 'admin@southstreet.dz',
     updatedAt: new Date().toISOString()
@@ -162,8 +186,8 @@ const DEFAULT_AI_KNOWLEDGE: AiKnowledgeRule[] = [
     id: 'rule_passport_docs',
     category: 'requirements',
     title_ar: 'شروط والوثائق المطلوبة للتسجيل',
-    keywords: ['شروط', 'وثائق', 'جواز', 'ملف', 'أوراق', 'تلقيح'],
-    response_ar: '📋 **شروط وأوراق التقديم للعمرة:**\n1. جواز سفر بيومتري صالح 6 أشهر.\n2. عدد 2 صور شمسية خلفية بيضاء.\n3. دفتر العائلة أو شهادة الميلاد.\n4. دفتر التلقيح المعتمد.\n5. دفع عربون الحجز 30%.',
+    keywords: ['شروط', 'وثائق', 'جواز', 'ملف', 'أوراق', 'تلقيح', 'شروط التسجيل'],
+    response_ar: '📋 **شروط وأوراق التقديم للعمرة 2026:**\n1. جواز سفر بيومتري صالح لأكثر من 6 أشهر.\n2. عدد 2 صور شمسية خلفية بيضاء.\n3. شهادة التلقيح المعتمدة.\n4. دفع عربون تأكيد الحجز (30% أو دفع كامل عبر CCP/بريدي موب).',
     is_active: true,
     updatedBy: 'manager@southstreet.dz',
     updatedAt: new Date().toISOString()
@@ -171,9 +195,29 @@ const DEFAULT_AI_KNOWLEDGE: AiKnowledgeRule[] = [
   {
     id: 'rule_umrah_steps',
     category: 'rituals',
-    title_ar: 'مناسك العمرة الأربعة',
-    keywords: ['مناسك', 'خطوات', 'طواف', 'سعي', 'إحرام'],
-    response_ar: '🕋 **مناسك العمرة بالتفصيل:**\n1. **الإحرام** من الميقات.\n2. **الطواف** حول الكعبة 7 أشواط.\n3. **السعي** بين الصفا والمروة 7 أشواط.\n4. **الحلق أو التقصير** للتحلل.\n💡 توفر الوكالة مرشدين ومرشدات مرافقتك خطوة بخطوة.',
+    title_ar: 'مناسك العمرة الأربعة وأحكامها',
+    keywords: ['مناسك', 'خطوات', 'طواف', 'سعي', 'إحرام', 'تحلل', 'ميقات', 'كيف أعتمر'],
+    response_ar: '🕋 **مناسك العمرة خطوة بخطوة:**\n1. **الإحرام** مع النية والتلبية من الميقات.\n2. **طواف القدوم** 7 أشواط حول الكعبة المشرفة ابتداءً من الحجر الأسود.\n3. **السعي بين الصفا والمروة** 7 أشواط.\n4. **الحلق أو التقصير** للتحلل من الإحرام.\n💡 يرافقك المرشد الديني الشيخ أحمد خطوة بخطوة في كل منسك.',
+    is_active: true,
+    updatedBy: 'guide@southstreet.dz',
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'rule_finance_ccp',
+    category: 'pricing',
+    title_ar: 'طرق الدفع والتحويل البنكي والتقسيط',
+    keywords: ['دفع', 'تحويل', 'ccp', 'بريدي موب', 'تقسيط', 'سند', 'فاتورة', 'وصل'],
+    response_ar: '💳 **طرق الدفع المعتمدة في وكالة ساوث ستريت:**\n• الدفع نقداً أو شيك في مقر الوكالة.\n• التحويل الفوري عبر تطبيق بريدي موب (BaridiMob).\n• التحويل البريدي لحساب الوكالة الجاري (CCP).\n• إمكانية تسديد المبلغ على دفعتين (عربون 40% والباقي قبل موعد الرحلة بـ 10 أيام).\n🧾 يصدر المحاسب المالي سند قبض رقمي فوري.',
+    is_active: true,
+    updatedBy: 'accountant@southstreet.dz',
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'rule_guides_info',
+    category: 'faq',
+    title_ar: 'المرشدين الدينيين والمرافقة الميدانية',
+    keywords: ['مرشد', 'مرشدين', 'الشيخ أحمد', 'المرشد الديني', 'مرافقة', 'شيخ'],
+    response_ar: '✨ **فريق الإرشاد الديني المعتمد لدى ساوث ستريت:**\n• **الشيخ أحمد بن علي** (كبير المرشدين - 15 سنة خبرة في مناسك الحج والعمرة).\n• **الشيخ عبد الرحمن السعيد** (مرشد ومحاضر ديني ومرافق أفواج مكة والمدينة).\n• **الأستاذة أمينة** (مرشدة دينية خاصة بأفواج النساء).\n📞 يمكنك طلب التواصل المباشر مع المرشد في أي وقت!',
     is_active: true,
     updatedBy: 'admin@southstreet.dz',
     updatedAt: new Date().toISOString()
@@ -213,8 +257,30 @@ export function getDatabase(): DatabaseSchema {
     const encryptedData = fs.readFileSync(DB_FILE, 'utf8');
     const decryptedJson = decryptData(encryptedData);
     const db = JSON.parse(decryptedJson) as DatabaseSchema;
+    
+    let hasChanges = false;
     if (!db.securityKey || db.securityKey.includes('2026-X7Y9Z')) {
       db.securityKey = DEFAULT_SECURITY_KEY;
+      hasChanges = true;
+    }
+
+    // Auto-sync missing default users
+    if (!db.users) db.users = [];
+    DEFAULT_USERS.forEach(defUser => {
+      const existing = db.users.find(u => u.email.toLowerCase() === defUser.email.toLowerCase());
+      if (!existing) {
+        db.users.push(defUser);
+        hasChanges = true;
+      }
+    });
+
+    // Auto-sync default AI knowledge rules
+    if (!db.aiKnowledge || db.aiKnowledge.length === 0) {
+      db.aiKnowledge = DEFAULT_AI_KNOWLEDGE;
+      hasChanges = true;
+    }
+
+    if (hasChanges) {
       saveDatabase(db);
     }
     return db;

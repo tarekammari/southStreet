@@ -322,6 +322,86 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
                         );
                       }
 
+                      if (c.type === 'morshid') {
+                        const guide = c.data;
+                        return (
+                          <div key={cIdx} className="p-4 rounded-2xl bg-gradient-to-br from-slate-900 to-emerald-950/40 border border-emerald-500/30 text-white space-y-3 shadow-xl">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center justify-center font-bold font-cairo text-lg">
+                                  {guide.avatar || 'أ'}
+                                </div>
+                                <div>
+                                  <h4 className="font-black text-sm font-cairo text-amber-300">{guide.name}</h4>
+                                  <p className="text-[10px] text-emerald-400 font-bold">{guide.roleName}</p>
+                                </div>
+                              </div>
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                                ⭐ {guide.rating || '4.9'} ({guide.experience_years || 12} سنة خبرة)
+                              </span>
+                            </div>
+
+                            <p className="text-xs text-slate-300 leading-relaxed bg-slate-950/60 p-2.5 rounded-xl border border-white/5">
+                              📌 **التخصص والمرافقة:** {guide.specialization}
+                            </p>
+
+                            <div className="flex items-center justify-between text-[10px] text-slate-400">
+                              <span>اللغات: {Array.isArray(guide.languages) ? guide.languages.join(' • ') : guide.languages}</span>
+                              <span className="text-emerald-400 font-bold">● {guide.status || 'متاح'}</span>
+                            </div>
+
+                            <div className="flex gap-2 pt-1">
+                              <button
+                                onClick={() => {
+                                  if (typeof window !== 'undefined') {
+                                    window.location.href = '/portal?tab=chat';
+                                  }
+                                }}
+                                className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow transition-colors"
+                              >
+                                💬 مراسلة المرشد الآن
+                              </button>
+                              <a
+                                href={`tel:${guide.phone || '+213550123456'}`}
+                                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer border border-white/5"
+                              >
+                                📞 اتصال
+                              </a>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (c.type === 'action') {
+                        const act = c.data;
+                        return (
+                          <div key={cIdx} className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-slate-900 to-indigo-500/15 border border-amber-500/40 text-white space-y-2.5 shadow-xl">
+                            <div className="flex items-center gap-2">
+                              <Sparkles className="w-4 h-4 text-amber-400" />
+                              <h4 className="font-bold text-xs text-amber-300 font-cairo">{act.title}</h4>
+                            </div>
+                            {act.description && <p className="text-xs text-slate-300">{act.description}</p>}
+                            <button
+                              onClick={() => {
+                                if (act.targetModal === 'login') {
+                                  if (typeof window !== 'undefined') {
+                                    window.dispatchEvent(new CustomEvent('southstreet:open-login'));
+                                  }
+                                } else if (act.targetUrl) {
+                                  if (typeof window !== 'undefined') {
+                                    window.location.href = act.targetUrl;
+                                  }
+                                }
+                              }}
+                              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg transition-all"
+                            >
+                              <ArrowRight className="w-4 h-4" />
+                              {act.buttonText || 'الانتقال للصفحة الآن'}
+                            </button>
+                          </div>
+                        );
+                      }
+
                       return null;
                     })}
                   </div>

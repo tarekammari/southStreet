@@ -2,22 +2,24 @@
 
 import React, { useState, useEffect } from 'react';
 import { User, Receipt } from '@/types';
-import { CreditCard, Plus, Printer, DollarSign, FileText, CheckCircle2, X } from 'lucide-react';
+import { CreditCard, Plus, Printer, DollarSign, FileText, CheckCircle2, X, Sparkles } from 'lucide-react';
+import AiKnowledgeManager from '@/components/AiKnowledgeManager';
 
 interface AccountantDashboardProps {
   currentUser: User;
 }
 
 export default function AccountantDashboard({ currentUser }: AccountantDashboardProps) {
+  const [activeTab, setActiveTab] = useState<'receipts' | 'ai_teach'>('receipts');
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedReceipt, setSelectedReceipt] = useState<Receipt | null>(null);
 
   const [pilgrimName, setPilgrimName] = useState('');
-  const [packageName, setPackageName] = useState('باقة العمرة الفاخرة - 10 أيام (مكة والمدينة)');
-  const [totalAmount, setTotalAmount] = useState(12500);
-  const [paidAmount, setPaidAmount] = useState(12500);
-  const [paymentMethod, setPaymentMethod] = useState('بطاقة مدى / Visa');
+  const [packageName, setPackageName] = useState('باقة أوت الاقتصادية المميزة (طيران مباشر)');
+  const [totalAmount, setTotalAmount] = useState(215000);
+  const [paidAmount, setPaidAmount] = useState(215000);
+  const [paymentMethod, setPaymentMethod] = useState('تحويل بريدي موب (BaridiMob)');
 
   const fetchReceipts = async () => {
     try {
@@ -69,83 +71,121 @@ export default function AccountantDashboard({ currentUser }: AccountantDashboard
     <div className="space-y-6 animate-fade-in text-right">
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-black text-gold-main font-ruqaa flex items-center gap-2">
-            <CreditCard className="w-7 h-7 text-gold-main" />
-            لوحة المحاسب والمالية (ACCOUNTANT)
+          <h2 className="text-2xl font-black text-amber-400 font-ruqaa flex items-center gap-2">
+            <CreditCard className="w-7 h-7 text-amber-400" />
+            لوحة المحاسب والشؤون المالية (ACCOUNTANT)
           </h2>
-          <p className="text-xs text-slate-500 mt-1">إدارة السندات الرقمية وسجلات تحصيل الدفعات وباقات العمرة والوكالة</p>
+          <p className="text-xs text-slate-400 mt-1">إدارة السندات الرقمية، تحويلات CCP/بريدي موب، وتدريب صخر على الأسعار والسياسات المالية</p>
         </div>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="bg-gradient-to-r from-gold-dark to-gold-main text-slate-950 font-black text-xs px-4 py-2.5 rounded-xl shadow-lg hover:scale-102 transition-all flex items-center gap-2 cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          إصدار سند قبض جديد
-        </button>
+
+        <div className="flex items-center gap-2">
+          <div className="bg-slate-900 border border-white/10 p-1 rounded-xl flex gap-1">
+            <button
+              onClick={() => setActiveTab('receipts')}
+              className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'receipts' ? 'bg-amber-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <FileText className="w-4 h-4" />
+              السندات المالية
+            </button>
+            <button
+              onClick={() => setActiveTab('ai_teach')}
+              className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'ai_teach' ? 'bg-amber-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Sparkles className="w-4 h-4" />
+              تعليم صخر (الأسعار والدفع)
+            </button>
+          </div>
+
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs px-4 py-2.5 rounded-xl shadow-lg transition-all flex items-center gap-2 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            إصدار سند قبض جديد
+          </button>
+        </div>
       </div>
 
-      {/* Financial Metrics Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white border-2 border-gold-main rounded-2xl p-5 shadow-sm space-y-1">
-          <div className="text-xs text-slate-500 font-bold">إجمالي المبالغ المحصلة</div>
-          <div className="text-2xl font-black text-emerald-600">{totalRevenue.toLocaleString()} ر.س</div>
-          <div className="text-[11px] text-emerald-600 font-bold">محدثة فورياً من السندات</div>
-        </div>
+      {activeTab === 'receipts' && (
+        <div className="space-y-6">
+          {/* Financial Metrics Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-slate-900 border border-emerald-500/30 rounded-2xl p-5 shadow-sm space-y-1">
+              <div className="text-xs text-slate-400 font-bold">إجمالي المبالغ المحصلة</div>
+              <div className="text-2xl font-black text-emerald-400">{totalRevenue.toLocaleString()} دج</div>
+              <div className="text-[11px] text-emerald-400 font-bold">محدثة فورياً من السندات</div>
+            </div>
 
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-1">
-          <div className="text-xs text-slate-500 font-bold">المبالغ المتبقية (قيد التحصيل)</div>
-          <div className="text-2xl font-black text-amber-600">{totalPending.toLocaleString()} ر.س</div>
-          <div className="text-[11px] text-slate-500 font-bold">تنبيهات للمعتمرين بالدفع</div>
-        </div>
+            <div className="bg-slate-900 border border-amber-500/30 rounded-2xl p-5 shadow-sm space-y-1">
+              <div className="text-xs text-slate-400 font-bold">المبالغ المتبقية (قيد التحصيل)</div>
+              <div className="text-2xl font-black text-amber-400">{totalPending.toLocaleString()} دج</div>
+              <div className="text-[11px] text-amber-400 font-bold">تنبيهات للمعتمرين بالدفع</div>
+            </div>
 
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-1">
-          <div className="text-xs text-slate-500 font-bold">إجمالي السندات الرقمية</div>
-          <div className="text-2xl font-black text-slate-900">{receipts.length} سند قبض</div>
-          <div className="text-[11px] text-gold-dark font-bold">معتمدة ومختومة برمجياً</div>
-        </div>
-      </div>
+            <div className="bg-slate-900 border border-white/10 rounded-2xl p-5 shadow-sm space-y-1">
+              <div className="text-xs text-slate-400 font-bold">إجمالي السندات الرقمية</div>
+              <div className="text-2xl font-black text-white">{receipts.length} سند قبض</div>
+              <div className="text-[11px] text-indigo-400 font-bold">معتمدة ومختومة برمجياً</div>
+            </div>
+          </div>
 
-      {/* Receipts Table */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3 overflow-hidden">
-        <h3 className="text-base font-bold text-slate-900 font-cairo">سجل سندات القبض والدفعات الرقمية</h3>
-        <div className="overflow-x-auto">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>رقم السند</th>
-                <th>اسم المعتمر</th>
-                <th>الباقة والخدمة</th>
-                <th>المبلغ الإجمالي</th>
-                <th>المسدد</th>
-                <th>المتبقي</th>
-                <th>تاريخ السند</th>
-                <th>معاينة</th>
-              </tr>
-            </thead>
-            <tbody>
-              {receipts.map((r) => (
-                <tr key={r.id}>
-                  <td className="font-mono font-bold text-gold-dark">{r.id}</td>
-                  <td className="font-bold text-slate-900">{r.pilgrimName}</td>
-                  <td className="text-slate-600 text-xs">{r.packageName}</td>
-                  <td className="font-bold text-slate-900">{r.totalAmount.toLocaleString()} ر.س</td>
-                  <td className="text-emerald-600 font-bold">{r.paidAmount.toLocaleString()} ر.س</td>
-                  <td className="text-amber-600 font-bold">{r.remainingAmount.toLocaleString()} ر.س</td>
-                  <td className="text-xs text-slate-500">{r.date}</td>
-                  <td>
-                    <button
-                      onClick={() => setSelectedReceipt(r)}
-                      className="bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold px-3 py-1.5 rounded-md flex items-center gap-1"
-                    >
-                      <Printer className="w-3.5 h-3.5" /> طباعة
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {/* Receipts Table */}
+          <div className="bg-slate-900 border border-white/10 rounded-2xl p-5 shadow-sm space-y-3 overflow-hidden">
+            <h3 className="text-base font-bold text-white font-cairo">سجل سندات القبض والدفعات الرقمية</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-right text-xs">
+                <thead>
+                  <tr className="border-b border-white/10 text-slate-400">
+                    <th className="py-2.5 px-3">رقم السند</th>
+                    <th className="py-2.5 px-3">اسم المعتمر</th>
+                    <th className="py-2.5 px-3">الباقة والخدمة</th>
+                    <th className="py-2.5 px-3">المبلغ الإجمالي</th>
+                    <th className="py-2.5 px-3">المسدد</th>
+                    <th className="py-2.5 px-3">المتبقي</th>
+                    <th className="py-2.5 px-3">تاريخ السند</th>
+                    <th className="py-2.5 px-3">معاينة</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5 text-slate-300">
+                  {receipts.map((r) => (
+                    <tr key={r.id} className="hover:bg-slate-800/40">
+                      <td className="py-3 px-3 font-mono font-bold text-amber-400">{r.id}</td>
+                      <td className="py-3 px-3 font-bold text-white">{r.pilgrimName}</td>
+                      <td className="py-3 px-3 text-slate-400 text-xs">{r.packageName}</td>
+                      <td className="py-3 px-3 font-bold text-white">{r.totalAmount.toLocaleString()} دج</td>
+                      <td className="py-3 px-3 text-emerald-400 font-bold">{r.paidAmount.toLocaleString()} دج</td>
+                      <td className="py-3 px-3 text-amber-400 font-bold">{r.remainingAmount.toLocaleString()} دج</td>
+                      <td className="py-3 px-3 text-xs text-slate-500">{r.date}</td>
+                      <td className="py-3 px-3">
+                        <button
+                          onClick={() => setSelectedReceipt(r)}
+                          className="bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 border border-white/5 cursor-pointer"
+                        >
+                          <Printer className="w-3.5 h-3.5" /> طباعة
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
+
+      {activeTab === 'ai_teach' && (
+        <AiKnowledgeManager
+          userRole="accountant"
+          userName={currentUser.name || 'المحاسب المالي'}
+          allowedCategories={['pricing', 'packages', 'faq']}
+          title="تعليم صخر AI (الأسعار وطرق الدفع والـ CCP)"
+          subtitle="بصفتك المحاسب المالي، يمكنك تدريب صخر على حسابات الوكالة الجارية (CCP)، التحويل عبر بريدي موب، شروط التقسيط، وسياسة استرداد المبالغ."
+        />
+      )}
 
       {/* Create Receipt Modal */}
       {isModalOpen && (

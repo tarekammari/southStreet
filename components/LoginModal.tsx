@@ -137,6 +137,62 @@ export default function LoginModal({ onClose, onSelectRole }: LoginModalProps) {
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
               <span>اتصال آمن ومحمّي</span>
             </div>
+
+            {/* Quick Demo Test Accounts Box */}
+            <div className="mt-4 w-full bg-slate-50 border border-slate-200 rounded-2xl p-3 text-right text-[11px] space-y-2">
+              <span className="font-bold text-slate-700 block text-xs">⚡ حسابات الاختبار السريع (1-Click):</span>
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('admin@southstreet.dz');
+                    setPassword('Admin@2026!');
+                    setFileKey('SOUTHSTREET-KEY-v1-9F8E7D6C5B4A3928');
+                    setFileName('southstreet_admin.key');
+                    processAutoLogin('admin@southstreet.dz', 'Admin@2026!', 'SOUTHSTREET-KEY-v1-9F8E7D6C5B4A3928');
+                  }}
+                  className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 font-bold text-right truncate cursor-pointer"
+                >
+                  🛡️ المدير العام
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('guide@southstreet.dz');
+                    setPassword('Guide@2026!');
+                    setFileKey('');
+                    processAutoLogin('guide@southstreet.dz', 'Guide@2026!', '');
+                  }}
+                  className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 font-bold text-right truncate cursor-pointer"
+                >
+                  👳 المرشد الديني
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('accountant@southstreet.dz');
+                    setPassword('Accountant@2026!');
+                    setFileKey('');
+                    processAutoLogin('accountant@southstreet.dz', 'Accountant@2026!', '');
+                  }}
+                  className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 font-bold text-right truncate cursor-pointer"
+                >
+                  💳 المحاسب المالي
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('user@southstreet.dz');
+                    setPassword('User@2026!');
+                    setFileKey('');
+                    processAutoLogin('user@southstreet.dz', 'User@2026!', '');
+                  }}
+                  className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-900 border border-slate-300 font-bold text-right truncate cursor-pointer"
+                >
+                  👤 المعتمر المعتمد
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Right Column: Clean Form & Automatic Key Attachment */}
