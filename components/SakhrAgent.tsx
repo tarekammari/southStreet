@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  Send, Volume2, VolumeX, X, Sparkles, Bot, User as UserIcon, RefreshCw,
+  Send, X, Sparkles, Bot, User as UserIcon, RefreshCw,
   MapPin, CheckCircle, ArrowRight, Eye, Layers, Calendar, DollarSign,
   PhoneCall, ShieldCheck, Play, Image as ImageIcon
 } from 'lucide-react';
@@ -26,8 +26,6 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
   const [query, setQuery] = useState('');
   const [messages, setMessages] = useState<SakhrMessage[]>([]);
   const [isThinking, setIsThinking] = useState(false);
-  const [isVoiceEnabled, setIsVoiceEnabled] = useState(true);
-  const [isSpeaking, setIsSpeaking] = useState(false);
 
   // Modals & Drawers state
   const [selectedMap, setSelectedMap] = useState<{ title: string; latitude: number; longitude: number } | null>(null);
@@ -37,16 +35,6 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const SUGGESTIONS = [
-    '🔑 افتح بوابة الوكالة',
-    '👳 من هو المرشد المرافق لعمرة المولد',
-    '🎥 اعرض لي فيلم قصير عن مناسك العمرة',
-    '✨ عروض الباقات المتاحة 2026',
-    '💰 أسعار باقة أوت 215,000 دج',
-    '🏨 الفنادق والقرب من الحرم',
-    '📋 شروط والوثائق المطلوبة'
-  ];
-
   useEffect(() => {
     if (isOpen) {
       setTimeout(() => inputRef.current?.focus(), 50);
@@ -55,55 +43,7 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isThinking, isSpeaking]);
-
-  const sanitizeForSpeech = (rawText: string): string => {
-    return rawText
-      .replace(/[*#\-_()\[\]]/g, ' ')
-      .replace(/215,000/g, 'مائتين وخمسة عشر ألف')
-      .replace(/295,000/g, 'مائتين وخمسة وتسعين ألف')
-      .replace(/350م/g, 'ثلاثمائة وخمسين متراً')
-      .replace(/50م/g, 'خمسين متراً')
-      .replace(/\s+/g, ' ')
-      .trim();
-  };
-
-  const speakArabicVoice = (textToSpeak: string) => {
-    if (!isVoiceEnabled || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-    try {
-      window.speechSynthesis.cancel();
-      const spokenText = sanitizeForSpeech(textToSpeak);
-      const utterance = new SpeechSynthesisUtterance(spokenText);
-      utterance.lang = 'ar-SA';
-      utterance.rate = 1.0;
-      utterance.pitch = 1.0;
-
-      const voices = window.speechSynthesis.getVoices();
-      const bestVoice =
-        voices.find((v) => v.lang.startsWith('ar') && (v.name.includes('Male') || v.name.includes('Maged') || v.name.includes('Tarik') || v.name.includes('Naayf'))) ||
-        voices.find((v) => v.lang === 'ar-SA' || v.lang === 'ar-EG') ||
-        voices.find((v) => v.lang.startsWith('ar'));
-
-      if (bestVoice) {
-        utterance.voice = bestVoice;
-      }
-
-      utterance.onstart = () => setIsSpeaking(true);
-      utterance.onend = () => setIsSpeaking(false);
-      utterance.onerror = () => setIsSpeaking(false);
-
-      window.speechSynthesis.speak(utterance);
-    } catch (e) {
-      setIsSpeaking(false);
-    }
-  };
-
-  const stopSpeaking = () => {
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      setIsSpeaking(false);
-    }
-  };
+  }, [messages, isThinking]);
 
   const sendMessage = async (text?: string) => {
     const q = (text ?? query).trim();
@@ -113,12 +53,11 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
     const userMsg: SakhrMessage = { role: 'user', text: q };
     setMessages((prev) => [...prev, userMsg]);
     setIsThinking(true);
-    stopSpeaking();
     if (onSearchFilter) onSearchFilter(q);
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 35000);
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
 
       const res = await fetch('/api/ai/sakhr', {
         method: 'POST',
@@ -144,7 +83,6 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
       };
 
       setMessages((prev) => [...prev, aiMsg]);
-      speakArabicVoice(aiMsg.text);
 
       // Trigger automatic UI actions if specified by backend
       if (data.actions && data.actions.length > 0) {
@@ -168,16 +106,14 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
       }
     } catch (err: any) {
       setIsThinking(false);
-      let errText = 'أهلاً بك! صخر المساعد الذكي لوكالة ساوث ستريت 🕋 يمكنني إجابتك عن جميع الاستفسارات والباقات والمعارف العامة.';
-      if (q.includes('مساحة الجزائر') || q.includes('جزائر')) {
-        errText = '🇩🇿 **مساحة الجزائر والمعلومات الجغرافية:**\n\nتبلغ مساحة الجمهورية الجزائرية الديمقراطية الشعبية **2,381,741 كيلومتر مربع**، وهي أكبر دولة مساحةً في إفريقيا والعالم العربي والبحيرة المتوسطية (وتحتل المرتبة 10 عالمياً).';
-      }
+      const isTimeout = err?.name === 'AbortError';
       const fallbackMsg: SakhrMessage = {
         role: 'ai',
-        text: errText
+        text: isTimeout
+          ? '⏱️ استغرق الرد وقتاً أطول من المتوقع. يرجى إعادة المحاولة.'
+          : '⚠️ حدث خطأ في الاتصال بالمساعد الذكي. يرجى المحاولة مرة أخرى.'
       };
       setMessages((prev) => [...prev, fallbackMsg]);
-      speakArabicVoice(fallbackMsg.text);
     }
   };
 
@@ -208,10 +144,7 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
       ════════════════════════════════ */}
       <div className="fixed bottom-4 right-4 sm:bottom-8 sm:right-8 z-50 flex flex-col items-center gap-1.5 select-none">
         <button
-          onClick={() => {
-            setIsOpen((v) => !v);
-            if (isOpen) stopSpeaking();
-          }}
+          onClick={() => setIsOpen((v) => !v)}
           aria-label="مساعد صخر الذكي"
           className="relative w-[68px] h-[68px] sm:w-[88px] sm:h-[88px] rounded-full focus:outline-none group cursor-pointer"
         >
@@ -236,14 +169,14 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
               صخر
             </span>
             <span className="text-white/80 tracking-[0.15em] leading-none text-[7px] sm:text-[9px] font-tajawal font-bold">
-              {isSpeaking ? 'صوت مباشر' : 'REAL AI'}
+              AI
             </span>
           </span>
         </button>
 
         <span className="hidden sm:flex text-[11px] font-bold text-white/90 font-tajawal bg-slate-950/90 backdrop-blur-md px-3 py-1 rounded-full border border-white/20 shadow-xl items-center gap-1.5">
-          {isSpeaking && <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>}
-          <span>{isSpeaking ? 'يتحدث الآن...' : 'المساعد الذكي صخر'}</span>
+          <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+          <span>المساعد الذكي صخر</span>
         </span>
       </div>
 
@@ -252,76 +185,34 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
       ════════════════════════════════ */}
       {isOpen && (
         <div
-          className="fixed top-[84px] bottom-6 right-3 sm:right-8 z-[250] w-[calc(100vw-24px)] sm:w-[680px] md:w-[780px] lg:w-[860px] max-w-[95vw] flex flex-col rounded-3xl overflow-hidden shadow-2xl animate-fade-in border border-indigo-500/35"
+          className="fixed top-[84px] bottom-6 right-3 sm:right-8 z-[250] w-[calc(100vw-24px)] sm:w-[600px] md:w-[700px] lg:w-[780px] max-w-[95vw] flex flex-col rounded-2xl overflow-hidden shadow-2xl animate-fade-in border border-white/10"
           style={{
-            background: 'rgba(6, 8, 20, 0.97)',
-            backdropFilter: 'blur(36px) saturate(160%)',
-            boxShadow: '0 35px 90px rgba(0,0,0,0.8), 0 0 50px rgba(99,102,241,0.3)'
+            background: 'rgba(13, 13, 15, 0.98)',
+            backdropFilter: 'blur(40px) saturate(160%)',
+            boxShadow: '0 30px 80px rgba(0,0,0,0.9)'
           }}
         >
-          {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 shrink-0 border-b border-white/10 bg-slate-950/80">
-            <div className="flex items-center gap-3.5">
-              <div className="w-11 h-11 rounded-full sakhr-orb flex items-center justify-center shadow-lg shrink-0 relative border border-white/20">
-                <span className="text-white font-black text-xl font-cairo">ص</span>
+          {/* Header — minimal like ChatGPT */}
+          <div className="flex items-center justify-between px-5 py-3 shrink-0 border-b border-white/[0.07]">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-full sakhr-orb flex items-center justify-center shrink-0">
+                <span className="text-white font-black text-base font-cairo leading-none">ص</span>
               </div>
-              <div className="text-right">
-                <div className="flex items-center gap-2">
-                  <p className="text-white font-black text-base sm:text-lg font-cairo leading-none">
-                    صخر الذكي — Sakhr Real AI
-                  </p>
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/30">
-                    <Sparkles className="w-3 h-3 text-emerald-400" /> V2.0 Multilingual
-                  </span>
-                </div>
-                <p className="text-indigo-300 text-xs font-tajawal mt-1">
-                  المساعد الذكي التفاعلي المباشر لوكالة ساوث ستريت (مربوط بقاعدة البيانات الحية)
-                </p>
-              </div>
+              <span className="text-white font-bold text-sm font-cairo">صخر</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => {
-                  if (isSpeaking) stopSpeaking();
-                  setIsVoiceEnabled(!isVoiceEnabled);
-                }}
-                className={`px-3 py-1.5 rounded-full text-xs font-bold font-tajawal transition-all cursor-pointer border ${
-                  isVoiceEnabled
-                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
-                    : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'
-                }`}
-                title={isVoiceEnabled ? 'إيقاف الصوت' : 'تفعيل الصوت'}
-              >
-                {isVoiceEnabled ? '🔊 مفعّل' : '🔇 كتم'}
-              </button>
-
-              <button
-                onClick={() => {
-                  stopSpeaking();
-                  setIsOpen(false);
-                }}
-                className="w-9 h-9 rounded-full text-slate-400 hover:text-white hover:bg-white/10 flex items-center justify-center text-base transition-all cursor-pointer"
-                aria-label="إغلاق"
-              >
-                ✕
-              </button>
-            </div>
+            <button
+              onClick={() => setIsOpen(false)}
+              className="w-8 h-8 rounded-full text-slate-500 hover:text-white hover:bg-white/5 flex items-center justify-center text-base transition-all cursor-pointer"
+              aria-label="إغلاق"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
 
           {/* Chat Messages Stream */}
-          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 font-tajawal text-sm leading-relaxed" style={{ minHeight: 220 }}>
-            {messages.length === 0 && !isThinking && (
-              <div className="text-center text-slate-400 py-10 space-y-3 max-w-md mx-auto">
-                <div className="w-16 h-16 rounded-full bg-indigo-600/20 border border-indigo-500/40 mx-auto flex items-center justify-center text-3xl shadow-lg">
-                  🤖
-                </div>
-                <h3 className="text-white font-black text-lg font-cairo">كيف يمكن لصخر مساعدتك اليوم؟</h3>
-                <p className="text-xs text-slate-300 leading-relaxed font-tajawal">
-                  اطرح سؤالك بالدارجة، العربية، الفرنسية، أو الإنجليزية حول **العمرة، الحج، الأسعار، فنادق مكة، الخرائط والوثائق**.
-                </p>
-              </div>
-            )}
+          <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5 font-tajawal text-sm leading-relaxed" style={{ minHeight: 220 }}>
 
             {messages.map((m, i) => (
               <div key={i} className={`flex flex-col ${m.role === 'user' ? 'items-start' : 'items-end'} space-y-2`}>
@@ -488,40 +379,33 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
             <div ref={chatEndRef} />
           </div>
 
-          {/* Quick Suggestions Chips */}
-          <div className="px-5 py-2.5 bg-slate-950/50 border-t border-white/5 flex flex-wrap gap-2 shrink-0">
-            {SUGGESTIONS.map((s, i) => (
-              <button
-                key={i}
-                onClick={() => sendMessage(s.replace(/^[^\s]+\s*/, ''))}
-                className="text-xs text-indigo-200 bg-indigo-950/60 border border-indigo-500/40 hover:border-amber-400 hover:text-white hover:bg-indigo-600/30 px-3.5 py-1.5 rounded-full transition-all cursor-pointer font-tajawal font-medium"
-              >
-                {s}
-              </button>
-            ))}
-          </div>
 
-          {/* Input Bar */}
-          <div className="px-5 pb-5 pt-3 flex gap-3 items-center shrink-0 border-t border-white/10 bg-slate-950/80">
-            <button
-              onClick={() => sendMessage()}
-              disabled={isThinking || !query.trim()}
-              className="w-10 h-10 rounded-full flex items-center justify-center text-white font-black text-lg shrink-0 transition-all cursor-pointer disabled:opacity-40 shadow-lg"
-              style={{ background: 'linear-gradient(135deg,#4f46e5,#2563eb)' }}
-              title="إرسال"
+          {/* Input Bar — ChatGPT style */}
+          <div className="px-4 pb-4 pt-3 shrink-0">
+            <div
+              className="flex items-end gap-3 rounded-2xl border border-white/10 px-4 py-3 focus-within:border-white/25 transition-colors"
+              style={{ background: 'rgba(255,255,255,0.05)' }}
             >
-              ↑
-            </button>
-            <input
-              ref={inputRef}
-              type="text"
-              value={query}
-              dir="rtl"
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-              placeholder="اطرح سؤالك بالدارجة، العربية، الفرنسية أو الإنجليزية..."
-              className="flex-1 bg-white/10 border border-white/15 focus:border-indigo-400 rounded-2xl px-4 py-3 text-xs sm:text-sm text-white placeholder:text-slate-400 focus:outline-none transition-colors font-tajawal text-right shadow-inner"
-            />
+              <input
+                ref={inputRef}
+                type="text"
+                value={query}
+                dir="rtl"
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+                placeholder="اكتب رسالتك..."
+                className="flex-1 bg-transparent text-sm text-white placeholder:text-slate-500 focus:outline-none font-tajawal text-right resize-none leading-relaxed"
+              />
+              <button
+                onClick={() => sendMessage()}
+                disabled={isThinking || !query.trim()}
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-white shrink-0 transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                style={{ background: query.trim() ? 'linear-gradient(135deg,#4f46e5,#2563eb)' : 'rgba(255,255,255,0.08)' }}
+                title="إرسال"
+              >
+                <Send className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         </div>
       )}

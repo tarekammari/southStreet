@@ -27,7 +27,10 @@ Thumbs.db
 
 # Keys, Secret files & Local Test Scripts
 *.key
-SAKHAR_KEY*.txt
+*KEY*.txt
+*key*.txt
+*GROQ*.txt
+*groq*.txt
 test_gemini.js
 test_sakhr_endpoint.js
 gemini_api_debug.log

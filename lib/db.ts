@@ -4,7 +4,7 @@ import { hashPassword, encryptData, decryptData } from './security';
 import {
   User, Message, Receipt, AuditLog, UserRole,
   AgencySettings, Season, Hotel, Flight, Morshid, Package, Reservation,
-  CustomerDocument, MediaAsset, AiConversationLog
+  CustomerDocument, MediaAsset, AiConversationLog, TravelerInfo
 } from '@/types';
 
 export interface UserAccount {
