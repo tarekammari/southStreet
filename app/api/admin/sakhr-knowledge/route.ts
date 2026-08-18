@@ -12,7 +12,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const { category, title_ar, keywords, response_ar } = await req.json();
+    const { category, title_ar, keywords, response_ar, answerMode, matchStrategy, updatedBy } = await req.json();
 
     if (!title_ar || !response_ar || !keywords || keywords.length === 0) {
       return NextResponse.json({ error: 'جميع حقول قاعدة المعرفة مطلوبة' }, { status: 400 });
@@ -26,7 +26,9 @@ export async function POST(req: Request) {
       keywords: Array.isArray(keywords) ? keywords.map((k: string) => k.trim().toLowerCase()) : [keywords],
       response_ar: response_ar.trim(),
       is_active: true,
-      updatedBy: 'admin@southstreet.dz',
+      answerMode: answerMode || 'official_exact',
+      matchStrategy: matchStrategy || 'keywords_or_title',
+      updatedBy: updatedBy || 'admin@southstreet.dz',
       updatedAt: new Date().toISOString()
     };
 
@@ -41,7 +43,7 @@ export async function POST(req: Request) {
 
 export async function PUT(req: Request) {
   try {
-    const { id, category, title_ar, keywords, response_ar, is_active, qualityRating, modelAnswer } = await req.json();
+    const { id, category, title_ar, keywords, response_ar, is_active, qualityRating, modelAnswer, answerMode, matchStrategy, updatedBy } = await req.json();
 
     if (!id) {
       return NextResponse.json({ error: 'معرف القاعدة مطلوب' }, { status: 400 });
@@ -60,6 +62,9 @@ export async function PUT(req: Request) {
     if (typeof is_active === 'boolean') rule.is_active = is_active;
     if (qualityRating !== undefined) rule.qualityRating = qualityRating;
     if (modelAnswer !== undefined) rule.modelAnswer = modelAnswer.trim();
+    if (answerMode) rule.answerMode = answerMode;
+    if (matchStrategy) rule.matchStrategy = matchStrategy;
+    if (updatedBy) rule.updatedBy = updatedBy;
     rule.updatedAt = new Date().toISOString();
 
     saveDatabase(db);

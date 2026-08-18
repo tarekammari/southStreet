@@ -59,6 +59,18 @@ export interface AiKnowledgeRule {
   qualityRating?: 'good' | 'less' | 'bad';
   /** Admin-provided model/ideal answer to improve training */
   modelAnswer?: string;
+  /** Answer source mode selected by admin:
+   *  - official_exact: Use exact response_ar or modelAnswer with 0ms LLM latency
+   *  - ai_generated: Synthesize dynamic response using Gemini LLM & knowledge context
+   *  - hybrid: Use official response as strict core content formatted by LLM
+   */
+  answerMode?: 'official_exact' | 'ai_generated' | 'hybrid';
+  /** Matching strategy when user query is received:
+   *  - keywords_or_title: Match if query contains keywords OR title words (default)
+   *  - keywords_only: Match ONLY if query contains any of the specified trigger keywords
+   *  - exact_title: Match ONLY on full title/topic match
+   */
+  matchStrategy?: 'keywords_or_title' | 'keywords_only' | 'exact_title';
 }
 
 export interface DatabaseSchema {

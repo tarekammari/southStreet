@@ -486,19 +486,35 @@ function searchDynamicDbKnowledge(prompt: string): { rule: AiKnowledgeRule; scor
       if (!rule.is_active) continue;
 
       let score = 0;
+      let hasKeywordMatch = false;
+
       // Keyword matching
       for (const kw of rule.keywords) {
         const cleanKw = (kw || '').toLowerCase().trim();
         if (cleanKw && lower.includes(cleanKw)) {
-          score += 10 + cleanKw.length;
+          score += 15 + cleanKw.length;
+          hasKeywordMatch = true;
         }
       }
 
-      // Title matching
-      const titleWords = rule.title_ar.toLowerCase().split(' ').filter(w => w.length > 2);
-      for (const tw of titleWords) {
-        if (lower.includes(tw)) {
-          score += 8;
+      // Respect match strategy
+      const strategy = rule.matchStrategy || 'keywords_or_title';
+
+      if (strategy === 'keywords_only') {
+        if (!hasKeywordMatch) score = 0;
+      } else if (strategy === 'exact_title') {
+        if (lower.includes(rule.title_ar.toLowerCase().trim())) {
+          score += 30;
+        } else {
+          score = 0;
+        }
+      } else {
+        // keywords_or_title
+        const titleWords = rule.title_ar.toLowerCase().split(' ').filter(w => w.length > 2);
+        for (const tw of titleWords) {
+          if (lower.includes(tw)) {
+            score += 8;
+          }
         }
       }
 
@@ -716,8 +732,93 @@ export async function POST(req: Request) {
         });
       }
 
+      const selectedAnswer = rule.modelAnswer || rule.response_ar;
+      const mode = rule.answerMode || 'official_exact';
+
+      // 1. Official Exact mode (0ms latency, exact admin response)
+      if (mode === 'official_exact') {
+        return NextResponse.json({
+          text: selectedAnswer,
+          cards,
+          actions
+        });
+      }
+
+      // 2. Hybrid mode (LLM formats & polishes exact admin answer)
+      if (mode === 'hybrid') {
+        const geminiApiKey = process.env.GEMINI_API_KEY || process.env.SAKHR_GEMINI_KEY;
+        if (geminiApiKey) {
+          try {
+            const geminiRes = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: [
+                    {
+                      role: 'user',
+                      parts: [
+                        {
+                          text: `أنت صخر المساعد الذكي لوكالة ساوث ستريت.\nحدد الأدمن هذه الإجابة الرسمية المعتمدة للسؤال "${rule.title_ar}":\n"${selectedAnswer}"\n\nيرجى صياغة إجابة راقية ومباشرة تلتزم بهذه الإجابة الرسمية تماماً دون تغيير أي معلومات.\nسؤال المستخدم: ${prompt}`
+                        }
+                      ]
+                    }
+                  ]
+                })
+              }
+            );
+            if (geminiRes.ok) {
+              const gData = await geminiRes.json();
+              const replyText = gData.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (replyText && replyText.trim()) {
+                return NextResponse.json({ text: replyText.trim(), cards, actions });
+              }
+            }
+          } catch {}
+        }
+        return NextResponse.json({ text: selectedAnswer, cards, actions });
+      }
+
+      // 3. AI Generated mode (uses LLM with rule knowledge context)
+      if (mode === 'ai_generated') {
+        const geminiApiKey = process.env.GEMINI_API_KEY || process.env.SAKHR_GEMINI_KEY;
+        if (geminiApiKey) {
+          try {
+            const geminiRes = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: [
+                    {
+                      role: 'user',
+                      parts: [
+                        {
+                          text: `أنت صخر المساعد الذكي لوكالة ساوث ستريت. أجب على السؤال بذكاء ودقة مستعيناً بالمعلومات الموثقة التالية:\nموضوع: ${rule.title_ar}\nمعلومات دقيقة: ${selectedAnswer}\nكلمات مفتاحية: ${rule.keywords.join(', ')}\n\nسؤال المستخدم: ${prompt}`
+                        }
+                      ]
+                    }
+                  ]
+                })
+              }
+            );
+            if (geminiRes.ok) {
+              const gData = await geminiRes.json();
+              const replyText = gData.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (replyText && replyText.trim()) {
+                return NextResponse.json({ text: replyText.trim(), cards, actions });
+              }
+            }
+          } catch {}
+        }
+        return NextResponse.json({ text: selectedAnswer, cards, actions });
+      }
+
+      // Fallback
       return NextResponse.json({
-        text: rule.response_ar,
+        text: selectedAnswer,
         cards,
         actions
       });

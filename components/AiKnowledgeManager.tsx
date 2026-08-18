@@ -1,89 +1,129 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import {
-  Sparkles, Plus, Trash2, Globe, Search, CheckCircle, RefreshCw,
-  BookOpen, HelpCircle, FileText, DollarSign, Compass, Layers,
-  ChevronDown, ChevronUp, FlaskConical, Link2, Tag, MessageSquareText,
-  Edit3, AlertCircle, ThumbsUp, ThumbsDown, Minus, Save, ClipboardList,
-  Star
-} from 'lucide-react';
 import { AiKnowledgeRule } from '@/lib/db';
 
+type MainTab       = 'knowledge' | 'directives' | 'playground' | 'sources';
+type AnswerMode    = 'official_exact' | 'ai_generated' | 'hybrid';
+type MatchStrategy = 'keywords_or_title' | 'keywords_only' | 'exact_title';
+type Category      = 'packages' | 'requirements' | 'rituals' | 'hotels' | 'flights' | 'pricing' | 'faq';
+
 interface AiKnowledgeManagerProps {
-  userRole: 'admin' | 'SUPER_ADMIN' | 'AGENCY_MANAGER' | 'murshid' | 'accountant' | 'manager' | 'AGENCY_AGENT' | string;
+  userRole: string;
   userName: string;
   userEmail?: string;
-  allowedCategories?: ('packages' | 'requirements' | 'rituals' | 'hotels' | 'flights' | 'pricing' | 'faq')[];
+  allowedCategories?: Category[];
   title?: string;
   subtitle?: string;
 }
 
-const CATEGORY_META: Record<string, { label: string; labelShort: string; icon: any; accent: string; bg: string; border: string }> = {
-  packages:     { label: 'الباقات والعروض',        labelShort: 'باقات',      icon: Layers,         accent: 'text-amber-700',  bg: 'bg-amber-50',   border: 'border-amber-200' },
-  rituals:      { label: 'المناسك والفتاوى',        labelShort: 'مناسك',      icon: Compass,        accent: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200' },
-  pricing:      { label: 'الأسعار والدفع',          labelShort: 'أسعار',      icon: DollarSign,     accent: 'text-sky-700',    bg: 'bg-sky-50',     border: 'border-sky-200' },
-  requirements: { label: 'الشروط والوثائق',         labelShort: 'وثائق',      icon: FileText,       accent: 'text-violet-700', bg: 'bg-violet-50',  border: 'border-violet-200' },
-  hotels:       { label: 'الفنادق والإقامة',         labelShort: 'فنادق',      icon: BookOpen,       accent: 'text-rose-700',   bg: 'bg-rose-50',    border: 'border-rose-200' },
-  flights:      { label: 'الرحلات والطيران',        labelShort: 'طيران',      icon: Globe,          accent: 'text-cyan-700',   bg: 'bg-cyan-50',    border: 'border-cyan-200' },
-  faq:          { label: 'أسئلة عامة',              labelShort: 'عامة',       icon: HelpCircle,     accent: 'text-slate-700',  bg: 'bg-slate-100',  border: 'border-slate-200' },
+interface SystemDirectives {
+  tone: 'professional_warm' | 'concise_formal' | 'religious_guidance';
+  strictPricing: boolean;
+  handoverGuide: boolean;
+  customInstructions: string;
+}
+
+const DEFAULT_DIRECTIVES: SystemDirectives = {
+  tone: 'professional_warm',
+  strictPricing: true,
+  handoverGuide: true,
+  customInstructions: 'الإجابة باللغة العربية الفصحى الواضحة، تقديم المعلومات الرسمية الخاصة بوكالة ساوث ستريت فقط، وتوجيه المعتمر للمرشد الديني عند الأسئلة الفقهية الدقيقة.',
 };
+
+const CATEGORY_LABEL: Record<string, string> = {
+  packages:     'الباقات والأسعار',
+  rituals:      'المناسك والفتاوى',
+  pricing:      'الدفع والتحويل',
+  requirements: 'الوثائق والشروط',
+  hotels:       'الفنادق والإقامة',
+  flights:      'الرحلات والطيران',
+  faq:          'أسئلة عامة',
+};
+
+const ANSWER_MODE_LABEL: Record<AnswerMode, string> = {
+  official_exact: 'نص رسمي',
+  ai_generated:   'صياغة ذكية',
+  hybrid:         'نص هجين',
+};
+
+function cleanText(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2B50}]/gu, '')
+    .replace(/\*\*/g, '')
+    .replace(/^[•\-\*]\s+/gm, '')
+    .trim();
+}
 
 export default function AiKnowledgeManager({
   userRole,
   userName,
-  userEmail = 'staff@southstreet.dz',
   allowedCategories,
-  title = 'قاعدة معرفة صخر AI',
-  subtitle = 'أضف الأسئلة والأجوبة التي سيستخدمها صخر تلقائياً عند إجابة المعتمرين'
 }: AiKnowledgeManagerProps) {
-  const [rules, setRules] = useState<AiKnowledgeRule[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<MainTab>('knowledge');
+
+  // Rules state
+  const [rules, setRules]             = useState<AiKnowledgeRule[]>([]);
+  const [loading, setLoading]         = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedCat, setSelectedCat] = useState<string>('all');
+  const [expandedRuleId, setExpandedRuleId] = useState<string | null>(null);
 
-  // Modal state
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [ruleCategory, setRuleCategory] = useState<'packages' | 'requirements' | 'rituals' | 'hotels' | 'flights' | 'pricing' | 'faq'>(
-    allowedCategories && allowedCategories.length > 0 ? allowedCategories[0] : 'faq'
-  );
-  const [ruleTitle, setRuleTitle] = useState('');
-  const [ruleKeywords, setRuleKeywords] = useState('');
-  const [ruleResponse, setRuleResponse] = useState('');
-  const [formMsg, setFormMsg] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  // System Directives state
+  const [directives, setDirectives] = useState<SystemDirectives>(DEFAULT_DIRECTIVES);
+  const [directivesSaved, setDirectivesSaved] = useState(false);
 
-  // Collapsed tools
-  const [webOpen, setWebOpen] = useState(false);
-  const [testOpen, setTestOpen] = useState(false);
+  // Playground state
+  const [testPrompt, setTestPrompt]       = useState('');
+  const [testResponse, setTestResponse]   = useState<string | null>(null);
+  const [testMatchedRule, setTestMatchedRule] = useState<string | null>(null);
+  const [testLatency, setTestLatency]     = useState<number | null>(null);
+  const [testBusy, setTestBusy]           = useState(false);
 
-  // Web Learner
-  const [webUrl, setWebUrl] = useState('');
-  const [webCategory, setWebCategory] = useState<'packages' | 'requirements' | 'rituals' | 'hotels' | 'flights' | 'pricing' | 'faq'>(
-    allowedCategories && allowedCategories.length > 0 ? allowedCategories[0] : 'faq'
-  );
-  const [webLearning, setWebLearning] = useState(false);
-  const [webMsg, setWebMsg] = useState('');
+  // Web Learner state
+  const [webUrl, setWebUrl]           = useState('');
+  const [webCategory, setWebCategory] = useState<Category>(allowedCategories?.[0] ?? 'faq');
+  const [webBusy, setWebBusy]         = useState(false);
+  const [webMsg, setWebMsg]           = useState('');
 
-  // Live Test
-  const [testPrompt, setTestPrompt] = useState('');
-  const [testResponse, setTestResponse] = useState<string | null>(null);
-  const [testLoading, setTestLoading] = useState(false);
+  // Add/Edit Modal state
+  const [isModalOpen, setIsModalOpen]           = useState(false);
+  const [modalMode, setModalMode]               = useState<'create' | 'edit'>('create');
+  const [editRuleId, setEditRuleId]             = useState<string | null>(null);
+  const [ruleCategory, setRuleCategory]         = useState<Category>(allowedCategories?.[0] ?? 'faq');
+  const [ruleTitle, setRuleTitle]               = useState('');
+  const [ruleKeywords, setRuleKeywords]         = useState('');
+  const [ruleResponse, setRuleResponse]         = useState('');
+  const [ruleAnswerMode, setRuleAnswerMode]     = useState<AnswerMode>('official_exact');
+  const [ruleMatchStrategy, setRuleMatchStrategy] = useState<MatchStrategy>('keywords_or_title');
+  const [formMsg, setFormMsg]                   = useState('');
+  const [submitting, setSubmitting]             = useState(false);
 
-  // Rating & Model Answer (admin grading)
-  const [selectedRuleId, setSelectedRuleId] = useState<string>('');
-  const [qualityRating, setQualityRating] = useState<'good' | 'less' | 'bad' | null>(null);
-  const [modelAnswer, setModelAnswer] = useState<string>('');
-  const [savingRating, setSavingRating] = useState(false);
-  const [saveRatingMsg, setSaveRatingMsg] = useState<string>('');
+  const cats = allowedCategories ?? (Object.keys(CATEGORY_LABEL) as Category[]);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('southstreet_ai_directives');
+      if (saved) setDirectives(JSON.parse(saved));
+    } catch {}
+  }, []);
+
+  const saveDirectives = () => {
+    try {
+      localStorage.setItem('southstreet_ai_directives', JSON.stringify(directives));
+      setDirectivesSaved(true);
+      setTimeout(() => setDirectivesSaved(false), 3000);
+    } catch {}
+  };
 
   const fetchRules = async () => {
     setLoading(true);
     try {
       const res = await fetch('/api/admin/sakhr-knowledge');
       if (res.ok) {
-        const data = await res.json();
-        setRules(data.rules || []);
+        const d = await res.json();
+        setRules(d.rules || []);
       }
     } catch {}
     setLoading(false);
@@ -91,747 +131,704 @@ export default function AiKnowledgeManager({
 
   useEffect(() => { fetchRules(); }, []);
 
-  const handleAddRule = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!ruleTitle.trim() || !ruleResponse.trim() || !ruleKeywords.trim()) {
-      setFormMsg('يرجى ملء جميع الحقول المطلوبة');
-      return;
-    }
-    setSubmitting(true);
-    setFormMsg('');
-    try {
-      const keywordsArray = ruleKeywords.split(/[,،]+/).map(k => k.trim()).filter(Boolean);
-      const res = await fetch('/api/admin/sakhr-knowledge', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          category: ruleCategory,
-          title_ar: ruleTitle,
-          keywords: keywordsArray,
-          response_ar: ruleResponse,
-          updatedBy: `${userName} (${userRole})`
-        })
-      });
-      const data = await res.json();
-      setSubmitting(false);
-      if (res.ok) {
-        setIsModalOpen(false);
-        setRuleTitle('');
-        setRuleKeywords('');
-        setRuleResponse('');
-        fetchRules();
-      } else {
-        setFormMsg(data.error || 'حدث خطأ أثناء الحفظ');
-      }
-    } catch {
-      setSubmitting(false);
-      setFormMsg('خطأ في الاتصال بالخادم');
-    }
-  };
-
-  const handleDeleteRule = async (id: string) => {
-    if (!confirm('هل تريد حذف هذه القاعدة؟')) return;
-    try {
-      const res = await fetch(`/api/admin/sakhr-knowledge?id=${id}`, { method: 'DELETE' });
-      if (res.ok) setRules(prev => prev.filter(r => r.id !== id));
-    } catch {}
-  };
-
-  const handleWebLearn = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!webUrl.trim() || !webUrl.startsWith('http')) {
-      setWebMsg('يرجى إدخال رابط صالح يبدأ بـ http');
-      return;
-    }
-    setWebLearning(true);
-    setWebMsg('');
-    try {
-      const res = await fetch('/api/admin/sakhr-learn-url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: webUrl, category: webCategory })
-      });
-      const data = await res.json();
-      setWebLearning(false);
-      if (res.ok) {
-        setWebMsg('success:تم استخراج المعرفة من الرابط وإضافتها بنجاح');
-        setWebUrl('');
-        fetchRules();
-      } else {
-        setWebMsg(`error:${data.error || 'تعذر قراءة الموقع'}`);
-      }
-    } catch {
-      setWebLearning(false);
-      setWebMsg('error:خطأ في الاتصال');
-    }
-  };
-
-  const handleTestSakhr = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!testPrompt.trim()) return;
-    setTestLoading(true);
-    setTestResponse(null);
-    setQualityRating(null);
-    setModelAnswer('');
-    setSaveRatingMsg('');
-    try {
-      const res = await fetch('/api/ai/sakhr', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: testPrompt })
-      });
-      const data = await res.json();
-      setTestLoading(false);
-      setTestResponse(data.text || 'لم تُستَرجع إجابة نصية.');
-      // Auto-prefill model answer with current rule's response if one is selected
-      if (selectedRuleId) {
-        const found = rules.find(r => r.id === selectedRuleId);
-        if (found) setModelAnswer(found.modelAnswer || found.response_ar || '');
-      }
-    } catch {
-      setTestLoading(false);
-      setTestResponse('حدث خطأ في اختبار صخر.');
-    }
-  };
-
-  const handleSaveRating = async () => {
-    if (!selectedRuleId) {
-      setSaveRatingMsg('error:يرجى اختيار السؤال المرتبط بهذا الاختبار');
-      return;
-    }
-    setSavingRating(true);
-    setSaveRatingMsg('');
-    try {
-      const res = await fetch('/api/admin/sakhr-knowledge', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: selectedRuleId,
-          qualityRating: qualityRating ?? undefined,
-          modelAnswer: modelAnswer.trim() || undefined
-        })
-      });
-      const data = await res.json();
-      setSavingRating(false);
-      if (res.ok) {
-        setSaveRatingMsg('success:تم حفظ التقييم والنموذج بنجاح ✓');
-        fetchRules(); // refresh cards to show badge
-      } else {
-        setSaveRatingMsg(`error:${data.error || 'حدث خطأ أثناء الحفظ'}`);
-      }
-    } catch {
-      setSavingRating(false);
-      setSaveRatingMsg('error:خطأ في الاتصال بالخادم');
-    }
-  };
-
-  const cats = allowedCategories || (Object.keys(CATEGORY_META) as any[]);
-
-  const displayedRules = rules.filter(rule => {
-    if (allowedCategories && !allowedCategories.includes(rule.category)) return false;
-    if (selectedCategory !== 'all' && rule.category !== selectedCategory) return false;
+  const displayedRules = rules.filter(r => {
+    if (allowedCategories && !allowedCategories.includes(r.category as any)) return false;
+    if (selectedCat !== 'all' && r.category !== selectedCat) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       return (
-        rule.title_ar.toLowerCase().includes(q) ||
-        rule.response_ar.toLowerCase().includes(q) ||
-        rule.keywords.some(k => k.toLowerCase().includes(q))
+        r.title_ar.toLowerCase().includes(q) ||
+        r.response_ar.toLowerCase().includes(q) ||
+        r.keywords.some(k => k.toLowerCase().includes(q))
       );
     }
     return true;
   });
 
-  const openModal = () => {
+  const toggleExpand = (id: string) => {
+    setExpandedRuleId(prev => (prev === id ? null : id));
+  };
+
+  const handleOpenCreate = () => {
+    setModalMode('create');
+    setEditRuleId(null);
     setRuleTitle('');
     setRuleKeywords('');
     setRuleResponse('');
+    setRuleCategory(cats[0] ?? 'faq');
+    setRuleAnswerMode('official_exact');
+    setRuleMatchStrategy('keywords_or_title');
     setFormMsg('');
-    setRuleCategory(cats[0] || 'faq');
     setIsModalOpen(true);
   };
 
+  const handleOpenEdit = (rule: AiKnowledgeRule) => {
+    setModalMode('edit');
+    setEditRuleId(rule.id);
+    setRuleTitle(rule.title_ar);
+    setRuleKeywords(rule.keywords.join('، '));
+    setRuleResponse(cleanText(rule.response_ar));
+    setRuleCategory(rule.category as Category);
+    setRuleAnswerMode(rule.answerMode || 'official_exact');
+    setRuleMatchStrategy(rule.matchStrategy || 'keywords_or_title');
+    setFormMsg('');
+    setIsModalOpen(true);
+  };
+
+  const handleSaveRule = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ruleTitle.trim() || !ruleResponse.trim() || !ruleKeywords.trim()) {
+      setFormMsg('يرجى ملء كافة الحقول');
+      return;
+    }
+    setSubmitting(true);
+    setFormMsg('');
+
+    const keywords = ruleKeywords.split(/[,،]+/).map(k => k.trim()).filter(Boolean);
+
+    try {
+      const endpoint = '/api/admin/sakhr-knowledge';
+      const method = modalMode === 'create' ? 'POST' : 'PUT';
+      const payload: any = {
+        category: ruleCategory,
+        title_ar: ruleTitle.trim(),
+        keywords,
+        response_ar: ruleResponse.trim(),
+        answerMode: ruleAnswerMode,
+        matchStrategy: ruleMatchStrategy,
+        updatedBy: `${userName} (${userRole})`,
+      };
+      if (modalMode === 'edit') payload.id = editRuleId;
+
+      const res = await fetch(endpoint, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      setSubmitting(false);
+
+      if (res.ok) {
+        setIsModalOpen(false);
+        fetchRules();
+        if (modalMode === 'edit' && editRuleId) {
+          setExpandedRuleId(editRuleId);
+        }
+      } else {
+        setFormMsg(data.error || 'حدث خطأ');
+      }
+    } catch {
+      setSubmitting(false);
+      setFormMsg('خطأ في الاتصال');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('حذف هذا السؤال من ذاكرة صخر؟')) return;
+    try {
+      const res = await fetch(`/api/admin/sakhr-knowledge?id=${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setRules(prev => prev.filter(r => r.id !== id));
+        if (expandedRuleId === id) setExpandedRuleId(null);
+      }
+    } catch {}
+  };
+
+  const handleTest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!testPrompt.trim()) return;
+    setTestBusy(true);
+    setTestResponse(null);
+    setTestMatchedRule(null);
+    setTestLatency(null);
+
+    const startTime = performance.now();
+    try {
+      const res = await fetch('/api/ai/sakhr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: testPrompt }),
+      });
+      const data = await res.json();
+      const endTime = performance.now();
+
+      setTestBusy(false);
+      setTestLatency(Math.round(endTime - startTime));
+      setTestResponse(cleanText(data.text || 'لم تُستَرجع إجابة.'));
+
+      const matched = rules.find(r =>
+        r.keywords.some(k => testPrompt.toLowerCase().includes(k.toLowerCase())) ||
+        testPrompt.toLowerCase().includes(r.title_ar.toLowerCase())
+      );
+      if (matched) setTestMatchedRule(matched.title_ar);
+    } catch {
+      setTestBusy(false);
+      setTestResponse('تعذر الاتصال بمحرك صخر.');
+    }
+  };
+
+  const handleWebLearn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!webUrl.startsWith('http')) {
+      setWebMsg('error:يرجى إدخال رابط يبدأ بـ https://');
+      return;
+    }
+    setWebBusy(true);
+    setWebMsg('');
+    try {
+      const res = await fetch('/api/admin/sakhr-learn-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: webUrl, category: webCategory }),
+      });
+      const data = await res.json();
+      setWebBusy(false);
+      if (res.ok) {
+        setWebMsg('success:تم تحليل الرابط واستخراج الأسئلة وإضافتها بنجاح');
+        setWebUrl('');
+        fetchRules();
+      } else {
+        setWebMsg(`error:${data.error || 'تعذر استخراج المحتوى'}`);
+      }
+    } catch {
+      setWebBusy(false);
+      setWebMsg('error:خطأ في الاتصال بالخادم');
+    }
+  };
+
   return (
-    <div className="space-y-5 text-right font-tajawal" dir="rtl">
+    <div className="space-y-6 text-right" dir="rtl">
 
-      {/* ── Header ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* ── Top Header & Tab Navigation ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-black/5">
         <div>
-          <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
-            <span className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center">
-              <Sparkles className="w-4 h-4 text-emerald-600" />
-            </span>
-            {title}
+          <h2 className="text-xl sm:text-2xl font-black text-[#1d1d1f] tracking-tight">
+            مركز تحكم صخر AI
           </h2>
-          <p className="text-xs text-slate-500 mt-1 mr-10">{subtitle}</p>
+          <p className="text-xs sm:text-sm text-[#6e6e73] mt-0.5">
+            إدارة الأسئلة والإجابات، وتوجيه سلوك الذكاء الاصطناعي، والمحاكاة
+          </p>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="bg-[#f5f5f7] p-1 rounded-xl flex gap-1 border border-black/5 self-start sm:self-auto">
           <button
-            onClick={fetchRules}
-            className="p-2 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition cursor-pointer"
-            title="تحديث"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          </button>
-          <button
-            onClick={openModal}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-sm cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            إضافة سؤال وجواب
-          </button>
-        </div>
-      </div>
-
-      {/* ── Stats Row ── */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="bg-white border border-slate-200 rounded-xl p-4 text-center">
-          <p className="text-2xl font-black text-slate-900">{rules.length}</p>
-          <p className="text-xs text-slate-500 mt-0.5">إجمالي القواعد</p>
-        </div>
-        <div className="bg-white border border-slate-200 rounded-xl p-4 text-center">
-          <p className="text-2xl font-black text-emerald-600">{rules.filter(r => r.is_active !== false).length}</p>
-          <p className="text-xs text-slate-500 mt-0.5">مفعّلة</p>
-        </div>
-        <div className="bg-white border border-slate-200 rounded-xl p-4 text-center">
-          <p className="text-2xl font-black text-slate-700">{cats.length}</p>
-          <p className="text-xs text-slate-500 mt-0.5">أقسام</p>
-        </div>
-      </div>
-
-      {/* ── Collapsible Tools ── */}
-      <div className="space-y-2">
-
-        {/* Web Scraper */}
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-          <button
-            onClick={() => setWebOpen(v => !v)}
-            className="w-full flex items-center justify-between px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
-          >
-            <span className="flex items-center gap-2">
-              <Link2 className="w-4 h-4 text-slate-400" />
-              تدريب صخر من رابط ويب
-            </span>
-            {webOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-          </button>
-
-          {webOpen && (
-            <div className="px-4 pb-4 border-t border-slate-100 pt-3 space-y-3">
-              <p className="text-xs text-slate-500">أدخل رابط صفحة ويب (موقع رسمي، مقال، شروط...) وسيقوم صخر باستخراج محتواها تلقائياً.</p>
-              <form onSubmit={handleWebLearn} className="flex flex-col sm:flex-row gap-2">
-                <input
-                  type="url"
-                  placeholder="https://example.com/page"
-                  value={webUrl}
-                  onChange={e => setWebUrl(e.target.value)}
-                  className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500 bg-slate-50"
-                  dir="ltr"
-                />
-                <select
-                  value={webCategory}
-                  onChange={e => setWebCategory(e.target.value as any)}
-                  className="px-3 py-2 border border-slate-200 rounded-lg text-xs text-slate-900 bg-slate-50 focus:outline-none focus:border-emerald-500"
-                >
-                  {cats.map((cat: string) => (
-                    <option key={cat} value={cat}>{CATEGORY_META[cat]?.label || cat}</option>
-                  ))}
-                </select>
-                <button
-                  type="submit"
-                  disabled={webLearning}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-lg transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                >
-                  {webLearning ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Globe className="w-3.5 h-3.5" />}
-                  {webLearning ? 'جاري القراءة...' : 'قراءة وتدريب'}
-                </button>
-              </form>
-              {webMsg && (
-                <p className={`text-xs font-semibold px-3 py-2 rounded-lg ${webMsg.startsWith('success:') ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-                  {webMsg.replace(/^(success|error):/, '')}
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Live Test */}
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-          <button
-            onClick={() => setTestOpen(v => !v)}
-            className="w-full flex items-center justify-between px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
-          >
-            <span className="flex items-center gap-2">
-              <FlaskConical className="w-4 h-4 text-slate-400" />
-              اختبار إجابات صخر مباشرة
-            </span>
-            {testOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-          </button>
-
-          {testOpen && (
-            <div className="px-4 pb-4 border-t border-slate-100 pt-3 space-y-4">
-
-              {/* Instruction */}
-              <p className="text-xs text-slate-500">
-                اكتب سؤالاً لتجربة كيف سيجيب صخر على المعتمرين — ثم قيّم جودة الإجابة وأضف النموذج المثالي إن احتجت.
-              </p>
-
-              {/* Rule Selector */}
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 mb-1.5 flex items-center gap-1.5">
-                  <ClipboardList className="w-3.5 h-3.5" />
-                  السؤال المرتبط بهذا الاختبار (لحفظ التقييم)
-                </label>
-                <select
-                  value={selectedRuleId}
-                  onChange={e => {
-                    setSelectedRuleId(e.target.value);
-                    setSaveRatingMsg('');
-                    if (e.target.value) {
-                      const found = rules.find(r => r.id === e.target.value);
-                      if (found) setModelAnswer(found.modelAnswer || found.response_ar || '');
-                    }
-                  }}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs text-slate-900 bg-slate-50 focus:outline-none focus:border-emerald-500"
-                >
-                  <option value="">— اختر السؤال المرتبط (اختياري) —</option>
-                  {(allowedCategories ? rules.filter(r => allowedCategories.includes(r.category)) : rules).map(r => (
-                    <option key={r.id} value={r.id}>{r.title_ar}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Test Input */}
-              <form onSubmit={handleTestSakhr} className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="مثال: ما هي خطوات الإحرام؟"
-                  value={testPrompt}
-                  onChange={e => setTestPrompt(e.target.value)}
-                  className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500 bg-slate-50"
-                />
-                <button
-                  type="submit"
-                  disabled={testLoading}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                >
-                  {testLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                  اختبار
-                </button>
-              </form>
-
-              {/* Sakhr's Response */}
-              {testResponse && (
-                <div className="space-y-3">
-                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 leading-relaxed whitespace-pre-line">
-                    <p className="text-[10px] font-bold text-emerald-600 mb-1.5">إجابة صخر:</p>
-                    {testResponse}
-                  </div>
-
-                  {/* ── Rating Bar ── */}
-                  <div className="bg-gradient-to-l from-slate-50 to-white border border-slate-200 rounded-xl p-4 space-y-3">
-                    <p className="text-[11px] font-black text-slate-700 flex items-center gap-1.5">
-                      <Star className="w-3.5 h-3.5 text-amber-500" />
-                      تقييم جودة إجابة صخر:
-                    </p>
-
-                    {/* 3-Button Rating */}
-                    <div className="flex gap-2">
-                      {/* Good */}
-                      <button
-                        type="button"
-                        onClick={() => setQualityRating('good')}
-                        className={`flex-1 flex flex-col items-center gap-1.5 py-3 rounded-xl border-2 text-xs font-bold transition cursor-pointer ${
-                          qualityRating === 'good'
-                            ? 'bg-emerald-50 border-emerald-500 text-emerald-700 shadow-sm shadow-emerald-100'
-                            : 'bg-white border-slate-200 text-slate-500 hover:border-emerald-300 hover:bg-emerald-50/40'
-                        }`}
-                      >
-                        <ThumbsUp className={`w-5 h-5 ${qualityRating === 'good' ? 'text-emerald-600' : 'text-slate-400'}`} />
-                        <span>جيدة</span>
-                        <span className="text-[10px] font-normal opacity-70">إجابة صحيحة ومكتملة</span>
-                      </button>
-
-                      {/* Less / Acceptable */}
-                      <button
-                        type="button"
-                        onClick={() => setQualityRating('less')}
-                        className={`flex-1 flex flex-col items-center gap-1.5 py-3 rounded-xl border-2 text-xs font-bold transition cursor-pointer ${
-                          qualityRating === 'less'
-                            ? 'bg-amber-50 border-amber-500 text-amber-700 shadow-sm shadow-amber-100'
-                            : 'bg-white border-slate-200 text-slate-500 hover:border-amber-300 hover:bg-amber-50/40'
-                        }`}
-                      >
-                        <Minus className={`w-5 h-5 ${qualityRating === 'less' ? 'text-amber-600' : 'text-slate-400'}`} />
-                        <span>مقبولة</span>
-                        <span className="text-[10px] font-normal opacity-70">يمكن تحسينها</span>
-                      </button>
-
-                      {/* Bad / Weak */}
-                      <button
-                        type="button"
-                        onClick={() => setQualityRating('bad')}
-                        className={`flex-1 flex flex-col items-center gap-1.5 py-3 rounded-xl border-2 text-xs font-bold transition cursor-pointer ${
-                          qualityRating === 'bad'
-                            ? 'bg-red-50 border-red-500 text-red-700 shadow-sm shadow-red-100'
-                            : 'bg-white border-slate-200 text-slate-500 hover:border-red-300 hover:bg-red-50/40'
-                        }`}
-                      >
-                        <ThumbsDown className={`w-5 h-5 ${qualityRating === 'bad' ? 'text-red-600' : 'text-slate-400'}`} />
-                        <span>ضعيفة</span>
-                        <span className="text-[10px] font-normal opacity-70">إجابة غير صحيحة</span>
-                      </button>
-                    </div>
-
-                    {/* Model Answer */}
-                    <div className="space-y-1.5">
-                      <label className="block text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
-                        <ClipboardList className="w-3.5 h-3.5 text-violet-500" />
-                        النموذج المثالي (الإجابة الصحيحة كما يجب أن تكون):
-                      </label>
-                      <textarea
-                        rows={4}
-                        placeholder="اكتب هنا الإجابة النموذجية التي يجب أن يقدمها صخر على هذا السؤال..."
-                        value={modelAnswer}
-                        onChange={e => setModelAnswer(e.target.value)}
-                        className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-xs text-slate-900 placeholder-slate-400 bg-white focus:outline-none focus:border-violet-400 transition leading-relaxed resize-none"
-                      />
-                    </div>
-
-                    {/* Save Button */}
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={handleSaveRating}
-                        disabled={savingRating || (!qualityRating && !modelAnswer.trim())}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-lg transition cursor-pointer disabled:opacity-40 shadow-sm"
-                      >
-                        {savingRating
-                          ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> جاري الحفظ...</>
-                          : <><Save className="w-3.5 h-3.5" /> حفظ التقييم والنموذج</>
-                        }
-                      </button>
-
-                      {saveRatingMsg && (
-                        <span className={`text-[11px] font-semibold ${
-                          saveRatingMsg.startsWith('success:') ? 'text-emerald-600' : 'text-red-600'
-                        }`}>
-                          {saveRatingMsg.replace(/^(success|error):/, '')}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── Filters ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        {/* Search */}
-        <div className="relative flex-1 max-w-xs">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="بحث في الأسئلة..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            className="w-full pr-8 pl-3 py-2 border border-slate-200 rounded-lg text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500 bg-white"
-          />
-        </div>
-
-        {/* Category Pills */}
-        <div className="flex flex-wrap gap-1.5">
-          <button
-            onClick={() => setSelectedCategory('all')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
-              selectedCategory === 'all'
-                ? 'bg-slate-900 text-white'
-                : 'bg-white border border-slate-200 text-slate-600 hover:border-slate-400'
+            onClick={() => setActiveTab('knowledge')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              activeTab === 'knowledge' ? 'bg-white text-[#1d1d1f] shadow-sm' : 'text-[#6e6e73] hover:text-[#1d1d1f]'
             }`}
           >
-            الكل ({rules.length})
+            قاعدة الأسئلة ({rules.length})
           </button>
-          {cats.map((cat: string) => {
-            const meta = CATEGORY_META[cat];
-            const count = rules.filter(r => r.category === cat).length;
-            return (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                  selectedCategory === cat
-                    ? `${meta?.bg || 'bg-slate-100'} ${meta?.accent || 'text-slate-700'} ${meta?.border || 'border-slate-200'} border`
-                    : 'bg-white border border-slate-200 text-slate-600 hover:border-slate-400'
-                }`}
-              >
-                {meta?.labelShort || cat} {count > 0 && <span className="opacity-60">({count})</span>}
-              </button>
-            );
-          })}
+          <button
+            onClick={() => setActiveTab('directives')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              activeTab === 'directives' ? 'bg-white text-[#1d1d1f] shadow-sm' : 'text-[#6e6e73] hover:text-[#1d1d1f]'
+            }`}
+          >
+            توجيه وسلوك الإجابة
+          </button>
+          <button
+            onClick={() => setActiveTab('playground')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              activeTab === 'playground' ? 'bg-white text-[#1d1d1f] shadow-sm' : 'text-[#6e6e73] hover:text-[#1d1d1f]'
+            }`}
+          >
+            مختبر المحاكاة
+          </button>
+          <button
+            onClick={() => setActiveTab('sources')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              activeTab === 'sources' ? 'bg-white text-[#1d1d1f] shadow-sm' : 'text-[#6e6e73] hover:text-[#1d1d1f]'
+            }`}
+          >
+            استيراد مصادر
+          </button>
         </div>
       </div>
 
-      {/* ── Rules Grid ── */}
-      {loading ? (
-        <div className="text-center py-16 text-slate-400 text-xs flex flex-col items-center gap-3">
-          <RefreshCw className="w-5 h-5 animate-spin text-slate-300" />
-          جاري تحميل قواعد المعرفة...
-        </div>
-      ) : displayedRules.length === 0 ? (
-        <div className="text-center py-16 bg-white border border-slate-200 border-dashed rounded-2xl">
-          <Sparkles className="w-8 h-8 text-slate-200 mx-auto mb-3" />
-          <p className="text-sm font-bold text-slate-400">لا توجد قواعد معرفة</p>
-          <p className="text-xs text-slate-400 mt-1">ابدأ بإضافة أول سؤال وجواب لتدريب صخر</p>
-          <button
-            onClick={openModal}
-            className="mt-4 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition cursor-pointer"
-          >
-            + إضافة أول قاعدة
-          </button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          {displayedRules.map(rule => {
-            const meta = CATEGORY_META[rule.category] || CATEGORY_META.faq;
-            const CategoryIcon = meta.icon;
-            return (
-              <div
-                key={rule.id}
-                className={`bg-white border rounded-xl p-4 hover:shadow-sm transition-all flex flex-col gap-3 ${
-                  rule.qualityRating === 'good'  ? 'border-emerald-200 hover:border-emerald-300' :
-                  rule.qualityRating === 'less'  ? 'border-amber-200  hover:border-amber-300'   :
-                  rule.qualityRating === 'bad'   ? 'border-red-200    hover:border-red-300'     :
-                  'border-slate-200 hover:border-slate-300'
-                }`}
-              >
-                {/* Card Header */}
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold ${meta.bg} ${meta.accent} ${meta.border} border`}>
-                      <CategoryIcon className="w-3 h-3" />
-                      {meta.label}
-                    </span>
-                    {/* Quality Rating Badge */}
-                    {rule.qualityRating === 'good' && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                        <ThumbsUp className="w-2.5 h-2.5" /> جيدة
-                      </span>
-                    )}
-                    {rule.qualityRating === 'less' && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                        <Minus className="w-2.5 h-2.5" /> مقبولة
-                      </span>
-                    )}
-                    {rule.qualityRating === 'bad' && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-red-50 text-red-700 border border-red-200">
-                        <ThumbsDown className="w-2.5 h-2.5" /> ضعيفة
-                      </span>
-                    )}
-                    {/* Model Answer Indicator */}
-                    {rule.modelAnswer && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-violet-50 text-violet-700 border border-violet-200">
-                        <ClipboardList className="w-2.5 h-2.5" /> نموذج متاح
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => handleDeleteRule(rule.id)}
-                    className="text-slate-300 hover:text-red-500 p-1 rounded-lg transition cursor-pointer shrink-0"
-                    title="حذف"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {/* TAB 1: KNOWLEDGE BASE (CLEAN TITLES LIST + CLICK TO EXPAND) */}
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {activeTab === 'knowledge' && (
+        <div className="space-y-4">
+          {/* Action & Filter Bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2 flex-wrap flex-1">
+              <input
+                type="text"
+                placeholder="بحث في الأسئلة..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="bg-[#f5f5f7] border border-black/5 rounded-xl px-3.5 py-2 text-xs text-[#1d1d1f] outline-none focus:border-[#0071e3] w-full sm:w-56"
+              />
 
-                {/* Question */}
-                <div>
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <MessageSquareText className="w-3 h-3 text-slate-400 shrink-0" />
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">السؤال</span>
-                  </div>
-                  <p className="text-sm font-bold text-slate-900 leading-snug">{rule.title_ar}</p>
-                </div>
-
-                {/* Keywords */}
-                {rule.keywords.length > 0 && (
-                  <div>
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <Tag className="w-3 h-3 text-slate-400 shrink-0" />
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">كلمات مشغِّلة</span>
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      {rule.keywords.map((kw, i) => (
-                        <span key={i} className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-mono rounded-md">
-                          {kw}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Answer */}
-                <div>
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <Sparkles className="w-3 h-3 text-emerald-500 shrink-0" />
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">إجابة صخر</span>
-                  </div>
-                  <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 rounded-lg p-2.5 border border-slate-100 whitespace-pre-line line-clamp-4">
-                    {rule.response_ar}
-                  </p>
-                </div>
-
-                {/* Model Answer (if set) */}
-                {rule.modelAnswer && (
-                  <div>
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <ClipboardList className="w-3 h-3 text-violet-500 shrink-0" />
-                      <span className="text-[10px] font-bold text-violet-500 uppercase tracking-wide">النموذج المثالي</span>
-                    </div>
-                    <p className="text-xs text-violet-800 leading-relaxed bg-violet-50 rounded-lg p-2.5 border border-violet-100 whitespace-pre-line line-clamp-3">
-                      {rule.modelAnswer}
-                    </p>
-                  </div>
-                )}
-
-                {/* Footer */}
-                <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-100">
-                  <span>بواسطة: {rule.updatedBy || 'الإدارة'}</span>
-                  <span>{new Date(rule.updatedAt).toLocaleDateString('ar-DZ')}</span>
-                </div>
+              <div className="flex gap-1 overflow-x-auto pb-1 max-w-full">
+                <button
+                  onClick={() => setSelectedCat('all')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                    selectedCat === 'all'
+                      ? 'bg-[#1d1d1f] text-white'
+                      : 'bg-[#f5f5f7] text-[#6e6e73] hover:text-[#1d1d1f]'
+                  }`}
+                >
+                  الكل ({rules.length})
+                </button>
+                {cats.map(c => {
+                  const count = rules.filter(r => r.category === c).length;
+                  return (
+                    <button
+                      key={c}
+                      onClick={() => setSelectedCat(c)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                        selectedCat === c
+                          ? 'bg-[#1d1d1f] text-white'
+                          : 'bg-[#f5f5f7] text-[#6e6e73] hover:text-[#1d1d1f]'
+                      }`}
+                    >
+                      {CATEGORY_LABEL[c] ?? c} {count > 0 && `(${count})`}
+                    </button>
+                  );
+                })}
               </div>
-            );
-          })}
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={fetchRules}
+                className="px-3 py-2 rounded-xl bg-[#f5f5f7] hover:bg-[#e8e8ed] text-[#1d1d1f] text-xs font-semibold transition-all cursor-pointer"
+              >
+                {loading ? 'جاري...' : 'تحديث'}
+              </button>
+              <button
+                onClick={handleOpenCreate}
+                className="px-4 py-2 rounded-xl bg-[#0071e3] hover:bg-[#0077ed] text-white text-xs font-bold transition-all shadow-sm cursor-pointer"
+              >
+                إضافة سؤال
+              </button>
+            </div>
+          </div>
+
+          {/* Clean List View with Click-to-Expand */}
+          {loading ? (
+            <div className="text-center py-16 text-xs text-[#6e6e73]">جاري تحميل الأسئلة...</div>
+          ) : displayedRules.length === 0 ? (
+            <div className="bg-white border border-black/5 rounded-2xl p-12 text-center space-y-3">
+              <p className="text-sm font-bold text-[#1d1d1f]">لا توجد نتائج مطابقة</p>
+              <p className="text-xs text-[#6e6e73]">أضف أسئلة جديدة لتدريب صخر</p>
+              <button
+                onClick={handleOpenCreate}
+                className="px-4 py-2 rounded-xl bg-[#0071e3] text-white text-xs font-bold"
+              >
+                إضافة سؤال جديد
+              </button>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl border border-black/5 shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden divide-y divide-black/5">
+              {displayedRules.map((rule) => {
+                const isExpanded = expandedRuleId === rule.id;
+                return (
+                  <div key={rule.id} className="transition-colors">
+                    {/* Header Row (Title Only + Metadata) */}
+                    <div
+                      onClick={() => toggleExpand(rule.id)}
+                      className="p-4 sm:px-5 flex items-center justify-between gap-4 cursor-pointer hover:bg-[#f5f5f7]/60 transition-colors select-none"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="text-xs font-bold text-[#0071e3] bg-[#0071e3]/10 px-2.5 py-1 rounded-md shrink-0">
+                          {CATEGORY_LABEL[rule.category] ?? rule.category}
+                        </span>
+                        <h4 className="text-sm sm:text-base font-bold text-[#1d1d1f] truncate">
+                          {rule.title_ar}
+                        </h4>
+                      </div>
+
+                      <div className="flex items-center gap-3 shrink-0 text-xs text-[#6e6e73]">
+                        <span className="hidden sm:inline font-medium text-[11px]">
+                          {ANSWER_MODE_LABEL[rule.answerMode || 'official_exact']}
+                        </span>
+                        <span className="text-xs font-semibold px-2 py-1 rounded-lg bg-[#f5f5f7] text-[#1d1d1f]">
+                          {isExpanded ? 'إخفاء' : 'عرض'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Expanded Detail Body (Smoothly Revealed on Click) */}
+                    {isExpanded && (
+                      <div className="px-5 pb-5 pt-1 bg-[#fbfbfd] border-t border-black/5 space-y-3.5 animate-fade-in text-xs">
+                        <div>
+                          <span className="text-[11px] font-bold text-[#6e6e73] block mb-1">
+                            الإجابة المعتمدة التي يقدمها صخر للمعتمرين:
+                          </span>
+                          <div className="p-4 bg-white rounded-xl border border-black/5 text-[#1d1d1f] leading-relaxed whitespace-pre-line text-xs sm:text-sm">
+                            {cleanText(rule.response_ar)}
+                          </div>
+                        </div>
+
+                        {rule.keywords.length > 0 && (
+                          <div>
+                            <span className="text-[11px] font-bold text-[#6e6e73] block mb-1">
+                              الكلمات المفتاحية المشغلة:
+                            </span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {rule.keywords.map((k, i) => (
+                                <span
+                                  key={i}
+                                  className="text-[11px] font-mono bg-white text-[#1d1d1f] px-2.5 py-1 rounded-md border border-black/5 font-medium"
+                                >
+                                  {k}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="pt-2 flex items-center justify-between border-t border-black/5 text-[11px] text-[#6e6e73]">
+                          <span>نوع المعالجة: {ANSWER_MODE_LABEL[rule.answerMode || 'official_exact']}</span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleOpenEdit(rule)}
+                              className="px-3.5 py-1.5 rounded-lg bg-[#0071e3] text-white font-bold hover:bg-[#0077ed] transition-colors cursor-pointer"
+                            >
+                              تعديل
+                            </button>
+                            <button
+                              onClick={() => handleDelete(rule.id)}
+                              className="px-3.5 py-1.5 rounded-lg bg-[#ff3b30]/10 text-[#ff3b30] font-bold hover:bg-[#ff3b30]/20 transition-colors cursor-pointer"
+                            >
+                              حذف
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
-      {/* ── Add Q&A Modal ── */}
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {/* TAB 2: SYSTEM DIRECTIVES & TONE                             */}
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {activeTab === 'directives' && (
+        <div className="space-y-5 max-w-2xl">
+          <div className="bg-white rounded-2xl border border-black/5 shadow-[0_2px_12px_rgba(0,0,0,0.04)] p-6 space-y-5">
+            <div>
+              <h3 className="text-base font-bold text-[#1d1d1f]">نبرة وصوت صخر (Persona & Tone)</h3>
+              <p className="text-xs text-[#6e6e73] mt-0.5">
+                تحديد الأسلوب الذي يتبعه صخر عند صياغة الإجابات للمعتمرين
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {[
+                { id: 'professional_warm', title: 'وقور ومرحب', desc: 'لغة عربية فصحى معتدلة وأسلوب فندقي محترم' },
+                { id: 'concise_formal', title: 'مختصر ومباشر', desc: 'إجابات مباشرة ومركزة بالأرقام والتواريخ' },
+                { id: 'religious_guidance', title: 'إرشادي وتوجيهي', desc: 'تركيز على فقه المناسك والأدعية المأثورة' },
+              ].map(opt => (
+                <div
+                  key={opt.id}
+                  onClick={() => setDirectives(d => ({ ...d, tone: opt.id as any }))}
+                  className={`p-4 rounded-xl border transition-all cursor-pointer text-right space-y-1 ${
+                    directives.tone === opt.id
+                      ? 'border-[#0071e3] bg-[#0071e3]/5 shadow-sm'
+                      : 'border-black/5 bg-[#f5f5f7] hover:border-black/10'
+                  }`}
+                >
+                  <strong className="text-xs text-[#1d1d1f] block">{opt.title}</strong>
+                  <p className="text-[11px] text-[#6e6e73] leading-relaxed">{opt.desc}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="space-y-3 pt-3 border-t border-black/5">
+              <h4 className="text-xs font-bold text-[#1d1d1f]">ضوابط الإجابة الإلزامية (Guardrails)</h4>
+
+              <div className="space-y-2">
+                <label className="flex items-center gap-3 p-3 rounded-xl bg-[#f5f5f7] cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={directives.strictPricing}
+                    onChange={e => setDirectives(d => ({ ...d, strictPricing: e.target.checked }))}
+                    className="w-4 h-4 rounded text-[#0071e3] focus:ring-0"
+                  />
+                  <div className="text-right">
+                    <span className="text-xs font-bold text-[#1d1d1f] block">الالتزام التام بالأسعار المعتمدة</span>
+                    <span className="text-[11px] text-[#6e6e73]">منع صخر من تقدير أو إعطاء أي أسعار غير مسجلة رسمياً</span>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-3 p-3 rounded-xl bg-[#f5f5f7] cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={directives.handoverGuide}
+                    onChange={e => setDirectives(d => ({ ...d, handoverGuide: e.target.checked }))}
+                    className="w-4 h-4 rounded text-[#0071e3] focus:ring-0"
+                  />
+                  <div className="text-right">
+                    <span className="text-xs font-bold text-[#1d1d1f] block">التحويل للمرشد عند المسائل الخلافية</span>
+                    <span className="text-[11px] text-[#6e6e73]">توجيه المعتمر لمحادثة الشيخ المرشد عند الأسئلة الفقهية الحساسة</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-3 border-t border-black/5">
+              <label className="block text-xs font-bold text-[#1d1d1f]">
+                التعليمات العامة للنظام (System Instructions)
+              </label>
+              <textarea
+                rows={4}
+                value={directives.customInstructions}
+                onChange={e => setDirectives(d => ({ ...d, customInstructions: e.target.value }))}
+                className="w-full bg-[#f5f5f7] border border-black/5 rounded-xl p-3 text-xs text-[#1d1d1f] outline-none focus:border-[#0071e3] leading-relaxed resize-none"
+              />
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                onClick={saveDirectives}
+                className="px-5 py-2.5 rounded-xl bg-[#0071e3] hover:bg-[#0077ed] text-white text-xs font-bold transition-all shadow-sm cursor-pointer"
+              >
+                حفظ التعليمات
+              </button>
+              {directivesSaved && (
+                <span className="text-xs font-bold text-[#34c759]">
+                  تم حفظ وتحديث تعليمات صخر بنجاح
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {/* TAB 3: PLAYGROUND / SIMULATOR                               */}
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {activeTab === 'playground' && (
+        <div className="space-y-4 max-w-2xl">
+          <div className="bg-white rounded-2xl border border-black/5 shadow-[0_2px_12px_rgba(0,0,0,0.04)] p-6 space-y-4">
+            <div>
+              <h3 className="text-base font-bold text-[#1d1d1f]">مختبر المحاكاة المباشر</h3>
+              <p className="text-xs text-[#6e6e73] mt-0.5">
+                اختبار إجابات صخر والتحقق من مصادر وسرعة الرد
+              </p>
+            </div>
+
+            <form onSubmit={handleTest} className="flex gap-2">
+              <input
+                type="text"
+                placeholder="اكتب سؤالاً تجريبياً (مثال: ما هي شروط العمرة؟ كم سعر باقة أوت؟)..."
+                value={testPrompt}
+                onChange={e => setTestPrompt(e.target.value)}
+                className="flex-1 bg-[#f5f5f7] border border-black/5 rounded-xl px-3.5 py-2.5 text-xs text-[#1d1d1f] outline-none focus:border-[#0071e3]"
+              />
+              <button
+                type="submit"
+                disabled={testBusy || !testPrompt.trim()}
+                className="px-5 py-2.5 rounded-xl bg-[#1d1d1f] hover:bg-[#2d2d2f] text-white text-xs font-bold transition-all cursor-pointer disabled:opacity-40 shrink-0"
+              >
+                {testBusy ? 'جاري...' : 'اختبار'}
+              </button>
+            </form>
+
+            {testResponse && (
+              <div className="space-y-2 pt-3 border-t border-black/5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-[#1d1d1f]">إجابة صخر:</span>
+                  <div className="flex items-center gap-3 text-[11px] text-[#6e6e73]">
+                    {testLatency !== null && <span>الاستجابة: {testLatency}ms</span>}
+                    {testMatchedRule && <span className="text-[#0071e3] font-bold">المصدر: {testMatchedRule}</span>}
+                  </div>
+                </div>
+
+                <div className="p-4 bg-[#f5f5f7] rounded-xl text-xs text-[#1d1d1f] leading-relaxed whitespace-pre-line">
+                  {testResponse}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {/* TAB 4: DATA SOURCES & INGESTION                             */}
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {activeTab === 'sources' && (
+        <div className="space-y-4 max-w-2xl">
+          <div className="bg-white rounded-2xl border border-black/5 shadow-[0_2px_12px_rgba(0,0,0,0.04)] p-6 space-y-4">
+            <div>
+              <h3 className="text-base font-bold text-[#1d1d1f]">استيراد المعرفة من روابط الويب</h3>
+              <p className="text-xs text-[#6e6e73] mt-0.5">
+                قراءة صفحة ويب واستخراج وتصنيف الأسئلة آلياً في ذاكرة صخر
+              </p>
+            </div>
+
+            <form onSubmit={handleWebLearn} className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="url"
+                placeholder="https://example.com/page"
+                value={webUrl}
+                onChange={e => setWebUrl(e.target.value)}
+                dir="ltr"
+                className="flex-1 bg-[#f5f5f7] border border-black/5 rounded-xl px-3.5 py-2.5 text-xs text-[#1d1d1f] outline-none focus:border-[#0071e3]"
+              />
+              <select
+                value={webCategory}
+                onChange={e => setWebCategory(e.target.value as Category)}
+                className="bg-[#f5f5f7] border border-black/5 rounded-xl px-3 py-2.5 text-xs text-[#1d1d1f] outline-none"
+              >
+                {cats.map(c => (
+                  <option key={c} value={c}>{CATEGORY_LABEL[c] ?? c}</option>
+                ))}
+              </select>
+              <button
+                type="submit"
+                disabled={webBusy || !webUrl.trim()}
+                className="px-5 py-2.5 rounded-xl bg-[#0071e3] hover:bg-[#0077ed] text-white text-xs font-bold transition-all cursor-pointer disabled:opacity-40 shrink-0"
+              >
+                {webBusy ? 'جاري التحليل...' : 'استيراد'}
+              </button>
+            </form>
+
+            {webMsg && (
+              <p className={`p-3 rounded-xl text-xs font-semibold ${
+                webMsg.startsWith('success:')
+                  ? 'bg-[#34c759]/10 text-[#34c759]'
+                  : 'bg-[#ff3b30]/10 text-[#ff3b30]'
+              }`}>
+                {webMsg.replace(/^(success|error):/, '')}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {/* MODAL: CREATE / EDIT QUESTION                               */}
+      {/* ═══════════════════════════════════════════════════════════ */}
       {isModalOpen && (
         <div
-          className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-black/30 backdrop-blur-md flex items-center justify-center p-4"
           onClick={() => setIsModalOpen(false)}
         >
           <div
-            className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
+            className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden text-right border border-black/5"
             onClick={e => e.stopPropagation()}
           >
-            {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center">
-                  <Edit3 className="w-4 h-4 text-emerald-600" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-black text-slate-900">إضافة سؤال وجواب</h3>
-                  <p className="text-[11px] text-slate-500">يُضاف فوراً لذاكرة صخر AI</p>
-                </div>
-              </div>
+            <div className="p-4 sm:p-5 border-b border-black/5 flex items-center justify-between">
+              <h3 className="text-base font-bold text-[#1d1d1f]">
+                {modalMode === 'create' ? 'إضافة سؤال وجواب جديد' : 'تعديل السؤال'}
+              </h3>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 text-lg font-light leading-none cursor-pointer p-1"
+                className="text-[#6e6e73] hover:text-[#1d1d1f] text-lg font-light p-1"
               >
                 ✕
               </button>
             </div>
 
-            {/* Modal Body */}
-            <form onSubmit={handleAddRule} className="p-6 space-y-4 text-xs">
-
+            <form onSubmit={handleSaveRule} className="p-5 sm:p-6 space-y-3.5 text-xs">
               {formMsg && (
-                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs font-semibold">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
+                <div className="p-3 bg-[#ff3b30]/10 text-[#ff3b30] font-bold rounded-xl">
                   {formMsg}
                 </div>
               )}
 
-              {/* Category */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">القسم</label>
+                <label className="block text-xs font-bold text-[#1d1d1f] mb-1">القسم</label>
                 <select
                   value={ruleCategory}
-                  onChange={e => setRuleCategory(e.target.value as any)}
-                  className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-xs text-slate-900 bg-slate-50 focus:outline-none focus:border-emerald-500 transition"
+                  onChange={e => setRuleCategory(e.target.value as Category)}
+                  className="w-full bg-[#f5f5f7] border border-black/5 rounded-xl px-3 py-2 text-xs text-[#1d1d1f] outline-none focus:border-[#0071e3]"
                 >
-                  {cats.map((cat: string) => (
-                    <option key={cat} value={cat}>{CATEGORY_META[cat]?.label || cat}</option>
+                  {cats.map(c => (
+                    <option key={c} value={c}>{CATEGORY_LABEL[c] ?? c}</option>
                   ))}
                 </select>
               </div>
 
-              {/* Question */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  السؤال أو الموضوع
-                </label>
+                <label className="block text-xs font-bold text-[#1d1d1f] mb-1">عنوان السؤال / الموضوع</label>
                 <input
                   type="text"
-                  placeholder="مثال: كيفية الإحرام من الطائرة"
+                  required
                   value={ruleTitle}
                   onChange={e => setRuleTitle(e.target.value)}
-                  className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-xs text-slate-900 placeholder-slate-400 bg-slate-50 focus:outline-none focus:border-emerald-500 transition"
-                  required
+                  placeholder="مثال: شروط وتفاصيل باقة أوت الاقتصادية"
+                  className="w-full bg-[#f5f5f7] border border-black/5 rounded-xl px-3.5 py-2.5 text-xs text-[#1d1d1f] outline-none focus:border-[#0071e3]"
                 />
               </div>
 
-              {/* Keywords */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  الكلمات المشغِّلة
-                  <span className="font-normal text-slate-400 mr-1">(مفصولة بفواصل)</span>
+                <label className="block text-xs font-bold text-[#1d1d1f] mb-1">
+                  الكلمات المشغلة <span className="text-[#6e6e73] font-normal">(مفصولة بفواصل)</span>
                 </label>
                 <input
                   type="text"
-                  placeholder="إحرام، طائرة، ميقات، نية"
+                  required
                   value={ruleKeywords}
                   onChange={e => setRuleKeywords(e.target.value)}
-                  className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-xs text-slate-900 placeholder-slate-400 bg-slate-50 focus:outline-none focus:border-emerald-500 transition"
-                  required
+                  placeholder="أوت، باقة، 215000، منارات غزة"
+                  className="w-full bg-[#f5f5f7] border border-black/5 rounded-xl px-3.5 py-2.5 text-xs text-[#1d1d1f] outline-none focus:border-[#0071e3]"
                 />
-                <p className="text-[10px] text-slate-400 mt-1">
-                  عندما يذكر المستخدم أي كلمة من هذه القائمة، سيجيب صخر بالإجابة أدناه تلقائياً.
-                </p>
               </div>
 
-              {/* Answer */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  إجابة صخر
-                </label>
+                <label className="block text-xs font-bold text-[#1d1d1f] mb-1">نوع الإجابة</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['official_exact', 'ai_generated', 'hybrid'] as AnswerMode[]).map(mode => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setRuleAnswerMode(mode)}
+                      className={`py-2 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        ruleAnswerMode === mode
+                          ? 'bg-[#1d1d1f] text-white shadow-sm'
+                          : 'bg-[#f5f5f7] text-[#6e6e73] hover:text-[#1d1d1f]'
+                      }`}
+                    >
+                      {ANSWER_MODE_LABEL[mode]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#1d1d1f] mb-1">الإجابة المعتمدة</label>
                 <textarea
-                  rows={5}
-                  placeholder="اكتب الإجابة الدقيقة التي سيقدمها صخر..."
+                  rows={4}
+                  required
                   value={ruleResponse}
                   onChange={e => setRuleResponse(e.target.value)}
-                  className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-xs text-slate-900 placeholder-slate-400 bg-slate-50 focus:outline-none focus:border-emerald-500 transition leading-relaxed resize-none"
-                  required
+                  placeholder="اكتب الإجابة الدقيقة والواضحة..."
+                  className="w-full bg-[#f5f5f7] border border-black/5 rounded-xl p-3 text-xs text-[#1d1d1f] outline-none focus:border-[#0071e3] leading-relaxed resize-none"
                 />
               </div>
 
-              {/* Actions */}
-              <div className="flex gap-2 pt-1">
+              <div className="pt-2 flex gap-2">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="flex-1 py-2.5 rounded-lg border border-slate-200 text-slate-700 font-bold hover:bg-slate-50 transition cursor-pointer text-xs"
+                  className="flex-1 py-2.5 rounded-xl bg-[#f5f5f7] hover:bg-[#e8e8ed] text-[#1d1d1f] font-bold text-xs transition-all cursor-pointer"
                 >
                   إلغاء
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="flex-1 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition shadow-sm cursor-pointer text-xs flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="flex-1 py-2.5 rounded-xl bg-[#0071e3] hover:bg-[#0077ed] text-white font-bold text-xs transition-all shadow-sm cursor-pointer disabled:opacity-40"
                 >
-                  {submitting
-                    ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> جاري الحفظ...</>
-                    : <><CheckCircle className="w-3.5 h-3.5" /> حفظ وتفعيل</>
-                  }
+                  {submitting ? 'جاري الحفظ...' : (modalMode === 'create' ? 'إضافة السؤال' : 'تحديث')}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
+
     </div>
   );
 }
