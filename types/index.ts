@@ -45,16 +45,18 @@ export interface Message {
   chatId: string;
   senderId: string;
   senderName: string;
+  senderAvatar?: string;
   senderRole: UserRole;
   text: string;
   time: string;
-  type: MessageType;
+  type?: MessageType;
   duration?: string;
   locationName?: string;
   coords?: string;
   iv?: string;
   ciphertext?: string;
   status?: 'sent' | 'read' | 'delivered';
+  isUrgent?: boolean;
 }
 
 export interface Receipt {
@@ -316,8 +318,9 @@ export interface AiConversationLog {
 }
 
 export interface AiAction {
-  type: 'navigate' | 'open_modal' | 'apply_filter' | 'select_package' | 'show_map' | 'show_media' | 'start_booking' | 'compare';
+  type: 'navigate' | 'open_modal' | 'apply_filter' | 'select_package' | 'show_map' | 'show_media' | 'start_booking' | 'compare' | 'open_table_viewer' | string;
   target?: string;
+  targetTable?: string;
   filters?: Record<string, any>;
   package_id?: string;
   hotel_id?: string;
@@ -327,7 +330,7 @@ export interface AiAction {
 }
 
 export interface AiCard {
-  type: 'package' | 'hotel' | 'flight' | 'reservation' | 'comparison' | 'morshid' | 'action';
+  type: 'package' | 'hotel' | 'flight' | 'reservation' | 'comparison' | 'morshid' | 'action' | 'db_table_viewer' | 'table_selector_prompt' | string;
   data: any;
 }
 

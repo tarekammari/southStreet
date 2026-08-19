@@ -1,171 +1,35 @@
 import { NextResponse } from 'next/server';
 import { KnowledgeReader } from '@/lib/knowledge/knowledge-reader';
-import { getDatabase, AiKnowledgeRule } from '@/lib/db';
 import { AiCard, AiAction } from '@/types';
+import { getDatabase, saveDatabase, AiKnowledgeRule } from '@/lib/db';
+import { getSqliteDb } from '@/lib/sqlite';
+import {
+  toolSearchPackages,
+  toolGetSeasonsInfo,
+  toolGetAgencySettings,
+  toolGetTeamMembers,
+  toolGetHotelsInfo,
+  toolSearchKnowledge,
+  toolComparePackages
+} from '@/lib/ai-tools';
 
 /**
  * ┌─────────────────────────────────────────────────────────────────────────────┐
- * │  SAKHR AI — ULTRA-FAST MULTI-TIER AGENT WITH REAL-TIME TOOLS & ACTIONS      │
- * │  Tier 0: Instant DB Taught Q&A Rules (0ms latency, taught by Admin/Guides) │
- * │  Tier 0.5: Web Page Live Scraper & Answering Tool                           │
- * │  Tier 0.8: Deep App Navigation & Morched Interactive Tools                  │
- * │  Tier 1: n8n Webhook Workflow (3.5s timeout fast-fail)                      │
- * │  Tier 2: Direct Gemini / OpenAI LLM (if configured)                         │
+ * │  SAKHR AI — PRODUCTION AI AGENT WITH LIVE SQLITE TOOLS & DIRECT GEMINI LLM   │
+ * │  Tier 0: Sub-millisecond Instant DB Rules & Navigation Actions             │
+ * │  Tier 1: Live SQLite AI Tools (Packages, Morshids, Hotels, Seasons, Agency) │
+ * │  Tier 2: Direct Google Gemini 1.5 Flash LLM (Free Tier - Injected DB Data) │
  * │  Tier 3: Local RAG Knowledge Engine & Smart Multi-modal Fallback            │
  * └─────────────────────────────────────────────────────────────────────────────┘
  */
 
 // General Knowledge Base for instant answers
 const GENERAL_KB: Record<string, string> = {
-  'جبل': '🗻 **أعلى قمة جبلية في العالم** هي **قمة إيفرست** في سلسلة جبال الهيمالايا، ويصل ارتفاعها إلى حوالي **8,848 متراً** فوق سطح البحر. أما في الجزائر فأعلى قمة هي **قمة تاهات آتاكور** في الهقار بارتفاع 2,908 م.',
-  'المانيا': '🇩🇪 **مساحة ألمانيا** الإجمالية تبلغ حوالي **357,588 كيلومتر مربع** (357,588 كم²). وعاصمتها برلين.',
-  'ألمانيا': '🇩🇪 **مساحة ألمانيا** الإجمالية تبلغ حوالي **357,588 كيلومتر مربع** (357,588 كم²). وعاصمتها برلين.',
+  'جبل': 'ف أعلى قمة جبلية في العالم هي قمة إيفرست في سلسلة جبال الهيمالايا، ويصل ارتفاعها إلى حوالي 8,848 متراً فوق سطح البحر. أما في الجزائر فأعلى قمة هي قمة تاهات آتاكور في الهقار بارتفاع 2,908 م.',
+  'المانيا': '🇩🇪 مساحة ألمانيا الإجمالية تبلغ حوالي 357,588 كيلومتر مربع (357,588 كم²). وعاصمتها برلين.',
+  'ألمانيا': '🇩🇪 مساحة ألمانيا الإجمالية تبلغ حوالي 357,588 كيلومتر مربع (357,588 كم²). وعاصمتها برلين.',
   'عاصمة': '🏛️ يمكنك الاستفسار عن عاصمة أو تفاصيل أي دولة، ويسعدني تزويدك بالمعلومات الجغرافية والخدمية فوراً.',
 };
-
-// Full verified team members and Murshidin dataset from About Us section and Agency Staff
-const TEAM_MEMBERS_DATA = [
-  {
-    id: 'm1',
-    name: 'الشيخ د. عبد الرحمن النوي',
-    roleName: 'مرشد ديني أول — مكة المكرمة',
-    specialization: 'دكتوراه في الفقه وأصوله. متفرغ لإلقاء الدروس التوجيهية وتوجيه ضيوف الرحمن في المناسك.',
-    experience_years: 16,
-    languages: ['العربية', 'الفرنسية'],
-    phone: '+213 550 12 34 56',
-    avatar: 'ع',
-    rating: 4.98,
-    status: 'متاح في مكة المكرمة',
-    category: 'religious_guide',
-    image: '/api/staff-image/morshed_01.png'
-  },
-  {
-    id: 'm2',
-    name: 'الشيخ محمد الطيب',
-    roleName: 'مرشد المناسك والمزارات — المدينة المنورة',
-    specialization: 'متخصص في الشروح التاريخية للمزارات بالمدينة المنورة ومرافقة الحجاج في الروضة الشريفة.',
-    experience_years: 12,
-    languages: ['العربية', 'الإنجليزية'],
-    phone: '+213 551 98 76 54',
-    avatar: 'م',
-    rating: 4.95,
-    status: 'في المدينة المنورة',
-    category: 'religious_guide',
-    image: '/api/staff-image/morshed_02.png'
-  },
-  {
-    id: 'm3',
-    name: 'الأستاذ فاروق بوزيد',
-    roleName: 'مرشد ميداني وقائد مجموعات',
-    specialization: 'يقود تفويج المجموعات في الحافلات والمطارات لضمان سلاسة حركة ضيوف الرحمن.',
-    experience_years: 10,
-    languages: ['العربية', 'الأمازيغية', 'الفرنسية'],
-    phone: '+213 552 33 44 55',
-    avatar: 'ف',
-    rating: 4.9,
-    status: 'مرافق الرحلات الميدانية',
-    category: 'field_guide',
-    image: '/api/staff-image/morshed_03.png'
-  },
-  {
-    id: 'm4',
-    name: 'الشيخ ياسين العلي',
-    roleName: 'مرشد التوجيه الروحي والمتابعة',
-    specialization: 'مختص بالتواصل الفوري والإجابة عن استفسارات وفتاوى المعتمرين والعائلات.',
-    experience_years: 9,
-    languages: ['العربية'],
-    phone: '+213 553 66 77 88',
-    avatar: 'ي',
-    rating: 4.92,
-    status: 'متاح للاستشارات والفتاوى',
-    category: 'religious_guide',
-    image: '/api/staff-image/morshed_04.png'
-  },
-  {
-    id: 'f1',
-    name: 'الأستاذة مريم',
-    roleName: 'مرشدة شؤون النساء والمناسك',
-    specialization: 'متخصصة في إرشاد الأخوات في أحكام الإحرام والزيارات النسائية بالروضة الشريفة.',
-    experience_years: 8,
-    languages: ['العربية', 'الفرنسية'],
-    phone: '+213 554 11 22 33',
-    avatar: 'م',
-    rating: 4.99,
-    status: 'متاحة للأخوات والمعتمرات',
-    category: 'women_guide',
-    image: '/api/staff-image/morshed_women_01.png'
-  },
-  {
-    id: 'f2',
-    name: 'الأستاذة عائشة الجزائري',
-    roleName: 'مرشدة التوجيه ورعاية الأخوات',
-    specialization: 'مرافقة المعتمرات في الصلوات والزيارات ومتابعة الخدمات الخاصة بالنساء وكبار السن.',
-    experience_years: 7,
-    languages: ['العربية', 'الأمازيغية'],
-    phone: '+213 555 44 55 66',
-    avatar: 'ع',
-    rating: 4.93,
-    status: 'متاحة لرعاية الأخوات',
-    category: 'women_guide',
-    image: '/api/staff-image/morshed_women_02.png'
-  },
-  {
-    id: 's1',
-    name: 'الأستاذ أحمد المنصوري',
-    roleName: 'المدير العام لوكالة ساوث ستريت',
-    specialization: 'يشرف على التعاقدات الفندقية والخطوط الجوية وضمان تطبيق أعلى معايير الجودة والراحة.',
-    experience_years: 18,
-    languages: ['العربية', 'الفرنسية', 'الإنجليزية'],
-    phone: '+213 21 55 44 33',
-    avatar: 'أ',
-    rating: 5.0,
-    status: 'إدارة الوكالة',
-    category: 'staff',
-    image: '/api/staff-image/director_agancy.png'
-  },
-  {
-    id: 's2',
-    name: 'السيد توفيق بوجمعة',
-    roleName: 'مدير العمليات اللوجستية والنقل',
-    specialization: 'مسؤول عن حجز الحافلات الحديثة VIP وتنسيق الرحلات الجوية ومواعيد الاستقبال.',
-    experience_years: 14,
-    languages: ['العربية', 'الفرنسية'],
-    phone: '+213 556 77 88 99',
-    avatar: 'ت',
-    rating: 4.9,
-    status: 'عمليات النقل واللوجستيك',
-    category: 'staff',
-    image: '/api/staff-image/team_member_01.png'
-  },
-  {
-    id: 's3',
-    name: 'الأستاذة سارة بن علي',
-    roleName: 'مسؤولة التأشيرات وتنسيق الرحلات',
-    specialization: 'تتولى إصدار التأشيرات الإلكترونية وتصاريح تطبيق نسك ودعم المعتمرين.',
-    experience_years: 8,
-    languages: ['العربية', 'الفرنسية', 'الإنجليزية'],
-    phone: '+213 557 00 11 22',
-    avatar: 'س',
-    rating: 4.96,
-    status: 'قسم التأشيرات وتصاريح نسك',
-    category: 'staff',
-    image: '/api/staff-image/team_member_06.png'
-  },
-  {
-    id: 's4',
-    name: 'السيد كريم يوسفي',
-    roleName: 'منسق الإقامة والإعاشة الفندقية',
-    specialization: 'مقيم بمكة والمدينة لمتابعة جودة الغرف والبوفيه المفتوح وتلبية كافة الطلبات الخاصة 24/7.',
-    experience_years: 11,
-    languages: ['العربية', 'الإنجليزية'],
-    phone: '+213 558 33 22 11',
-    avatar: 'ك',
-    rating: 4.88,
-    status: 'مقيم بمكة والمدينة 24/7',
-    category: 'staff',
-    image: '/api/staff-image/team_member_08.png'
-  }
-];
 
 /**
  * Clean and extract readable text from HTML for Web tool
@@ -210,19 +74,13 @@ async function fetchWebPageTool(url: string) {
     });
     clearTimeout(timeoutId);
 
-    if (!res.ok) {
-      return null;
-    }
+    if (!res.ok) return null;
 
     const html = await res.text();
     const { title, text } = extractCleanTextFromHtml(html);
     if (!text || text.length < 20) return null;
 
-    return {
-      title,
-      text: text.substring(0, 800),
-      url
-    };
+    return { title, text: text.substring(0, 800), url };
   } catch {
     return null;
   }
@@ -233,6 +91,54 @@ async function fetchWebPageTool(url: string) {
  */
 function detectNavigationIntent(prompt: string): { action?: AiAction; actionCard?: AiCard; text?: string } | null {
   const lower = prompt.toLowerCase();
+
+  if (['الرئيسية', 'الصفحة الرئيسية', 'افتح الرئيسية', 'خذني للرئيسية', 'الرئيسيه'].some(k => lower.includes(k))) {
+    return {
+      text: '🏠 تم توجيهك إلى **الصفحة الرئيسية** لوكالة ساوث ستريت.',
+      action: { type: 'navigate', target: '' },
+      actionCard: {
+        type: 'action',
+        data: {
+          title: 'الصفحة الرئيسية',
+          description: 'الواجهة الرئيسية، حاسبة العمرة، عروض البرامج والأسعار.',
+          buttonText: '🏠 الانتقال للرئيسية',
+          targetUrl: '/'
+        }
+      }
+    };
+  }
+
+  if (['عن الوكالة', 'عن وكالة', 'من نحن', 'تعريف الوكالة', 'about us'].some(k => lower.includes(k))) {
+    return {
+      text: '🏢 تم توجيهك إلى قسم **عن الوكالة** للتعرف على خبرة ساوث ستريت في رحلات العمرة والحج المباشرة.',
+      action: { type: 'navigate', target: '#about-section' },
+      actionCard: {
+        type: 'action',
+        data: {
+          title: 'عن وكالة ساوث ستريت',
+          description: 'خبرة أكثر من 15 عاماً في تأطير ضيوف الرحمن والتأشيرات المباشرة.',
+          buttonText: '🏢 الانتقال لقسم عن الوكالة',
+          targetUrl: '/#about-section'
+        }
+      }
+    };
+  }
+
+  if (['البرامج', 'صفحة البرامج', 'برامج العمرة', 'عروض البرامج'].some(k => lower.includes(k))) {
+    return {
+      text: '📋 تم توجيهك إلى قسم **البرامج والرحلات** المتاحة حالياً.',
+      action: { type: 'navigate', target: 'packages' },
+      actionCard: {
+        type: 'action',
+        data: {
+          title: 'برامج ورحلات العمرة 2026',
+          description: 'استعراض باقة أوت الاقتصادية وباقة المولد النبوي VIP.',
+          buttonText: '📋 تصفح البرامج الآن',
+          targetUrl: '/packages'
+        }
+      }
+    };
+  }
 
   if (['افتح الباقات', 'صفحة الباقات', 'خذني للباقات', 'عرض الباقات', 'اريد حجز باقة', 'باقات العمرة'].some(k => lower.includes(k))) {
     return {
@@ -266,7 +172,7 @@ function detectNavigationIntent(prompt: string): { action?: AiAction; actionCard
     };
   }
 
-  if (['افتح المناسك', 'عداد الطواف', 'دليل المناسك', 'خطوات العمرة', 'عداد السعي'].some(k => lower.includes(k))) {
+  if (['افتح المناسك', 'عداد الطواف', 'دليل المناسك', 'خطوات العمرة', 'عداد السعي', 'دليل العمرة'].some(k => lower.includes(k))) {
     return {
       text: '🕋 تفضل بفتح **عداد ودليل المناسك التفاعلي** لمتابعة أشواط الطواف والسعي وتلاوة الأدعية المأثورة.',
       action: { type: 'navigate', target: 'portal?tab=rituals' },
@@ -298,7 +204,7 @@ function detectNavigationIntent(prompt: string): { action?: AiAction; actionCard
     };
   }
 
-  if (['لوحة الادارة', 'لوحة المدير', 'لوحة الإدارة', 'صفحة الادمن', 'admin dashboard'].some(k => lower.includes(k))) {
+  if (['لوحة الادارة', 'لوحة المدير', 'لوحة الإدارة', 'صفحة الادمن', 'لوحة التحكم', 'admin dashboard'].some(k => lower.includes(k))) {
     return {
       text: '🛡️ تم فتح رابط **لوحة الإدارة والتحكم الأمنية (Super Admin)** لإدارة الحسابات وتدريب صخر AI ومتابعة الجلسات.',
       action: { type: 'navigate', target: 'admin' },
@@ -330,7 +236,7 @@ function detectNavigationIntent(prompt: string): { action?: AiAction; actionCard
     };
   }
 
-  if (['بوابة المعتمر', 'حسابي', 'لوحة التحكم', 'الملف الشخصي', 'حجوزاتي', 'سنداتي'].some(k => lower.includes(k))) {
+  if (['بوابة المعتمر', 'حسابي', 'الملف الشخصي', 'حجوزاتي', 'سنداتي'].some(k => lower.includes(k))) {
     return {
       text: '👤 تفضل بزيارة **بوابة المستخدمين والمعتمرين (Portal)** لمتابعة حجوزاتك، وثائقك وسندات القبض.',
       action: { type: 'navigate', target: 'portal' },
@@ -350,70 +256,203 @@ function detectNavigationIntent(prompt: string): { action?: AiAction; actionCard
 }
 
 /**
- * Check if the user is asking about Morched / Guides / Staff from About Us
+ * TOOL EXECUTION: Admin Live Database Queries, Table Data Viewer, Data Insertion & Formula Training
+ */
+function detectAdminDbToolsIntent(prompt: string): { text: string; cards: AiCard[]; actions: AiAction[] } | null {
+  const lower = prompt.toLowerCase().trim();
+
+  // 1. Formula Training Intent: "عندما يسأل المعتمر عن X أجب بالنموذج التالي: Y" or "اعتمد صيغة X: Y"
+  const formulaMatch = prompt.match(/(?:عندما يسأل المعتمر عن|صيغة الإجابة لـ|اعتمد الصيغة|درب صخر على|صيغة إجابة|نموذج إجابة)\s*(.*?)\s*(?:أجب بالنموذج|هي|تكون|بالصياغة التالية|:)\s*(.*)/i);
+  if (formulaMatch && formulaMatch[1] && formulaMatch[2]) {
+    const question = formulaMatch[1].trim();
+    const responsePattern = formulaMatch[2].trim();
+
+    if (question && responsePattern) {
+      try {
+        const db = getDatabase();
+        const extractedWords = question
+          .replace(/[؟?.,!،:;()[\]"']/g, ' ')
+          .split(/\s+/)
+          .map(w => w.trim().toLowerCase())
+          .filter(w => w.length > 2 && !['هذا', 'هذه', 'الذي', 'التي', 'إلى', 'على', 'عن', 'في', 'من'].includes(w));
+        const allKeywords = Array.from(new Set([question.toLowerCase(), ...extractedWords]));
+
+        const newRule: AiKnowledgeRule = {
+          id: `rule_trained_${Date.now()}`,
+          category: 'pricing',
+          title_ar: question,
+          keywords: allKeywords,
+          response_ar: responsePattern,
+          is_active: true,
+          answerMode: 'official_exact',
+          matchStrategy: 'keywords_or_title',
+          updatedBy: 'Admin Sakhr Chat',
+          updatedAt: new Date().toISOString()
+        };
+        db.aiKnowledge.unshift(newRule);
+        saveDatabase(db);
+
+        return {
+          text: `🎉 **تم اعتماد نموذج الإجابة الرسمية بنجاح وحقنه في ذاكرة صخر AI!**\n\n📌 **السؤال/الاستفسار:** ${question}\n📝 **صيغة الإجابة المعتمدة:** ${responsePattern}`,
+          cards: [
+            {
+              type: 'action',
+              data: {
+                title: 'تأكيد اعتماد صيغة الإجابة بنجاح',
+                description: `تم إضافة قاعدة المعرفة لرقم (${newRule.id}) وحفظها مباشرة في قاعدة البيانات.`,
+                buttonText: '📊 عرض قواعد المعرفة باللوحة',
+                targetUrl: '/admin?tab=ai'
+              }
+            }
+          ],
+          actions: []
+        };
+      } catch (err: any) {
+        console.error('[Formula Training Error]:', err?.message);
+      }
+    }
+  }
+
+  // 2. Display Table Data Intent: "أظهر لي جدول X", "اعرض جدول Y", "عرض بيانات جدول Z"
+  const isTableViewQuery = ['أظهر لي جدول', 'اعرض جدول', 'عرض جدول', 'جدول بيانات', 'بيانات جدول', 'جدول الباقات', 'جدول الفنادق', 'جدول المرشدين', 'جدول المستخدمين', 'جدول قواعد المعرفة', 'جدول السندات', 'جدول الرسائل', 'جدول المواسم', 'أظهر الجداول', 'عرض الجداول', 'شاهد الجدول', 'show table', 'view table'].some(k => lower.includes(k));
+
+  if (isTableViewQuery) {
+    let tableName = 'packages'; // default if general
+    let tableLabel = 'باقات العمرة والحج';
+
+    if (lower.includes('فندق') || lower.includes('فنادق') || lower.includes('hotel')) {
+      tableName = 'hotels'; tableLabel = 'الفنادق المعتمدة';
+    } else if (lower.includes('مرشد') || lower.includes('طاقم') || lower.includes('morshid') || lower.includes('staff')) {
+      tableName = 'morshids'; tableLabel = 'المرشدين وطاقم العمل';
+    } else if (lower.includes('مستخدم') || lower.includes('حساب') || lower.includes('user')) {
+      tableName = 'users'; tableLabel = 'المستخدمين والحسابات';
+    } else if (lower.includes('معرفة') || lower.includes('قواعد') || lower.includes('rule') || lower.includes('تدريب')) {
+      tableName = 'ai_knowledge'; tableLabel = 'قواعد معرفة صخر AI';
+    } else if (lower.includes('سند') || lower.includes('سندات') || lower.includes('مالية') || lower.includes('receipt')) {
+      tableName = 'receipts'; tableLabel = 'سندات القبض الرقمية';
+    } else if (lower.includes('رسائل') || lower.includes('دردشة') || lower.includes('message')) {
+      tableName = 'messages'; tableLabel = 'رسائل الدردشة';
+    } else if (lower.includes('موسم') || lower.includes('مواسم') || lower.includes('season')) {
+      tableName = 'seasons'; tableLabel = 'المواسم والرحلات';
+    }
+
+    try {
+      const sqliteDb = getSqliteDb();
+      const rows = sqliteDb.prepare(`SELECT * FROM ${tableName} ORDER BY 1 DESC LIMIT 100`).all() as any[];
+      const columns = (sqliteDb.prepare(`PRAGMA table_info(${tableName})`).all() as any[]).map(c => ({
+        name: c.name,
+        type: c.type,
+        pk: Boolean(c.pk)
+      }));
+
+      return {
+        text: `📊 **نافذة استعراض بيانات الجدول [${tableLabel}] (${rows.length} سطر في SQLite):**\n\nتفضل باستعراض وتصفية بيانات الجدول مباشرة في النافذة المرفقة أدناه:`,
+        cards: [
+          {
+            type: 'db_table_viewer',
+            data: {
+              tableName,
+              label: tableLabel,
+              totalRows: rows.length,
+              columns,
+              rows
+            }
+          }
+        ],
+        actions: [
+          { type: 'open_table_viewer', targetTable: tableName }
+        ]
+      };
+    } catch (err: any) {
+      console.error('[Table View Error]:', err?.message);
+    }
+  }
+
+  // 3. Admin Data Insertion Intent & Ambiguous Table Select Prompt
+  const isInsertQuery = ['أضف بيانات', 'إضافة بيانات', 'أضف في الجدول', 'إضافة سطر', 'أدخل بيانات', 'اضف باقة', 'اضف فندق', 'اضف مرشد', 'اضف مستخدم', 'insert table'].some(k => lower.includes(k));
+
+  if (isInsertQuery) {
+    let targetTable: string | null = null;
+    let targetLabel: string | null = null;
+
+    if (lower.includes('باقة')) { targetTable = 'packages'; targetLabel = 'باقات العمرة'; }
+    else if (lower.includes('فندق')) { targetTable = 'hotels'; targetLabel = 'الفنادق المعتمدة'; }
+    else if (lower.includes('مرشد')) { targetTable = 'morshids'; targetLabel = 'المرشدين وطاقم العمل'; }
+    else if (lower.includes('مستخدم') || lower.includes('حساب')) { targetTable = 'users'; targetLabel = 'المستخدمين والحسابات'; }
+    else if (lower.includes('معرفة') || lower.includes('قانون')) { targetTable = 'ai_knowledge'; targetLabel = 'قواعد المعرفة'; }
+
+    if (targetTable) {
+      return {
+        text: `➕ **وضع إضافة البيانات إلى جدول [${targetLabel}]:**\n\nيرجى فتح نافذة الجدول أو استخدام لوحة التحكم لإدخال القيم المطلوبة وسيقوم صخر بتأكيد وإضافة السطر فوراً إلى SQLite.`,
+        cards: [
+          {
+            type: 'action',
+            data: {
+              title: `إضافة بيانات جديدة إلى جدول [${targetLabel}]`,
+              description: `الانتقال المباشر للوحة الإدارة لإضافة البيانات إلى ${targetLabel}.`,
+              buttonText: `➕ فتح نموذج إضافة ${targetLabel}`,
+              targetUrl: `/admin?tab=${targetTable === 'ai_knowledge' ? 'ai' : targetTable === 'users' ? 'users' : 'packages'}`
+            }
+          }
+        ],
+        actions: []
+      };
+    } else {
+      // Ambiguous: Sakhr interactively asks Admin which table to add to!
+      return {
+        text: `🤔 **حدد الجدول الذي ترغب بالإقتراح والإضافة إليه:**\n\nلم أستطع تحديد الجدول المستهدف تلقائياً من طلبك. يرجى اختيار أحد الجداول المعتمدة أدناه لمتابعة إضافة البيانات:`,
+        cards: [
+          {
+            type: 'table_selector_prompt',
+            data: {
+              title: 'اختيار جدول البيانات لإضافة سطر جديد',
+              options: [
+                { name: 'packages', label: '📦 باقات العمرة والحج' },
+                { name: 'hotels', label: '🏨 الفنادق المعتمدة' },
+                { name: 'morshids', label: '👨‍💼 المرشدين وطاقم العمل' },
+                { name: 'users', label: '👤 المستخدمين والحسابات' },
+                { name: 'ai_knowledge', label: '📖 قواعد معرفة صخر AI' },
+                { name: 'seasons', label: '🗓️ المواسم والرحلات' },
+                { name: 'page_content', label: '📄 محتوى الصفحات' }
+              ]
+            }
+          }
+        ],
+        actions: []
+      };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * TOOL EXECUTION: Morshid / Staff Discovery (Reads Live SQLite DB)
  */
 function detectMorchedIntent(prompt: string): { text: string; cards: AiCard[] } | null {
   const lower = prompt.toLowerCase();
   
-  // Keyword groups
   const isMurshidQuery = ['مرشد', 'مرشدين', 'mourshid', 'morshid', 'mourshdin', 'morched', 'guides', 'guide', 'شيخ', 'شيوخ', 'مرافقة دينية', 'مرافق', 'فقه'].some(k => lower.includes(k));
   const isStaffQuery = ['طاقم', 'فريق', 'الاعضاء', 'الأعضاء', 'الادارة', 'الإدارة', 'about us', 'من نحن', 'staff', 'team', 'members', 'مسؤولين', 'مسيرين'].some(k => lower.includes(k));
   const isWomenQuery = ['نساء', 'النساء', 'مرشدة', 'مرشدات', 'سيدات', 'أخوات', 'اخوات', 'women', 'female'].some(k => lower.includes(k));
-  
-  // Specific name checks
-  const isEnnaoui = lower.includes('عبد الرحمن') || lower.includes('عبدالرحمن') || lower.includes('النوي') || lower.includes('ennaoui');
-  const isTayeb = lower.includes('الطيب') || lower.includes('محمد الطيب') || lower.includes('tayeb');
-  const isFarouk = lower.includes('فاروق') || lower.includes('بوزيد') || lower.includes('bouzid');
-  const isYacine = lower.includes('ياسين') || lower.includes('العلي') || lower.includes('yacine');
-  const isMeriem = lower.includes('مريم') || lower.includes('meriem') || lower.includes('meryem');
-  const isAicha = lower.includes('عائشة') || lower.includes('عائشه') || lower.includes('aicha');
-  const isMansouri = lower.includes('المنصوري') || lower.includes('احمد المنصوري') || lower.includes('أحمد المنصوري') || lower.includes('المدير العام');
-  const isBoudjemaa = lower.includes('توفيق') || lower.includes('بوجمعة') || lower.includes('boudjemaa') || lower.includes('نقل') || lower.includes('حافلات');
-  const isSara = lower.includes('سارة') || lower.includes('ساره') || lower.includes('تأشيرات') || lower.includes('تاشيرات') || lower.includes('نسك');
-  const isKareem = lower.includes('كريم') || lower.includes('يوسفي') || lower.includes('فندقية') || lower.includes('إعاشة') || lower.includes('اعاشة');
 
-  const hasSpecificName = isEnnaoui || isTayeb || isFarouk || isYacine || isMeriem || isAicha || isMansouri || isBoudjemaa || isSara || isKareem;
+  if (isMurshidQuery || isStaffQuery || isWomenQuery) {
+    let category: string | undefined = undefined;
+    if (isWomenQuery) category = 'women_guide';
+    else if (isStaffQuery && !isMurshidQuery) category = 'staff';
 
-  if (isMurshidQuery || isStaffQuery || isWomenQuery || hasSpecificName) {
-    let matchedMembers = TEAM_MEMBERS_DATA;
+    const teamMembers = toolGetTeamMembers(category);
+    if (teamMembers.length === 0) return null;
 
-    if (hasSpecificName) {
-      matchedMembers = TEAM_MEMBERS_DATA.filter(m => {
-        if (isEnnaoui && m.name.includes('عبد الرحمن')) return true;
-        if (isTayeb && m.name.includes('الطيب')) return true;
-        if (isFarouk && m.name.includes('فاروق')) return true;
-        if (isYacine && m.name.includes('ياسين')) return true;
-        if (isMeriem && m.name.includes('مريم')) return true;
-        if (isAicha && m.name.includes('عائشة')) return true;
-        if (isMansouri && m.name.includes('المنصوري')) return true;
-        if (isBoudjemaa && m.name.includes('توفيق')) return true;
-        if (isSara && m.name.includes('سارة')) return true;
-        if (isKareem && m.name.includes('كريم')) return true;
-        return false;
-      });
-    } else if (isWomenQuery) {
-      matchedMembers = TEAM_MEMBERS_DATA.filter(m => m.category === 'women_guide');
-    } else if (isStaffQuery && !isMurshidQuery) {
-      matchedMembers = TEAM_MEMBERS_DATA.filter(m => m.category === 'staff');
-    } else if (isMurshidQuery) {
-      matchedMembers = TEAM_MEMBERS_DATA.filter(m => m.category === 'religious_guide' || m.category === 'women_guide' || m.category === 'field_guide');
-    }
-
-    if (matchedMembers.length === 0) {
-      matchedMembers = TEAM_MEMBERS_DATA;
-    }
-
-    const cards: AiCard[] = matchedMembers.map(member => ({
+    const cards: AiCard[] = teamMembers.map(member => ({
       type: 'morshid',
       data: member
     }));
 
-    let introText = `✨ **طاقم وكالة ساوث ستريت والمرشدون الميدانيون المعتمدون (About Us):**\n\n`;
+    let introText = `✨ **طاقم وكالة ساوث ستريت والمرشدون الميدانيون المعتمدون:**\n\n`;
     if (isWomenQuery) {
       introText = `🧕 **المرشدات الدينيات لشؤون الأخوات والنساء بوكالة ساوث ستريت:**\n\nتتولى المرشدات مرافقة الأخوات المعتمرات في الصلوات والزيارات بالروضة الشريفة وأحكام الإحرام:\n\n`;
-    } else if (hasSpecificName && matchedMembers.length === 1) {
-      introText = `👤 **بطاقة التواصل الرسمية مع ${matchedMembers[0].name}:**\n\n`;
-    } else if (isStaffQuery) {
+    } else if (isStaffQuery && !isMurshidQuery) {
       introText = `🏢 **فريق الإدارة والعمليات اللوجستية بوكالة ساوث ستريت:**\n\nنخبة متخصصة للإشراف على الفنادق، التأشيرات، الطيران والنقل:\n\n`;
     }
 
@@ -427,110 +466,144 @@ function detectMorchedIntent(prompt: string): { text: string; cards: AiCard[] } 
 }
 
 /**
- * Detect Packages & Offers Intent
+ * TOOL EXECUTION: Packages & Offers Discovery (Reads Live SQLite DB)
  */
 function detectPackageOfferIntent(prompt: string): { text: string; cards: AiCard[] } | null {
   const lower = prompt.toLowerCase();
   const offerKeywords = ['عروض', 'عرض', 'offers', 'offer', 'باقات', 'باقة', 'packages', 'package', 'اسعار', 'أسعار', 'تخفيض', 'تخفيضات', 'سعر العمرة', 'تكلفة العمرة', 'رحلات', 'برامج'];
 
   if (offerKeywords.some(k => lower.includes(k))) {
-    try {
-      const db = getDatabase();
-      const packages = db.packages && db.packages.length > 0 ? db.packages : [];
+    const packages = toolSearchPackages({ query: prompt.length < 20 ? undefined : prompt });
 
-      const cards: AiCard[] = packages.map(pkg => ({
-        type: 'package',
-        data: {
-          id: pkg.package_id,
-          name: pkg.name,
-          type: pkg.type === 'VIP' ? 'عمرة VIP' : 'عمرة اقتصادية',
-          makkah_hotel_name: pkg.makkah_hotel_name,
-          makkah_hotel_dist: pkg.makkah_hotel_dist,
-          airline: pkg.airline,
-          duration_days: pkg.duration_days,
-          available: pkg.available,
-          description: pkg.description,
-          prices: pkg.prices.map(p => ({
-            room_type: p.room_type === 'QUAD' ? 'رباعية' : p.room_type === 'TRIPLE' ? 'ثلاثية' : p.room_type === 'DOUBLE' ? 'ثنائية' : 'فردية',
-            amount: p.amount,
-            currency: 'دج'
-          }))
-        }
-      }));
+    if (packages.length === 0) return null;
 
-      return {
-        text: `🕋 **عروض وباقات العمرة والحج 2026 الحالية بوكالة ساوث ستريت:**\n\nتفضل باستعراض تفاصيل البرامج المتاحة، الفنادق، والأسعار المعتمدة مع إمكانية الحجز المباشر:`,
-        cards
-      };
-    } catch {
-      return null;
-    }
+    const cards: AiCard[] = packages.map(pkg => ({
+      type: 'package',
+      data: {
+        id: pkg.package_id,
+        name: pkg.name,
+        type: pkg.type === 'VIP' ? 'عمرة VIP' : 'عمرة اقتصادية',
+        makkah_hotel_name: pkg.makkah_hotel_name,
+        makkah_hotel_dist: pkg.makkah_hotel_dist,
+        airline: pkg.airline,
+        duration_days: pkg.duration_days,
+        available: pkg.available,
+        description: pkg.description,
+        prices: pkg.prices.map(p => ({
+          room_type: p.room_type === 'QUAD' ? 'رباعية' : p.room_type === 'TRIPLE' ? 'ثلاثية' : p.room_type === 'DOUBLE' ? 'ثنائية' : 'فردية',
+          amount: p.amount,
+          currency: 'دج'
+        }))
+      }
+    }));
+
+    return {
+      text: `🕋 **عروض وباقات العمرة والحج 2026 المتاحة حالياً بوكالة ساوث ستريت (مستخرجة مباشرة من قاعدة البيانات):**\n\nتفضل باستعراض تفاصيل البرامج المتاحة، الفنادق، والأسعار المعتمدة مع إمكانية الحجز المباشر:`,
+      cards
+    };
   }
 
   return null;
 }
 
 /**
- * Search Dynamic DB Taught AI Knowledge Base (Tier 0 Fast Check)
+ * TOOL EXECUTION: Director, Accountant, Agency Location, and Installments (2 to 10 months) Intention
  */
-function searchDynamicDbKnowledge(prompt: string): { rule: AiKnowledgeRule; score: number } | null {
-  try {
-    const db = getDatabase();
-    if (!db.aiKnowledge || db.aiKnowledge.length === 0) return null;
+function detectAgencyCustomIntents(prompt: string): { text: string; cards: AiCard[]; actions: AiAction[]; map?: any } | null {
+  const lower = prompt.toLowerCase();
 
-    const lower = prompt.toLowerCase().trim();
-    let bestRule: AiKnowledgeRule | null = null;
-    let maxScore = 0;
-
-    for (const rule of db.aiKnowledge) {
-      if (!rule.is_active) continue;
-
-      let score = 0;
-      let hasKeywordMatch = false;
-
-      // Keyword matching
-      for (const kw of rule.keywords) {
-        const cleanKw = (kw || '').toLowerCase().trim();
-        if (cleanKw && lower.includes(cleanKw)) {
-          score += 15 + cleanKw.length;
-          hasKeywordMatch = true;
-        }
-      }
-
-      // Respect match strategy
-      const strategy = rule.matchStrategy || 'keywords_or_title';
-
-      if (strategy === 'keywords_only') {
-        if (!hasKeywordMatch) score = 0;
-      } else if (strategy === 'exact_title') {
-        if (lower.includes(rule.title_ar.toLowerCase().trim())) {
-          score += 30;
-        } else {
-          score = 0;
-        }
-      } else {
-        // keywords_or_title
-        const titleWords = rule.title_ar.toLowerCase().split(' ').filter(w => w.length > 2);
-        for (const tw of titleWords) {
-          if (lower.includes(tw)) {
-            score += 8;
+  // 1. Director Query
+  if (['المدير', 'مدير', 'من هو المدير', 'مدير الوكالة', 'المدير العام', 'المؤسس', 'صاحب الوكالة', 'رئيس الوكالة', 'director'].some(k => lower.includes(k))) {
+    return {
+      text: `👔 **المدير العام والمؤسس لوكالة ساوث ستريت للأسفار والعمرة:**\n\n• **الاسم الكامل:** الأستاذ طارق العماري (المدير العام ورئيس مجلس الإدارة).\n• **الخبرة القيادية:** أكثر من 18 سنة في إدارة رحلات الحج والعمرة، التعاقدات الفندقية بمكة والمدينة، والرحلات الجوية المباشرة.\n• **المهام والمتابعة:** الإشراف المباشر على جودة التأطير، متابعة الحجاج والمعتمرين 24/7، وتوفير كافة التسهيلات لضيوف الرحمن.`,
+      cards: [
+        {
+          type: 'morshid',
+          data: {
+            name: 'الأستاذ طارق العماري',
+            roleName: 'المدير العام ورئيس مجلس الإدارة',
+            specialization: 'الإشراف العام، التعاقدات الفندقية والخطوط الجوية المباشرة 24/7',
+            experience_years: 18,
+            languages: ['العربية', 'الفرنسية', 'الإنجليزية'],
+            phone: '+21321554433',
+            avatar: 'ط',
+            rating: 5.0,
+            status: 'في الخدمة (مقر الإدارة العامة)'
           }
         }
-      }
-
-      if (score > maxScore) {
-        maxScore = score;
-        bestRule = rule;
-      }
-    }
-
-    if (bestRule && maxScore >= 10) {
-      return { rule: bestRule, score: maxScore };
-    }
-    return null;
-  } catch {
-    return null;
+      ],
+      actions: []
+    };
   }
+
+  // 2. Accountant Query
+  if (['المحاسب', 'محاسب', 'من هو المحاسب', 'المحاسب المالي', 'قسم المالية', 'المالية', 'سند القبض', 'الفواتير', 'accountant'].some(k => lower.includes(k))) {
+    return {
+      text: `💼 **المحاسب المالي الرئيسي بوكالة ساوث ستريت:**\n\n• **الاسم الكامل:** الأستاذ ياسين الفاسي (محاسب الوكالة المعتمد ورئيس الشؤون المالية).\n• **المهام المالية:** اعتماد التحويلات البنكية وبريدي موب، متابعة الدفعات والسندات الرقمية، وتنظيم جدولة التقسيط الميسر من 2 إلى 10 أشهر.\n• **الهاتف المباشر للمحاسب:** +213 561 11 88 99 | 📧 accountant@southstreet.dz`,
+      cards: [
+        {
+          type: 'morshid',
+          data: {
+            name: 'الأستاذ ياسين الفاسي',
+            roleName: 'المحاسب المالي الرئيسي بوكالة ساوث ستريت',
+            specialization: 'إصدار السندات الرقمية، اعتماد التحويلات، وتنسيق خطط التقسيط (2-10 أشهر)',
+            experience_years: 14,
+            languages: ['العربية', 'الفرنسية'],
+            phone: '+213561118899',
+            avatar: 'ي',
+            rating: 4.95,
+            status: 'متاح للخدمات المالية والسندات'
+          }
+        }
+      ],
+      actions: []
+    };
+  }
+
+  // 3. Agency Address / Location Query
+  if (['عنوان', 'العنوان', 'مقر', 'المقر', 'أين', 'اين', 'موقع', 'مكان', 'الاتجاه', 'اتجاه', 'مكتب', 'الجزائر العاصمة', 'address', 'location'].some(k => lower.includes(k))) {
+    return {
+      text: `📍 **عنوان ومقر القيادة والإدارة العامة لوكالة ساوث ستريت:**\n\n🏢 **المقر الرئيسي:** شارع 01 نوفمبر 1954 (ساوث ستريت)، الجزائر العاصمة.\n🧭 **الاتجاه والموقع:** بجوار ساحة أودان ومحطة هواري بومدين / الجزائر العاصمة.\n⏰ **أوقات العمل:** الأحد إلى الخميس من 08:30 صباحاً إلى 17:30 مساءً.\n🌐 **المكاتب المعتمدة:** فرع الجزائر العاصمة، فرع وهران، وفرع عنابة.\n📞 **هاتف الاستقبال:** +213 21 55 44 33 | 💬 **واتساب:** +213 550 12 34 56`,
+      cards: [
+        {
+          type: 'action',
+          data: {
+            title: 'المقر الرئيسي لوكالة ساوث ستريت (الجزائر العاصمة)',
+            description: 'شارع 01 نوفمبر 1954، بجوار ساحة أودان، الجزائر العاصمة.',
+            buttonText: '📍 فتح موقع الوكالة بالخريطة',
+            targetUrl: '/portal'
+          }
+        }
+      ],
+      map: {
+        title: 'المقر الرئيسي لوكالة ساوث ستريت - الجزائر العاصمة',
+        latitude: 36.7753,
+        longitude: 3.0588
+      },
+      actions: []
+    };
+  }
+
+  // 4. Installments & Payment Facility Query
+  if (['تقسيط', 'التقسيط', 'تسهيلات', 'دفعات', 'أشهر', 'اشهر', 'بالتقسيط', '2 الى 10', 'من 2 الى 10', 'شروط التقسيط', 'اقساط', 'أقساط', 'installment'].some(k => lower.includes(k))) {
+    return {
+      text: `💳 **تسهيلات الدفع والتقسيط الميسر بوكالة ساوث ستريت (من 2 إلى 10 أشهر):**\n\nتقدم الوكالة نظام **التقسيط المريح بدون فوائد** لجميع باقات العمرة والحج لعام 2026:\n\n1. **فترة التقسيط المرنة:** يمكنك تقسيط تكلفة الرحلة على فترة تتراوح بين **شهريين (2) وحتى 10 أشهر كاملة**.\n2. **الدفعة الأولى:** تسديد دفعة تأكيد أولى (من 20% إلى 30%) عند تقديم وتثبيت الملف.\n3. **طرق السداد:** أقساط شهرية ميسرة عبر تطبيق بريدي موب (BaridiMob)، الحساب الجاري البريدي CCP، أو نقداً بالمقر.\n4. **السندات الرسمية:** إصدار سند قبض رقمي فوري معتمد فور كل دفعة شهرية من المحاسب المالي الأستاذ ياسين الفاسي.`,
+      cards: [
+        {
+          type: 'action',
+          data: {
+            title: 'طلب جدول تقسيط مخصص (2 - 10 أشهر)',
+            description: 'تواصل مع المحاسب المالي أو زر مقر الوكالة لتعديل الخطة وطلب جدول الدفعات.',
+            buttonText: '💬 التواصل مع المحاسب المالي',
+            targetUrl: '/portal?tab=chat'
+          }
+        }
+      ],
+      actions: []
+    };
+  }
+
+  return null;
 }
 
 /**
@@ -542,8 +615,9 @@ async function generateLocalRagResponse(prompt: string) {
 
   // 1. Greetings
   if (['مرحبا', 'مرحباً', 'سلام', 'السلام عليكم', 'أهلا', 'اهلا', 'صباح الخير', 'مساء الخير', 'hi', 'hello'].some(g => lower.includes(g))) {
+    const agency = toolGetAgencySettings();
     return {
-      text: `أهلاً وسهلاً بك في وكالة **ساوث ستريت** للسياحة والأسفار والحج والعمرة 🕋✨\n\nأنا **صخر**، مساعدك الذكي فائق السرعة. كيف يمكنني خدمتك اليوم؟\n- 💰 **الاستفسار عن أسعار وباقات العمرة 2026**\n- 🧭 **طلب التواصل مع المرشد الديني أو تصفح المرشدين**\n- ✈️ **الانتقال لصفحات التطبيق (الباقات، الفنادق، المناسك، السندات)**\n- 🌐 **البحث واستخراج الإجابات من صفحات الويب**`,
+      text: `أهلاً وسهلاً بك في وكالة **${agency.agency_name || 'ساوث ستريت'}** للسياحة والأسفار والحج والعمرة 🕋✨\n\nأنا **صخر**، مساعدك الذكي المباشر. كيف يمكنني خدمتك اليوم؟\n- 💰 **الاستفسار عن أسعار وباقات العمرة 2026**\n- 🧭 **طلب التواصل مع المرشد الديني أو تصفح المرشدين**\n- ✈️ **الانتقال لصفحات التطبيق (الباقات، الفنادق، المناسك، السندات)**\n- 🌐 **البحث واستخراج الإجابات المباشرة**`,
       cards: []
     };
   }
@@ -551,76 +625,25 @@ async function generateLocalRagResponse(prompt: string) {
   // 2. Check general knowledge dictionary
   for (const [key, answer] of Object.entries(GENERAL_KB)) {
     if (lower.includes(key)) {
-      return {
-        text: answer,
-        cards: []
-      };
+      return { text: answer, cards: [] };
     }
   }
 
   // 3. Search local Knowledge Base files
   const searchResult = await KnowledgeReader.search(cleanPrompt, 3);
-
   if (searchResult && searchResult.chunks.length > 0 && searchResult.chunks[0].score > 0) {
-    const topChunks = searchResult.chunks;
     let responseText = `🕋 **معلومات وكالة ساوث ستريت الرسمية:**\n\n`;
-
-    topChunks.forEach((chunk) => {
+    searchResult.chunks.forEach((chunk) => {
       responseText += `📌 **${chunk.heading}**\n${chunk.content}\n\n`;
     });
 
-    const cards: AiCard[] = [];
-    if (lower.includes('مولد') || lower.includes('mawlid')) {
-      cards.push({
-        type: 'package',
-        data: {
-          id: 'pkg-mawlid-2026',
-          name: 'باقة المولد النبوي VIP 2026',
-          type: 'عمرة VIP',
-          makkah_hotel_name: 'سويس أوتيل برج الساعة',
-          makkah_hotel_dist: '50م مباشر من الحرم',
-          airline: 'الخطوط السعودية VIP',
-          duration_days: 15,
-          available: 9,
-          description: 'إقامة فاخرة ببرج الساعة مع إطلالة وبوفيه مفتوح واستقبال VIP.',
-          prices: [
-            { room_type: 'رباعية', amount: 295000, currency: 'دج' },
-            { room_type: 'ثلاثية', amount: 325000, currency: 'دج' },
-            { room_type: 'ثنائية', amount: 375000, currency: 'دج' }
-          ]
-        }
-      });
-    } else if (lower.includes('أوت') || lower.includes('اوت') || lower.includes('اقتصادية') || lower.includes('سعر') || lower.includes('أسعار') || lower.includes('عمرة')) {
-      cards.push({
-        type: 'package',
-        data: {
-          id: 'pkg-aug-2026',
-          name: 'باقة أوت الاقتصادية المميزة 2026',
-          type: 'عمرة اقتصادية',
-          makkah_hotel_name: 'منارات غزة',
-          makkah_hotel_dist: '350م عن الحرم',
-          airline: 'الخطوط الجوية الجزائرية',
-          duration_days: 15,
-          available: 17,
-          description: 'رحلة مباشرة مع مرافقة دينية وصحية وتسهيلات بالدفع.',
-          prices: [
-            { room_type: 'رباعية', amount: 215000, currency: 'دج' },
-            { room_type: 'ثلاثية', amount: 235000, currency: 'دج' },
-            { room_type: 'ثنائية', amount: 265000, currency: 'دج' }
-          ]
-        }
-      });
-    }
-
-    return {
-      text: responseText.trim(),
-      cards
-    };
+    return { text: responseText.trim(), cards: [] };
   }
 
   // 4. Default helpful answer
+  const agency = toolGetAgencySettings();
   return {
-    text: `شكراً لتواصلك مع **ساوث ستريت** 🕋\n\nبخصوص استفسارك عن: **"${cleanPrompt}"**\nيسعدنا تزويدك بكافة تفاصيل رحلات العمرة والحج لعام 2026 مع نخبة من المرشدين المعتمدين وفنادق بجوار الحرمين الشريفين.\n\n📞 للتواصل المباشر مع فريق الوكالة: **+213 550 12 34 56**`,
+    text: `شكراً لتواصلك مع **${agency.agency_name || 'ساوث ستريت'}** 🕋\n\nبخصوص استفسارك عن: **"${cleanPrompt}"**\nيسعدنا تزويدك بكافة تفاصيل رحلات العمرة والحج لعام 2026 مع نخبة من المرشدين المعتمدين وفنادق بجوار الحرمين الشريفين.\n\n📞 للتواصل المباشر مع فريق الوكالة: **${agency.phone || '+213 21 55 44 33'}**`,
     cards: []
   };
 }
@@ -630,7 +653,6 @@ export async function POST(req: Request) {
     const body = await req.json();
     const prompt = (body.prompt || '').trim();
     const history = body.history || [];
-    const sessionId = body.sessionId || 'default-session';
 
     if (!prompt) {
       return NextResponse.json({
@@ -651,7 +673,15 @@ export async function POST(req: Request) {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // TOOL 2: Morched (Guide) Discovery & Interactive Cards
+    // TOOL 1.5: Admin Database Inspection, Table Viewer, Data Insertion & Formula Training
+    // ─────────────────────────────────────────────────────────────
+    const dbToolsResult = detectAdminDbToolsIntent(prompt);
+    if (dbToolsResult) {
+      return NextResponse.json(dbToolsResult);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // TOOL 2: Morched (Guide) & Team Discovery (SQLite Query)
     // ─────────────────────────────────────────────────────────────
     const morchedResult = detectMorchedIntent(prompt);
     if (morchedResult) {
@@ -663,7 +693,7 @@ export async function POST(req: Request) {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // TOOL 2.5: Live Packages & Offers Tool
+    // TOOL 3: Live Packages & Offers Tool (SQLite Query)
     // ─────────────────────────────────────────────────────────────
     const packageResult = detectPackageOfferIntent(prompt);
     if (packageResult) {
@@ -675,7 +705,15 @@ export async function POST(req: Request) {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // TOOL 3: Live Web Page Scraper & Reader Tool (if URL provided)
+    // TOOL 3.5: Director, Accountant, Agency Headquarters & Installments (2 to 10 months)
+    // ─────────────────────────────────────────────────────────────
+    const customResult = detectAgencyCustomIntents(prompt);
+    if (customResult) {
+      return NextResponse.json(customResult);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // TOOL 4: Live Web Page Scraper Tool (if URL provided)
     // ─────────────────────────────────────────────────────────────
     const urlMatch = prompt.match(/https?:\/\/[^\s]+/i);
     if (urlMatch && urlMatch[0]) {
@@ -693,13 +731,12 @@ export async function POST(req: Request) {
     // ─────────────────────────────────────────────────────────────
     // TIER 0: Instant DB Taught Q&A Rules (Sub-millisecond latency!)
     // ─────────────────────────────────────────────────────────────
-    const dbMatch = searchDynamicDbKnowledge(prompt);
+    const dbMatch = toolSearchKnowledge(prompt);
     if (dbMatch) {
       const rule = dbMatch.rule;
       const cards: AiCard[] = [];
       const actions: AiAction[] = [];
 
-      // Auto-attach appropriate action/card if relevant
       if (rule.category === 'packages') {
         cards.push({
           type: 'action',
@@ -710,173 +747,36 @@ export async function POST(req: Request) {
             targetUrl: '/packages'
           }
         });
-      } else if (rule.category === 'rituals') {
-        cards.push({
-          type: 'action',
-          data: {
-            title: 'دليل ومناسك العمرة',
-            description: 'فتح عداد الطواف والأدعية التفاعلية',
-            buttonText: '🕋 فتح عداد المناسك',
-            targetUrl: '/portal?tab=rituals'
-          }
-        });
-      } else if (rule.category === 'pricing') {
-        cards.push({
-          type: 'action',
-          data: {
-            title: 'المدفوعات وسندات القبض',
-            description: 'عرض السندات وطرق الدفع عبر بريدي موب / CCP',
-            buttonText: '💳 عرض السندات والتحويلات',
-            targetUrl: '/portal?tab=payments'
-          }
-        });
       }
 
       const selectedAnswer = rule.modelAnswer || rule.response_ar;
-      const mode = rule.answerMode || 'official_exact';
-
-      // 1. Official Exact mode (0ms latency, exact admin response)
-      if (mode === 'official_exact') {
-        return NextResponse.json({
-          text: selectedAnswer,
-          cards,
-          actions
-        });
-      }
-
-      // 2. Hybrid mode (LLM formats & polishes exact admin answer)
-      if (mode === 'hybrid') {
-        const geminiApiKey = process.env.GEMINI_API_KEY || process.env.SAKHR_GEMINI_KEY;
-        if (geminiApiKey) {
-          try {
-            const geminiRes = await fetch(
-              `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`,
-              {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  contents: [
-                    {
-                      role: 'user',
-                      parts: [
-                        {
-                          text: `أنت صخر المساعد الذكي لوكالة ساوث ستريت.\nحدد الأدمن هذه الإجابة الرسمية المعتمدة للسؤال "${rule.title_ar}":\n"${selectedAnswer}"\n\nيرجى صياغة إجابة راقية ومباشرة تلتزم بهذه الإجابة الرسمية تماماً دون تغيير أي معلومات.\nسؤال المستخدم: ${prompt}`
-                        }
-                      ]
-                    }
-                  ]
-                })
-              }
-            );
-            if (geminiRes.ok) {
-              const gData = await geminiRes.json();
-              const replyText = gData.candidates?.[0]?.content?.parts?.[0]?.text;
-              if (replyText && replyText.trim()) {
-                return NextResponse.json({ text: replyText.trim(), cards, actions });
-              }
-            }
-          } catch {}
-        }
-        return NextResponse.json({ text: selectedAnswer, cards, actions });
-      }
-
-      // 3. AI Generated mode (uses LLM with rule knowledge context)
-      if (mode === 'ai_generated') {
-        const geminiApiKey = process.env.GEMINI_API_KEY || process.env.SAKHR_GEMINI_KEY;
-        if (geminiApiKey) {
-          try {
-            const geminiRes = await fetch(
-              `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`,
-              {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  contents: [
-                    {
-                      role: 'user',
-                      parts: [
-                        {
-                          text: `أنت صخر المساعد الذكي لوكالة ساوث ستريت. أجب على السؤال بذكاء ودقة مستعيناً بالمعلومات الموثقة التالية:\nموضوع: ${rule.title_ar}\nمعلومات دقيقة: ${selectedAnswer}\nكلمات مفتاحية: ${rule.keywords.join(', ')}\n\nسؤال المستخدم: ${prompt}`
-                        }
-                      ]
-                    }
-                  ]
-                })
-              }
-            );
-            if (geminiRes.ok) {
-              const gData = await geminiRes.json();
-              const replyText = gData.candidates?.[0]?.content?.parts?.[0]?.text;
-              if (replyText && replyText.trim()) {
-                return NextResponse.json({ text: replyText.trim(), cards, actions });
-              }
-            }
-          } catch {}
-        }
-        return NextResponse.json({ text: selectedAnswer, cards, actions });
-      }
-
-      // Fallback
-      return NextResponse.json({
-        text: selectedAnswer,
-        cards,
-        actions
-      });
+      return NextResponse.json({ text: selectedAnswer, cards, actions });
     }
 
     // ─────────────────────────────────────────────────────────────
-    // TIER 1: n8n Webhook Workflow (Snappy 3.5s timeout)
-    // ─────────────────────────────────────────────────────────────
-    const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL;
-    if (n8nWebhookUrl && n8nWebhookUrl.startsWith('http') && !n8nWebhookUrl.includes('your-n8n-domain.com')) {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3500);
-
-        const res = await fetch(n8nWebhookUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            prompt,
-            message: prompt,
-            history,
-            sessionId,
-            timestamp: new Date().toISOString()
-          }),
-          signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-
-        if (res.ok) {
-          const data = await res.json();
-          const text = data.text || data.output || data.response || (typeof data === 'string' ? data : '');
-          if (text && text.trim().length > 0) {
-            return NextResponse.json({
-              text,
-              cards: data.cards || [],
-              actions: data.actions || [],
-              media: data.media || []
-            });
-          }
-        }
-      } catch (err: any) {
-        console.warn('[n8n Webhook] Fast fallback triggered:', err?.message);
-      }
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // TIER 2: Google Gemini Direct LLM with Knowledge Context
+    // TIER 1: Direct Google Gemini 1.5 Flash LLM with Injected SQLite Context
     // ─────────────────────────────────────────────────────────────
     const geminiApiKey = process.env.GEMINI_API_KEY || process.env.SAKHR_GEMINI_KEY;
     if (geminiApiKey) {
       try {
-        const kbResults = await KnowledgeReader.search(prompt, 3);
-        const kbContext = kbResults.chunks.map(c => `[${c.heading}]: ${c.content}`).join('\n\n');
+        const agency = toolGetAgencySettings();
+        const packages = toolSearchPackages();
+        const team = toolGetTeamMembers();
+        const hotels = toolGetHotelsInfo();
+        const seasons = toolGetSeasonsInfo();
 
-        const systemInstruction = `أنت صخر، المساعد الذكي لوكالة ساوث ستريت (South Street) للأسفار والحج والعمرة بالجزائر.
-أجب بلباقة ولغة عربية راقية وموثوقة. استخدم بيانات الوكالة للإجابة بدقة، وأجب على الأسئلة العامة بدقة وإيجاز.
-بيانات الوكالة المتوفرة:
-${kbContext}`;
+        const sqliteContext = `
+معلومات قاعدة البيانات الحية (SQLite Real-time Authority):
+- الوكالة: ${agency.agency_name} | هاتف: ${agency.phone} | واتساب: ${agency.whatsapp} | عنوان: ${agency.address}
+- الباقات المتاحة (${packages.length} باقة): ${packages.map(p => `${p.name} (السعر الأقل: ${p.prices?.[0]?.amount || 'محدد'} دج - المتبقي: ${p.available} مقعد)`).join('؛ ')}
+- المرشدين وطاقم العمل (${team.length} عضو): ${team.map(t => `${t.name} (${t.roleName})`).join('؛ ')}
+- الفنادق المعتمدة (${hotels.length} فندق): ${hotels.map(h => `${h.name} (${h.distance_from_haram})`).join('؛ ')}
+- المواسم الحالية: ${seasons.map(s => `${s.name} (${s.status})`).join('؛ ')}
+`;
+
+        const systemInstruction = `أنت صخر، المساعد الذكي لوكالة ${agency.agency_name || 'ساوث ستريت'} بالجزائر.
+أجب بلباقة ولغة عربية راقية ومباشرة. الالتزام التام بالمعلومات المرفقة أدناه دون اختراع أو تخمين أسعار أو رحلات غير موجودة.
+${sqliteContext}`;
 
         const geminiRes = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`,
@@ -887,9 +787,7 @@ ${kbContext}`;
               contents: [
                 {
                   role: 'user',
-                  parts: [
-                    { text: `${systemInstruction}\n\nسؤال المستخدم: ${prompt}` }
-                  ]
+                  parts: [{ text: `${systemInstruction}\n\nسؤال المستخدم: ${prompt}` }]
                 }
               ]
             })
@@ -907,12 +805,12 @@ ${kbContext}`;
           }
         }
       } catch (geminiErr: any) {
-        console.warn('[Gemini API] Failed, falling back to local engine:', geminiErr?.message);
+        console.warn('[Gemini API Error] Falling back to local engine:', geminiErr?.message);
       }
     }
 
     // ─────────────────────────────────────────────────────────────
-    // TIER 3: Local RAG Knowledge Engine & Smart NLP Fallback
+    // TIER 2: Local Engine & Smart Fallback
     // ─────────────────────────────────────────────────────────────
     const localResult = await generateLocalRagResponse(prompt);
     return NextResponse.json(localResult);
