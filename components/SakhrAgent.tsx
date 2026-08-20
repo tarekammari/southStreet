@@ -2,10 +2,10 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  Send, X, Sparkles, Bot, User as UserIcon, RefreshCw,
-  MapPin, CheckCircle, ArrowRight, Eye, Layers, Calendar, DollarSign,
-  PhoneCall, ShieldCheck, Play, Image as ImageIcon, CreditCard, Building, UserCheck,
-  Table, Database, Plus, Search, HelpCircle, FileText, Check, PlusCircle, LayoutGrid
+  Send, X, User as UserIcon, RefreshCw,
+  MapPin, CheckCircle, Eye, Layers,
+  PhoneCall, Play,
+  Table, Database, Plus, Search, FileText
 } from 'lucide-react';
 import { Package, Hotel, MediaAsset, AiAction, AiCard } from '@/types';
 
@@ -344,14 +344,14 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
       return (
         <p
           key={lIdx}
-          className={`min-h-[1.4rem] my-1 text-sm sm:text-base leading-relaxed ${
-            isBullet ? 'pr-2 font-medium text-slate-100' : ''
+          className={`min-h-[1.4rem] my-0.5 text-[15px] leading-relaxed ${
+            isBullet ? 'pr-2 text-neutral-200' : 'text-neutral-200'
           }`}
         >
           {parts.map((part, pIdx) => {
             if (part.startsWith('**') && part.endsWith('**')) {
               return (
-                <strong key={pIdx} className="font-bold text-amber-300 drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">
+                <strong key={pIdx} className="font-semibold text-[#ececec]">
                   {part.slice(2, -2)}
                 </strong>
               );
@@ -365,261 +365,192 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
 
   return (
     <>
-      {/* ════════════════════════════════
-           SAKHR FLOATING ORB TRIGGER
-      ════════════════════════════════ */}
-      <div className="fixed bottom-4 right-4 sm:bottom-8 sm:right-8 z-50 flex flex-col items-center gap-1.5 select-none">
+      {/* Floating trigger */}
+      <div className="fixed bottom-5 right-5 sm:bottom-8 sm:right-8 z-50 select-none">
         <button
           onClick={() => setIsOpen((v) => !v)}
           aria-label="مساعد صخر الذكي"
-          className="relative w-[72px] h-[72px] sm:w-[92px] sm:h-[92px] rounded-full focus:outline-none group cursor-pointer"
+          className="relative w-14 h-14 sm:w-[60px] sm:h-[60px] rounded-full focus:outline-none group cursor-pointer sakhr-fab flex items-center justify-center"
         >
-          <span
-            className="absolute -inset-3 sm:-inset-5 rounded-full sakhr-breath opacity-30 pointer-events-none"
-            style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.9), transparent 65%)' }}
-          />
-          <span
-            className="absolute -inset-2 sm:-inset-3 rounded-full sakhr-breath opacity-40 pointer-events-none"
-            style={{ animationDelay: '0.5s', background: 'radial-gradient(circle, rgba(56,189,248,0.8), transparent 65%)' }}
-          />
-          <span
-            className="absolute -inset-1 rounded-full sakhr-breath opacity-60 pointer-events-none"
-            style={{ animationDelay: '1s', background: 'radial-gradient(circle, rgba(124,58,237,0.7), transparent 65%)' }}
-          />
-
-          <span className="absolute inset-0 rounded-full border-2 border-dashed border-indigo-400/60 sakhr-orbit pointer-events-none" />
-
-          <span className="absolute inset-0 rounded-full sakhr-orb shadow-[0_0_35px_rgba(99,102,241,0.7)] group-hover:shadow-[0_0_55px_rgba(99,102,241,0.9)] transition-shadow duration-500 flex flex-col items-center justify-center gap-0.5 border border-white/30">
-            <span className="absolute top-2 left-1/3 w-4 h-1.5 sm:w-6 sm:h-2 rounded-full bg-white/30 rotate-12 blur-sm pointer-events-none" />
-            <span className="text-white font-black leading-none drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)] text-xl sm:text-3xl font-cairo">
-              صخر
-            </span>
-            <span className="text-white/90 tracking-[0.15em] leading-none text-[8px] sm:text-[10px] font-tajawal font-bold">
-              AI CHAT
-            </span>
-          </span>
+          {isOpen ? (
+            <X className="w-5 h-5 text-neutral-400 group-hover:text-white transition-colors" />
+          ) : (
+            <>
+              <span className="text-[#c9a962] font-bold text-lg sm:text-xl font-cairo leading-none">ص</span>
+              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-[#171717]" />
+            </>
+          )}
         </button>
-
-        <span className="hidden sm:flex text-[11px] font-bold text-white/90 font-tajawal bg-slate-950/90 backdrop-blur-md px-3 py-1 rounded-full border border-white/20 shadow-xl items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span>المساعد الذكي صخر 2.0</span>
-        </span>
       </div>
 
-      {/* ════════════════════════════════
-           HIGH-END ULTRA-MODERN SAKHR CHAT PANEL
-      ════════════════════════════════ */}
       {isOpen && (
-        <div
-          className="fixed top-[72px] sm:top-[80px] bottom-4 sm:bottom-6 right-2 sm:right-8 z-[250] w-[calc(100vw-16px)] sm:w-[640px] md:w-[740px] lg:w-[850px] max-w-[96vw] flex flex-col rounded-3xl overflow-hidden shadow-2xl animate-fade-in border border-white/15"
-          style={{
-            background: 'rgba(11, 13, 20, 0.97)',
-            backdropFilter: 'blur(45px) saturate(180%)',
-            boxShadow: '0 30px 100px rgba(0,0,0,0.95), 0 0 40px rgba(99,102,241,0.15)'
-          }}
-        >
-          {/* Header — ChatGPT & Gemini style with Admin Controls */}
-          <div className="flex items-center justify-between px-5 py-3.5 shrink-0 border-b border-white/10 bg-slate-950/80">
-            <div className="flex items-center gap-3">
-              <div className="relative w-10 h-10 rounded-full sakhr-orb flex items-center justify-center shrink-0 border border-white/25 shadow-lg">
-                <span className="text-white font-black text-lg font-cairo leading-none">ص</span>
-                <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-slate-950" />
+        <div className="fixed top-[72px] sm:top-[80px] bottom-4 sm:bottom-6 right-2 sm:right-8 z-[250] w-[calc(100vw-16px)] sm:w-[420px] md:w-[480px] lg:w-[520px] max-w-[96vw] flex flex-col rounded-2xl overflow-hidden animate-fade-in sakhr-chat-panel">
+
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 shrink-0 border-b border-white/[0.06]">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-full sakhr-avatar-accent flex items-center justify-center shrink-0">
+                <span className="text-[#c9a962] font-semibold text-sm font-cairo leading-none">ص</span>
               </div>
-              <div className="flex flex-col">
+              <div className="flex flex-col min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-white font-black text-base font-cairo">صخر الذكي</span>
+                  <span className="text-[#ececec] font-medium text-sm font-cairo truncate">صخر</span>
                   {isAdmin && (
-                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold font-tajawal flex items-center gap-1">
-                      <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                      وضع الأدمن
-                    </span>
-                  )}
-                  {!isAdmin && (
-                    <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[10px] font-bold font-tajawal">
-                      Sakhr 2.0 AI
+                    <span className="px-1.5 py-0.5 rounded-md bg-white/[0.06] text-neutral-400 text-[10px] font-tajawal shrink-0">
+                      Admin
                     </span>
                   )}
                 </div>
-                <span className="text-[11px] text-slate-400 font-tajawal flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  مساعد ساوث ستريت (استعلام وإدارة بيانات SQLite)
+                <span className="text-[11px] text-neutral-500 font-tajawal truncate">
+                  مساعد ساوث ستريت
                 </span>
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-0.5 shrink-0">
               {messages.length > 0 && (
                 <button
                   onClick={clearChat}
-                  title="مسح محادثة صخر"
-                  className="px-3 py-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 text-xs font-bold font-tajawal flex items-center gap-1.5 transition-all cursor-pointer border border-white/5"
+                  title="محادثة جديدة"
+                  className="w-8 h-8 rounded-lg text-neutral-500 hover:text-neutral-300 hover:bg-white/[0.06] flex items-center justify-center transition-colors cursor-pointer"
                 >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">محادثة جديدة</span>
+                  <RefreshCw className="w-4 h-4" />
                 </button>
               )}
-
               <button
                 onClick={() => setIsOpen(false)}
-                className="w-9 h-9 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 flex items-center justify-center transition-all cursor-pointer"
+                className="w-8 h-8 rounded-lg text-neutral-500 hover:text-neutral-300 hover:bg-white/[0.06] flex items-center justify-center transition-colors cursor-pointer"
                 aria-label="إغلاق"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
           </div>
 
-          {/* Admin Toolbar Bar inside Sakhr Chat */}
+          {/* Admin tools — subtle icon bar */}
           {isAdmin && (
-            <div className="px-4 py-2 bg-gradient-to-r from-emerald-950/70 via-slate-900 to-indigo-950/70 border-b border-emerald-500/30 flex items-center justify-between text-xs font-tajawal text-slate-200">
-              <span className="font-bold text-emerald-300 flex items-center gap-1.5">
-                <Database className="w-3.5 h-3.5 text-emerald-400" />
-                أدوات الإدارة والبيانات المباشرة:
-              </span>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => fetchTableData('packages')}
-                  className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
-                >
-                  <Table className="w-3 h-3" />
-                  استعراض الجداول
-                </button>
-                <button
-                  onClick={() => openInsertForm('packages')}
-                  className="px-2.5 py-1 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
-                >
-                  <Plus className="w-3 h-3" />
-                  إضافة سطر
-                </button>
-                <button
-                  onClick={() => setFormulaModalOpen(true)}
-                  className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
-                >
-                  <FileText className="w-3 h-3" />
-                  تدريب صيغة إجابة
-                </button>
-              </div>
+            <div className="px-4 py-2 border-b border-white/[0.06] flex items-center gap-1">
+              <button
+                onClick={() => fetchTableData('packages')}
+                title="استعراض الجداول"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-neutral-400 hover:text-neutral-200 hover:bg-white/[0.05] text-[11px] font-tajawal transition-colors cursor-pointer"
+              >
+                <Table className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">الجداول</span>
+              </button>
+              <button
+                onClick={() => openInsertForm('packages')}
+                title="إضافة سطر"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-neutral-400 hover:text-neutral-200 hover:bg-white/[0.05] text-[11px] font-tajawal transition-colors cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">إضافة</span>
+              </button>
+              <button
+                onClick={() => setFormulaModalOpen(true)}
+                title="تدريب صيغة إجابة"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-neutral-400 hover:text-neutral-200 hover:bg-white/[0.05] text-[11px] font-tajawal transition-colors cursor-pointer"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">تدريب</span>
+              </button>
             </div>
           )}
 
-          {/* Chat Messages Stream */}
-          <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 space-y-6 font-tajawal text-sm sm:text-base leading-relaxed" style={{ minHeight: 250 }}>
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5 font-tajawal text-[15px] leading-relaxed scrollbar-none" style={{ minHeight: 250 }}>
 
-            {/* Empty State Welcome Screen */}
+            {/* Welcome */}
             {messages.length === 0 && (
-              <div className="flex flex-col items-center justify-center text-center py-6 px-4 space-y-6 my-auto">
-                <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full flex items-center justify-center">
-                  <span
-                    className="absolute -inset-4 rounded-full sakhr-breath opacity-40 pointer-events-none"
-                    style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.9), transparent 70%)' }}
-                  />
-                  <span className="absolute inset-0 rounded-full border-2 border-dashed border-indigo-400/60 sakhr-orbit pointer-events-none" />
-                  <div className="w-full h-full rounded-full sakhr-orb shadow-[0_0_35px_rgba(99,102,241,0.8)] flex flex-col items-center justify-center border border-white/20">
-                    <span className="text-white font-black text-3xl font-cairo drop-shadow-md">صخر</span>
-                    <span className="text-white/90 text-[10px] font-tajawal font-bold tracking-widest">AI AGENT</span>
-                  </div>
+              <div className="flex flex-col items-center justify-center text-center py-8 px-2 space-y-5 my-auto">
+                <div className="w-12 h-12 rounded-full sakhr-avatar-accent flex items-center justify-center">
+                  <span className="text-[#c9a962] font-semibold text-xl font-cairo">ص</span>
                 </div>
 
-                <div className="space-y-2 max-w-md">
-                  <h3 className="font-black text-lg sm:text-xl text-white font-cairo leading-snug">
-                    أهلاً بك! المساعد الذكي صخر في خدمتكم 🕋✨
+                <div className="space-y-1.5 max-w-sm">
+                  <h3 className="font-medium text-[17px] text-[#ececec] font-cairo">
+                    كيف يمكنني مساعدتك؟
                   </h3>
-                  <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-tajawal">
+                  <p className="text-[13px] text-neutral-500 leading-relaxed font-tajawal">
                     {isAdmin
-                      ? 'مرحباً بالمدير العام! يمكنك الاستعلام، تدريب صيغ الإجابات، وإضافة أو استعراض جداول SQLite مباشرة من الشات.'
-                      : 'أنا مساعدك المباشر لوكالة ساوث ستريت. أستخرج لك البيانات الرسمية من قاعدة البيانات الحية فوراً.'}
+                      ? 'استعلم عن البيانات، أدر الجداول، أو درّب صيغ الإجابات.'
+                      : 'اسأل عن الباقات، الأسعار، التقسيط، أو أي استفسار عن الوكالة.'}
                   </p>
                 </div>
 
-                {/* Quick Interactive Prompt Chips */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-xl pt-2 text-right">
+                {/* Suggestion chips */}
+                <div className="flex flex-wrap justify-center gap-2 w-full max-w-md pt-1">
                   {[
-                    { icon: UserCheck, label: '👔 من هو مدير الوكالة والمحاسب؟', query: 'من هو مدير الوكالة ومن هو المحاسب المالي؟' },
-                    { icon: CreditCard, label: '💳 تسهيلات التقسيط (من 2 إلى 10 أشهر)', query: 'ما هي شروط وتسهيلات الدفع والتقسيط من 2 الى 10 أشهر؟' },
-                    { icon: Building, label: '📍 أين موقع ومقر الإدارة العامة؟', query: 'أين موقع ومقر الإدارة العامة لوكالة ساوث ستريت؟' },
-                    { icon: Sparkles, label: '🕋 استعراض عروض وباقات العمرة 2026', query: 'عرض باقات وأسعار العمرة 2026' },
+                    { label: 'مدير الوكالة والمحاسب', query: 'من هو مدير الوكالة ومن هو المحاسب المالي؟' },
+                    { label: 'تسهيلات التقسيط', query: 'ما هي شروط وتسهيلات الدفع والتقسيط من 2 الى 10 أشهر؟' },
+                    { label: 'مقر الإدارة', query: 'أين موقع ومقر الإدارة العامة لوكالة ساوث ستريت؟' },
+                    { label: 'باقات العمرة 2026', query: 'عرض باقات وأسعار العمرة 2026' },
                     ...(isAdmin
                       ? [
-                          { icon: Table, label: '📊 أظهر لي جدول باقات العمرة', query: 'أظهر لي جدول الباقات' },
-                          { icon: PlusCircle, label: '➕ أضف بيانات جديدة إلى جدول', query: 'أريد إضافة بيانات إلى الجدول' }
+                          { label: 'جدول الباقات', query: 'أظهر لي جدول الباقات' },
+                          { label: 'إضافة بيانات', query: 'أريد إضافة بيانات إلى الجدول' }
                         ]
                       : [])
-                  ].map((chip, idx) => {
-                    const IconComp = chip.icon;
-                    return (
-                      <button
-                        key={idx}
-                        onClick={() => sendMessage(chip.query)}
-                        className="p-3.5 rounded-2xl bg-white/[0.04] hover:bg-indigo-600/20 border border-white/10 hover:border-indigo-500/40 text-xs sm:text-sm font-bold text-slate-200 hover:text-white transition-all text-right flex items-center justify-between group cursor-pointer shadow-sm hover:shadow-md"
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <IconComp className="w-4 h-4 text-amber-400 shrink-0" />
-                          <span>{chip.label}</span>
-                        </div>
-                        <ArrowRight className="w-3.5 h-3.5 text-indigo-400 opacity-60 group-hover:opacity-100 transition-opacity shrink-0 rotate-180 mr-1" />
-                      </button>
-                    );
-                  })}
+                  ].map((chip, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => sendMessage(chip.query)}
+                      className="sakhr-chip px-3.5 py-2 rounded-full text-[13px] text-neutral-300 hover:text-[#ececec] font-tajawal cursor-pointer"
+                    >
+                      {chip.label}
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
 
-            {/* Message History Render */}
+            {/* Message history */}
             {messages.map((m, i) => (
-              <div key={i} className={`flex items-start gap-3 ${m.role === 'user' ? 'flex-row-reverse' : 'flex-row'} space-y-0`}>
+              <div key={i} className={`flex items-start gap-3 ${m.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
 
-                {/* Avatar Icon */}
                 {m.role === 'ai' ? (
-                  <div className="w-9 h-9 rounded-full sakhr-orb flex items-center justify-center shrink-0 border border-white/20 shadow-md mt-1">
-                    <span className="text-white font-black text-sm font-cairo leading-none">ص</span>
+                  <div className="w-7 h-7 rounded-full sakhr-avatar-accent flex items-center justify-center shrink-0 mt-0.5">
+                    <span className="text-[#c9a962] font-semibold text-xs font-cairo leading-none">ص</span>
                   </div>
                 ) : (
-                  <div className="w-9 h-9 rounded-full bg-slate-800 border border-white/20 flex items-center justify-center shrink-0 text-slate-300 mt-1">
-                    <UserIcon className="w-4 h-4" />
+                  <div className="w-7 h-7 rounded-full sakhr-avatar flex items-center justify-center shrink-0 text-neutral-400 mt-0.5">
+                    <UserIcon className="w-3.5 h-3.5" />
                   </div>
                 )}
 
-                <div className="flex flex-col space-y-2 max-w-[88%] sm:max-w-[85%]">
+                <div className="flex flex-col space-y-2 max-w-[88%] sm:max-w-[85%] min-w-0">
                   <div
-                    className="px-5 py-4 rounded-3xl text-sm sm:text-base leading-relaxed shadow-xl font-tajawal"
+                    className={`px-3.5 py-2.5 rounded-2xl text-[15px] leading-relaxed font-tajawal ${
+                      m.role === 'user' ? 'sakhr-msg-user text-[#ececec]' : 'sakhr-msg-ai text-neutral-200'
+                    }`}
                     style={
                       m.role === 'user'
-                        ? {
-                            background: 'rgba(255,255,255,0.12)',
-                            color: '#f8fafc',
-                            border: '1px solid rgba(255,255,255,0.18)',
-                            borderRadius: '24px 24px 4px 24px'
-                          }
-                        : {
-                            background: 'linear-gradient(135deg, #1e1b4b, #1e293b)',
-                            color: '#ffffff',
-                            border: '1px solid rgba(129,140,248,0.4)',
-                            borderRadius: '24px 24px 24px 4px'
-                          }
+                        ? { borderRadius: '18px 18px 4px 18px' }
+                        : { borderRadius: '18px 18px 18px 4px' }
                     }
                   >
                     {renderFormattedMessage(m.text)}
 
                     {/* Escalation Alert Banner */}
                     {m.escalated && (
-                      <div className="mt-4 p-3.5 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-200 text-xs sm:text-sm flex items-center justify-between">
+                      <div className="mt-3 p-3 rounded-xl bg-white/[0.04] border border-white/[0.08] text-neutral-300 text-[13px] flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2">
-                          <PhoneCall className="w-4 h-4 text-amber-400 shrink-0" />
-                          <span>تم تحويل التذكرة لمستشار الوكالة المباشر</span>
+                          <PhoneCall className="w-4 h-4 text-neutral-400 shrink-0" />
+                          <span>تم تحويل التذكرة لمستشار الوكالة</span>
                         </div>
                         <a
                           href="tel:+21321554433"
-                          className="px-3.5 py-1.5 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs hover:bg-amber-400 transition-colors"
+                          className="px-3 py-1.5 rounded-lg bg-white text-black font-medium text-xs hover:bg-neutral-200 transition-colors shrink-0"
                         >
-                          اتصال الآن
+                          اتصال
                         </a>
                       </div>
                     )}
                   </div>
 
-                  {/* Admin Quick Answer Correction Button */}
+                  {/* Admin correction */}
                   {isAdmin && m.role === 'ai' && (
-                    <div className="flex justify-start pt-1">
+                    <div className="flex justify-start">
                       <button
                         onClick={() => {
                           let prevQ = '';
@@ -633,11 +564,11 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
                           setFormulaPattern(m.text);
                           setFormulaModalOpen(true);
                         }}
-                        className="px-3 py-1 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 hover:text-amber-200 text-[11px] font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
-                        title="تصحيح أو تعديل هذه الإجابة واعتمادها رسمياً في قاعدة بيانات صخر AI"
+                        className="px-2.5 py-1 rounded-lg text-neutral-500 hover:text-neutral-300 hover:bg-white/[0.04] text-[11px] font-tajawal flex items-center gap-1 transition-colors cursor-pointer"
+                        title="تصحيح واعتماد الإجابة"
                       >
-                        <FileText className="w-3.5 h-3.5 text-amber-400" />
-                        <span>✏️ تصحيح الإجابة واعتمادها رسميًا</span>
+                        <FileText className="w-3 h-3" />
+                        <span>تصحيح</span>
                       </button>
                     </div>
                   )}
@@ -650,35 +581,31 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
                         if (c.type === 'db_table_viewer') {
                           const tableInfo = c.data;
                           return (
-                            <div key={cIdx} className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-950/60 to-slate-900 border border-emerald-500/40 text-white space-y-3 shadow-2xl">
+                            <div key={cIdx} className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.08] text-neutral-200 space-y-3">
                               <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2.5">
-                                  <Table className="w-5 h-5 text-emerald-400" />
-                                  <h4 className="font-bold text-base font-cairo text-emerald-300">{tableInfo.label}</h4>
+                                <div className="flex items-center gap-2">
+                                  <Table className="w-4 h-4 text-neutral-400" />
+                                  <h4 className="font-medium text-sm font-cairo text-[#ececec]">{tableInfo.label}</h4>
                                 </div>
-                                <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold">
+                                <span className="px-2 py-0.5 rounded-md bg-white/[0.06] text-neutral-400 text-[11px]">
                                   {tableInfo.totalRows || tableInfo.rows?.length || 0} سطر
                                 </span>
                               </div>
 
-                              <p className="text-xs sm:text-sm text-slate-300">
-                                يمكنك فتح النافذة الاحترافية لعرض وتصفية حقول وأسطر جدول **[{tableInfo.label}]** مباشرة.
-                              </p>
-
-                              <div className="flex gap-2.5 pt-1">
+                              <div className="flex gap-2 pt-1">
                                 <button
                                   onClick={() => setTableModalData(tableInfo)}
-                                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer shadow-lg transition-all"
+                                  className="flex-1 py-2 rounded-lg bg-white text-black hover:bg-neutral-200 font-medium text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
                                 >
-                                  <Eye className="w-4 h-4" />
-                                  فتح نافذة استعراض البيانات الاحترافية
+                                  <Eye className="w-3.5 h-3.5" />
+                                  عرض البيانات
                                 </button>
                                 <button
                                   onClick={() => openInsertForm(tableInfo.tableName)}
-                                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-300 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 cursor-pointer border border-white/10"
+                                  className="px-3 py-2 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-neutral-300 font-medium text-xs flex items-center justify-center gap-1 cursor-pointer border border-white/[0.08] transition-colors"
                                 >
-                                  <Plus className="w-4 h-4" />
-                                  إضافة سطر
+                                  <Plus className="w-3.5 h-3.5" />
+                                  إضافة
                                 </button>
                               </div>
                             </div>
@@ -689,20 +616,20 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
                         if (c.type === 'table_selector_prompt') {
                           const options = c.data?.options || [];
                           return (
-                            <div key={cIdx} className="p-4 rounded-2xl bg-slate-900/90 border border-indigo-500/40 text-white space-y-3 shadow-xl">
-                              <h4 className="font-bold text-xs sm:text-sm font-cairo text-indigo-300 flex items-center gap-2">
-                                <Database className="w-4 h-4 text-amber-400" />
-                                {c.data?.title || 'اختر الجدول المطلوب للإضافة:'}
+                            <div key={cIdx} className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.08] text-neutral-200 space-y-3">
+                              <h4 className="font-medium text-xs font-cairo text-neutral-400 flex items-center gap-2">
+                                <Database className="w-3.5 h-3.5" />
+                                {c.data?.title || 'اختر الجدول:'}
                               </h4>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-right">
+                              <div className="flex flex-wrap gap-2">
                                 {options.map((opt: any, oIdx: number) => (
                                   <button
                                     key={oIdx}
                                     onClick={() => openInsertForm(opt.name)}
-                                    className="p-2.5 rounded-xl bg-white/[0.05] hover:bg-indigo-600/30 border border-white/10 hover:border-indigo-500/50 text-xs font-bold text-slate-200 hover:text-white transition-all text-right flex items-center justify-between cursor-pointer"
+                                    className="sakhr-chip px-3 py-1.5 rounded-lg text-xs text-neutral-300 hover:text-[#ececec] flex items-center gap-1.5 cursor-pointer"
                                   >
                                     <span>{opt.label}</span>
-                                    <Plus className="w-3.5 h-3.5 text-emerald-400" />
+                                    <Plus className="w-3 h-3 text-neutral-500" />
                                   </button>
                                 ))}
                               </div>
@@ -716,41 +643,41 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
                           return (
                             <div
                               key={cIdx}
-                              className="p-4 sm:p-5 rounded-2xl bg-slate-900/90 border border-amber-500/40 text-white space-y-3 shadow-2xl"
+                              className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.08] text-neutral-200 space-y-3"
                             >
-                              <div className="flex justify-between items-start">
+                              <div className="flex justify-between items-start gap-2">
                                 <div>
-                                  <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-white/[0.06] text-neutral-400">
                                     {pkg.type}
                                   </span>
-                                  <h4 className="font-black text-base sm:text-lg font-cairo text-amber-300 mt-1">{pkg.name}</h4>
+                                  <h4 className="font-medium text-sm font-cairo text-[#ececec] mt-1.5">{pkg.name}</h4>
                                 </div>
-                                <span className="text-xs font-bold text-emerald-400 bg-emerald-950/90 px-3 py-1 rounded-xl border border-emerald-500/40">
-                                  متوفر {pkg.available} مقاعد
+                                <span className="text-[11px] text-neutral-400 bg-white/[0.04] px-2 py-0.5 rounded-md shrink-0">
+                                  {pkg.available} مقعد
                                 </span>
                               </div>
 
-                              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">{pkg.description}</p>
+                              <p className="text-[13px] text-neutral-400 leading-relaxed">{pkg.description}</p>
 
-                              <div className="grid grid-cols-2 gap-2 text-xs text-slate-200 bg-slate-950/70 p-3 rounded-xl border border-white/5">
-                                <div>🏨 **فندق مكة:** {pkg.makkah_hotel_name} ({pkg.makkah_hotel_dist})</div>
-                                <div>✈️ **الطيران:** {pkg.airline}</div>
-                                <div>📅 **المدة:** {pkg.duration_days} يومًا</div>
-                                <div>💰 **يبدأ من:** {pkg.prices[0]?.amount.toLocaleString()} {pkg.prices[0]?.currency}</div>
+                              <div className="grid grid-cols-2 gap-2 text-[12px] text-neutral-400 bg-white/[0.02] p-3 rounded-lg border border-white/[0.05]">
+                                <div>فندق مكة: {pkg.makkah_hotel_name}</div>
+                                <div>الطيران: {pkg.airline}</div>
+                                <div>المدة: {pkg.duration_days} يوم</div>
+                                <div className="text-[#c9a962] font-medium">{pkg.prices[0]?.amount.toLocaleString()} {pkg.prices[0]?.currency}</div>
                               </div>
 
-                              <div className="flex gap-2.5 pt-1">
+                              <div className="flex gap-2 pt-0.5">
                                 <button
                                   onClick={() => setBookingPackage(pkg)}
-                                  className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 cursor-pointer transition-colors shadow-md"
+                                  className="flex-1 py-2 rounded-lg bg-white text-black hover:bg-neutral-200 font-medium text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
                                 >
-                                  <CheckCircle className="w-4 h-4" /> حجز فوري
+                                  <CheckCircle className="w-3.5 h-3.5" /> حجز
                                 </button>
                                 <button
                                   onClick={() => sendMessage(`قارنلي الباقة ${pkg.name}`)}
-                                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-200 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 cursor-pointer border border-white/10"
+                                  className="px-3 py-2 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-neutral-300 font-medium text-xs flex items-center justify-center gap-1 cursor-pointer border border-white/[0.08] transition-colors"
                                 >
-                                  <Layers className="w-4 h-4" /> مقارنة
+                                  <Layers className="w-3.5 h-3.5" /> مقارنة
                                 </button>
                               </div>
                             </div>
@@ -761,17 +688,17 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
                         if (c.type === 'hotel') {
                           const htl: Hotel = c.data;
                           return (
-                            <div key={cIdx} className="p-4 rounded-2xl bg-slate-900/90 border border-indigo-500/40 text-white space-y-2.5">
+                            <div key={cIdx} className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.08] text-neutral-200 space-y-2">
                               <div className="flex justify-between items-center">
-                                <h4 className="font-bold text-sm font-cairo text-indigo-200">{htl.name}</h4>
-                                <span className="text-xs text-amber-400 font-bold">{htl.category}</span>
+                                <h4 className="font-medium text-sm font-cairo text-[#ececec]">{htl.name}</h4>
+                                <span className="text-[11px] text-neutral-400">{htl.category}</span>
                               </div>
-                              <p className="text-xs text-slate-300">📍 {htl.distance_from_haram}</p>
+                              <p className="text-[13px] text-neutral-400">{htl.distance_from_haram}</p>
                               <button
                                 onClick={() => setSelectedMap({ title: htl.name, latitude: htl.latitude, longitude: htl.longitude })}
-                                className="text-xs text-indigo-300 hover:text-indigo-200 font-bold flex items-center gap-1.5 cursor-pointer pt-1"
+                                className="text-[12px] text-neutral-400 hover:text-neutral-200 font-medium flex items-center gap-1.5 cursor-pointer pt-0.5 transition-colors"
                               >
-                                <MapPin className="w-3.5 h-3.5 text-amber-400" /> عرض الموقع الجغرافي بالخريطة
+                                <MapPin className="w-3.5 h-3.5" /> عرض الموقع
                               </button>
                             </div>
                           );
@@ -781,47 +708,42 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
                         if (c.type === 'morshid') {
                           const guide = c.data;
                           return (
-                            <div key={cIdx} className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950/50 border border-emerald-500/40 text-white space-y-3.5 shadow-2xl">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-11 h-11 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 flex items-center justify-center font-bold font-cairo text-xl shadow">
+                            <div key={cIdx} className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.08] text-neutral-200 space-y-3">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="w-9 h-9 rounded-full bg-white/[0.06] border border-white/[0.08] flex items-center justify-center font-medium font-cairo text-sm text-neutral-300">
                                     {guide.avatar || 'أ'}
                                   </div>
                                   <div>
-                                    <h4 className="font-black text-base font-cairo text-amber-300">{guide.name}</h4>
-                                    <p className="text-xs text-emerald-400 font-bold">{guide.roleName}</p>
+                                    <h4 className="font-medium text-sm font-cairo text-[#ececec]">{guide.name}</h4>
+                                    <p className="text-[11px] text-neutral-500">{guide.roleName}</p>
                                   </div>
                                 </div>
-                                <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                                  ⭐ {guide.rating || '4.9'} ({guide.experience_years || 12} سنة خبرة)
+                                <span className="text-[11px] text-neutral-400 shrink-0">
+                                  {guide.rating || '4.9'} · {guide.experience_years || 12} سنة
                                 </span>
                               </div>
 
-                              <p className="text-xs sm:text-sm text-slate-200 leading-relaxed bg-slate-950/70 p-3 rounded-xl border border-white/5">
-                                📌 **التخصص والمرافقة:** {guide.specialization}
+                              <p className="text-[13px] text-neutral-400 leading-relaxed bg-white/[0.02] p-2.5 rounded-lg border border-white/[0.05]">
+                                {guide.specialization}
                               </p>
 
-                              <div className="flex items-center justify-between text-xs text-slate-300">
-                                <span>اللغات: {Array.isArray(guide.languages) ? guide.languages.join(' • ') : guide.languages}</span>
-                                <span className="text-emerald-400 font-bold">● {guide.status || 'متاح'}</span>
-                              </div>
-
-                              <div className="flex gap-2.5 pt-1">
+                              <div className="flex gap-2">
                                 <button
                                   onClick={() => {
                                     if (typeof window !== 'undefined') {
                                       window.location.href = '/portal?tab=chat';
                                     }
                                   }}
-                                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 cursor-pointer shadow transition-colors"
+                                  className="flex-1 py-2 rounded-lg bg-white text-black hover:bg-neutral-200 font-medium text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
                                 >
-                                  💬 مراسلة المرشد الآن
+                                  مراسلة
                                 </button>
                                 <a
                                   href={`tel:${guide.phone || '+213550123456'}`}
-                                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 cursor-pointer border border-white/10"
+                                  className="px-3 py-2 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-neutral-300 font-medium text-xs flex items-center justify-center gap-1 cursor-pointer border border-white/[0.08] transition-colors"
                                 >
-                                  📞 اتصال
+                                  اتصال
                                 </a>
                               </div>
                             </div>
@@ -832,12 +754,9 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
                         if (c.type === 'action') {
                           const act = c.data;
                           return (
-                            <div key={cIdx} className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-slate-900 to-indigo-500/15 border border-amber-500/40 text-white space-y-3 shadow-2xl">
-                              <div className="flex items-center gap-2">
-                                <Sparkles className="w-4 h-4 text-amber-400" />
-                                <h4 className="font-bold text-sm sm:text-base text-amber-300 font-cairo">{act.title}</h4>
-                              </div>
-                              {act.description && <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">{act.description}</p>}
+                            <div key={cIdx} className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.08] text-neutral-200 space-y-2.5">
+                              <h4 className="font-medium text-sm text-[#ececec] font-cairo">{act.title}</h4>
+                              {act.description && <p className="text-[13px] text-neutral-400 leading-relaxed">{act.description}</p>}
                               <button
                                 onClick={() => {
                                   if (act.targetModal === 'login') {
@@ -857,10 +776,9 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
                                     }
                                   }
                                 }}
-                                className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer shadow-lg transition-all"
+                                className="w-full py-2 rounded-lg bg-white text-black hover:bg-neutral-200 font-medium text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
                               >
-                                <ArrowRight className="w-4 h-4" />
-                                {act.buttonText || 'الانتقال للصفحة الآن'}
+                                {act.buttonText || 'متابعة'}
                               </button>
                             </div>
                           );
@@ -909,35 +827,20 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
               </div>
             ))}
 
-            {/* ANIMATED SAKHR AI ICON LOADING STATE */}
+            {/* Thinking indicator */}
             {isThinking && (
-              <div className="flex items-start gap-3 justify-start animate-fade-in my-3">
-                <div className="relative w-10 h-10 rounded-full shrink-0 flex items-center justify-center mt-1">
-                  <span className="absolute -inset-2 rounded-full sakhr-breath opacity-70 pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.9), transparent 70%)' }} />
-                  <span className="absolute inset-0 rounded-full border border-dashed border-indigo-400 sakhr-orbit pointer-events-none" />
-                  <div className="w-full h-full rounded-full sakhr-orb shadow-[0_0_20px_rgba(99,102,241,0.9)] flex items-center justify-center border border-white/30">
-                    <span className="text-white font-black text-sm font-cairo leading-none">ص</span>
-                  </div>
+              <div className="flex items-start gap-3 animate-fade-in">
+                <div className="w-7 h-7 rounded-full sakhr-avatar-accent flex items-center justify-center shrink-0 mt-0.5">
+                  <span className="text-[#c9a962] font-semibold text-xs font-cairo leading-none">ص</span>
                 </div>
-
-                <div
-                  className="px-5 py-4 rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950/90 to-slate-900 border border-indigo-500/50 text-white shadow-2xl max-w-[85%]"
-                  style={{ borderRadius: '24px 24px 24px 4px' }}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs sm:text-sm text-indigo-200 font-bold font-tajawal">
-                      صخر الذكي يستعلم قاعدة البيانات الحية ويعد الإجابة...
-                    </span>
-                    <div className="flex gap-1.5 items-center">
-                      {[0, 0.2, 0.4].map((d, i) => (
-                        <span
-                          key={i}
-                          className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.9)] animate-bounce"
-                          style={{ animationDelay: `${d}s` }}
-                        />
-                      ))}
-                    </div>
-                  </div>
+                <div className="flex items-center gap-1 pt-3">
+                  {[0, 0.2, 0.4].map((d, i) => (
+                    <span
+                      key={i}
+                      className="w-1.5 h-1.5 rounded-full bg-neutral-500 sakhr-dot"
+                      style={{ animationDelay: `${d}s` }}
+                    />
+                  ))}
                 </div>
               </div>
             )}
@@ -945,12 +848,9 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
             <div ref={chatEndRef} />
           </div>
 
-          {/* Input Bar — ChatGPT / Gemini style */}
-          <div className="px-4 sm:px-6 pb-5 pt-3 shrink-0 bg-slate-950/80 border-t border-white/10">
-            <div
-              className="flex items-center gap-3 rounded-2xl border border-white/15 px-4 py-3 focus-within:border-indigo-400/60 focus-within:ring-2 focus-within:ring-indigo-500/20 transition-all shadow-inner"
-              style={{ background: 'rgba(255,255,255,0.06)' }}
-            >
+          {/* Input */}
+          <div className="px-4 pb-4 pt-2 shrink-0 border-t border-white/[0.06]">
+            <div className="sakhr-input-wrap flex items-end gap-2 rounded-2xl px-3 py-2.5">
               <input
                 ref={inputRef}
                 type="text"
@@ -958,23 +858,21 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
                 dir="rtl"
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-                placeholder={isAdmin ? "اسأل، أظهر الجداول، أضف بيانات، أو درب صيغة إجابة..." : "اسأل صخر عن الباقات، الأسعار، المدير، المحاسب، المقر أو التقسيط..."}
-                className="flex-1 bg-transparent text-sm sm:text-base text-white placeholder:text-slate-500 focus:outline-none font-tajawal text-right resize-none leading-relaxed"
+                placeholder={isAdmin ? 'اسأل أو أدر البيانات...' : 'اكتب رسالتك...'}
+                className="flex-1 bg-transparent text-[15px] text-[#ececec] placeholder:text-neutral-500 focus:outline-none font-tajawal text-right leading-relaxed py-1"
               />
               <button
                 onClick={() => sendMessage()}
                 disabled={isThinking || !query.trim()}
-                className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-white shrink-0 transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed shadow-md"
-                style={{ background: query.trim() ? 'linear-gradient(135deg,#4f46e5,#2563eb)' : 'rgba(255,255,255,0.08)' }}
+                className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed bg-white text-black hover:bg-neutral-200 disabled:bg-neutral-700 disabled:text-neutral-500"
                 title="إرسال"
               >
                 <Send className="w-4 h-4" />
               </button>
             </div>
-            <div className="flex items-center justify-between text-[11px] text-slate-500 px-2 pt-2 font-tajawal">
-              <span>وكالة ساوث ستريت للأسفار والعمرة • الجزائر 🇩🇿</span>
-              <span>إجابات معتمدة فورية من قاعدة البيانات SQLite</span>
-            </div>
+            <p className="text-[10px] text-neutral-600 text-center pt-2 font-tajawal">
+              صخر قد يرتكب أخطاء. تحقق من المعلومات المهمة.
+            </p>
           </div>
         </div>
       )}
