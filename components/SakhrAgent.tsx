@@ -5,7 +5,8 @@ import {
   Send, X, User as UserIcon, RefreshCw,
   MapPin, CheckCircle, Eye, Layers,
   PhoneCall, Play,
-  Table, Database, Plus, Search, FileText
+  Table, Database, Plus, Search, FileText,
+  Sparkles, BookOpen, ShieldCheck
 } from 'lucide-react';
 import { Package, Hotel, MediaAsset, AiAction, AiCard } from '@/types';
 
@@ -16,6 +17,14 @@ interface SakhrMessage {
   media?: MediaAsset[];
   map?: { title: string; latitude: number; longitude: number };
   escalated?: boolean;
+  noKnowledge?: boolean;
+  trusted?: boolean;
+  externalAi?: boolean;
+  sourceType?: 'agency_db' | 'external_ai' | 'local_guidance' | 'system';
+  source?: string;
+  sourceLabel?: string;
+  model?: string;
+  toolsUsed?: string[];
 }
 
 interface SakhrAgentProps {
@@ -35,6 +44,116 @@ const TABLE_LABELS: Record<string, string> = {
   agency_settings: '⚙️ إعدادات الوكالة',
   page_content: '📄 محتوى الصفحات'
 };
+
+/** Strip legacy inline source footers — UI banner handles attribution */
+function stripInlineSourceFooters(text: string): string {
+  return text
+    .replace(/\n\n---\n🤖 \*\*مصدر الإجابة:\*\*[\s\S]*$/u, '')
+    .replace(/\n\n---\n📘 \*\*مصدر الإجابة:\*\*[\s\S]*$/u, '')
+    .replace(/\n\n✅ \*مصدر موثوق:[\s\S]*$/u, '')
+    .trim();
+}
+
+type ResolvedSource =
+  | { kind: 'agency_db'; label: string; table?: string }
+  | { kind: 'external_ai'; label: string; model?: string }
+  | { kind: 'local_guidance'; label: string }
+  | null;
+
+function resolveMessageSource(m: SakhrMessage): ResolvedSource {
+  if (m.noKnowledge) return null;
+
+  const isExternal =
+    m.externalAi === true ||
+    m.sourceType === 'external_ai' ||
+    m.sourceType === 'local_guidance' ||
+    (m.model?.includes('gemini') ?? false) ||
+    m.model === 'local-faq';
+
+  if (isExternal) {
+    if (m.sourceType === 'local_guidance' || m.model === 'local-faq') {
+      return {
+        kind: 'local_guidance',
+        label: m.sourceLabel || m.source || 'إرشادات عامة — ليست من قاعدة الوكالة',
+      };
+    }
+    return {
+      kind: 'external_ai',
+      label: m.sourceLabel || m.source || 'Google Gemini',
+      model: m.model,
+    };
+  }
+
+  if (m.trusted === true || m.sourceType === 'agency_db') {
+    return {
+      kind: 'agency_db',
+      label: m.sourceLabel || TABLE_LABELS[m.source || ''] || 'قاعدة بيانات الوكالة',
+      table: m.source,
+    };
+  }
+
+  return null;
+}
+
+function SourceAttributionBanner({ source }: { source: ResolvedSource }) {
+  if (!source) return null;
+
+  if (source.kind === 'agency_db') {
+    return (
+      <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl bg-gradient-to-l from-emerald-950/60 to-emerald-900/20 border border-emerald-500/35 shadow-sm">
+        <div className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
+          <ShieldCheck className="w-4 h-4 text-emerald-400" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] font-bold text-emerald-300 font-cairo leading-snug">
+            إجابة معتمدة — من قاعدة بيانات الوكالة
+          </p>
+          <p className="text-[10px] text-emerald-400/75 font-tajawal mt-0.5 truncate">
+            {source.label}
+          </p>
+        </div>
+        <Database className="w-4 h-4 text-emerald-500/50 shrink-0 mt-1" />
+      </div>
+    );
+  }
+
+  if (source.kind === 'external_ai') {
+    return (
+      <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl bg-gradient-to-l from-violet-950/60 to-indigo-900/20 border border-violet-500/35 shadow-sm">
+        <div className="w-8 h-8 rounded-lg bg-violet-500/15 border border-violet-500/30 flex items-center justify-center shrink-0">
+          <Sparkles className="w-4 h-4 text-violet-300" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] font-bold text-violet-200 font-cairo leading-snug">
+            إجابة من ذكاء اصطناعي خارجي — ليست من قاعدة الوكالة
+          </p>
+          <p className="text-[10px] text-violet-300/80 font-tajawal mt-0.5">
+            المصدر: {source.label}
+          </p>
+          <p className="text-[9px] text-neutral-500 font-tajawal mt-1">
+            ⚠️ تحقق من المعلومات المهمة مع المرشد أو الإدارة
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl bg-gradient-to-l from-amber-950/50 to-orange-900/15 border border-amber-500/30 shadow-sm">
+      <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
+        <BookOpen className="w-4 h-4 text-amber-400" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[11px] font-bold text-amber-300 font-cairo leading-snug">
+          إرشاد عام — ليس من قاعدة بيانات الوكالة
+        </p>
+        <p className="text-[10px] text-amber-400/75 font-tajawal mt-0.5">
+          {source.label}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -159,7 +278,15 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
         cards: data.cards,
         media: data.media,
         map: data.map,
-        escalated: data.escalated
+        escalated: data.escalated,
+        noKnowledge: data.noKnowledge,
+        trusted: data.trusted,
+        externalAi: data.externalAi,
+        sourceType: data.sourceType,
+        source: data.source,
+        sourceLabel: data.sourceLabel,
+        model: data.model,
+        toolsUsed: data.toolsUsed,
       };
 
       setMessages((prev) => [...prev, aiMsg]);
@@ -181,11 +308,25 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
             }
           } else if (act.type === 'navigate' && act.target !== undefined) {
             if (typeof window !== 'undefined') {
-              const target = act.target;
+              const target = String(act.target);
+              const highlightSection = (selector: string) => {
+                const elem = document.querySelector(selector);
+                if (elem) {
+                  elem.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  elem.classList.add('section-highlight');
+                  setTimeout(() => elem.classList.remove('section-highlight'), 2800);
+                }
+              };
+
               if (target.startsWith('#')) {
-                const elem = document.querySelector(target);
-                if (elem) elem.scrollIntoView({ behavior: 'smooth' });
-                else window.location.href = '/' + target;
+                highlightSection(target);
+                if (!document.querySelector(target)) {
+                  window.location.href = '/' + target;
+                }
+              } else if (target.includes('?')) {
+                window.location.href = '/' + target.replace(/^\//, '');
+              } else if (target === '' || target === '/') {
+                window.location.href = '/';
               } else {
                 window.location.href = '/' + target.replace(/^\//, '');
               }
@@ -474,23 +615,24 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
                   <p className="text-[13px] text-neutral-500 leading-relaxed font-tajawal">
                     {isAdmin
                       ? 'استعلم عن البيانات، أدر الجداول، أو درّب صيغ الإجابات.'
-                      : 'اسأل عن الباقات، الأسعار، التقسيط، أو أي استفسار عن الوكالة.'}
+                      : 'أستطيع الإجابة عن أي صفحة أو قسم في التطبيق وفتحه لك مباشرة.'}
                   </p>
                 </div>
 
                 {/* Suggestion chips */}
                 <div className="flex flex-wrap justify-center gap-2 w-full max-w-md pt-1">
                   {[
-                    { label: 'مدير الوكالة والمحاسب', query: 'من هو مدير الوكالة ومن هو المحاسب المالي؟' },
-                    { label: 'تسهيلات التقسيط', query: 'ما هي شروط وتسهيلات الدفع والتقسيط من 2 الى 10 أشهر؟' },
-                    { label: 'مقر الإدارة', query: 'أين موقع ومقر الإدارة العامة لوكالة ساوث ستريت؟' },
-                    { label: 'باقات العمرة 2026', query: 'عرض باقات وأسعار العمرة 2026' },
+                    { label: '🗺️ صفحات التطبيق', query: 'ما هي صفحات وأقسام التطبيق؟' },
+                    { label: '👥 طاقم المرشدين', query: 'افتح قسم المرشدين وطاقم الوكالة' },
+                    { label: '📦 باقات العمرة', query: 'عرض باقات وأسعار العمرة 2026' },
+                    { label: '🏨 الفنادق', query: 'افتح صفحة الفنادق' },
+                    { label: '💳 التقسيط', query: 'ما شروط التقسيط من 2 الى 10 أشهر؟' },
                     ...(isAdmin
                       ? [
                           { label: 'جدول الباقات', query: 'أظهر لي جدول الباقات' },
-                          { label: 'إضافة بيانات', query: 'أريد إضافة بيانات إلى الجدول' }
+                          { label: 'إضافة بيانات', query: 'أريد إضافة بيانات إلى الجدول' },
                         ]
-                      : [])
+                      : []),
                   ].map((chip, idx) => (
                     <button
                       key={idx}
@@ -505,7 +647,12 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
             )}
 
             {/* Message history */}
-            {messages.map((m, i) => (
+            {messages.map((m, i) => {
+              const resolvedSource = m.role === 'ai' ? resolveMessageSource(m) : null;
+              const displayText =
+                m.role === 'ai' && resolvedSource ? stripInlineSourceFooters(m.text) : m.text;
+
+              return (
               <div key={i} className={`flex items-start gap-3 ${m.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
 
                 {m.role === 'ai' ? (
@@ -519,6 +666,20 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
                 )}
 
                 <div className="flex flex-col space-y-2 max-w-[88%] sm:max-w-[85%] min-w-0">
+                  {/* Knowledge gap — prominent Sakhr icon */}
+                  {m.role === 'ai' && m.noKnowledge && (
+                    <div className="flex flex-col items-center text-center py-4 px-3 rounded-2xl bg-gradient-to-b from-amber-950/30 to-neutral-900/50 border border-amber-500/20 space-y-3">
+                      <div className="w-16 h-16 rounded-full sakhr-avatar-accent flex items-center justify-center shadow-lg ring-2 ring-amber-500/30">
+                        <span className="text-[#c9a962] font-black text-2xl font-cairo leading-none">ص</span>
+                      </div>
+                      <p className="text-xs font-bold text-amber-400/90 font-cairo">صخر — لا توجد معرفة بعد</p>
+                    </div>
+                  )}
+
+                  {m.role === 'ai' && resolvedSource && (
+                    <SourceAttributionBanner source={resolvedSource} />
+                  )}
+
                   <div
                     className={`px-3.5 py-2.5 rounded-2xl text-[15px] leading-relaxed font-tajawal ${
                       m.role === 'user' ? 'sakhr-msg-user text-[#ececec]' : 'sakhr-msg-ai text-neutral-200'
@@ -529,24 +690,23 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
                         : { borderRadius: '18px 18px 18px 4px' }
                     }
                   >
-                    {renderFormattedMessage(m.text)}
-
-                    {/* Escalation Alert Banner */}
-                    {m.escalated && (
-                      <div className="mt-3 p-3 rounded-xl bg-white/[0.04] border border-white/[0.08] text-neutral-300 text-[13px] flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2">
-                          <PhoneCall className="w-4 h-4 text-neutral-400 shrink-0" />
-                          <span>تم تحويل التذكرة لمستشار الوكالة</span>
-                        </div>
-                        <a
-                          href="tel:+21321554433"
-                          className="px-3 py-1.5 rounded-lg bg-white text-black font-medium text-xs hover:bg-neutral-200 transition-colors shrink-0"
-                        >
-                          اتصال
-                        </a>
-                      </div>
-                    )}
+                    {renderFormattedMessage(displayText)}
                   </div>
+
+                  {m.escalated && (
+                    <div className="p-3 rounded-xl bg-white/[0.04] border border-white/[0.08] text-neutral-300 text-[13px] flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <PhoneCall className="w-4 h-4 text-neutral-400 shrink-0" />
+                        <span>تم تحويل التذكرة لمستشار الوكالة</span>
+                      </div>
+                      <a
+                        href="tel:+21321554433"
+                        className="px-3 py-1.5 rounded-lg bg-white text-black font-medium text-xs hover:bg-neutral-200 transition-colors shrink-0"
+                      >
+                        اتصال
+                      </a>
+                    </div>
+                  )}
 
                   {/* Admin correction */}
                   {isAdmin && m.role === 'ai' && (
@@ -825,7 +985,8 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
                   )}
                 </div>
               </div>
-            ))}
+              );
+            })}
 
             {/* Thinking indicator */}
             {isThinking && (

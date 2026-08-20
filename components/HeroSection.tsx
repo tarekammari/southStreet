@@ -13,7 +13,7 @@ export default function HeroSection() {
   };
 
   return (
-    <section className="hero-clean-section animate-fade-in relative flex flex-col justify-between overflow-hidden rounded-2xl md:rounded-3xl border border-white/10 shadow-2xl">
+    <section id="hero-section" className="hero-clean-section animate-fade-in relative flex flex-col justify-between overflow-hidden rounded-3xl border border-white/10 shadow-2xl">
       
       {/* Content Grid */}
       <div className="relative z-10 w-full h-full flex flex-col justify-between p-4 sm:p-6 md:p-8 gap-6">
@@ -112,8 +112,8 @@ export default function HeroSection() {
             <motion.button
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
-              onClick={() => alert('تم تسجيل طلب حجزك في رحلة شهر أوت 2026. سنتواصل معك مباشرة.')}
-              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm py-2.5 sm:py-3.5 px-4 sm:px-6 rounded-lg sm:rounded-xl shadow-xl transition-all duration-200 cursor-pointer border border-emerald-400/60 font-tajawal tracking-wide"
+              onClick={() => { window.location.href = '/packages'; }}
+              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm py-2.5 sm:py-3.5 px-4 sm:px-6 rounded-xl shadow-xl transition-all duration-200 cursor-pointer border border-emerald-400/60 font-tajawal tracking-wide"
             >
               احجز الآن
             </motion.button>

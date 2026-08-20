@@ -23,9 +23,10 @@ const config: Config = {
           soft: "#fffbeb",
         },
         slate: {
-          app: "#f8fafc",
+          app: "#f4f6f9",
           card: "#ffffff",
           darkBg: "#0f172a",
+          950: "#020617",
         },
       },
       fontFamily: {

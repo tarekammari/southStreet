@@ -346,5 +346,14 @@ export interface AiResponsePayload {
     zoom?: number;
   };
   escalated?: boolean;
+  noKnowledge?: boolean;
+  trusted?: boolean;
+  externalAi?: boolean;
+  /** Explicit source category for UI attribution */
+  sourceType?: 'agency_db' | 'external_ai' | 'local_guidance' | 'system';
+  source?: string;
+  sourceLabel?: string;
+  model?: string;
+  toolsUsed?: string[];
 }
 

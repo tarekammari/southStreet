@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { KnowledgeReader } from '@/lib/knowledge/knowledge-reader';
 import { AiCard, AiAction } from '@/types';
 import { getDatabase, saveDatabase, AiKnowledgeRule } from '@/lib/db';
 import { getSqliteDb } from '@/lib/sqlite';
@@ -10,8 +9,14 @@ import {
   toolGetTeamMembers,
   toolGetHotelsInfo,
   toolSearchKnowledge,
-  toolComparePackages
+  toolComparePackages,
+  toolSearchAppContent,
+  toolResolveNavigation,
+  toolGetSiteInventory,
+  toolGetSitemapContext,
 } from '@/lib/ai-tools';
+import { runTrustedToolPipeline, hasArabicKeyword, isFactualQuestion } from '@/lib/sakhr-trusted-tools';
+import { callExternalAI } from '@/lib/sakhr-external-ai';
 
 /**
  * ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -22,6 +27,21 @@ import {
  * │  Tier 3: Local RAG Knowledge Engine & Smart Multi-modal Fallback            │
  * └─────────────────────────────────────────────────────────────────────────────┘
  */
+
+const AGENCY_SOURCE_LABELS: Record<string, string> = {
+  ai_knowledge: 'قاعدة معرفة الوكالة المعتمدة',
+  page_content: 'محتوى صفحات التطبيق',
+  packages: 'جدول باقات العمرة والحج',
+  hotels: 'جدول الفنادق المعتمدة',
+  morshids: 'جدول المرشدين وطاقم الوكالة',
+  agency_settings: 'إعدادات الوكالة الرسمية',
+  seasons: 'جدول المواسم والرحلات',
+  app_sitemap: 'خريطة التطبيق',
+};
+
+function getAgencySourceLabel(table: string): string {
+  return AGENCY_SOURCE_LABELS[table] || `قاعدة بيانات الوكالة (${table})`;
+}
 
 // General Knowledge Base for instant answers
 const GENERAL_KB: Record<string, string> = {
@@ -84,6 +104,146 @@ async function fetchWebPageTool(url: string) {
   } catch {
     return null;
   }
+}
+
+/**
+ * Detect site inventory / exploration queries — "what pages", "show sections", etc.
+ */
+function detectSiteInventoryIntent(prompt: string): { text: string; cards: AiCard[]; actions: AiAction[] } | null {
+  const lower = prompt.toLowerCase();
+  const isInventoryQuery = [
+    'ما هي الصفحات', 'ما الصفحات', 'عرض الصفحات', 'صفحات التطبيق', 'أقسام التطبيق',
+    'ما الأقسام', 'ما هي الأقسام', 'عرض الأقسام', 'خريطة الموقع', 'sitemap',
+    'ماذا يمكنك أن تفتح', 'ماذا يمكنك فتح', 'ما الذي يمكنك', 'عناصر التطبيق',
+    'محتوى التطبيق', 'what pages', 'show sections', 'list pages', 'site map',
+    'ماذا يوجد في', 'ما يوجد في التطبيق', 'استكشف التطبيق', 'دليل التطبيق',
+  ].some(k => lower.includes(k));
+
+  if (!isInventoryQuery) return null;
+
+  const inventory = toolGetSiteInventory();
+  const cards: AiCard[] = inventory.flatMap(page => {
+    const pageCard: AiCard = {
+      type: 'action',
+      data: {
+        title: page.title,
+        description: page.description,
+        buttonText: `📂 فتح ${page.title}`,
+        targetUrl: page.path,
+      },
+    };
+    const sectionCards: AiCard[] = (page.sections || []).map(sec => ({
+      type: 'action',
+      data: {
+        title: sec.title,
+        description: sec.description,
+        buttonText: `↗ ${sec.title}`,
+        targetUrl: sec.target,
+      },
+    }));
+    return [pageCard, ...sectionCards];
+  });
+
+  let text = `🗺️ **خريطة تطبيق وكالة ساوث ستريت — ${inventory.length} صفحات رئيسية:**\n\n`;
+  inventory.forEach(page => {
+    text += `📄 **${page.title}** (${page.path})\n${page.description}\n`;
+    (page.sections || []).forEach(sec => {
+      text += `  • ${sec.title}: ${sec.description}\n`;
+    });
+    text += '\n';
+  });
+  text += `\n💡 **يمكنك طلب فتح أي صفحة أو قسم** — مثال: "افتح قسم المرشدين" أو "خذني لصفحة الفنادق"`;
+
+  return { text: text.trim(), cards: cards.slice(0, 12), actions: [] };
+}
+
+/**
+ * Smart sitemap-based navigation — resolves natural language to any page/section
+ */
+function detectSmartNavigationIntent(prompt: string): { text?: string; action?: AiAction; actionCard?: AiCard } | null {
+  const lower = prompt.toLowerCase();
+  const navVerbs = ['افتح', 'اذهب', 'خذني', 'انتقل', 'عرض', 'أريد', 'ودني', 'روح', 'navigate', 'open', 'go to', 'show me'];
+  const hasNavIntent = navVerbs.some(v => lower.includes(v));
+  if (!hasNavIntent) return null;
+
+  const target = toolResolveNavigation(prompt);
+  if (!target || !target.path) return null;
+
+  const path = target.path.startsWith('/') ? target.path.slice(1) : target.path;
+  const isHash = path.includes('#');
+  const actionTarget = isHash ? path.split('#')[1] ? `#${path.split('#')[1]}` : path : path;
+
+  return {
+    text: `✅ **تم تحديد وجهتك:** ${target.label}\n\n${target.description}\n\nجاري فتحها الآن...`,
+    action: { type: 'navigate', target: actionTarget.startsWith('#') ? actionTarget : path },
+    actionCard: {
+      type: 'action',
+      data: {
+        title: target.label,
+        description: target.description,
+        buttonText: `↗ الانتقال إلى ${target.label}`,
+        targetUrl: target.path.startsWith('/') ? target.path : `/${target.path}`,
+      },
+    },
+  };
+}
+
+/**
+ * TOOL: Hotel discovery from SQLite
+ */
+function detectHotelIntent(prompt: string): { text: string; cards: AiCard[] } | null {
+  if (!hasArabicKeyword(prompt, ['فندق', 'فنادق', 'hotel', 'hotels', 'إقامة', 'مكة', 'مكه', 'المدينة', 'سويس', 'منارات', 'الحرم'])) {
+    return null;
+  }
+  if (isFactualQuestion(prompt)) return null;
+
+  let city: string | undefined;
+  if (hasArabicKeyword(prompt, ['مكة', 'makkah'])) city = 'MAKKAH';
+  if (hasArabicKeyword(prompt, ['المدينة', 'madinah'])) city = 'MADINAH';
+
+  const hotels = toolGetHotelsInfo(city);
+  if (!hotels.length) return null;
+
+  const cards: AiCard[] = hotels.map(h => ({
+    type: 'hotel',
+    data: {
+      hotel_id: h.hotel_id,
+      name: h.name,
+      city: h.city,
+      distance_from_haram: h.distance_from_haram,
+      description: h.description,
+      services: h.services,
+      images: h.images,
+    },
+  }));
+
+  return {
+    text: `🏨 **فنادقنا المعتمدة (${hotels.length} فندق${hotels.length > 1 ? 'اً' : ''})** — مختارة بعناية قرب الحرمين الشريفين:\n\n`,
+    cards,
+  };
+}
+
+/**
+ * TOOL: Package comparison
+ */
+function detectCompareIntent(prompt: string): { text: string; cards: AiCard[] } | null {
+  const lower = prompt.toLowerCase();
+  if (!['قارن', 'مقارنة', 'compare', 'فرق بين', 'الفرق بين'].some(k => lower.includes(k))) return null;
+
+  const packages = toolSearchPackages();
+  if (packages.length < 2) return null;
+
+  const toCompare = packages.slice(0, 3);
+  const comparisonData = toolComparePackages(toCompare.map(p => p.package_id));
+
+  return {
+    text: `⚖️ **مقارنة ${comparisonData.length} باقات عمرة متاحة:**\n\n` +
+      comparisonData.map(p => {
+        const minPrice = p.prices?.length ? Math.min(...p.prices.map(pr => pr.amount)) : 0;
+        return `• **${p.name}** — ${p.duration_days} يوم | ${p.makkah_hotel_name} | من ${minPrice.toLocaleString()} دج`;
+      }).join('\n'),
+    cards: [{ type: 'comparison', data: comparisonData }],
+  };
 }
 
 /**
@@ -607,7 +767,28 @@ function detectAgencyCustomIntents(prompt: string): { text: string; cards: AiCar
 }
 
 /**
- * Built-in fallback AI generator using local knowledge base
+ * Response when question is not in the knowledge database yet
+ */
+function buildNoKnowledgeResponse(prompt: string, externalFailed = false) {
+  const agency = toolGetAgencySettings();
+  const apiHint = externalFailed
+    ? '\n\n💡 *لتفعيل الذكاء الاصطناعي الخارجي (Gemini): أضف GEMINI_API_KEY في ملف .env — مفتاح مجاني من https://aistudio.google.com/apikey*'
+    : '';
+  return {
+    text:
+      'عذراً، **لا أملك بعد معرفة معتمدة** في قاعدة بيانات الوكالة للإجابة عن سؤالك:\n\n' +
+      `«${prompt}»\n\n` +
+      '📚 يمكن للإدارة إضافة هذه الإجابة من لوحة التحكم → تبويب الذكاء الاصطناعي.\n\n' +
+      `📞 للاستفسار المباشر: **${agency.phone || '+213 21 55 44 33'}**` +
+      apiHint,
+    cards: [],
+    actions: [],
+    noKnowledge: true,
+  };
+}
+
+/**
+ * Built-in fallback — greetings & site navigation only (no loose RAG)
  */
 async function generateLocalRagResponse(prompt: string) {
   const cleanPrompt = prompt.trim();
@@ -616,36 +797,54 @@ async function generateLocalRagResponse(prompt: string) {
   // 1. Greetings
   if (['مرحبا', 'مرحباً', 'سلام', 'السلام عليكم', 'أهلا', 'اهلا', 'صباح الخير', 'مساء الخير', 'hi', 'hello'].some(g => lower.includes(g))) {
     const agency = toolGetAgencySettings();
+    const inventory = toolGetSiteInventory();
+    const pageList = inventory.map(p => `• ${p.title}`).join('\n');
     return {
-      text: `أهلاً وسهلاً بك في وكالة **${agency.agency_name || 'ساوث ستريت'}** للسياحة والأسفار والحج والعمرة 🕋✨\n\nأنا **صخر**، مساعدك الذكي المباشر. كيف يمكنني خدمتك اليوم؟\n- 💰 **الاستفسار عن أسعار وباقات العمرة 2026**\n- 🧭 **طلب التواصل مع المرشد الديني أو تصفح المرشدين**\n- ✈️ **الانتقال لصفحات التطبيق (الباقات، الفنادق، المناسك، السندات)**\n- 🌐 **البحث واستخراج الإجابات المباشرة**`,
-      cards: []
+      text: `أهلاً وسهلاً بك في وكالة **${agency.agency_name || 'ساوث ستريت'}** 🕋\n\nأنا **صخر**، مساعدك الذكي. أستطيع الإجابة عن أي عنصر في التطبيق وفتح أي صفحة أو قسم لك.\n\n**الصفحات المتاحة:**\n${pageList}\n\n💡 جرّب: "افتح قسم المرشدين" أو "ما هي الباقات المتاحة؟"`,
+      cards: inventory.slice(0, 4).map(p => ({
+        type: 'action',
+        data: {
+          title: p.title,
+          description: p.description,
+          buttonText: `↗ ${p.title}`,
+          targetUrl: p.path,
+        },
+      })),
     };
   }
 
-  // 2. Check general knowledge dictionary
+  // 2. Check general knowledge dictionary (hardcoded quick facts only)
   for (const [key, answer] of Object.entries(GENERAL_KB)) {
     if (lower.includes(key)) {
       return { text: answer, cards: [] };
     }
   }
 
-  // 3. Search local Knowledge Base files
-  const searchResult = await KnowledgeReader.search(cleanPrompt, 3);
-  if (searchResult && searchResult.chunks.length > 0 && searchResult.chunks[0].score > 0) {
-    let responseText = `🕋 **معلومات وكالة ساوث ستريت الرسمية:**\n\n`;
-    searchResult.chunks.forEach((chunk) => {
-      responseText += `📌 **${chunk.heading}**\n${chunk.content}\n\n`;
+  // 3. High-confidence sitemap matches only (navigation help, not factual Q&A)
+  const appMatches = toolSearchAppContent(cleanPrompt, 3);
+  const isNavLike = ['افتح', 'اذهب', 'خذني', 'عرض', 'صفحة', 'قسم', 'انتقل'].some(v => lower.includes(v));
+  if (isNavLike && appMatches.length > 0 && appMatches[0].score >= 20) {
+    const cards: AiCard[] = appMatches.map(m => {
+      const label = m.type === 'section' && m.section ? m.section.title : m.page.title;
+      const desc = m.type === 'section' && m.section ? m.section.description : m.page.description;
+      const path = m.type === 'section' && m.section?.anchor
+        ? `${m.page.path}${m.section.anchor}`
+        : m.page.path;
+      return {
+        type: 'action',
+        data: { title: label, description: desc, buttonText: `↗ ${label}`, targetUrl: path },
+      };
     });
-
-    return { text: responseText.trim(), cards: [] };
+    let text = `🔍 **وجدت ${appMatches.length} عناصر ذات صلة:**\n\n`;
+    appMatches.forEach(m => {
+      const label = m.type === 'section' && m.section ? m.section.title : m.page.title;
+      text += `• **${label}**\n`;
+    });
+    return { text, cards };
   }
 
-  // 4. Default helpful answer
-  const agency = toolGetAgencySettings();
-  return {
-    text: `شكراً لتواصلك مع **${agency.agency_name || 'ساوث ستريت'}** 🕋\n\nبخصوص استفسارك عن: **"${cleanPrompt}"**\nيسعدنا تزويدك بكافة تفاصيل رحلات العمرة والحج لعام 2026 مع نخبة من المرشدين المعتمدين وفنادق بجوار الحرمين الشريفين.\n\n📞 للتواصل المباشر مع فريق الوكالة: **${agency.phone || '+213 21 55 44 33'}**`,
-    cards: []
-  };
+  // 4. No knowledge in database — honest gap response
+  return buildNoKnowledgeResponse(cleanPrompt);
 }
 
 export async function POST(req: Request) {
@@ -657,6 +856,26 @@ export async function POST(req: Request) {
     if (!prompt) {
       return NextResponse.json({
         text: 'يرجى كتابة سؤالك وسيجيبك صخر فوراً. 🕋'
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // TOOL 0: Site inventory / sitemap exploration
+    // ─────────────────────────────────────────────────────────────
+    const inventoryResult = detectSiteInventoryIntent(prompt);
+    if (inventoryResult) {
+      return NextResponse.json(inventoryResult);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // TOOL 0.5: Smart sitemap-based navigation (natural language)
+    // ─────────────────────────────────────────────────────────────
+    const smartNavResult = detectSmartNavigationIntent(prompt);
+    if (smartNavResult) {
+      return NextResponse.json({
+        text: smartNavResult.text,
+        actions: smartNavResult.action ? [smartNavResult.action] : [],
+        cards: smartNavResult.actionCard ? [smartNavResult.actionCard] : [],
       });
     }
 
@@ -705,6 +924,22 @@ export async function POST(req: Request) {
     }
 
     // ─────────────────────────────────────────────────────────────
+    // TOOL 3.6: Hotel Discovery
+    // ─────────────────────────────────────────────────────────────
+    const hotelResult = detectHotelIntent(prompt);
+    if (hotelResult) {
+      return NextResponse.json({ text: hotelResult.text, cards: hotelResult.cards, actions: [] });
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // TOOL 3.7: Package Comparison
+    // ─────────────────────────────────────────────────────────────
+    const compareResult = detectCompareIntent(prompt);
+    if (compareResult) {
+      return NextResponse.json({ text: compareResult.text, cards: compareResult.cards, actions: [] });
+    }
+
+    // ─────────────────────────────────────────────────────────────
     // TOOL 3.5: Director, Accountant, Agency Headquarters & Installments (2 to 10 months)
     // ─────────────────────────────────────────────────────────────
     const customResult = detectAgencyCustomIntents(prompt);
@@ -729,7 +964,25 @@ export async function POST(req: Request) {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // TIER 0: Instant DB Taught Q&A Rules (Sub-millisecond latency!)
+    // TIER 0: Trusted Tools Pipeline — all SQLite tables, scored & sourced
+    // ─────────────────────────────────────────────────────────────
+    const trusted = runTrustedToolPipeline(prompt);
+    if (trusted.hasAnswer && trusted.hit) {
+      return NextResponse.json({
+        text: trusted.hit.text,
+        cards: trusted.hit.cards || [],
+        actions: [],
+        trusted: true,
+        externalAi: false,
+        sourceType: 'agency_db',
+        source: trusted.hit.table,
+        sourceLabel: getAgencySourceLabel(trusted.hit.table),
+        toolsUsed: trusted.toolsUsed,
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // TIER 0b: Legacy single knowledge match (fallback if pipeline missed)
     // ─────────────────────────────────────────────────────────────
     const dbMatch = toolSearchKnowledge(prompt);
     if (dbMatch) {
@@ -750,70 +1003,45 @@ export async function POST(req: Request) {
       }
 
       const selectedAnswer = rule.modelAnswer || rule.response_ar;
-      return NextResponse.json({ text: selectedAnswer, cards, actions });
+      return NextResponse.json({
+        text: selectedAnswer,
+        cards,
+        actions,
+        trusted: true,
+        externalAi: false,
+        sourceType: 'agency_db',
+        source: 'ai_knowledge',
+        sourceLabel: getAgencySourceLabel('ai_knowledge'),
+      });
     }
 
     // ─────────────────────────────────────────────────────────────
-    // TIER 1: Direct Google Gemini 1.5 Flash LLM with Injected SQLite Context
-    // ─────────────────────────────────────────────────────────────
-    const geminiApiKey = process.env.GEMINI_API_KEY || process.env.SAKHR_GEMINI_KEY;
-    if (geminiApiKey) {
-      try {
-        const agency = toolGetAgencySettings();
-        const packages = toolSearchPackages();
-        const team = toolGetTeamMembers();
-        const hotels = toolGetHotelsInfo();
-        const seasons = toolGetSeasonsInfo();
-
-        const sqliteContext = `
-معلومات قاعدة البيانات الحية (SQLite Real-time Authority):
-- الوكالة: ${agency.agency_name} | هاتف: ${agency.phone} | واتساب: ${agency.whatsapp} | عنوان: ${agency.address}
-- الباقات المتاحة (${packages.length} باقة): ${packages.map(p => `${p.name} (السعر الأقل: ${p.prices?.[0]?.amount || 'محدد'} دج - المتبقي: ${p.available} مقعد)`).join('؛ ')}
-- المرشدين وطاقم العمل (${team.length} عضو): ${team.map(t => `${t.name} (${t.roleName})`).join('؛ ')}
-- الفنادق المعتمدة (${hotels.length} فندق): ${hotels.map(h => `${h.name} (${h.distance_from_haram})`).join('؛ ')}
-- المواسم الحالية: ${seasons.map(s => `${s.name} (${s.status})`).join('؛ ')}
-`;
-
-        const systemInstruction = `أنت صخر، المساعد الذكي لوكالة ${agency.agency_name || 'ساوث ستريت'} بالجزائر.
-أجب بلباقة ولغة عربية راقية ومباشرة. الالتزام التام بالمعلومات المرفقة أدناه دون اختراع أو تخمين أسعار أو رحلات غير موجودة.
-${sqliteContext}`;
-
-        const geminiRes = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [
-                {
-                  role: 'user',
-                  parts: [{ text: `${systemInstruction}\n\nسؤال المستخدم: ${prompt}` }]
-                }
-              ]
-            })
-          }
-        );
-
-        if (geminiRes.ok) {
-          const geminiData = await geminiRes.json();
-          const replyText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (replyText) {
-            return NextResponse.json({
-              text: replyText,
-              cards: []
-            });
-          }
-        }
-      } catch (geminiErr: any) {
-        console.warn('[Gemini API Error] Falling back to local engine:', geminiErr?.message);
-      }
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // TIER 2: Local Engine & Smart Fallback
+    // TIER 1: Greetings & navigation-only local responses
     // ─────────────────────────────────────────────────────────────
     const localResult = await generateLocalRagResponse(prompt);
-    return NextResponse.json(localResult);
+    if (!(localResult as { noKnowledge?: boolean }).noKnowledge) {
+      return NextResponse.json(localResult);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // TIER 2: External AI fallback — general knowledge with source label
+    // ─────────────────────────────────────────────────────────────
+    const external = await callExternalAI(prompt, history as Array<{ role: string; text: string }>);
+    if (external.success && external.text) {
+      return NextResponse.json({
+        text: external.text,
+        cards: [],
+        trusted: false,
+        externalAi: true,
+        sourceType: external.sourceType || 'external_ai',
+        source: external.source,
+        sourceLabel: external.sourceLabel || external.source,
+        model: external.model,
+      });
+    }
+
+    // External AI unavailable — knowledge gap
+    return NextResponse.json(buildNoKnowledgeResponse(prompt, !external.success));
 
   } catch (error: any) {
     console.error('[Sakhr Route Error]:', error?.message);
