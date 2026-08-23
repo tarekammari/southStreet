@@ -1,20 +1,24 @@
 import Database from 'better-sqlite3';
-import path from 'path';
 import { hashPassword } from './security';
 import { wrapDatabaseWithEncryption, migratePlaintextToEncrypted } from './encrypted-sqlite';
-
-const DB_PATH = path.join(process.cwd(), 'south_street.db');
+import { ensureDbFile, isServerlessHost, resolveDbPath } from './db-path';
 
 let dbInstance: Database.Database | null = null;
+let dbPathUsed: string | null = null;
 
 export function getSqliteDb(): Database.Database {
-  if (dbInstance) return dbInstance;
+  const DB_PATH = resolveDbPath();
+  if (dbInstance && dbPathUsed === DB_PATH) return dbInstance;
+
+  ensureDbFile(DB_PATH);
 
   const raw = new Database(DB_PATH);
-  raw.pragma('journal_mode = WAL');
+  // WAL needs extra files; on serverless use a single journal file in /tmp
+  raw.pragma(isServerlessHost() ? 'journal_mode = DELETE' : 'journal_mode = WAL');
   raw.pragma('foreign_keys = ON');
 
   dbInstance = wrapDatabaseWithEncryption(raw);
+  dbPathUsed = DB_PATH;
   initTables(dbInstance);
   seedDefaults(dbInstance);
   migratePlaintextToEncrypted(dbInstance);

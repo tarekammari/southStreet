@@ -36,6 +36,8 @@ const nextConfig = {
   experimental: {
     optimizePackageImports: ['lucide-react'],
   },
+  // better-sqlite3 is a native Node module — must not be bundled for Vercel
+  serverExternalPackages: ['better-sqlite3'],
   async rewrites() {
     return [
       { source: '/images/uploads/:filename', destination: '/api/staff-image/:filename' },
