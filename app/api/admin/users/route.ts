@@ -1,112 +1,130 @@
 import { NextResponse } from 'next/server';
-import { getDatabase, saveDatabase, UserAccount } from '@/lib/db';
-import { hashPassword } from '@/lib/security';
+import { getDatabase } from '@/lib/db';
+import { ensureUserAccount, updateUserAccess } from '@/lib/accounts';
+import { getSqliteDb } from '@/lib/sqlite';
+import { normalizeLoginRole, LOGIN_ROLE_LABELS, toPortalRole, PORTAL_TABS } from '@/lib/roles';
 
-// GET: Fetch all user accounts, active sessions, and access requests
+function publicUser(u: any) {
+  const role = normalizeLoginRole(u.role, { email: u.email, roleName: u.roleName });
+  const portal = toPortalRole(role);
+  return {
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    username: u.username,
+    role,
+    roleName: u.roleName || LOGIN_ROLE_LABELS[role],
+    status: u.status || 'APPROVED',
+    createdAt: u.createdAt,
+    lastLoginIp: u.lastLoginIp || 'N/A',
+    pcFingerprint: u.pcFingerprint || 'FP-SYSTEM-INIT',
+    staffId: u.staffId,
+    loginEnabled: u.loginEnabled !== false && u.loginEnabled !== 0,
+    googleLinked: Boolean(u.googleId || u.google_id),
+    options: PORTAL_TABS[portal].map((t) => t.label),
+  };
+}
+
 export async function GET() {
   try {
-    const db = getDatabase();
+    const overlay = getDatabase();
+    const sqlite = getSqliteDb();
+    const rows = sqlite.prepare('SELECT * FROM users').all() as any[];
     return NextResponse.json({
-      users: db.users.map(u => ({
-        id: u.id,
-        name: u.name,
-        email: u.email,
-        role: u.role,
-        status: u.status,
-        createdAt: u.createdAt,
-        lastLoginIp: u.lastLoginIp || 'N/A',
-        pcFingerprint: u.pcFingerprint || 'FP-SYSTEM-INIT'
-      })),
-      sessions: db.sessions,
-      accessRequests: db.accessRequests,
-      securityKey: db.securityKey
+      users: rows.map(publicUser),
+      sessions: overlay.sessions,
+      accessRequests: overlay.accessRequests,
+      securityKey: overlay.securityKey
     });
   } catch (error) {
     return NextResponse.json({ error: 'خطأ في جلب بيانات المستخدمين' }, { status: 500 });
   }
 }
 
-// POST: Create a new User Account
 export async function POST(req: Request) {
   try {
-    const { name, email, password, role, status } = await req.json();
+    const { name, email, password, role, status, username, phone } = await req.json();
 
     const cleanName = (name || '').trim();
     const cleanEmail = (email || '').trim().toLowerCase();
     const cleanPassword = (password || '').trim();
-    const cleanRole = role || 'PILGRIM_USER';
+    const cleanRole = normalizeLoginRole(role || 'PILGRIM_USER');
     const cleanStatus = status || 'APPROVED';
 
-    if (!cleanName || !cleanEmail || !cleanPassword) {
-      return NextResponse.json({ error: 'جميع الحقول مطلوبة' }, { status: 400 });
+    if (!cleanName || (!cleanEmail && !username) || !cleanPassword) {
+      return NextResponse.json({ error: 'الاسم وكلمة المرور واسم المستخدم أو البريد مطلوبة' }, { status: 400 });
     }
 
-    const db = getDatabase();
-    const existing = db.users.find(u => u.email.toLowerCase() === cleanEmail);
-    if (existing) {
-      return NextResponse.json({ error: 'هذا البريد الإلكتروني مسجل بالفعل' }, { status: 400 });
-    }
-
-    const newUser: UserAccount = {
-      id: `usr_${Date.now()}`,
+    const issued = ensureUserAccount({
       name: cleanName,
-      email: cleanEmail,
-      passwordHash: hashPassword(cleanPassword),
+      email: cleanEmail || undefined,
+      username,
+      password: cleanPassword,
       role: cleanRole,
+      roleName: LOGIN_ROLE_LABELS[cleanRole],
+      phone,
       status: cleanStatus,
-      createdAt: new Date().toISOString(),
-      requiresFileKey: cleanRole === 'SUPER_ADMIN' || cleanRole === 'AGENCY_MANAGER'
-    };
-
-    db.users.push(newUser);
-    saveDatabase(db);
+      issueSecrets: true,
+    });
 
     return NextResponse.json({
       success: true,
-      message: 'تم إنشاء الحساب بنجاح في النظام المشفر',
-      user: {
-        id: newUser.id,
-        name: newUser.name,
-        email: newUser.email,
-        role: newUser.role,
-        status: newUser.status
+      message: 'تم إنشاء الحساب مع اسم المستخدم وكلمة المرور ورمز QR',
+      user: publicUser({
+        ...issued,
+        status: cleanStatus,
+        createdAt: new Date().toISOString(),
+      }),
+      credentials: {
+        username: issued.username,
+        password: issued.password,
+        qrPayload: issued.qrPayload,
       }
     });
-  } catch (error) {
-    return NextResponse.json({ error: 'خطأ في إنشاء الحساب' }, { status: 500 });
+  } catch (error: any) {
+    return NextResponse.json({ error: error?.message || 'خطأ في إنشاء الحساب' }, { status: 500 });
   }
 }
 
-// PATCH: Approve / Reject / Suspend User Access
 export async function PATCH(req: Request) {
   try {
-    const { userId, status } = await req.json();
+    const { userId, status, role, roleName, loginEnabled } = await req.json();
 
-    if (!userId || !status) {
-      return NextResponse.json({ error: 'معرف المستخدم والحالة مطلوبان' }, { status: 400 });
+    if (!userId || (!status && !role && loginEnabled == null)) {
+      return NextResponse.json({ error: 'معرف المستخدم وتحديث الحالة أو الصلاحية مطلوبان' }, { status: 400 });
     }
 
-    const db = getDatabase();
-    const user = db.users.find(u => u.id === userId);
+    const sqlite = getSqliteDb();
+    const user = sqlite.prepare('SELECT * FROM users WHERE id = ?').get(userId) as any;
     if (!user) {
       return NextResponse.json({ error: 'المستخدم غير موجود' }, { status: 404 });
     }
 
-    user.status = status;
+    const nextRole = role ? normalizeLoginRole(role) : undefined;
+    const nextStatus = status || undefined;
+    const enabled =
+      loginEnabled != null
+        ? (loginEnabled ? 1 : 0)
+        : nextStatus === 'APPROVED'
+          ? 1
+          : nextStatus === 'REJECTED' || nextStatus === 'SUSPENDED'
+            ? 0
+            : undefined;
 
-    // Update corresponding access request status if present
-    const reqIndex = db.accessRequests.findIndex(r => r.userId === userId);
-    if (reqIndex !== -1) {
-      db.accessRequests[reqIndex].status = status === 'APPROVED' ? 'APPROVED' : 'REJECTED';
-    }
+    updateUserAccess(userId, {
+      status: nextStatus,
+      role: nextRole,
+      roleName: roleName || (nextRole ? LOGIN_ROLE_LABELS[nextRole] : undefined),
+      loginEnabled: enabled,
+    });
 
-    saveDatabase(db);
-
+    const updated = sqlite.prepare('SELECT * FROM users WHERE id = ?').get(userId);
     return NextResponse.json({
       success: true,
-      message: `تم تحديث حالة الحساب إلى (${status}) بنجاح`,
-      userId,
-      status
+      message: nextStatus === 'APPROVED'
+        ? 'تمت الموافقة وتحديد الصلاحية. يمكن للعضو الدخول الآن.'
+        : `تم تحديث حالة الحساب إلى (${nextStatus || nextRole}) بنجاح`,
+      user: publicUser(updated),
     });
   } catch (error) {
     return NextResponse.json({ error: 'خطأ في تحديث صلاحية الحساب' }, { status: 500 });

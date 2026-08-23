@@ -1,15 +1,20 @@
 import { NextResponse } from 'next/server';
 import { getSqliteDb } from '@/lib/sqlite';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET() {
   try {
     const db = getSqliteDb();
-    const rows = db.prepare('SELECT * FROM morshids ORDER BY name ASC').all() as any[];
-    const morshids = rows.map(m => ({
-      ...m,
-      languages: JSON.parse(m.languages || '[]')
-    }));
-    return NextResponse.json(morshids);
+    const rows = db.prepare('SELECT * FROM morshids ORDER BY rowid ASC').all() as any[];
+    const morshids = rows.map(m => {
+      const languages = typeof m.languages === 'string' ? JSON.parse(m.languages || '[]') : (m.languages || []);
+      return { ...m, languages, reviewCount: Number(m.review_count) || 0 };
+    });
+    return NextResponse.json(morshids, {
+      headers: { 'Cache-Control': 'no-store, max-age=0' },
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -38,7 +43,7 @@ export async function POST(req: Request) {
         status = excluded.status,
         category = excluded.category,
         image = excluded.image
-    `).run(
+    `    ).run(
       morshid_id,
       body.name,
       body.roleName,
@@ -53,7 +58,27 @@ export async function POST(req: Request) {
       body.image || '/api/staff-image/morshed_01.png'
     );
 
-    return NextResponse.json({ success: true, morshid_id, message: 'تم حفظ المرشد / العضو بنجاح في قاعدة البيانات' });
+    const { ensureStaffLogin } = require('@/lib/accounts') as typeof import('@/lib/accounts');
+    const credentials = ensureStaffLogin({
+      morshid_id,
+      name: body.name,
+      roleName: body.roleName,
+      category: body.category,
+      status: body.status,
+      phone: body.phone,
+    });
+
+    return NextResponse.json({
+      success: true,
+      morshid_id,
+      message: 'تم حفظ العضو وإصدار حساب الدخول (اسم مستخدم، كلمة مرور، QR)',
+      credentials: credentials.created || credentials.password ? {
+        username: credentials.username,
+        password: credentials.password,
+        qrPayload: credentials.qrPayload,
+        role: credentials.role,
+      } : { username: credentials.username, role: credentials.role },
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

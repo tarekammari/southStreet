@@ -30,6 +30,17 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production' ? { exclude: ['error', 'warn'] } : false,
+  },
+  experimental: {
+    optimizePackageImports: ['lucide-react'],
+  },
+  async rewrites() {
+    return [
+      { source: '/images/uploads/:filename', destination: '/api/staff-image/:filename' },
+    ];
+  },
 };
 
 module.exports = nextConfig;

@@ -4,14 +4,19 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ChevronDown, ChevronRight, RefreshCw, LogOut, Plus, Trash2, Edit, Save, Globe, Building, Users, Moon, Settings, Package, Image as ImageIcon, Bot } from 'lucide-react';
 import AiKnowledgeManager from '@/components/AiKnowledgeManager';
+import ReviewsModerator from '@/components/ReviewsModerator';
+import { LOGIN_ROLE_OPTIONS, PORTAL_TABS, toPortalRole } from '@/lib/roles';
 
 interface UserAccount {
   id: string;
   name: string;
   email: string;
-  role: 'SUPER_ADMIN' | 'AGENCY_MANAGER' | 'AGENCY_AGENT' | 'PILGRIM_USER';
+  username?: string;
+  role: string;
   status: 'APPROVED' | 'PENDING_APPROVAL' | 'REJECTED' | 'SUSPENDED';
   pcFingerprint?: string;
+  googleLinked?: boolean;
+  options?: string[];
 }
 
 interface ActiveSession {
@@ -42,7 +47,9 @@ interface AccessRequest {
 
 const ROLE_LABEL: Record<string, string> = {
   SUPER_ADMIN:    'مدير النظام',
-  AGENCY_MANAGER: 'مدير البرامج',
+  AGENCY_MANAGER: 'مدير الوكالة',
+  ACCOUNTANT:     'محاسب الوكالة',
+  GUIDE_MURSHID:  'مرشد ديني',
   AGENCY_AGENT:   'موظف خدمة',
   PILGRIM_USER:   'معتمر',
 };
@@ -54,7 +61,7 @@ const STATUS_LABEL: Record<string, string> = {
   SUSPENDED:        'موقوف',
 };
 
-type Tab = 'overview' | 'packages' | 'hotels' | 'morshids' | 'seasons' | 'agency' | 'content' | 'users' | 'ai' | 'key';
+type Tab = 'overview' | 'packages' | 'hotels' | 'morshids' | 'seasons' | 'agency' | 'content' | 'users' | 'reviews' | 'ai' | 'key';
 
 const TABS: { id: Tab; label: string; icon?: any }[] = [
   { id: 'overview', label: 'نظرة عامة' },
@@ -66,6 +73,7 @@ const TABS: { id: Tab; label: string; icon?: any }[] = [
   { id: 'content',  label: '📝 محتوى الموقع' },
   { id: 'ai',       label: '🤖 صخر AI' },
   { id: 'users',    label: '👤 الحسابات' },
+  { id: 'reviews',  label: '⭐ التقييمات' },
   { id: 'key',      label: '🔑 مفتاح الأمان' },
 ];
 
@@ -109,9 +117,10 @@ export default function AdminDashboardPage() {
   const [newName, setNewName]       = useState('');
   const [newEmail, setNewEmail]     = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [newRole, setNewRole]       = useState<UserAccount['role']>('PILGRIM_USER');
+  const [newRole, setNewRole]       = useState('PILGRIM_USER');
   const [newStatus, setNewStatus]   = useState<'APPROVED' | 'PENDING_APPROVAL'>('APPROVED');
   const [accountMsg, setAccountMsg] = useState('');
+  const [pendingRole, setPendingRole] = useState<Record<string, string>>({});
 
   // CMS Data States
   const [agencyData, setAgencyData] = useState<any>({});
@@ -274,7 +283,7 @@ export default function AdminDashboardPage() {
       const res  = await fetch('/api/admin/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ username: email, password })
       });
       const data = await res.json();
       if (data.status === 'REQUIRES_FILE_KEY') {
@@ -307,7 +316,7 @@ export default function AdminDashboardPage() {
       const res  = await fetch('/api/admin/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, fileKey: fileKeyInput })
+        body: JSON.stringify({ username: email, password, fileKey: fileKeyInput })
       });
       const data = await res.json();
       if (data.status === 'SUCCESS') {
@@ -326,11 +335,34 @@ export default function AdminDashboardPage() {
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = ev => setFileKeyInput(ev.target?.result as string);
-      reader.readAsText(file);
-    }
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const text = String(ev.target?.result || '');
+      setFileKeyInput(text);
+      setLoginError('');
+      setLoginSuccessMsg('تم قبول الملف. جاري الدخول...');
+      try {
+        const res = await fetch('/api/admin/auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: email, password, fileKey: text })
+        });
+        const data = await res.json();
+        if (data.status === 'SUCCESS') {
+          localStorage.setItem('south_street_token', data.token);
+          localStorage.setItem('south_street_user', JSON.stringify(data.user));
+          setCurrentUser(data.user);
+          setIsLoggedIn(true);
+          fetchDashboardData();
+        } else {
+          setLoginError(data.error || 'مفتاح الأمان غير صحيح');
+        }
+      } catch {
+        setLoginError('خطأ في التحقق من المفتاح');
+      }
+    };
+    reader.readAsText(file);
   };
 
   const handleRegenerateKey = async () => {
@@ -347,12 +379,12 @@ export default function AdminDashboardPage() {
     } catch {}
   };
 
-  const handleUpdateUserStatus = async (userId: string, newStat: string) => {
+  const handleUpdateUserStatus = async (userId: string, newStat: string, role?: string) => {
     try {
       const res = await fetch('/api/admin/users', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, status: newStat })
+        body: JSON.stringify({ userId, status: newStat, role: role || pendingRole[userId] })
       });
       if (res.ok) fetchDashboardData();
     } catch {}
@@ -369,7 +401,11 @@ export default function AdminDashboardPage() {
       });
       const data = await res.json();
       if (!res.ok) { setAccountMsg(data.error || 'خطأ في الإنشاء'); return; }
-      setAccountMsg(`تم إنشاء حساب ${data.user?.name} بنجاح`);
+      setAccountMsg(
+        data.credentials
+          ? `تم إنشاء حساب ${data.user?.name} — المستخدم: ${data.credentials.username}`
+          : `تم إنشاء حساب ${data.user?.name} بنجاح`
+      );
       setNewName(''); setNewEmail(''); setNewPassword('');
       fetchDashboardData();
     } catch {
@@ -377,7 +413,8 @@ export default function AdminDashboardPage() {
     }
   };
 
-  const pendingCount = accessRequests.filter(r => r.status === 'PENDING_APPROVAL').length;
+  const pendingUsers = users.filter((u) => u.status === 'PENDING_APPROVAL' || (u.status as string) === 'PENDING');
+  const pendingCount = pendingUsers.length;
 
   /* ═══════════════ LOGIN SCREEN ══════════════════════════════ */
   if (!isLoggedIn) {
@@ -393,8 +430,8 @@ export default function AdminDashboardPage() {
             <form onSubmit={handleLoginStep1} className="admin-login-form">
               <div>
                 <label className="admin-label">البريد الإلكتروني</label>
-                <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
-                  placeholder="admin@southstreet.dz" className="admin-input" />
+                <input type="text" required value={email} onChange={e => setEmail(e.target.value)}
+                  placeholder="admin أو admin@southstreet.dz" className="admin-input" dir="ltr" />
               </div>
               <div>
                 <label className="admin-label">كلمة المرور</label>
@@ -806,6 +843,12 @@ export default function AdminDashboardPage() {
                   <input type="text" value={agencyData.opening_hours || ''}
                     onChange={e => setAgencyData({ ...agencyData, opening_hours: e.target.value })} className="admin-input" />
                 </div>
+                <div className="md:col-span-2">
+                  <label className="admin-label">معرف عميل جوجل (اختياري — لإنشاء الحساب بجوجل)</label>
+                  <input type="text" dir="ltr" value={agencyData.google_client_id || ''}
+                    onChange={e => setAgencyData({ ...agencyData, google_client_id: e.target.value })}
+                    placeholder="xxxxx.apps.googleusercontent.com" className="admin-input" />
+                </div>
               </div>
               <button type="submit" className="admin-btn-primary">حفظ الإعدادات في SQLite</button>
             </form>
@@ -825,9 +868,81 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
+        {activeTab === 'reviews' && (
+          <div className="space-y-4">
+            <Section title="مراجعة تقييمات المعتمرين قبل النشر">
+              <p className="text-xs text-slate-500 mb-4">
+                المعتمر يرسل النجوم والنص. الإدارة توافق أو تخفي أو ترد — ثم يُحسب متوسط النجوم للعضو وللوكالة.
+              </p>
+              <ReviewsModerator />
+            </Section>
+          </div>
+        )}
+
         {/* 7. USERS */}
         {activeTab === 'users' && (
           <div className="space-y-5">
+            <Section title="تفعيل إنشاء الحساب بجوجل" defaultOpen>
+              {accountMsg && accountMsg.includes('جوجل') && (
+                <div className={`admin-alert mb-4 ${accountMsg.includes('خطأ') ? 'admin-alert-error' : 'admin-alert-success'}`}>
+                  {accountMsg}
+                </div>
+              )}
+              <p className="text-xs text-slate-500 mb-3 leading-relaxed">
+                أنشئ Client ID مرة واحدة. أضف كل العناوين التي يفتح منها الموقع. عند تغيير الدومين لاحقاً أضف الدومين الجديد فقط — لا تنشئ عميل جوجل جديد.
+              </p>
+              <ol className="text-[11px] text-slate-600 mb-4 space-y-1 list-decimal pr-5 leading-relaxed">
+                <li>افتح <a className="text-emerald-700 font-bold" href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer">Google Cloud credentials</a></li>
+                <li>OAuth consent screen → External → اسم التطبيق: South Street</li>
+                <li>Create credentials → OAuth client ID → Application type: <b>Web application</b></li>
+                <li>
+                  Authorized JavaScript origins — أضف الكل الآن:
+                  <div className="mt-1 font-mono text-[11px] leading-6" dir="ltr">
+                    http://localhost:3000<br />
+                    http://127.0.0.1:3000<br />
+                    https://south-street-wine.vercel.app
+                  </div>
+                </li>
+                <li>Authorized redirect URIs (إن طلبها جوجل): <span dir="ltr">https://south-street-wine.vercel.app</span> و <span dir="ltr">http://localhost:3000</span></li>
+                <li>انسخ Client ID والصقه بالأسفل، ثم في Vercel → Settings → Environment Variables أضف نفس القيمة في <span dir="ltr">GOOGLE_CLIENT_ID</span> و <span dir="ltr">NEXT_PUBLIC_GOOGLE_CLIENT_ID</span> ثم أعد النشر</li>
+                <li>لاحقاً إذا اشترت دومين خاص: عدّل نفس عميل جوجل وأضف <span dir="ltr">https://your-domain.com</span> ثم احفظ. لا تغيّر Client ID</li>
+              </ol>
+              <div className="admin-form-grid">
+                <div className="sm:col-span-2">
+                  <label className="admin-label">معرف عميل جوجل (Client ID)</label>
+                  <input
+                    dir="ltr"
+                    className="admin-input"
+                    placeholder="xxxxx.apps.googleusercontent.com"
+                    value={agencyData.google_client_id || ''}
+                    onChange={(e) => setAgencyData({ ...agencyData, google_client_id: e.target.value })}
+                  />
+                </div>
+                <div className="flex items-end">
+                  <button
+                    type="button"
+                    className="admin-btn-primary w-full"
+                    onClick={async () => {
+                      setAccountMsg('');
+                      try {
+                        const res = await fetch('/api/admin/agency', {
+                          method: 'PUT',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ google_client_id: agencyData.google_client_id || '' }),
+                        });
+                        const data = await res.json();
+                        setAccountMsg(res.ok ? (data.message || 'تم حفظ معرف جوجل') : (data.error || 'خطأ في الحفظ'));
+                      } catch {
+                        setAccountMsg('خطأ في الاتصال أثناء حفظ جوجل');
+                      }
+                    }}
+                  >
+                    حفظ تفعيل جوجل
+                  </button>
+                </div>
+              </div>
+            </Section>
+
             <Section title="إنشاء حساب جديد" defaultOpen={false}>
               {accountMsg && (
                 <div className={`admin-alert mb-4 ${accountMsg.includes('خطأ') ? 'admin-alert-error' : 'admin-alert-success'}`}>
@@ -850,7 +965,9 @@ export default function AdminDashboardPage() {
                   <label className="admin-label">الصلاحية</label>
                   <select value={newRole} onChange={(e: any) => setNewRole(e.target.value)} className="admin-input">
                     <option value="SUPER_ADMIN">مدير النظام العام</option>
-                    <option value="AGENCY_MANAGER">مدير البرامج</option>
+                    <option value="AGENCY_MANAGER">مدير الوكالة</option>
+                    <option value="ACCOUNTANT">محاسب الوكالة</option>
+                    <option value="GUIDE_MURSHID">مرشد ديني</option>
                     <option value="AGENCY_AGENT">موظف خدمة العملاء</option>
                     <option value="PILGRIM_USER">معتمر / زائر</option>
                   </select>
@@ -868,16 +985,63 @@ export default function AdminDashboardPage() {
               </form>
             </Section>
 
+            <Section title={`طلبات الانضمام (${pendingCount})`} defaultOpen>
+              <p className="text-xs text-slate-500 mb-4">
+                العضو ينشئ اسم المستخدم وكلمة المرور أو يدخل بجوجل، ثم تنتظر الإدارة لتعيين الدور وخيارات البوابة قبل السماح بالدخول.
+              </p>
+              {pendingUsers.length === 0 ? (
+                <p className="admin-empty">لا توجد طلبات بانتظار الموافقة</p>
+              ) : (
+                <div className="admin-list">
+                  {pendingUsers.map((u) => {
+                    const chosenRole = pendingRole[u.id] || u.role || 'PILGRIM_USER';
+                    const optionLabels = PORTAL_TABS[toPortalRole(chosenRole)].map((t) => t.label).join(' · ');
+                    return (
+                      <div key={u.id} className="admin-user-row" style={{ flexWrap: 'wrap', gap: '0.75rem' }}>
+                        <div className="admin-user-info">
+                          <p className="admin-request-name">{u.name}</p>
+                          <p className="admin-request-meta">
+                            {u.username ? `@${u.username}` : u.email}
+                            {u.googleLinked ? ' · Google' : ''}
+                          </p>
+                        </div>
+                        <div className="admin-user-meta" style={{ minWidth: '220px', flex: 1 }}>
+                          <label className="admin-label">تعيين الصلاحية</label>
+                          <select
+                            className="admin-input"
+                            value={chosenRole}
+                            onChange={(e) => setPendingRole((prev) => ({ ...prev, [u.id]: e.target.value }))}
+                          >
+                            {LOGIN_ROLE_OPTIONS.map((opt) => (
+                              <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
+                          </select>
+                          <p className="text-[11px] text-slate-500 mt-1">خيارات البوابة: {optionLabels}</p>
+                        </div>
+                        <div className="admin-user-action" style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button onClick={() => handleUpdateUserStatus(u.id, 'APPROVED', chosenRole)} className="admin-btn-accept">قبول</button>
+                          <button onClick={() => handleUpdateUserStatus(u.id, 'REJECTED')} className="admin-btn-reject">رفض</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Section>
+
             <Section title={`الحسابات المسجلة (${users.length})`}>
               {users.length === 0 ? (
                 <p className="admin-empty">لا توجد حسابات مسجلة</p>
               ) : (
                 <div className="admin-list">
-                  {users.map(u => (
+                  {users.filter((u) => u.status !== 'PENDING_APPROVAL' && (u.status as string) !== 'PENDING').map(u => (
                     <div key={u.id} className="admin-user-row">
                       <div className="admin-user-info">
                         <p className="admin-request-name">{u.name}</p>
-                        <p className="admin-request-meta">{u.email}</p>
+                        <p className="admin-request-meta">{u.username ? `@${u.username} · ` : ''}{u.email}{u.googleLinked ? ' · Google' : ''}</p>
+                        {u.options?.length ? (
+                          <p className="text-[11px] text-slate-400 mt-1">{u.options.join(' · ')}</p>
+                        ) : null}
                       </div>
                       <div className="admin-user-meta">
                         <span className="admin-role-tag">{ROLE_LABEL[u.role] ?? u.role}</span>
@@ -886,16 +1050,12 @@ export default function AdminDashboardPage() {
                         </span>
                       </div>
                       <div className="admin-user-action">
-                        {u.status === 'PENDING_APPROVAL' ? (
-                          <button onClick={() => handleUpdateUserStatus(u.id, 'APPROVED')} className="admin-btn-accept">قبول</button>
-                        ) : (
-                          <button
-                            onClick={() => handleUpdateUserStatus(u.id, u.status === 'APPROVED' ? 'SUSPENDED' : 'APPROVED')}
-                            className={u.status === 'APPROVED' ? 'admin-btn-reject' : 'admin-btn-accept'}
-                          >
-                            {u.status === 'APPROVED' ? 'تجميد' : 'تفعيل'}
-                          </button>
-                        )}
+                        <button
+                          onClick={() => handleUpdateUserStatus(u.id, u.status === 'APPROVED' ? 'SUSPENDED' : 'APPROVED')}
+                          className={u.status === 'APPROVED' ? 'admin-btn-reject' : 'admin-btn-accept'}
+                        >
+                          {u.status === 'APPROVED' ? 'تجميد' : 'تفعيل'}
+                        </button>
                       </div>
                     </div>
                   ))}

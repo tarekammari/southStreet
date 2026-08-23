@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Navbar from '@/components/Navbar';
-import SakhrAgent from '@/components/SakhrAgent';
+import SakhrAgent from '@/components/lazy/LazySakhrAgent';
 import Footer from '@/components/Footer';
 import { Package } from '@/types';
 import { Sparkles, MapPin, Calendar, CheckCircle, Plane, Filter, ArrowLeft } from 'lucide-react';
@@ -35,7 +35,7 @@ export default function PackagesPage() {
 
   return (
     <div className="page-shell min-h-screen bg-slate-app">
-      <Navbar />
+      <Navbar variant="light" />
 
       <main className="page-main pb-16 max-w-7xl mx-auto px-4 sm:px-6">
         <div className="text-center space-y-4 mb-10 pt-6">

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Navbar from '@/components/Navbar';
-import SakhrAgent from '@/components/SakhrAgent';
+import SakhrAgent from '@/components/lazy/LazySakhrAgent';
 import Footer from '@/components/Footer';
 import { Hotel } from '@/types';
 import { MapPin, Sparkles, ArrowLeft, Star } from 'lucide-react';
@@ -24,7 +24,7 @@ export default function HotelsPage() {
 
   return (
     <div className="page-shell min-h-screen bg-slate-app">
-      <Navbar />
+      <Navbar variant="light" />
 
       <main className="page-main pb-16 max-w-7xl mx-auto px-4 sm:px-6">
         <div className="text-center space-y-4 mb-10 pt-6">

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSqliteDb } from '@/lib/sqlite';
+import { saveGoogleClientId } from '@/lib/google-auth-config';
 
 export async function GET() {
   try {
@@ -22,6 +23,11 @@ export async function PUT(req: Request) {
     const body = await req.json();
     const db = getSqliteDb();
 
+    if (body.google_client_id != null && body.agency_name == null) {
+      saveGoogleClientId(String(body.google_client_id || ''));
+      return NextResponse.json({ success: true, message: 'تم حفظ معرف عميل جوجل. يمكن للأعضاء الإنشاء والدخول بجوجل الآن.' });
+    }
+
     db.prepare(`
       UPDATE agency_settings SET
         agency_name = ?,
@@ -39,7 +45,8 @@ export async function PUT(req: Request) {
         emergency_phone = ?,
         supported_languages = ?,
         default_currency = ?,
-        timezone = ?
+        timezone = ?,
+        google_client_id = ?
       WHERE id = 'main'
     `).run(
       body.agency_name,
@@ -57,7 +64,8 @@ export async function PUT(req: Request) {
       body.emergency_phone,
       JSON.stringify(body.supported_languages || []),
       body.default_currency || 'DZD',
-      body.timezone || 'Africa/Algiers'
+      body.timezone || 'Africa/Algiers',
+      (body.google_client_id || '').trim()
     );
 
     return NextResponse.json({ success: true, message: 'تم تحديث بيانات الوكالة بنجاح في قاعدة البيانات' });

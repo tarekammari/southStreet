@@ -3,10 +3,13 @@ export type UserRole =
   | 'manager'
   | 'murshid'
   | 'accountant'
+  | 'agent'
   | 'pilgrim'
   | 'SUPER_ADMIN'
   | 'AGENCY_MANAGER'
   | 'AGENCY_AGENT'
+  | 'GUIDE_MURSHID'
+  | 'ACCOUNTANT'
   | 'PILGRIM_USER';
 
 export interface User {
@@ -16,6 +19,7 @@ export interface User {
   role: UserRole;
   roleName: string;
   email?: string;
+  username?: string;
   phone?: string;
   avatar?: string;
   room?: string;
@@ -133,6 +137,7 @@ export interface AgencySettings {
   supported_languages: string[];
   default_currency: string;
   timezone: string;
+  google_client_id?: string;
 }
 
 export type SeasonType = 'UMRAH' | 'HAJJ';

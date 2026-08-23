@@ -1,13 +1,7 @@
 import Database from 'better-sqlite3';
 import path from 'path';
-import fs from 'fs';
 import { hashPassword } from './security';
-import {
-  User, Message, Receipt, AuditLog, UserRole,
-  AgencySettings, Season, Hotel, Flight, Morshid, Package, Reservation,
-  CustomerDocument, MediaAsset, AiConversationLog
-} from '@/types';
-import { UserAccount, ActiveSession, AccessRequest, AiKnowledgeRule } from './db';
+import { wrapDatabaseWithEncryption, migratePlaintextToEncrypted } from './encrypted-sqlite';
 
 const DB_PATH = path.join(process.cwd(), 'south_street.db');
 
@@ -16,12 +10,27 @@ let dbInstance: Database.Database | null = null;
 export function getSqliteDb(): Database.Database {
   if (dbInstance) return dbInstance;
 
-  dbInstance = new Database(DB_PATH);
-  dbInstance.pragma('journal_mode = WAL');
-  dbInstance.pragma('foreign_keys = ON');
+  const raw = new Database(DB_PATH);
+  raw.pragma('journal_mode = WAL');
+  raw.pragma('foreign_keys = ON');
 
+  dbInstance = wrapDatabaseWithEncryption(raw);
   initTables(dbInstance);
   seedDefaults(dbInstance);
+  migratePlaintextToEncrypted(dbInstance);
+
+  try {
+    const accounts = require('./accounts') as typeof import('./accounts');
+    accounts.backfillUserLookupHashes();
+    accounts.backfillStaffAccounts();
+    try {
+      accounts.repairSuperAdminLogin();
+    } catch (repairErr) {
+      console.warn('[Super admin repair]:', repairErr);
+    }
+  } catch (err) {
+    console.warn('[Account backfill]:', err);
+  }
 
   return dbInstance;
 }
@@ -31,8 +40,12 @@ function initTables(db: Database.Database) {
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       code TEXT UNIQUE,
+      codeHash TEXT,
       name TEXT NOT NULL,
-      email TEXT UNIQUE,
+      email TEXT,
+      emailHash TEXT,
+      username TEXT,
+      usernameHash TEXT,
       passwordHash TEXT NOT NULL,
       role TEXT NOT NULL,
       roleName TEXT NOT NULL,
@@ -43,7 +56,11 @@ function initTables(db: Database.Database) {
       createdAt TEXT,
       lastLoginIp TEXT,
       pcFingerprint TEXT,
-      requiresFileKey INTEGER DEFAULT 0
+      requiresFileKey INTEGER DEFAULT 0,
+      staffId TEXT,
+      qrSecretHash TEXT,
+      loginEnabled INTEGER DEFAULT 1,
+      googleId TEXT
     );
 
     CREATE TABLE IF NOT EXISTS sessions (
@@ -104,7 +121,9 @@ function initTables(db: Database.Database) {
       emergency_phone TEXT,
       supported_languages TEXT,
       default_currency TEXT DEFAULT 'DZD',
-      timezone TEXT DEFAULT 'Africa/Algiers'
+      timezone TEXT DEFAULT 'Africa/Algiers',
+      google_client_id TEXT,
+      security_key TEXT
     );
 
     CREATE TABLE IF NOT EXISTS seasons (
@@ -264,6 +283,24 @@ function initTables(db: Database.Database) {
       ip TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS reviews (
+      id TEXT PRIMARY KEY,
+      target_type TEXT NOT NULL,
+      target_id TEXT NOT NULL,
+      target_name TEXT,
+      reviewer_name TEXT NOT NULL,
+      reviewer_user_id TEXT,
+      stars INTEGER NOT NULL,
+      title TEXT,
+      body TEXT NOT NULL,
+      status TEXT DEFAULT 'PENDING',
+      featured INTEGER DEFAULT 0,
+      admin_reply TEXT,
+      admin_reply_at TEXT,
+      created_at TEXT,
+      published_at TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS page_content (
       key TEXT PRIMARY KEY,
       section TEXT NOT NULL,
@@ -292,13 +329,13 @@ function initTables(db: Database.Database) {
     };
 
     // 1. messages migrations
-    ensureColumn('messages', 'chatId', 'TEXT DEFAULT "general"');
+    ensureColumn('messages', 'chatId', "TEXT DEFAULT 'general'");
     ensureColumn('messages', 'senderAvatar', 'TEXT');
     ensureColumn('messages', 'isUrgent', 'INTEGER DEFAULT 0');
 
     // 2. users migrations
     ensureColumn('users', 'code', 'TEXT');
-    ensureColumn('users', 'roleName', 'TEXT DEFAULT "عضو"');
+    ensureColumn('users', 'roleName', "TEXT DEFAULT 'عضو'");
     ensureColumn('users', 'phone', 'TEXT');
     ensureColumn('users', 'avatar', 'TEXT');
     ensureColumn('users', 'room', 'TEXT');
@@ -306,6 +343,49 @@ function initTables(db: Database.Database) {
     ensureColumn('users', 'lastLoginIp', 'TEXT');
     ensureColumn('users', 'pcFingerprint', 'TEXT');
     ensureColumn('users', 'requiresFileKey', 'INTEGER DEFAULT 0');
+    ensureColumn('users', 'email', 'TEXT');
+    ensureColumn('users', 'codeHash', 'TEXT');
+    ensureColumn('users', 'emailHash', 'TEXT');
+    ensureColumn('users', 'username', 'TEXT');
+    ensureColumn('users', 'usernameHash', 'TEXT');
+    ensureColumn('users', 'passwordHash', 'TEXT');
+    ensureColumn('users', 'staffId', 'TEXT');
+    ensureColumn('users', 'qrSecretHash', 'TEXT');
+    ensureColumn('users', 'loginEnabled', 'INTEGER DEFAULT 1');
+    ensureColumn('users', 'googleId', 'TEXT');
+    ensureColumn('agency_settings', 'google_client_id', 'TEXT');
+    ensureColumn('agency_settings', 'security_key', 'TEXT');
+    ensureColumn('morshids', 'review_count', 'INTEGER DEFAULT 0');
+    ensureColumn('audit_logs', 'actorName', 'TEXT');
+    ensureColumn('audit_logs', 'actorRole', 'TEXT');
+    ensureColumn('audit_logs', 'timestamp', 'TEXT');
+    ensureColumn('audit_logs', 'action', 'TEXT');
+    ensureColumn('audit_logs', 'details', 'TEXT');
+    ensureColumn('audit_logs', 'ip', 'TEXT');
+
+    try {
+      const userCols = (db.prepare('PRAGMA table_info(users)').all() as { name: string }[]).map((c) => c.name);
+      const has = (name: string) => userCols.includes(name);
+      if (has('code_hash')) {
+        if (has('codeHash')) {
+          db.exec(`UPDATE users SET code_hash = codeHash WHERE (code_hash IS NULL OR code_hash = '') AND IFNULL(codeHash, '') != ''`);
+        }
+        if (has('code')) {
+          db.exec(`UPDATE users SET code_hash = code WHERE (code_hash IS NULL OR code_hash = '') AND IFNULL(code, '') != ''`);
+        }
+        db.exec(`UPDATE users SET code_hash = id WHERE code_hash IS NULL OR code_hash = ''`);
+      }
+    } catch (legacyErr) {
+      console.warn('[SQLite Legacy Users]:', legacyErr);
+    }
+
+    try {
+      db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_hash ON users(usernameHash) WHERE usernameHash IS NOT NULL AND usernameHash != ''");
+      db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_hash ON users(emailHash) WHERE emailHash IS NOT NULL AND emailHash != ''");
+      db.exec('CREATE INDEX IF NOT EXISTS idx_users_staff ON users(staffId)');
+    } catch (idxErr) {
+      console.warn('[SQLite Index Notice]:', idxErr);
+    }
 
     // 3. ai_knowledge migrations
     ensureColumn('ai_knowledge', 'is_active', 'INTEGER DEFAULT 1');
@@ -313,8 +393,8 @@ function initTables(db: Database.Database) {
     ensureColumn('ai_knowledge', 'updatedAt', 'TEXT');
     ensureColumn('ai_knowledge', 'qualityRating', 'REAL');
     ensureColumn('ai_knowledge', 'modelAnswer', 'TEXT');
-    ensureColumn('ai_knowledge', 'answerMode', 'TEXT DEFAULT "official_exact"');
-    ensureColumn('ai_knowledge', 'matchStrategy', 'TEXT DEFAULT "keywords_or_title"');
+    ensureColumn('ai_knowledge', 'answerMode', "TEXT DEFAULT 'official_exact'");
+    ensureColumn('ai_knowledge', 'matchStrategy', "TEXT DEFAULT 'keywords_or_title'");
 
     // 4. sessions migrations
     ensureColumn('sessions', 'pcPrint', 'TEXT');
@@ -323,33 +403,46 @@ function initTables(db: Database.Database) {
     // 5. access_requests migrations
     ensureColumn('access_requests', 'pcPrint', 'TEXT');
     ensureColumn('access_requests', 'userAgent', 'TEXT');
-    ensureColumn('access_requests', 'status', 'TEXT DEFAULT "PENDING_APPROVAL"');
+    ensureColumn('access_requests', 'status', "TEXT DEFAULT 'PENDING_APPROVAL'");
   } catch (migErr) {
     console.warn('[SQLite Migration Notice]:', migErr);
   }
 }
 
 function seedDefaults(db: Database.Database) {
-  // Always ensure default Demo Users exist and have correct hashes
-  const upsertUser = db.prepare(`
-    INSERT OR REPLACE INTO users (id, code, name, email, passwordHash, role, roleName, status, phone, avatar, room, createdAt, requiresFileKey)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  const insertUser = db.prepare(`
+    INSERT OR IGNORE INTO users (
+      id, code, name, email, username, passwordHash, role, roleName, status, phone, avatar, room, createdAt, requiresFileKey, loginEnabled
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
   `);
 
+  const missing = (id: string) => !db.prepare('SELECT id FROM users WHERE id = ?').get(id);
+
   const defaultUsers = [
-    ['usr_super_admin', 'ADMIN-2026', 'طارق العماري (المدير العام)', 'admin@southstreet.dz', hashPassword('Admin@2026!'), 'SUPER_ADMIN', 'مدير النظام', 'APPROVED', '+213 21 55 44 33', 'ع', '', '2026-08-01T10:00:00Z', 1],
-    ['usr_manager', 'MANAGER-99', 'أحمد محمود (مدير البرامج)', 'manager@southstreet.dz', hashPassword('Manager@2026!'), 'AGENCY_MANAGER', 'مسير الحملات', 'APPROVED', '+213 559 87 65 43', 'ط', '', '2026-08-05T12:00:00Z', 1],
-    ['usr_guide', 'GUIDE-777', 'الشيخ أحمد بن علي (المرشد الديني)', 'guide@southstreet.dz', hashPassword('Guide@2026!'), 'AGENCY_AGENT', 'مرشد ديني', 'APPROVED', '+213 544 44 33 22', 'أ', '', '2026-08-06T10:00:00Z', 0],
-    ['usr_accountant', 'ACC-404', 'الأستاذ ياسين الفاسي (محاسب الوكالة)', 'accountant@southstreet.dz', hashPassword('Accountant@2026!'), 'AGENCY_AGENT', 'محاسب الوكالة', 'APPROVED', '+213 561 11 88 99', 'ي', '', '2026-08-07T11:00:00Z', 0],
-    ['usr_agent', 'AGENT-101', 'سارة خالد (خدمة العملاء)', 'agent@southstreet.dz', hashPassword('Agent@2026!'), 'AGENCY_AGENT', 'خدمة العملاء', 'APPROVED', '+213 557 00 11 22', 'س', '', '2026-08-08T09:30:00Z', 0],
-    ['usr_pilgrim_user', 'PILGRIM-101', 'عمر بن علي (معتمر معتمد)', 'user@southstreet.dz', hashPassword('User@2026!'), 'PILGRIM_USER', 'معتمر', 'APPROVED', '+213 559 88 77 66', 'م', '1402 - سويس أوتيل مكة', '2026-08-10T14:15:00Z', 0],
+    () => missing('usr_super_admin') && ['usr_super_admin', 'ADMIN-2026', 'طارق العماري (المدير العام)', 'admin@southstreet.dz', 'admin', hashPassword('Admin@2026!'), 'SUPER_ADMIN', 'مدير النظام', 'APPROVED', '+213 21 55 44 33', 'ع', '', '2026-08-01T10:00:00Z', 1],
+    () => missing('usr_manager') && ['usr_manager', 'MANAGER-99', 'أحمد محمود (مدير البرامج)', 'manager@southstreet.dz', 'manager', hashPassword('Manager@2026!'), 'AGENCY_MANAGER', 'مسير الحملات', 'APPROVED', '+213 559 87 65 43', 'ط', '', '2026-08-05T12:00:00Z', 1],
+    () => missing('usr_guide') && ['usr_guide', 'GUIDE-777', 'الشيخ أحمد بن علي (المرشد الديني)', 'guide@southstreet.dz', 'guide', hashPassword('Guide@2026!'), 'GUIDE_MURSHID', 'مرشد ديني', 'APPROVED', '+213 544 44 33 22', 'أ', '', '2026-08-06T10:00:00Z', 0],
+    () => missing('usr_accountant') && ['usr_accountant', 'ACC-404', 'الأستاذ ياسين الفاسي (محاسب الوكالة)', 'accountant@southstreet.dz', 'accountant', hashPassword('Accountant@2026!'), 'ACCOUNTANT', 'محاسب الوكالة', 'APPROVED', '+213 561 11 88 99', 'ي', '', '2026-08-07T11:00:00Z', 0],
+    () => missing('usr_agent') && ['usr_agent', 'AGENT-101', 'سارة خالد (خدمة العملاء)', 'agent@southstreet.dz', 'agent', hashPassword('Agent@2026!'), 'AGENCY_AGENT', 'خدمة العملاء', 'APPROVED', '+213 557 00 11 22', 'س', '', '2026-08-08T09:30:00Z', 0],
+    () => missing('usr_pilgrim_user') && ['usr_pilgrim_user', 'PILGRIM-101', 'عمر بن علي (معتمر معتمد)', 'user@southstreet.dz', 'pilgrim', hashPassword('User@2026!'), 'PILGRIM_USER', 'معتمر', 'APPROVED', '+213 559 88 77 66', 'م', '1402 - سويس أوتيل مكة', '2026-08-10T14:15:00Z', 0],
   ];
 
   db.transaction(() => {
-    for (const u of defaultUsers) {
-      upsertUser.run(...u);
+    for (const make of defaultUsers) {
+      const u = make();
+      if (u) insertUser.run(...u);
     }
   })();
+
+  // Promote the seeded guide/accountant roles if they are still the old generic agent role
+  db.prepare(`UPDATE users SET role = 'GUIDE_MURSHID' WHERE id = 'usr_guide' AND role = 'AGENCY_AGENT'`).run();
+  db.prepare(`UPDATE users SET role = 'ACCOUNTANT' WHERE id = 'usr_accountant' AND role = 'AGENCY_AGENT'`).run();
+  db.prepare(`
+    UPDATE users
+    SET status = 'APPROVED', loginEnabled = 1, requiresFileKey = 1,
+        roleName = 'مدير النظام العام'
+    WHERE id = 'usr_super_admin'
+  `).run();
 
   // Seed Agency Settings
   const agencyCount = (db.prepare('SELECT COUNT(*) as cnt FROM agency_settings').get() as any).cnt;
@@ -403,6 +496,33 @@ function seedDefaults(db: Database.Database) {
         insertMorshid.run(...m);
       }
     })();
+  }
+
+  const reviewCount = (db.prepare('SELECT COUNT(*) as cnt FROM reviews').get() as any).cnt;
+  if (reviewCount === 0) {
+    const insertReview = db.prepare(`
+      INSERT INTO reviews (
+        id, target_type, target_id, target_name, reviewer_name, reviewer_user_id,
+        stars, title, body, status, featured, admin_reply, admin_reply_at, created_at, published_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const now = '2026-08-10T09:00:00Z';
+    const reviewsSeed = [
+      ['rev_agency_1', 'agency', 'main', 'وكالة ساوث ستريت', 'عمر بن علي', 'usr_pilgrim_user', 5, 'رحلة مرتبة من الألف إلى الياء', 'الفندق قريب من الحرم والتنظيم ممتاز من الاستقبال في المطار حتى العودة. أنصح العائلات بالتعامل معهم.', 'APPROVED', 1, 'سعداء بخدمتكم، حج مبرور إن شاء الله.', now, now],
+      ['rev_agency_2', 'agency', 'main', 'وكالة ساوث ستريت', 'فاطمة الزهراء بن دحمان', '', 5, 'المرشدة النسائية كانت سنداً', 'رافقونا خطوة بخطوة في الطواف والسعي، والتعامل راقٍ وواضح في الأسعار.', 'APPROVED', 1, '', now, now],
+      ['rev_agency_3', 'agency', 'main', 'وكالة ساوث ستريت', 'سليم بلحاج', '', 4, 'تنظيم جيد مع ملاحظة بسيطة', 'الباقة الاقتصادية قيمة مقابل السعر. الحافلة ممتازة. تأخر بسيط في الاستقبال تم حله بسرعة.', 'APPROVED', 0, 'شكراً لملاحظتكم وسنضبط مواعيد الاستقبال أكثر.', now, now],
+      ['rev_staff_s1', 'staff', 's1', 'الأستاذ أحمد المنصوري', 'عبد القادر الوهراني', '', 5, 'متابعة الإدارة مباشرة', 'المدير كان يرد على الاستفسارات بنفسه وطمأن العائلة قبل السفر.', 'APPROVED', 1, '', now, now],
+      ['rev_staff_m1', 'staff', 'm1', 'الشيخ د. عبد الرحمن النوي', 'محمد عبد الله', '', 5, 'شرح المناسك بوضوح', 'الشيخ يشرح بهدوء ويجيب عن الأسئلة في الحرم دون استعجال.', 'APPROVED', 0, '', now, now],
+      ['rev_pending_1', 'agency', 'main', 'وكالة ساوث ستريت', 'خالد بن يوسف', '', 3, 'تجربة قيد المراجعة', 'الرحلة جيدة لكن أرغب أن تراجع الإدارة موضوع توزيع الغرف للعائلات.', 'PENDING', 0, '', now, ''],
+    ];
+    db.transaction(() => {
+      for (const r of reviewsSeed) insertReview.run(...r);
+    })();
+    try {
+      const { syncStaffRating } = require('./reviews') as typeof import('./reviews');
+      syncStaffRating('s1');
+      syncStaffRating('m1');
+    } catch {}
   }
 
   // Seed Hotels

@@ -1,14 +1,42 @@
 'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
+import dynamic from 'next/dynamic';
 import Navbar from '@/components/Navbar';
-import SakhrAgent from '@/components/SakhrAgent';
-import MurshidDashboard from '@/components/dashboards/MurshidDashboard';
-import AccountantDashboard from '@/components/dashboards/AccountantDashboard';
+import SakhrAgent from '@/components/lazy/LazySakhrAgent';
 import UmrahCounter from '@/components/UmrahCounter';
-import ChatModule from '@/components/ChatModule';
-import AiKnowledgeManager from '@/components/AiKnowledgeManager';
 import { User, Reservation, CustomerDocument, Receipt } from '@/types';
+import { toPortalRole, PORTAL_TABS, defaultPortalTab } from '@/lib/roles';
+import ReviewComposer from '@/components/ReviewComposer';
+import AccountSecurityPanel from '@/components/AccountSecurityPanel';
+
+const TabFallback = () => (
+  <div className="luxury-card p-10 flex items-center justify-center text-xs text-slate-400 gap-2">
+    <RefreshCw className="w-4 h-4 animate-spin" /> جاري التحميل...
+  </div>
+);
+
+// Tab-gated panels are code-split so switching a tab loads only what it needs
+const MurshidDashboard = dynamic(() => import('@/components/dashboards/MurshidDashboard'), {
+  ssr: false,
+  loading: TabFallback,
+});
+const AccountantDashboard = dynamic(() => import('@/components/dashboards/AccountantDashboard'), {
+  ssr: false,
+  loading: TabFallback,
+});
+const ManagerDashboard = dynamic(() => import('@/components/dashboards/ManagerDashboard'), {
+  ssr: false,
+  loading: TabFallback,
+});
+const ChatModule = dynamic(() => import('@/components/ChatModule'), {
+  ssr: false,
+  loading: TabFallback,
+});
+const AiKnowledgeManager = dynamic(() => import('@/components/AiKnowledgeManager'), {
+  ssr: false,
+  loading: TabFallback,
+});
 import {
   FileText, CheckCircle, Clock, ShieldCheck, Upload, CreditCard,
   UserCheck, AlertCircle, Sparkles, Download, MessageCircle, Compass,
@@ -19,7 +47,8 @@ import Link from 'next/link';
 
 function CustomerPortalContent() {
   const searchParams = useSearchParams();
-  const initialTab = searchParams.get('tab') || 'reservations';
+  const initialTab = searchParams.get('tab') || '';
+  const demoMode = searchParams.get('demo') === '1';
 
   const [activeTab, setActiveTab] = useState<string>(initialTab);
   const [currentUser, setCurrentUser] = useState<User>({
@@ -41,27 +70,26 @@ function CustomerPortalContent() {
   const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
-    // Load session user if available
     const session = localStorage.getItem('south_street_user');
     if (session) {
       try {
         const u = JSON.parse(session);
-        // Normalize role
-        let role = u.role || 'pilgrim';
-        if (role === 'SUPER_ADMIN' || role === 'AGENCY_MANAGER') role = 'admin';
-        if (u.email?.includes('guide') || role === 'GUIDE_MURSHID' || role === 'murshid') role = 'murshid';
-        if (u.email?.includes('accountant') || role === 'ACCOUNTANT' || role === 'accountant') role = 'accountant';
-
+        const role = toPortalRole(u.role, { email: u.email, roleName: u.roleName });
         setCurrentUser({
           id: u.id || 'usr_user',
-          code: u.code || 'CODE-2026',
+          code: u.code || u.username || 'CODE-2026',
           name: u.name || 'مستخدم الوكالة',
           role: role as any,
-          roleName: u.roleName || (role === 'murshid' ? 'مرشد ديني' : role === 'accountant' ? 'محاسب الوكالة' : role === 'admin' ? 'مدير النظام' : 'معتمر معتمد'),
-          email: u.email || 'user@southstreet.dz',
-          phone: u.phone || '+213 550 00 00 00',
+          roleName: u.roleName || u.role,
+          email: u.email || '',
+          username: u.username,
+          phone: u.phone || '',
           avatar: u.name ? u.name.charAt(0) : 'م'
         });
+        const allowed = PORTAL_TABS[role].map((t) => t.tab);
+        if (!initialTab || !allowed.includes(initialTab)) {
+          setActiveTab(defaultPortalTab(role));
+        }
       } catch {}
     }
 
@@ -135,7 +163,7 @@ function CustomerPortalContent() {
   }, []);
 
   // Quick switch role helper for testing
-  const switchDemoRole = (role: 'pilgrim' | 'murshid' | 'accountant' | 'admin') => {
+  const switchDemoRole = (role: 'pilgrim' | 'murshid' | 'accountant' | 'admin' | 'agent' | 'manager') => {
     if (role === 'murshid') {
       setCurrentUser({
         id: 'USR-003',
@@ -172,6 +200,30 @@ function CustomerPortalContent() {
         avatar: 'ط'
       });
       setActiveTab('admin');
+    } else if (role === 'manager') {
+      setCurrentUser({
+        id: 'usr_manager',
+        code: 'MANAGER-99',
+        name: 'أحمد محمود',
+        role: 'manager',
+        roleName: 'مسير الحملات',
+        email: 'manager@southstreet.dz',
+        phone: '+213 559 87 65 43',
+        avatar: 'أ'
+      });
+      setActiveTab('manager');
+    } else if (role === 'agent') {
+      setCurrentUser({
+        id: 'usr_agent',
+        code: 'AGENT-101',
+        name: 'سارة خالد',
+        role: 'agent',
+        roleName: 'خدمة العملاء',
+        email: 'agent@southstreet.dz',
+        phone: '+213 557 00 11 22',
+        avatar: 'س'
+      });
+      setActiveTab('agent');
     } else {
       setCurrentUser({
         id: 'usr_pilgrim_user',
@@ -208,184 +260,73 @@ function CustomerPortalContent() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white font-tajawal">
-      <Navbar currentUser={currentUser} />
+    <div className="portal-shell font-tajawal">
+      <Navbar currentUser={currentUser} variant="light" />
 
       <main className="pt-28 pb-16 max-w-6xl mx-auto px-4 sm:px-6 space-y-6">
-        {/* Role Demo Quick Switcher Banner */}
-        <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-slate-900 to-indigo-500/10 border border-amber-500/30 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+        {demoMode && (
+        <div className="luxury-card-static p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs animate-fade-up">
           <div className="flex items-center gap-2">
-            <span className="px-2.5 py-1 rounded-lg bg-amber-500 text-slate-950 font-black">تجربة الأدوار:</span>
-            <span className="text-slate-300">التبديل الفوري بين لوحات التحكم والتدريب الذكي:</span>
+            <span className="px-2.5 py-1 rounded-lg bg-emerald-main text-white font-bold text-[11px]">تجربة الأدوار</span>
+            <span className="text-slate-500">التبديل بين لوحات التحكم حسب الدور</span>
           </div>
           <div className="flex flex-wrap gap-1.5">
-            <button
-              onClick={() => switchDemoRole('admin')}
-              className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
-                currentUser.role === 'admin' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-800 text-slate-300 hover:text-white'
-              }`}
-            >
-              🛡️ المدير (Admin)
-            </button>
-            <button
-              onClick={() => switchDemoRole('murshid')}
-              className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
-                currentUser.role === 'murshid' ? 'bg-emerald-600 text-white shadow-lg' : 'bg-slate-800 text-slate-300 hover:text-white'
-              }`}
-            >
-              👳 المرشد (Guide)
-            </button>
-            <button
-              onClick={() => switchDemoRole('accountant')}
-              className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
-                currentUser.role === 'accountant' ? 'bg-amber-500 text-slate-950 shadow-lg' : 'bg-slate-800 text-slate-300 hover:text-white'
-              }`}
-            >
-              💳 المحاسب (Finance)
-            </button>
-            <button
-              onClick={() => switchDemoRole('pilgrim')}
-              className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
-                currentUser.role === 'pilgrim' ? 'bg-slate-700 text-white shadow-lg' : 'bg-slate-800 text-slate-300 hover:text-white'
-              }`}
-            >
-              👤 المعتمر (User)
-            </button>
+            {(['admin', 'manager', 'murshid', 'accountant', 'agent', 'pilgrim'] as const).map((role) => (
+              <button
+                key={role}
+                onClick={() => switchDemoRole(role as any)}
+                className={`portal-tab ${currentUser.role === role ? 'portal-tab-active' : 'portal-tab-inactive'}`}
+              >
+                {role === 'admin' ? 'مدير' : role === 'manager' ? 'مسير' : role === 'murshid' ? 'مرشد' : role === 'accountant' ? 'محاسب' : role === 'agent' ? 'موظف' : 'معتمر'}
+              </button>
+            ))}
           </div>
         </div>
+        )}
 
-        {/* User Header */}
-        <div className="p-6 rounded-3xl bg-slate-900 border border-white/10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        {/* User header */}
+        <div className="luxury-card p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 animate-fade-up">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-300 flex items-center justify-center font-black text-2xl font-cairo">
+            <div className="w-14 h-14 rounded-2xl bg-emerald-soft border border-emerald-main/20 text-emerald-main flex items-center justify-center font-bold text-2xl font-cairo">
               {currentUser.avatar || currentUser.name.charAt(0)}
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="font-black text-xl font-cairo text-white">{currentUser.name}</h1>
-                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/40">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="font-bold text-xl font-cairo text-slate-900">{currentUser.name}</h1>
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-soft text-emerald-main text-[10px] font-bold border border-emerald-main/20">
                   {currentUser.roleName || currentUser.role}
                 </span>
               </div>
-              <p className="text-xs text-slate-400">{currentUser.email} | {currentUser.phone}</p>
+              <p className="text-xs text-slate-500 mt-0.5">{currentUser.email} · {currentUser.phone}</p>
             </div>
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {currentUser.role === 'murshid' ? (
-              <>
-                <button
-                  onClick={() => setActiveTab('murshid')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    activeTab === 'murshid' ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-300'
-                  }`}
-                >
-                  لوحة المرشد وتدريب صخر
-                </button>
-                <button
-                  onClick={() => setActiveTab('chat')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                    activeTab === 'chat' ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-300'
-                  }`}
-                >
-                  <MessageCircle className="w-4 h-4" /> المحادثة
-                </button>
-                <button
-                  onClick={() => setActiveTab('rituals')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                    activeTab === 'rituals' ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-300'
-                  }`}
-                >
-                  <Compass className="w-4 h-4" /> عداد المناسك
-                </button>
-              </>
-            ) : currentUser.role === 'accountant' ? (
-              <>
-                <button
-                  onClick={() => setActiveTab('accountant')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    activeTab === 'accountant' ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-300'
-                  }`}
-                >
-                  لوحة المحاسب وتدريب صخر
-                </button>
-                <button
-                  onClick={() => setActiveTab('chat')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                    activeTab === 'chat' ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-300'
-                  }`}
-                >
-                  <MessageCircle className="w-4 h-4" /> غرفة المراسلة
-                </button>
-              </>
-            ) : currentUser.role === 'admin' ? (
-              <>
+            {PORTAL_TABS[toPortalRole(currentUser.role, { email: currentUser.email, roleName: currentUser.roleName })].map((item) => (
+              item.tab === 'admin' ? (
                 <Link
+                  key={item.tab}
                   href="/admin"
-                  className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-1.5 transition-colors"
+                  className="portal-tab portal-tab-active flex items-center gap-1.5 no-underline"
                 >
-                  <ShieldCheck className="w-4 h-4" /> فتح لوحة الإدارة الكاملة (Admin)
+                  <ShieldCheck className="w-3.5 h-3.5" /> {item.label}
                 </Link>
+              ) : (
                 <button
-                  onClick={() => setActiveTab('admin_ai')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                    activeTab === 'admin_ai' ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-300'
-                  }`}
+                  key={item.tab}
+                  onClick={() => setActiveTab(item.tab)}
+                  className={`portal-tab flex items-center gap-1.5 ${activeTab === item.tab ? 'portal-tab-active' : 'portal-tab-inactive'}`}
                 >
-                  <Sparkles className="w-4 h-4" /> تدريب صخر الذكي
+                  {item.label}
                 </button>
-              </>
-            ) : (
-              <>
-                <button
-                  onClick={() => setActiveTab('reservations')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    activeTab === 'reservations' ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-300'
-                  }`}
-                >
-                  حجوزاتي ({reservations.length})
-                </button>
-                <button
-                  onClick={() => setActiveTab('documents')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    activeTab === 'documents' ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-300'
-                  }`}
-                >
-                  وثائقي ({documents.length})
-                </button>
-                <button
-                  onClick={() => setActiveTab('payments')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    activeTab === 'payments' ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-300'
-                  }`}
-                >
-                  وصل الدفع ({receipts.length})
-                </button>
-                <button
-                  onClick={() => setActiveTab('rituals')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                    activeTab === 'rituals' ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-300'
-                  }`}
-                >
-                  <Compass className="w-4 h-4" /> عداد المناسك
-                </button>
-                <button
-                  onClick={() => setActiveTab('chat')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                    activeTab === 'chat' ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-300'
-                  }`}
-                >
-                  <MessageCircle className="w-4 h-4" /> المحادثة
-                </button>
-              </>
-            )}
+              )
+            ))}
           </div>
         </div>
 
         {/* Dynamic Views by Role and Tab */}
 
-        {/* 1. Murshid View */}
-        {(currentUser.role === 'murshid' || activeTab === 'murshid') && (
+        {currentUser.role === 'murshid' && activeTab === 'murshid' && (
           <MurshidDashboard
             currentUser={currentUser}
             pilgrims={pilgrimsList}
@@ -393,13 +334,29 @@ function CustomerPortalContent() {
           />
         )}
 
-        {/* 2. Accountant View */}
-        {(currentUser.role === 'accountant' || activeTab === 'accountant') && (
+        {currentUser.role === 'accountant' && activeTab === 'accountant' && (
           <AccountantDashboard currentUser={currentUser} />
         )}
 
+        {(currentUser.role === 'manager' || currentUser.role === 'admin') && activeTab === 'manager' && (
+          <ManagerDashboard currentUser={currentUser} campaigns={[]} pilgrims={pilgrimsList} />
+        )}
+
+        {currentUser.role === 'agent' && activeTab === 'agent' && (
+          <div className="luxury-card p-6 space-y-3 animate-fade-up">
+            <h2 className="text-lg font-bold font-cairo text-slate-900">لوحة موظف الوكالة</h2>
+            <p className="text-sm text-slate-600">
+              يمكنك متابعة استفسارات المعتمرين عبر المحادثة، والتنسيق مع المرشدين والمحاسبة حسب صلاحية دورك.
+            </p>
+            <div className="grid sm:grid-cols-2 gap-3 text-xs">
+              <button onClick={() => setActiveTab('chat')} className="portal-tab portal-tab-active">فتح المحادثة الداخلية</button>
+              <Link href="/packages" className="portal-tab portal-tab-inactive no-underline text-center">عرض الباقات</Link>
+            </div>
+          </div>
+        )}
+
         {/* 3. Admin AI Teaching View */}
-        {activeTab === 'admin_ai' && (
+        {activeTab === 'admin_ai' && (currentUser.role === 'admin' || currentUser.role === 'manager') && (
           <AiKnowledgeManager
             userRole="SUPER_ADMIN"
             userName={currentUser.name}
@@ -408,89 +365,73 @@ function CustomerPortalContent() {
           />
         )}
 
-        {/* 4. Rituals Counter Tab */}
         {activeTab === 'rituals' && (
-          <div className="space-y-4">
-            <h2 className="text-lg font-black font-cairo text-amber-300">عداد ودليل مناسك العمرة التفاعلي</h2>
+          <div className="luxury-card-static p-6 space-y-4 animate-fade-up">
+            <h2 className="text-lg font-bold font-cairo text-slate-900">عداد ودليل مناسك العمرة</h2>
             <UmrahCounter />
           </div>
         )}
 
-        {/* 5. Chat Module Tab */}
         {activeTab === 'chat' && (
-          <div className="space-y-4">
-            <h2 className="text-lg font-black font-cairo text-amber-300">غرفة المحادثة والتواصل الميداني</h2>
+          <div className="animate-fade-up">
             <ChatModule currentUser={currentUser} />
           </div>
         )}
 
-        {/* 6. Pilgrim Reservations Tab */}
-        {activeTab === 'reservations' && (
-          <div className="space-y-4">
-            <h2 className="text-lg font-black font-cairo text-amber-300">قائمة الحجوزات النشطة</h2>
+        {activeTab === 'reservations' && currentUser.role === 'pilgrim' && (
+          <div className="space-y-4 animate-fade-up">
+            <h2 className="text-lg font-bold font-cairo text-slate-900">قائمة الحجوزات</h2>
             {reservations.map((res) => (
-              <div key={res.reservation_id} className="p-6 rounded-3xl bg-slate-900 border border-white/10 space-y-4">
-                <div className="flex justify-between items-start">
+              <div key={res.reservation_id} className="luxury-card p-6 space-y-4">
+                <div className="flex justify-between items-start gap-3">
                   <div>
-                    <span className="text-xs font-mono font-bold text-amber-400 bg-amber-950/60 px-3 py-1 rounded-lg border border-amber-500/30">
-                      رقم الحجز: {res.reservation_number}
+                    <span className="text-xs font-mono font-bold text-emerald-main bg-emerald-soft px-3 py-1 rounded-lg border border-emerald-main/20">
+                      {res.reservation_number}
                     </span>
-                    <h3 className="font-black text-lg font-cairo text-white mt-2">{res.package_name}</h3>
+                    <h3 className="font-bold text-lg font-cairo text-slate-900 mt-2">{res.package_name}</h3>
                   </div>
-                  <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold border border-emerald-500/40 flex items-center gap-1">
+                  <span className="px-3 py-1 rounded-full bg-emerald-soft text-emerald-main text-xs font-bold border border-emerald-main/20 flex items-center gap-1 shrink-0">
                     <CheckCircle className="w-3.5 h-3.5" /> {res.status}
                   </span>
                 </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4 rounded-2xl bg-slate-950/80 text-xs text-slate-300">
-                  <div>نوع الغرفة: **{res.room_type}**</div>
-                  <div>عدد المعتمرين: **{res.travelers_count}**</div>
-                  <div>المبلغ الإجمالي: **{res.total_amount.toLocaleString()} دج**</div>
-                  <div>حالة الدفع: **{res.payment_status}**</div>
-                </div>
-
-                <div className="flex items-center justify-between pt-2 border-t border-white/5 text-xs text-slate-400">
-                  <span>تاريخ الطلب: {new Date(res.created_at).toLocaleDateString('ar-DZ')}</span>
-                  <span className="text-emerald-400 font-bold">● تم تأكيد المقعد واستخراج التأشيرة</span>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4 rounded-xl bg-slate-50 text-xs text-slate-600 border border-slate-100">
+                  <div>الغرفة: <strong>{res.room_type}</strong></div>
+                  <div>المعتمرون: <strong>{res.travelers_count}</strong></div>
+                  <div>المبلغ: <strong>{res.total_amount.toLocaleString()} دج</strong></div>
+                  <div>الدفع: <strong>{res.payment_status}</strong></div>
                 </div>
               </div>
             ))}
           </div>
         )}
 
-        {/* 7. Pilgrim Documents Tab */}
-        {activeTab === 'documents' && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-lg font-black font-cairo text-amber-300">ملف الوثائق البيومترية</h2>
-
-              <label className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-2 cursor-pointer transition-colors">
-                <Upload className="w-4 h-4" /> {isUploading ? 'جاري التحميل...' : 'رفع جواز سفر جديد'}
+        {activeTab === 'documents' && currentUser.role === 'pilgrim' && (
+          <div className="space-y-6 animate-fade-up">
+            <div className="flex justify-between items-center flex-wrap gap-3">
+              <h2 className="text-lg font-bold font-cairo text-slate-900">ملف الوثائق</h2>
+              <label className="btn-pro-primary text-xs py-2.5 px-4 cursor-pointer">
+                <Upload className="w-4 h-4" /> {isUploading ? 'جاري التحميل...' : 'رفع جواز سفر'}
                 <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={handleDocumentUpload} className="hidden" />
               </label>
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {documents.map((doc) => (
-                <div key={doc.document_id} className="p-5 rounded-2xl bg-slate-900 border border-white/10 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
+                <div key={doc.document_id} className="luxury-card p-5 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-soft text-emerald-main flex items-center justify-center shrink-0">
                       <FileText className="w-5 h-5" />
                     </div>
-                    <div>
-                      <p className="font-bold text-xs text-white">{doc.file_name}</p>
-                      <p className="text-[10px] text-slate-400">{doc.document_type} | مرفوع بتاريخ {new Date(doc.uploaded_at).toLocaleDateString('ar-DZ')}</p>
+                    <div className="min-w-0">
+                      <p className="font-bold text-xs text-slate-800 truncate">{doc.file_name}</p>
+                      <p className="text-[10px] text-slate-500">{doc.document_type}</p>
                     </div>
                   </div>
-
-                  <span
-                    className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${
-                      doc.status === 'VERIFIED'
-                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                        : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                    }`}
-                  >
-                    {doc.status === 'VERIFIED' ? 'مؤكد ومفحوص' : 'قيد المراجعة'}
+                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border shrink-0 ${
+                    doc.status === 'VERIFIED'
+                      ? 'bg-emerald-soft text-emerald-main border-emerald-main/20'
+                      : 'bg-amber-50 text-amber-700 border-amber-200'
+                  }`}>
+                    {doc.status === 'VERIFIED' ? 'مؤكد' : 'قيد المراجعة'}
                   </span>
                 </div>
               ))}
@@ -498,20 +439,33 @@ function CustomerPortalContent() {
           </div>
         )}
 
-        {/* 8. Payments & Receipts Tab */}
-        {activeTab === 'payments' && (
-          <div className="space-y-4">
-            <h2 className="text-lg font-black font-cairo text-amber-300">وصولات وخصومات التحويل CCP</h2>
+        {activeTab === 'security' && (
+          <AccountSecurityPanel />
+        )}
+
+        {activeTab === 'reviews' && currentUser.role === 'pilgrim' && (
+          <div className="luxury-card p-6 space-y-4 animate-fade-up">
+            <h2 className="text-lg font-bold font-cairo text-slate-900">قيّم رحلتك مع الوكالة</h2>
+            <p className="text-xs text-slate-500">
+              تقييمك يذهب أولاً إلى الإدارة. بعد الموافقة يظهر للزوار كنجوم وشهادة — مثل تطبيقات التقييم الكبيرة.
+            </p>
+            <ReviewComposer defaultName={currentUser.name} />
+          </div>
+        )}
+
+        {activeTab === 'payments' && currentUser.role === 'pilgrim' && (
+          <div className="space-y-4 animate-fade-up">
+            <h2 className="text-lg font-bold font-cairo text-slate-900">وصولات الدفع</h2>
             {receipts.map((rcp) => (
-              <div key={rcp.id} className="p-5 rounded-2xl bg-slate-900 border border-white/10 flex justify-between items-center">
+              <div key={rcp.id} className="luxury-card p-5 flex justify-between items-center gap-4">
                 <div>
-                  <span className="text-xs font-mono font-bold text-indigo-400">{rcp.id}</span>
-                  <h4 className="font-bold text-sm text-white mt-1">{rcp.packageName}</h4>
-                  <p className="text-xs text-slate-400">طريقة الدفع: {rcp.paymentMethod} | المحاسب: {rcp.accountantName}</p>
+                  <span className="text-xs font-mono font-bold text-emerald-main">{rcp.id}</span>
+                  <h4 className="font-bold text-sm text-slate-900 mt-1">{rcp.packageName}</h4>
+                  <p className="text-xs text-slate-500">{rcp.paymentMethod}</p>
                 </div>
-                <div className="text-left">
-                  <span className="text-lg font-black text-amber-300 font-cairo block">{rcp.totalAmount.toLocaleString()} دج</span>
-                  <span className="text-[10px] text-emerald-400 font-bold">{rcp.status}</span>
+                <div className="text-left shrink-0">
+                  <span className="text-lg font-bold text-emerald-main font-cairo block">{rcp.totalAmount.toLocaleString()} دج</span>
+                  <span className="text-[10px] text-slate-500 font-medium">{rcp.status}</span>
                 </div>
               </div>
             ))}
@@ -526,7 +480,7 @@ function CustomerPortalContent() {
 
 export default function CustomerPortalPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-slate-950" />}>
+    <Suspense fallback={<div className="min-h-screen portal-shell flex items-center justify-center text-slate-500">جاري التحميل...</div>}>
       <CustomerPortalContent />
     </Suspense>
   );

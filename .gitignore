@@ -31,6 +31,13 @@ Thumbs.db
 *key*.txt
 *GROQ*.txt
 *groq*.txt
+
+# Google OAuth credentials downloaded from Cloud Console — never commit.
+# The app only needs the public client ID (NEXT_PUBLIC_GOOGLE_CLIENT_ID).
+client_secret*.json
+*.apps.googleusercontent.com.json
+google_auth.txt
+google_auth_image.png
 test_gemini.js
 test_sakhr_endpoint.js
 gemini_api_debug.log

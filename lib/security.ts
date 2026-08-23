@@ -1,64 +1,62 @@
 import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
+import { encryptValue, decryptValue, lookupHash } from './db-crypto';
 
-const ENCRYPTION_SECRET = process.env.DB_ENCRYPTION_SECRET || 'SouthStreet-AES-256-SuperSecretKey-2026!';
+const BCRYPT_ROUNDS = 12;
+const LEGACY_SALT = 'SouthStreetSalt2026';
 
-// 1. Password Hashing (SHA-256 with Salt)
-export function hashPassword(password: string, salt: string = 'SouthStreetSalt2026'): string {
-  const hash = crypto.createHmac('sha256', salt).update(password).digest('hex');
-  return hash;
+export function hashPassword(password: string): string {
+  return bcrypt.hashSync(password, BCRYPT_ROUNDS);
 }
 
-// 2. AES-256 Data Encryption
+export function hashPasswordLegacy(password: string, salt: string = LEGACY_SALT): string {
+  return crypto.createHmac('sha256', salt).update(password).digest('hex');
+}
+
+export function verifyPassword(password: string, storedHash: string | undefined | null): boolean {
+  if (!password || !storedHash) return false;
+  if (storedHash.startsWith('$2a$') || storedHash.startsWith('$2b$') || storedHash.startsWith('$2y$')) {
+    return bcrypt.compareSync(password, storedHash);
+  }
+  return storedHash === hashPasswordLegacy(password);
+}
+
+export function needsPasswordRehash(storedHash: string | undefined | null): boolean {
+  if (!storedHash) return true;
+  return !(storedHash.startsWith('$2a$') || storedHash.startsWith('$2b$') || storedHash.startsWith('$2y$'));
+}
+
 export function encryptData(plainText: string): string {
-  try {
-    const key = crypto.scryptSync(ENCRYPTION_SECRET, 'salt', 32);
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
-    let encrypted = cipher.update(plainText, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    return iv.toString('hex') + ':' + encrypted;
-  } catch (e) {
-    return plainText; // Fallback
-  }
+  return encryptValue(plainText);
 }
 
-// 3. AES-256 Data Decryption
 export function decryptData(encryptedText: string): string {
-  try {
-    const parts = encryptedText.split(':');
-    if (parts.length !== 2) return encryptedText;
-    const iv = Buffer.from(parts[0], 'hex');
-    const encrypted = parts[1];
-    const key = crypto.scryptSync(ENCRYPTION_SECRET, 'salt', 32);
-    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
-    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    return decrypted;
-  } catch (e) {
-    return encryptedText;
-  }
+  return decryptValue(encryptedText);
 }
 
-// 4. Generate Device & PC Hardware Fingerprint (IP + Client Signatures)
-export function generateDeviceFingerprint(ip: string, userAgent: string, acceptLang: string = ''): { fingerprint: string; pcPrint: string } {
+export function generateDeviceFingerprint(
+  ip: string,
+  userAgent: string,
+  acceptLang: string = ''
+): { fingerprint: string; pcPrint: string } {
   const rawString = `${ip}-${userAgent}-${acceptLang}`;
   const hash = crypto.createHash('sha256').update(rawString).digest('hex').toUpperCase();
   const pcPrint = `FP-${hash.substring(0, 4)}-${hash.substring(4, 8)}-${hash.substring(8, 12)}`;
-  return {
-    fingerprint: hash,
-    pcPrint
-  };
+  return { fingerprint: hash, pcPrint };
 }
 
-// 5. Generate Admin Security Key (Strong Cryptographic Key Block)
 export function generateNewSecurityKey(): { keyString: string; fileContent: string } {
   const randomBytes = crypto.randomBytes(32).toString('hex').toUpperCase();
   const keyId = `SOUTHSTREET-KEY-v1-${randomBytes.substring(0, 16)}`;
-  const signature = crypto.createHash('sha256').update(keyId + ENCRYPTION_SECRET).digest('hex').toUpperCase();
+  const signature = crypto
+    .createHmac('sha256', process.env.DB_ENCRYPTION_SECRET || 'SouthStreet-AES-256-SuperSecretKey-2026!')
+    .update(keyId)
+    .digest('hex')
+    .toUpperCase();
 
   const fileContent = `-----BEGIN SOUTHSTREET SECURITY KEY BLOCK-----
 Key-Id: ${keyId}
-Algorithm: AES-256-CBC + SHA256-HMAC
+Algorithm: AES-256-GCM + HMAC-SHA256
 Signature: ${signature}
 Issued-To: admin@southstreet.dz
 Security-Level: HIGH-SECURITY-ADMIN-2FA
@@ -67,3 +65,5 @@ Created-At: ${new Date().toISOString()}
 
   return { keyString: keyId, fileContent };
 }
+
+export { lookupHash };

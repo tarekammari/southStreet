@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSqliteDb } from '@/lib/sqlite';
 import { getDatabase, saveDatabase, AiKnowledgeRule } from '@/lib/db';
+import { getColumnLabelAr } from '@/lib/table-column-labels';
 
 const ALLOWED_TABLES: Record<string, string> = {
   packages: 'باقات العمرة والحج',
@@ -13,7 +14,8 @@ const ALLOWED_TABLES: Record<string, string> = {
   receipts: 'سندات القبض الرقمية',
   audit_logs: 'سجل تدقيق الأمان',
   agency_settings: 'إعدادات الوكالة',
-  page_content: 'محتوى صفحات التطبيق'
+  page_content: 'محتوى صفحات التطبيق',
+  reviews: 'تقييمات المعتمرين',
 };
 
 export async function GET(req: Request) {
@@ -47,7 +49,10 @@ export async function GET(req: Request) {
     const columns = (db.prepare(`PRAGMA table_info(${tableName})`).all() as any[]).map(c => ({
       name: c.name,
       type: c.type,
-      pk: Boolean(c.pk)
+      pk: Boolean(c.pk),
+      notnull: Boolean(c.notnull),
+      hasDefault: c.dflt_value !== null && c.dflt_value !== undefined,
+      labelAr: getColumnLabelAr(c.name)
     }));
 
     const rows = db.prepare(`SELECT * FROM ${tableName} ORDER BY 1 DESC LIMIT 150`).all() as any[];
@@ -56,6 +61,10 @@ export async function GET(req: Request) {
     const parsedRows = rows.map(r => {
       const obj = { ...r };
       for (const [key, val] of Object.entries(obj)) {
+        if (key.endsWith('Hash') || key === 'passwordHash' || key === 'qrSecretHash') {
+          obj[key] = val ? '••••••••' : '';
+          continue;
+        }
         if (typeof val === 'string' && (val.startsWith('[') || val.startsWith('{'))) {
           try { obj[key] = JSON.parse(val); } catch {}
         }
@@ -143,11 +152,143 @@ export async function POST(req: Request) {
       const sql = `INSERT INTO ${tableName} (${keys.join(', ')}) VALUES (${placeholders})`;
       sqliteDb.prepare(sql).run(...values);
 
+      let extra: Record<string, unknown> = {};
+      if (tableName === 'morshids') {
+        const staffId = rowData.morshid_id;
+        if (staffId) {
+          const staff = sqliteDb.prepare('SELECT * FROM morshids WHERE morshid_id = ?').get(staffId) as any;
+          if (staff) {
+            const { ensureStaffLogin } = require('@/lib/accounts') as typeof import('@/lib/accounts');
+            extra.login = ensureStaffLogin(staff);
+          }
+        }
+      }
+
       return NextResponse.json({
         success: true,
-        message: `✅ تم إضافة السطر الجديد بنجاح في جدول [${ALLOWED_TABLES[tableName]}]!`,
+        message: `✅ تم إضافة السجل الجديد بنجاح في جدول [${ALLOWED_TABLES[tableName]}]!`,
         tableName,
-        rowData
+        rowData,
+        ...extra,
+      });
+    }
+
+    // Action 3: Update an existing row (identified by its primary key)
+    if (action === 'update_data' && tableName) {
+      if (!ALLOWED_TABLES[tableName]) {
+        return NextResponse.json({ error: 'الجدول غير صالح للتعديل' }, { status: 400 });
+      }
+      if (!rowData || typeof rowData !== 'object') {
+        return NextResponse.json({ error: 'بيانات السطر غير صالحة' }, { status: 400 });
+      }
+
+      const tableColumns = (sqliteDb.prepare(`PRAGMA table_info(${tableName})`).all() as any[]);
+      const pkColumn = tableColumns.find(c => c.pk);
+      const keyColumn: string = body.keyColumn || pkColumn?.name;
+      const keyValue = body.keyValue;
+
+      if (!keyColumn || keyValue === undefined || keyValue === null) {
+        return NextResponse.json({ error: 'تعذر تحديد السطر المطلوب تعديله' }, { status: 400 });
+      }
+      if (!tableColumns.some(c => c.name === keyColumn)) {
+        return NextResponse.json({ error: 'عمود المعرّف غير صالح' }, { status: 400 });
+      }
+
+      const validNames = new Set(tableColumns.map(c => c.name));
+      const keys = Object.keys(rowData).filter(k => validNames.has(k) && k !== keyColumn);
+
+      if (keys.length === 0) {
+        return NextResponse.json({ error: 'لا توجد حقول قابلة للتعديل' }, { status: 400 });
+      }
+
+      const assignments = keys.map(k => `${k} = ?`).join(', ');
+      const values = keys.map(k => {
+        const v = rowData[k];
+        return (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v;
+      });
+
+      const info = sqliteDb
+        .prepare(`UPDATE ${tableName} SET ${assignments} WHERE ${keyColumn} = ?`)
+        .run(...values, keyValue);
+
+      if (info.changes === 0) {
+        return NextResponse.json({ error: 'لم يتم العثور على السطر المطلوب' }, { status: 404 });
+      }
+
+      let extra: Record<string, unknown> = {};
+      if (tableName === 'morshids') {
+        const staff = sqliteDb.prepare('SELECT * FROM morshids WHERE morshid_id = ?').get(keyValue) as any;
+        if (staff) {
+          const { ensureStaffLogin } = require('@/lib/accounts') as typeof import('@/lib/accounts');
+          extra.login = ensureStaffLogin(staff);
+        }
+      }
+      if (tableName === 'users') {
+        const { lookupHash } = require('@/lib/db-crypto') as typeof import('@/lib/db-crypto');
+        const { ensureUserAccount } = require('@/lib/accounts') as typeof import('@/lib/accounts');
+        const user = sqliteDb.prepare('SELECT * FROM users WHERE id = ?').get(keyValue) as any;
+        if (user) {
+          extra.login = ensureUserAccount({
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            username: user.username,
+            role: user.role,
+            roleName: user.roleName,
+            phone: user.phone,
+            staffId: user.staffId,
+            issueSecrets: false,
+          });
+          if (rowData.email || rowData.username || rowData.code) {
+            sqliteDb.prepare('UPDATE users SET emailHash = ?, usernameHash = ?, codeHash = ? WHERE id = ?').run(
+              user.email ? lookupHash(user.email) : '',
+              user.username ? lookupHash(user.username) : '',
+              user.code ? lookupHash(user.code) : '',
+              user.id
+            );
+          }
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `✅ تم حفظ التعديلات على [${ALLOWED_TABLES[tableName]}] بنجاح!`,
+        tableName,
+        updatedFields: keys.length,
+        ...extra,
+      });
+    }
+
+    // Action 4: Delete a row (identified by its primary key)
+    if (action === 'delete_data' && tableName) {
+      if (!ALLOWED_TABLES[tableName]) {
+        return NextResponse.json({ error: 'الجدول غير صالح للحذف' }, { status: 400 });
+      }
+
+      const tableColumns = (sqliteDb.prepare(`PRAGMA table_info(${tableName})`).all() as any[]);
+      const pkColumn = tableColumns.find(c => c.pk);
+      const keyColumn: string = body.keyColumn || pkColumn?.name;
+      const keyValue = body.keyValue;
+
+      if (!keyColumn || keyValue === undefined || keyValue === null) {
+        return NextResponse.json({ error: 'تعذر تحديد السطر المطلوب حذفه' }, { status: 400 });
+      }
+      if (!tableColumns.some(c => c.name === keyColumn)) {
+        return NextResponse.json({ error: 'عمود المعرّف غير صالح' }, { status: 400 });
+      }
+
+      const info = sqliteDb
+        .prepare(`DELETE FROM ${tableName} WHERE ${keyColumn} = ?`)
+        .run(keyValue);
+
+      if (info.changes === 0) {
+        return NextResponse.json({ error: 'لم يتم العثور على السطر المطلوب' }, { status: 404 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `تم حذف السطر من [${ALLOWED_TABLES[tableName]}] بنجاح`,
+        tableName
       });
     }
 

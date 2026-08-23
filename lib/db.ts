@@ -1,5 +1,4 @@
 import { getSqliteDb } from './sqlite';
-import { hashPassword } from './security';
 import {
   User, Message, Receipt, AuditLog, UserRole,
   AgencySettings, Season, Hotel, Flight, Morshid, Package, Reservation,
@@ -10,13 +9,23 @@ export interface UserAccount {
   id: string;
   name: string;
   email: string;
+  username?: string;
   passwordHash: string;
-  role: 'SUPER_ADMIN' | 'AGENCY_MANAGER' | 'AGENCY_AGENT' | 'PILGRIM_USER';
-  status: 'APPROVED' | 'PENDING_APPROVAL' | 'REJECTED' | 'SUSPENDED';
+  role: string;
+  roleName?: string;
+  status: 'APPROVED' | 'PENDING_APPROVAL' | 'REJECTED' | 'SUSPENDED' | string;
   createdAt: string;
-  lastLoginIp?: string;
+    lastLoginIp?: string;
   pcFingerprint?: string;
   requiresFileKey?: boolean;
+  staffId?: string;
+  loginEnabled?: boolean;
+  phone?: string;
+  code?: string;
+  usernameHash?: string;
+  emailHash?: string;
+  codeHash?: string;
+  qrSecretHash?: string;
 }
 
 export interface ActiveSession {
@@ -93,25 +102,37 @@ export function getDatabase(): DatabaseSchema {
     id: u.id,
     name: u.name,
     email: u.email,
+    username: u.username,
     passwordHash: u.passwordHash,
     role: u.role,
+    roleName: u.roleName,
     status: u.status,
     createdAt: u.createdAt,
     lastLoginIp: u.lastLoginIp,
     pcFingerprint: u.pcFingerprint,
-    requiresFileKey: Boolean(u.requiresFileKey)
+    requiresFileKey: Boolean(u.requiresFileKey),
+    staffId: u.staffId,
+    loginEnabled: u.loginEnabled !== 0,
+    phone: u.phone,
+    code: u.code,
+    usernameHash: u.usernameHash,
+    emailHash: u.emailHash,
+    codeHash: u.codeHash,
+    qrSecretHash: u.qrSecretHash,
   }));
 
   const appUsers: User[] = userRows.map(u => ({
     id: u.id,
-    code: u.code || u.id,
+    code: u.code || u.username || u.id,
     name: u.name,
-    role: (u.role === 'SUPER_ADMIN' ? 'admin' : u.role === 'AGENCY_MANAGER' ? 'manager' : u.role === 'PILGRIM_USER' ? 'pilgrim' : u.roleName?.includes('محاسب') ? 'accountant' : 'murshid') as UserRole,
+    role: u.role,
     roleName: u.roleName || u.role,
+    email: u.email,
     phone: u.phone || '',
-    avatar: u.avatar || u.name.charAt(0),
+    avatar: u.avatar || (u.name ? u.name.charAt(0) : 'م'),
     room: u.room,
-    status: u.status === 'APPROVED' ? 'نشط' : 'معطل'
+    status: u.status === 'APPROVED' ? 'نشط' : u.status || 'معطل',
+    username: u.username,
   }));
 
   // Load Sessions
@@ -253,7 +274,7 @@ export function getDatabase(): DatabaseSchema {
   const auditLogs = db.prepare('SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT 200').all() as AuditLog[];
 
   return {
-    securityKey: DEFAULT_SECURITY_KEY,
+    securityKey: agencyRow?.security_key || DEFAULT_SECURITY_KEY,
     users,
     sessions,
     accessRequests,
@@ -281,28 +302,39 @@ export function saveDatabase(dbSchema: DatabaseSchema): void {
   // Persist Users
   if (dbSchema.users) {
     const upsertUser = db.prepare(`
-      INSERT OR REPLACE INTO users (id, code, name, email, passwordHash, role, roleName, status, phone, avatar, room, createdAt, lastLoginIp, pcFingerprint, requiresFileKey)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT OR REPLACE INTO users (
+        id, code, name, email, username, passwordHash, role, roleName, status, phone, avatar, room,
+        createdAt, lastLoginIp, pcFingerprint, requiresFileKey, staffId, loginEnabled,
+        usernameHash, emailHash, codeHash, qrSecretHash
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     db.transaction(() => {
       for (const u of dbSchema.users) {
         upsertUser.run(
           u.id,
-          (u as any).code || u.id,
+          u.code || u.id,
           u.name,
           u.email,
+          u.username || '',
           u.passwordHash,
           u.role,
-          (u as any).roleName || u.role || 'ROLE',
+          u.roleName || u.role || 'ROLE',
           u.status || 'APPROVED',
-          (u as any).phone || '',
+          u.phone || '',
           (u as any).avatar || (u.name ? u.name.charAt(0) : 'ع'),
           (u as any).room || '',
           u.createdAt || new Date().toISOString(),
           u.lastLoginIp || '',
           u.pcFingerprint || '',
-          u.requiresFileKey ? 1 : 0
+          u.requiresFileKey ? 1 : 0,
+          u.staffId || '',
+          u.loginEnabled === false ? 0 : 1,
+          u.usernameHash || '',
+          u.emailHash || '',
+          u.codeHash || '',
+          u.qrSecretHash || ''
         );
       }
     })();
@@ -362,6 +394,14 @@ export function saveDatabase(dbSchema: DatabaseSchema): void {
       }
     })();
   }
+
+  if (dbSchema.securityKey) {
+    try {
+      db.prepare("UPDATE agency_settings SET security_key = ? WHERE id = 'main'").run(dbSchema.securityKey);
+    } catch {
+      /* column may not exist yet */
+    }
+  }
 }
 
 export function dbGetAgencySettings(): AgencySettings {
@@ -380,9 +420,27 @@ export function dbGetUsers(): User[] {
 }
 
 export function dbFindUserByCode(code: string): User | null {
+  const { lookupHash } = require('./db-crypto') as typeof import('./db-crypto');
+  const db = getSqliteDb();
+  const clean = (code || '').trim();
+  if (!clean) return null;
+  const row = db.prepare('SELECT * FROM users WHERE codeHash = ? OR code = ?').get(lookupHash(clean), clean.toUpperCase()) as any;
+  if (row) {
+    return {
+      id: row.id,
+      code: row.code || row.username || row.id,
+      name: row.name,
+      role: row.role,
+      roleName: row.roleName || row.role,
+      email: row.email,
+      phone: row.phone || '',
+      avatar: row.avatar || (row.name ? row.name.charAt(0) : 'م'),
+      username: row.username,
+    };
+  }
   const users = dbGetUsers();
-  const cleanCode = (code || '').trim().toUpperCase();
-  return users.find(u => u.code.toUpperCase() === cleanCode) || null;
+  const cleanCode = clean.toUpperCase();
+  return users.find(u => (u.code || '').toUpperCase() === cleanCode) || null;
 }
 
 export function dbCreateUser(userData: {
@@ -391,34 +449,31 @@ export function dbCreateUser(userData: {
   roleName: string;
   phone?: string;
   code: string;
+  email?: string;
+  username?: string;
+  password?: string;
 }): User {
-  const db = getSqliteDb();
-  const id = `usr_${Date.now()}`;
-  db.prepare(`
-    INSERT INTO users (id, code, name, email, passwordHash, role, roleName, status, phone, avatar, createdAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    id,
-    userData.code,
-    userData.name,
-    `${userData.code.toLowerCase()}@southstreet.dz`,
-    hashPassword('Pass@2026!'),
-    userData.role === 'admin' ? 'SUPER_ADMIN' : userData.role === 'manager' ? 'AGENCY_MANAGER' : userData.role === 'pilgrim' ? 'PILGRIM_USER' : 'AGENCY_AGENT',
-    userData.roleName || userData.role,
-    'APPROVED',
-    userData.phone || '',
-    userData.name ? userData.name.charAt(0) : 'م',
-    new Date().toISOString()
-  );
-
-  return {
-    id,
-    code: userData.code,
+  const { ensureUserAccount } = require('./accounts') as typeof import('./accounts');
+  const issued = ensureUserAccount({
     name: userData.name,
     role: userData.role,
-    roleName: userData.roleName || userData.role,
+    roleName: userData.roleName,
+    phone: userData.phone,
+    email: userData.email,
+    username: userData.username || userData.code,
+    password: userData.password,
+  });
+
+  return {
+    id: issued.userId,
+    code: userData.code || issued.username,
+    name: issued.name,
+    role: issued.role as UserRole,
+    roleName: issued.roleName,
     phone: userData.phone || '',
-    avatar: userData.name ? userData.name.charAt(0) : 'م',
+    avatar: issued.name ? issued.name.charAt(0) : 'م',
+    email: issued.email,
+    username: issued.username,
     status: 'نشط'
   };
 }
@@ -435,7 +490,6 @@ export function dbLogAudit(
   details: string,
   ip: string = ''
 ): AuditLog {
-  const db = getSqliteDb();
   const log: AuditLog = {
     id: `audit_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
     timestamp: new Date().toISOString(),
@@ -446,10 +500,32 @@ export function dbLogAudit(
     ip: ip || '127.0.0.1'
   };
 
-  db.prepare(`
-    INSERT INTO audit_logs (id, timestamp, actorName, actorRole, action, details, ip)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(log.id, log.timestamp, log.actorName, log.actorRole, log.action, log.details, log.ip);
+  try {
+    const db = getSqliteDb();
+    const cols = new Set(
+      (db.prepare('PRAGMA table_info(audit_logs)').all() as { name: string }[]).map((c) => c.name)
+    );
+    const payload: Record<string, unknown> = { id: log.id };
+    const put = (camel: string, snake: string, value: unknown) => {
+      if (cols.has(camel)) payload[camel] = value;
+      else if (cols.has(snake)) payload[snake] = value;
+    };
+    put('timestamp', 'timestamp', log.timestamp);
+    put('actorName', 'actor_name', log.actorName);
+    put('actorRole', 'actor_role', log.actorRole);
+    put('action', 'action', log.action);
+    put('details', 'details', log.details);
+    put('ip', 'ip', log.ip);
+    if (cols.has('actor_id') && payload.actor_id === undefined) payload.actor_id = 'SYSTEM';
+
+    const keys = Object.keys(payload);
+    if (keys.length > 1) {
+      db.prepare(`INSERT INTO audit_logs (${keys.join(', ')}) VALUES (${keys.map(() => '?').join(', ')})`)
+        .run(...keys.map((k) => payload[k]));
+    }
+  } catch (err) {
+    console.warn('[Audit log skipped]:', err);
+  }
 
   return log;
 }
@@ -487,6 +563,18 @@ export function dbSaveMessage(msg: Message): Message {
   );
 
   return savedMsg;
+}
+
+export function dbGetAppUsers(): User[] {
+  return getDatabase().appUsers || [];
+}
+
+export function dbGetLastMessageForChat(chatId: string): { text: string; time: string; senderId: string } | null {
+  const db = getSqliteDb();
+  const row = db.prepare(
+    'SELECT text, time, senderId FROM messages WHERE chatId = ? ORDER BY rowid DESC LIMIT 1'
+  ).get(chatId) as any;
+  return row || null;
 }
 
 export function dbGetReceipts(): Receipt[] {

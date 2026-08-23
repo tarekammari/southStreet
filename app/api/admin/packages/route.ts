@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getSqliteDb } from '@/lib/sqlite';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET() {
   try {
     const db = getSqliteDb();
@@ -16,7 +19,9 @@ export async function GET() {
       prices: priceRows.filter(pr => pr.package_id === p.package_id)
     }));
 
-    return NextResponse.json(packages);
+    return NextResponse.json(packages, {
+      headers: { 'Cache-Control': 'no-store, max-age=0' },
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

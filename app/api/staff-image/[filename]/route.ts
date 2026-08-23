@@ -2,6 +2,39 @@ import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 
+/**
+ * Mirroring images/ -> public/images/ only needs to happen once per process.
+ * Doing it per request made every card image pay for a full directory scan.
+ */
+let mirrored = false;
+function mirrorImagesOnce() {
+  if (mirrored) return;
+  mirrored = true;
+  try {
+    const srcDir = path.join(process.cwd(), 'images');
+    const publicDir = path.join(process.cwd(), 'public', 'images');
+    if (!fs.existsSync(srcDir)) return;
+    if (!fs.existsSync(publicDir)) fs.mkdirSync(publicDir, { recursive: true });
+    for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
+      if (!entry.isFile()) continue;
+      const dest = path.join(publicDir, entry.name);
+      if (fs.existsSync(dest)) continue;
+      try { fs.copyFileSync(path.join(srcDir, entry.name), dest); } catch {}
+    }
+  } catch {}
+}
+
+const CONTENT_TYPES: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.svg': 'image/svg+xml',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+};
+
+const resolvedPaths = new Map<string, string>();
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ filename: string }> }
@@ -9,47 +42,29 @@ export async function GET(
   const resolvedParams = await params;
   const filename = resolvedParams?.filename;
 
-  if (!filename || filename.includes('..')) {
+  if (!filename || filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
     return new NextResponse('Invalid filename', { status: 400 });
   }
 
-  // Copy all files from root images/ to public/images/ automatically
-  try {
-    const srcDir = path.join(process.cwd(), 'images');
-    const publicDir = path.join(process.cwd(), 'public', 'images');
-    if (fs.existsSync(srcDir)) {
-      if (!fs.existsSync(publicDir)) fs.mkdirSync(publicDir, { recursive: true });
-      const files = fs.readdirSync(srcDir);
-      for (const f of files) {
-        const s = path.join(srcDir, f);
-        const d = path.join(publicDir, f);
-        if (fs.statSync(s).isFile() && !fs.existsSync(d)) {
-          try { fs.copyFileSync(s, d); } catch (_) {}
-        }
-      }
-    }
-  } catch (_) {}
+  mirrorImagesOnce();
 
-  const srcPath = path.join(process.cwd(), 'images', filename);
-  const publicPath = path.join(process.cwd(), 'public', 'images', filename);
-
-  let targetPath = '';
-  if (fs.existsSync(srcPath)) {
-    targetPath = srcPath;
-  } else if (fs.existsSync(publicPath)) {
-    targetPath = publicPath;
-  } else {
-    return new NextResponse('File not found', { status: 404 });
+  let targetPath = resolvedPaths.get(filename) || '';
+  if (!targetPath) {
+    const candidates = [
+      path.join(process.cwd(), 'images', filename),
+      path.join(process.cwd(), 'public', 'images', filename),
+      path.join(process.cwd(), 'images', 'uploads', filename),
+      path.join(process.cwd(), 'public', 'images', 'uploads', filename),
+    ];
+    targetPath = candidates.find((p) => fs.existsSync(p)) || '';
+    if (!targetPath) return new NextResponse('File not found', { status: 404 });
+    resolvedPaths.set(filename, targetPath);
   }
 
-  const fileBuffer = fs.readFileSync(targetPath);
-  const ext = path.extname(filename).toLowerCase();
-  let contentType = 'image/png';
-  if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
-  else if (ext === '.svg') contentType = 'image/svg+xml';
-  else if (ext === '.webp') contentType = 'image/webp';
+  const fileBuffer = await fs.promises.readFile(targetPath);
+  const contentType = CONTENT_TYPES[path.extname(filename).toLowerCase()] || 'image/png';
 
-  return new NextResponse(fileBuffer, {
+  return new NextResponse(new Uint8Array(fileBuffer), {
     headers: {
       'Content-Type': contentType,
       'Cache-Control': 'public, max-age=31536000, immutable',

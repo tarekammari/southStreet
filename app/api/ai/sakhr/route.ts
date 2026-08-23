@@ -565,7 +565,7 @@ function detectAdminDbToolsIntent(prompt: string): { text: string; cards: AiCard
           {
             type: 'table_selector_prompt',
             data: {
-              title: 'اختيار جدول البيانات لإضافة سطر جديد',
+              title: 'اختيار جدول البيانات لإضافة جديد',
               options: [
                 { name: 'packages', label: '📦 باقات العمرة والحج' },
                 { name: 'hotels', label: '🏨 الفنادق المعتمدة' },

@@ -9,6 +9,8 @@ export interface JwtPayload {
   name: string;
   role: UserRole;
   roleName: string;
+  username?: string;
+  email?: string;
 }
 
 export function signToken(user: User): string {
@@ -18,6 +20,8 @@ export function signToken(user: User): string {
       name: user.name,
       role: user.role,
       roleName: user.roleName,
+      username: user.username,
+      email: user.email,
     },
     JWT_SECRET,
     { expiresIn: JWT_EXPIRES_IN, issuer: 'south-street' }

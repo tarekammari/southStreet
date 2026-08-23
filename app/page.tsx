@@ -6,8 +6,9 @@ import HeroSection from '@/components/HeroSection';
 import AgencySection from '@/components/AgencySection';
 import PromoBillboard from '@/components/PromoBillboard';
 import AboutSection from '@/components/AboutSection';
+import TestimonialsSection from '@/components/TestimonialsSection';
 import TravelProgramsSection from '@/components/TravelProgramsSection';
-import SakhrAgent from '@/components/SakhrAgent';
+import SakhrAgent from '@/components/lazy/LazySakhrAgent';
 import Footer from '@/components/Footer';
 import { User } from '@/types';
 
@@ -35,7 +36,7 @@ export default function HomePage() {
 
   return (
     <div className="page-shell min-h-screen bg-slate-app">
-      <Navbar currentUser={currentUser} onLogout={handleLogout} onSelectRole={restoreUser} />
+      <Navbar currentUser={currentUser} onLogout={handleLogout} onSelectRole={restoreUser} variant="light" />
       <main className="page-main relative overflow-hidden pb-6">
         <section id="hero-section" className="relative z-10 w-full px-3 sm:px-6 pt-4">
           <HeroSection />
@@ -47,6 +48,7 @@ export default function HomePage() {
           <PromoBillboard />
         </section>
         <AboutSection />
+        <TestimonialsSection />
         <TravelProgramsSection />
         <SakhrAgent />
       </main>

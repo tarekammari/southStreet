@@ -1,7 +1,9 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, CalendarDays, CheckCircle2, Clock3, Plane, Sparkles, Compass, ShieldCheck } from 'lucide-react';
+import { fetchJsonList } from '@/lib/fetch-json';
 
 type Program = {
   id: string;
@@ -14,48 +16,57 @@ type Program = {
   badgeText: string;
 };
 
-const programs: Program[] = [
-  {
-    id: 'p1',
-    title: 'عمرة أغسطس المميزة',
-    date: '10 أغسطس 2026',
-    duration: '15 يوماً (مكة والمدينة)',
-    departure: 'رحلة مباشرة عبر الخطوط السعودية',
-    priceTag: 'شامل الإقامة والنقل',
-    state: 'available',
-    badgeText: 'متاح للحجز الآن',
-  },
-  {
-    id: 'p2',
-    title: 'عمرة المولد النبوي الشريف',
-    date: '15 أغسطس 2026',
-    duration: '15 يوماً (فنادق 5 نجوم)',
-    departure: 'رحلة مباشرة مع المرشد الفقهي',
-    priceTag: 'شامل المزارات والإرشاد',
-    state: 'available',
-    badgeText: 'متاح للحجز الآن',
-  },
-  {
-    id: 'p3',
-    title: 'عمرة ربيع الأول المباركة',
-    date: 'سبتمبر 2026',
-    duration: '15 يوماً',
-    departure: 'التسجيل المسبق متاح الآن',
-    state: 'upcoming',
-    badgeText: 'قريباً — افتتح التسجيل',
-  },
-  {
-    id: 'p4',
-    title: 'برنامج حج 2027 المعتمد',
-    date: 'موسم الحج القادم',
-    duration: 'برنامج متكامل مع الإرشاد',
-    departure: 'انضم لقائمة الاهتمام المباشرة',
-    state: 'upcoming',
-    badgeText: 'قريباً — قائمة الاهتمام',
-  },
-];
+function formatDate(value?: string): string {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleDateString('ar-DZ', { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+function lowestPrice(prices: { amount?: number }[] | undefined): string | undefined {
+  if (!Array.isArray(prices) || prices.length === 0) return undefined;
+  const amounts = prices.map((p) => Number(p.amount)).filter((n) => Number.isFinite(n) && n > 0);
+  if (amounts.length === 0) return undefined;
+  return `من ${Math.min(...amounts).toLocaleString('ar-DZ')} دج`;
+}
+
+function isAvailablePackage(pkg: { status?: string; published?: boolean }): boolean {
+  const status = String(pkg.status || '').toUpperCase();
+  if (status === 'UPCOMING' || status === 'DRAFT' || status === 'CLOSED') return false;
+  return pkg.published !== false && (status === 'PUBLISHED' || status === 'OPEN' || status === 'CURRENT' || !status);
+}
 
 export default function TravelProgramsSection() {
+  const [programs, setPrograms] = useState<Program[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchJsonList<any>('/api/admin/packages')
+      .then((data) => {
+        if (cancelled) return;
+        const mapped: Program[] = data.map((pkg: any) => {
+          const available = isAvailablePackage(pkg);
+          return {
+            id: pkg.package_id,
+            title: pkg.name,
+            date: formatDate(pkg.start_date) || pkg.season_name || '',
+            duration: pkg.duration_days ? `${pkg.duration_days} يوماً` : '',
+            departure: [pkg.airline, pkg.departure_city].filter(Boolean).join(' — '),
+            priceTag: lowestPrice(pkg.prices),
+            state: available ? 'available' : 'upcoming',
+            badgeText: available ? 'متاح للحجز الآن' : 'قريباً — افتتح التسجيل',
+          };
+        });
+        setPrograms(mapped);
+      })
+      .catch(() => {
+        if (!cancelled) setPrograms([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const availablePrograms = programs.filter((p) => p.state === 'available');
   const upcomingPrograms = programs.filter((p) => p.state === 'upcoming');
 
@@ -127,7 +138,9 @@ export default function TravelProgramsSection() {
 
               {/* Cards list */}
               <div className="space-y-4">
-                {availablePrograms.map((prog) => (
+                {availablePrograms.length === 0 ? (
+                  <p className="text-sm text-slate-400 text-center py-8">لا توجد باقات متاحة حالياً في الجدول.</p>
+                ) : availablePrograms.map((prog) => (
                   <motion.article
                     key={prog.id}
                     whileHover={{ y: -3 }}
@@ -163,10 +176,10 @@ export default function TravelProgramsSection() {
 
                     <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
                       <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
-                        {prog.priceTag}
+                        {prog.priceTag || 'السعر عند الطلب'}
                       </span>
                       <a
-                        href="#contact"
+                        href="/packages"
                         className="inline-flex items-center gap-1 text-xs font-black text-emerald-700 group-hover:text-emerald-900 transition-colors"
                       >
                         اطلب الحجز المباشر
@@ -201,7 +214,9 @@ export default function TravelProgramsSection() {
 
               {/* Cards list */}
               <div className="space-y-4">
-                {upcomingPrograms.map((prog) => (
+                {upcomingPrograms.length === 0 ? (
+                  <p className="text-sm text-slate-400 text-center py-8">لا توجد رحلات قادمة مسجّلة في الجدول.</p>
+                ) : upcomingPrograms.map((prog) => (
                   <motion.article
                     key={prog.id}
                     whileHover={{ y: -3 }}
@@ -239,7 +254,7 @@ export default function TravelProgramsSection() {
                         الأولوية لأسبقية التسجيل
                       </span>
                       <a
-                        href="#contact"
+                        href="/packages"
                         className="inline-flex items-center gap-1 text-xs font-black text-amber-700 group-hover:text-amber-900 transition-colors"
                       >
                         سجّل اهتمامك

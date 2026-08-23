@@ -1,0 +1,110 @@
+import { NextResponse } from 'next/server';
+import { verifyGoogleIdToken } from '@/lib/google-id-token';
+import {
+  attachGoogleId,
+  findUserByGoogleId,
+  findUserForLogin,
+  queueAccessRequest,
+  registerSelfAccount,
+} from '@/lib/accounts';
+import { generateDeviceFingerprint } from '@/lib/security';
+import { normalizeLoginRole, postLoginPath, LOGIN_ROLE_LABELS } from '@/lib/roles';
+import { signToken } from '@/lib/auth';
+import { getSqliteDb } from '@/lib/sqlite';
+
+export const dynamic = 'force-dynamic';
+
+export async function POST(req: Request) {
+  try {
+    const body = await req.json();
+    const profile = await verifyGoogleIdToken(String(body.idToken || ''));
+
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0] || '127.0.0.1';
+    const userAgent = req.headers.get('user-agent') || '';
+    const { pcPrint } = generateDeviceFingerprint(ip, userAgent, req.headers.get('accept-language') || '');
+
+    let user = findUserByGoogleId(profile.googleId) || findUserForLogin(profile.email);
+
+    if (!user) {
+      const created = registerSelfAccount({
+        name: profile.name,
+        username: profile.email.split('@')[0],
+        password: '',
+        email: profile.email,
+        googleId: profile.googleId,
+        ip,
+        pcPrint,
+        userAgent,
+      });
+      return NextResponse.json({
+        status: 'PENDING_APPROVAL',
+        message: 'تم ربط حساب جوجل. انتظر موافقة الإدارة ثم أعد تسجيل الدخول.',
+        username: created.username,
+      });
+    }
+
+    if (!user.googleId && !user.google_id) {
+      attachGoogleId(user.id, profile.googleId);
+    }
+
+    const status = user.status || 'APPROVED';
+    if (status === 'PENDING_APPROVAL' || status === 'PENDING') {
+      queueAccessRequest({
+        userId: user.id,
+        userName: user.name,
+        userEmail: user.email,
+        userRole: user.role,
+        ip,
+        pcPrint,
+        userAgent,
+      });
+      return NextResponse.json({
+        status: 'PENDING_APPROVAL',
+        message: 'حسابك في انتظار موافقة الإدارة.',
+      });
+    }
+
+    if (status === 'REJECTED' || status === 'SUSPENDED' || user.loginEnabled === 0) {
+      return NextResponse.json({ error: 'تم تعليق هذا الحساب من طرف الإدارة.' }, { status: 403 });
+    }
+
+    const sqlite = getSqliteDb();
+    try {
+      sqlite.prepare('UPDATE users SET lastLoginIp = ?, pcFingerprint = ? WHERE id = ?')
+        .run(ip, pcPrint, user.id);
+    } catch {
+      /* legacy column names */
+    }
+
+    const role = normalizeLoginRole(user.role, { email: user.email, roleName: user.roleName });
+    const token = signToken({
+      id: user.id,
+      code: user.code || user.username || user.id,
+      name: user.name,
+      role: user.role,
+      roleName: user.roleName || LOGIN_ROLE_LABELS[role],
+      email: user.email,
+      username: user.username,
+      phone: user.phone,
+    });
+
+    return NextResponse.json({
+      status: 'SUCCESS',
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        username: user.username,
+        role,
+        roleName: user.roleName || LOGIN_ROLE_LABELS[role],
+        status,
+        phone: user.phone,
+        staffId: user.staffId,
+        redirect: postLoginPath(role),
+      },
+    });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || 'تعذر الدخول عبر جوجل' }, { status: 400 });
+  }
+}

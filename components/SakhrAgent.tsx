@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import dynamic from 'next/dynamic';
+
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   Send, X, User as UserIcon, RefreshCw,
   MapPin, CheckCircle, Eye, Layers,
@@ -9,6 +11,39 @@ import {
   Sparkles, BookOpen, ShieldCheck
 } from 'lucide-react';
 import { Package, Hotel, MediaAsset, AiAction, AiCard } from '@/types';
+import { RecordCardModel, buildRecordCard, emptyRecordCard } from '@/lib/record-card';
+import { detectAdminTableIntent, describeIntent, AdminTableIntent, TableRef } from '@/lib/admin-table-intent';
+import {
+  AdminSession,
+  ParsedCommand,
+  parseAdminCommand,
+  resolveMutation,
+  createInsertSession,
+  createMutateSession,
+  matchRows,
+  matchField,
+  selectRow,
+  setEditField,
+  nextStep,
+  applyAnswer,
+  acceptOptional,
+  promptFor,
+  openingLine,
+  buildPayload,
+  rowTitle,
+  isYes,
+  isNo,
+  isCancel,
+} from '@/lib/admin-chat-agent';
+
+const RecordCardGrid = dynamic(() => import('@/components/RecordCardGrid').then((m) => m.RecordCardGrid), {
+  ssr: false,
+  loading: () => <div className="py-16 text-center text-sm text-slate-400">جاري تحضير البطاقات…</div>,
+});
+
+const RecordBigCard = dynamic(() => import('@/components/RecordCardGrid').then((m) => m.RecordBigCard), {
+  ssr: false,
+});
 
 interface SakhrMessage {
   role: 'user' | 'ai';
@@ -25,10 +60,12 @@ interface SakhrMessage {
   sourceLabel?: string;
   model?: string;
   toolsUsed?: string[];
+  adminIntent?: { action: 'insert' | 'edit' | 'view'; alternatives: TableRef[] };
 }
 
 interface SakhrAgentProps {
   onSearchFilter?: (keyword: string) => void;
+  theme?: 'light' | 'dark';
 }
 
 const TABLE_LABELS: Record<string, string> = {
@@ -44,6 +81,10 @@ const TABLE_LABELS: Record<string, string> = {
   agency_settings: '⚙️ إعدادات الوكالة',
   page_content: '📄 محتوى الصفحات'
 };
+
+function tableLabelPlain(key: string): string {
+  return (TABLE_LABELS[key] || key).replace(/^[^\p{L}\p{N}]+/u, '').trim();
+}
 
 /** Strip legacy inline source footers — UI banner handles attribution */
 function stripInlineSourceFooters(text: string): string {
@@ -155,7 +196,8 @@ function SourceAttributionBanner({ source }: { source: ResolvedSource }) {
   );
 }
 
-export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
+export default function SakhrAgent({ onSearchFilter, theme = 'dark' }: SakhrAgentProps) {
+  const isLight = theme === 'light';
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [messages, setMessages] = useState<SakhrMessage[]>([]);
@@ -178,6 +220,35 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
     rows: any[];
   } | null>(null);
   const [tableSearchQuery, setTableSearchQuery] = useState('');
+  const [deferredTableSearch, setDeferredTableSearch] = useState('');
+  const [selectedRowKey, setSelectedRowKey] = useState<string | null>(null);
+  const [bigCard, setBigCard] = useState<RecordCardModel | null>(null);
+  const [creatingNew, setCreatingNew] = useState(false);
+  const [tableMenuOpen, setTableMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (!tableMenuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setTableMenuOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [tableMenuOpen]);
+
+  // Reopening a table renders from cache first, then refreshes in the background
+  const tableCacheRef = useRef<Map<string, { tableName: string; label: string; columns: any[]; rows: any[] }>>(new Map());
+
+  // Debounce so typing never blocks on filtering large tables
+  useEffect(() => {
+    const t = setTimeout(() => setDeferredTableSearch(tableSearchQuery), 160);
+    return () => clearTimeout(t);
+  }, [tableSearchQuery]);
+
+  const handleCardSelect = useCallback((card: RecordCardModel) => {
+    setCreatingNew(false);
+    setBigCard(card);
+    setSelectedRowKey(card.key);
+  }, []);
 
   // Formula Training Modal State
   const [formulaModalOpen, setFormulaModalOpen] = useState(false);
@@ -186,10 +257,8 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
   const [formulaSaving, setFormulaSaving] = useState(false);
   const [formulaSuccessMsg, setFormulaSuccessMsg] = useState('');
 
-  // Table Data Inserter Modal State
-  const [insertModalData, setInsertModalData] = useState<{ tableName: string; label: string; columns: any[] } | null>(null);
-  const [insertFormData, setInsertFormData] = useState<Record<string, string>>({});
-  const [insertSaving, setInsertSaving] = useState(false);
+  // Conversational admin CRUD session (add/edit/delete by chat)
+  const [adminSession, setAdminSession] = useState<AdminSession | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -244,6 +313,205 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isThinking]);
 
+  const runAdminTableIntent = (intent: AdminTableIntent) => {
+    if (intent.action === 'insert') {
+      openInsertForm(intent.table);
+    } else {
+      fetchTableData(intent.table);
+    }
+  };
+
+  const pushAi = (text: string, extra?: Partial<SakhrMessage>) => {
+    setMessages((prev) => [
+      ...prev,
+      { role: 'ai', text, sourceType: 'agency_db', trusted: true, ...extra },
+    ]);
+  };
+
+  /** Shows the session's next question (optionally preceded by a status line). */
+  const askNext = (session: AdminSession, prefix?: string) => {
+    setAdminSession(session);
+    const prompt = promptFor(session);
+    pushAi(prefix ? `${prefix}\n\n${prompt}` : prompt, {
+      source: session.table,
+      sourceLabel: session.label,
+    });
+  };
+
+  /** Retries once: a cold route can 500 on the request that triggers its compile. */
+  const loadTableMeta = async (table: string) => {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const res = await fetch(`/api/admin/db-tables?table=${table}`);
+        if (res.ok) return await res.json();
+      } catch {
+        // fall through to the retry
+      }
+      if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 600));
+    }
+    return null;
+  };
+
+  const commitAdminSession = async (session: AdminSession) => {
+    setIsThinking(true);
+    try {
+      const body: Record<string, unknown> = { tableName: session.table };
+
+      if (session.op === 'insert') {
+        body.action = 'insert_data';
+        body.rowData = buildPayload(session);
+      } else if (session.op === 'update') {
+        body.action = 'update_data';
+        body.rowData = buildPayload(session);
+        body.keyColumn = session.keyColumn;
+        body.keyValue = session.keyValue;
+      } else {
+        body.action = 'delete_data';
+        body.keyColumn = session.keyColumn;
+        body.keyValue = session.keyValue;
+      }
+
+      const res = await fetch('/api/admin/db-tables', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+
+      setIsThinking(false);
+      setAdminSession(null);
+
+      if (!res.ok || !data.success) {
+        pushAi(`⚠️ ${data.error || 'تعذر تنفيذ العملية على قاعدة البيانات.'}`);
+        return;
+      }
+
+      tableCacheRef.current.delete(session.table);
+      if (tableModalData?.tableName === session.table) {
+        fetchTableData(session.table);
+      }
+
+      const done =
+        session.op === 'insert' ? 'تمت الإضافة' : session.op === 'update' ? 'تم التعديل' : 'تم الحذف';
+      pushAi(`✅ ${done} في جدول **${session.label}** وحُفظ في قاعدة البيانات.`, {
+        source: session.table,
+        sourceLabel: session.label,
+      });
+    } catch {
+      setIsThinking(false);
+      setAdminSession(null);
+      pushAi('⚠️ حدث خطأ أثناء الحفظ في قاعدة البيانات.');
+    }
+  };
+
+  const beginAdminCommand = async (cmd: ParsedCommand) => {
+    setIsThinking(true);
+    const meta = await loadTableMeta(cmd.table);
+    setIsThinking(false);
+
+    if (!meta?.columns) {
+      pushAi(`⚠️ تعذر قراءة بنية جدول **${cmd.label}**.`);
+      return;
+    }
+
+    if (cmd.op === 'insert') {
+      const session = nextStep(createInsertSession(cmd, meta.label, meta.columns));
+      askNext(session, openingLine(session));
+      return;
+    }
+
+    const { field, rowQuery } = resolveMutation(cmd, meta.columns);
+    const rows: Record<string, unknown>[] = meta.rows || [];
+    let session = createMutateSession({ ...cmd, field, rowQuery }, meta.label, meta.columns, rows);
+
+    const matches = matchRows(rows, rowQuery, meta.columns);
+    let notice = openingLine(session);
+
+    if (matches.length === 1) {
+      session = selectRow(session, matches[0]);
+    } else if (matches.length > 1) {
+      session = { ...session, stage: 'pick_row', candidates: matches };
+    } else {
+      // Offer a shortlist instead of a dead end when the name wasn't recognised
+      session = { ...session, stage: 'pick_row', candidates: rows.slice(0, 8) };
+      notice = `${notice}\n\nلم أتعرف على السجل من كلامك.`;
+    }
+
+    askNext(session, notice);
+  };
+
+  const handleAdminSessionReply = async (session: AdminSession, text: string) => {
+    if (isCancel(text)) {
+      setAdminSession(null);
+      pushAi('تم إلغاء العملية. لم يُحفظ أي شيء في قاعدة البيانات.');
+      return;
+    }
+
+    if (session.stage === 'pick_row') {
+      const index = parseInt(text.replace(/[^\d]/g, ''), 10);
+      let picked: Record<string, unknown> | null = null;
+
+      if (Number.isFinite(index) && index >= 1 && index <= session.candidates.length) {
+        picked = session.candidates[index - 1];
+      } else {
+        const found = matchRows(session.allRows, text, session.columns);
+        if (found.length === 1) picked = found[0];
+        else if (found.length > 1) {
+          askNext({ ...session, candidates: found }, 'أكثر من سجل يطابق ما كتبت.');
+          return;
+        } else {
+          askNext(
+            { ...session, candidates: session.allRows.slice(0, 8) },
+            'لم أجد هذا الاسم في الجدول.'
+          );
+          return;
+        }
+      }
+
+      askNext(selectRow(session, picked), `اخترت: **${rowTitle(picked, session.columns)}**`);
+      return;
+    }
+
+    if (session.stage === 'pick_field') {
+      const field = matchField(text, session.columns);
+      if (!field) {
+        askNext(session, 'لم أتعرف على الحقل المطلوب.');
+        return;
+      }
+      askNext(setEditField(session, field));
+      return;
+    }
+
+    if (session.stage === 'offer_optional') {
+      if (isNo(text)) {
+        askNext(acceptOptional(session, false));
+        return;
+      }
+      if (isYes(text)) {
+        askNext(acceptOptional(session, true));
+        return;
+      }
+      askNext(session, 'أجب بـ **نعم** أو **لا**.');
+      return;
+    }
+
+    if (session.stage === 'confirm') {
+      if (isNo(text)) {
+        setAdminSession(null);
+        pushAi('تم الإلغاء. لم يُحفظ أي شيء في قاعدة البيانات.');
+        return;
+      }
+      if (isYes(text)) {
+        await commitAdminSession(session);
+        return;
+      }
+      askNext(session, 'أجب بـ **نعم** للحفظ أو **لا** للإلغاء.');
+      return;
+    }
+
+    askNext(applyAnswer(session, text));
+  };
+
   const sendMessage = async (text?: string) => {
     const q = (text ?? query).trim();
     if (!q) return;
@@ -251,6 +519,40 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
 
     const userMsg: SakhrMessage = { role: 'user', text: q };
     setMessages((prev) => [...prev, userMsg]);
+
+    // A running add/edit/delete conversation owns every reply until it ends
+    if (isAdmin && adminModeEnabled && adminSession) {
+      await handleAdminSessionReply(adminSession, q);
+      return;
+    }
+
+    // Admins can ask in plain Arabic: "أضف مرشد جديد" / "افتح جدول الفنادق"
+    if (isAdmin && adminModeEnabled) {
+      const command = parseAdminCommand(q);
+      if (command) {
+        await beginAdminCommand(command);
+        return;
+      }
+
+      const intent = detectAdminTableIntent(q);
+      if (intent) {
+        runAdminTableIntent(intent);
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'ai',
+            text: describeIntent(intent),
+            sourceType: 'agency_db',
+            trusted: true,
+            source: intent.table,
+            sourceLabel: intent.label,
+            adminIntent: { action: intent.action, alternatives: intent.alternatives },
+          },
+        ]);
+        return;
+      }
+    }
+
     setIsThinking(true);
     if (onSearchFilter) onSearchFilter(q);
 
@@ -355,79 +657,61 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
     }
   };
 
-  const fetchTableData = async (tableName: string) => {
-    try {
-      const res = await fetch(`/api/admin/db-tables?table=${tableName}`);
-      if (res.ok) {
-        const data = await res.json();
-        setTableModalData({
-          tableName: data.tableName,
-          label: data.label,
-          columns: data.columns,
-          rows: data.rows
-        });
+  const fetchTableData = async (tableName: string, opts?: { keepCard?: boolean }) => {
+    const cached = tableCacheRef.current.get(tableName);
+    if (cached) {
+      setTableModalData(cached);
+      if (!opts?.keepCard) {
+        setSelectedRowKey(null);
+        setBigCard(null);
       }
-    } catch (err) {
-      console.error('Failed to fetch table data:', err);
+    }
+
+    const data = await loadTableMeta(tableName);
+    if (!data) {
+      if (!cached) {
+        pushAi('⚠️ تعذر تحميل بيانات الجدول. أعد المحاولة من فضلك.');
+      }
+      return;
+    }
+
+    const next = {
+      tableName: data.tableName,
+      label: data.label,
+      columns: data.columns,
+      rows: data.rows,
+    };
+    tableCacheRef.current.set(tableName, next);
+    setTableModalData(next);
+    if (opts?.keepCard) {
+      setBigCard((current) => {
+        if (!current) return current;
+        const rows = next.rows || [];
+        const cols = next.columns || [];
+        const match = current.keyColumn
+          ? rows.find((row: Record<string, unknown>) => row[current.keyColumn as string] === current.keyValue)
+          : undefined;
+        const index = match ? rows.indexOf(match) : rows.findIndex((row: Record<string, unknown>, i: number) => buildRecordCard(row, cols, i).key === current.key);
+        if (index < 0) return current;
+        return buildRecordCard(rows[index], cols, index);
+      });
+    } else if (!cached) {
+      setSelectedRowKey(null);
+      setBigCard(null);
     }
   };
 
   const openInsertForm = async (tableName: string) => {
-    try {
-      const res = await fetch(`/api/admin/db-tables?table=${tableName}`);
-      if (res.ok) {
-        const data = await res.json();
-        setInsertModalData({
-          tableName: data.tableName,
-          label: data.label,
-          columns: data.columns
-        });
-        const initialForm: Record<string, string> = {};
-        data.columns.forEach((c: any) => {
-          initialForm[c.name] = '';
-        });
-        setInsertFormData(initialForm);
-      }
-    } catch (err) {
-      console.error('Failed to prepare insert form:', err);
+    await fetchTableData(tableName, { keepCard: true });
+    const cached = tableCacheRef.current.get(tableName);
+    const columns = cached?.columns || tableModalData?.columns;
+    if (!columns?.length) {
+      pushAi('⚠️ تعذر تجهيز نافذة الإضافة. أعد المحاولة من فضلك.');
+      return;
     }
-  };
-
-  const handleInsertSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!insertModalData) return;
-    setInsertSaving(true);
-
-    try {
-      const res = await fetch('/api/admin/db-tables', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'insert_data',
-          tableName: insertModalData.tableName,
-          rowData: insertFormData
-        })
-      });
-
-      const data = await res.json();
-      setInsertSaving(false);
-
-      if (res.ok && data.success) {
-        alert(`✅ ${data.message}`);
-        setInsertModalData(null);
-        // Refresh table view if open
-        if (tableModalData?.tableName === insertModalData.tableName) {
-          fetchTableData(insertModalData.tableName);
-        }
-        // Send confirmation in chat
-        sendMessage(`تم إضافة البيانات إلى جدول ${insertModalData.label}`);
-      } else {
-        alert(`⚠️ ${data.error || 'فشل إضافة السطر'}`);
-      }
-    } catch (err: any) {
-      setInsertSaving(false);
-      alert('⚠️ حدث خطأ أثناء إضافة البيانات إلى الجدول');
-    }
+    setCreatingNew(true);
+    setSelectedRowKey(null);
+    setBigCard(emptyRecordCard(columns, tableName));
   };
 
   const handleTrainFormulaSubmit = async (e: React.FormEvent) => {
@@ -475,6 +759,7 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
   const clearChat = () => {
     setMessages([]);
     setIsThinking(false);
+    setAdminSession(null);
   };
 
   const renderFormattedMessage = (content: string) => {
@@ -504,6 +789,16 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
     });
   };
 
+  const anyModalOpen = Boolean(tableModalData || bigCard || formulaModalOpen);
+
+  // A fullscreen admin modal replaces everything behind it: lock scrolling and
+  // let CSS drop the page + chat panel out of the paint path.
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    document.body.classList.toggle('modal-open', anyModalOpen);
+    return () => document.body.classList.remove('modal-open');
+  }, [anyModalOpen]);
+
   return (
     <>
       {/* Floating trigger */}
@@ -511,7 +806,7 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
         <button
           onClick={() => setIsOpen((v) => !v)}
           aria-label="مساعد صخر الذكي"
-          className="relative w-14 h-14 sm:w-[60px] sm:h-[60px] rounded-full focus:outline-none group cursor-pointer sakhr-fab flex items-center justify-center"
+          className={`relative w-14 h-14 sm:w-[60px] sm:h-[60px] rounded-full focus:outline-none group cursor-pointer flex items-center justify-center ${isLight ? 'sakhr-fab-light' : 'sakhr-fab'}`}
         >
           {isOpen ? (
             <X className="w-5 h-5 text-neutral-400 group-hover:text-white transition-colors" />
@@ -525,17 +820,17 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
       </div>
 
       {isOpen && (
-        <div className="fixed top-[72px] sm:top-[80px] bottom-4 sm:bottom-6 right-2 sm:right-8 z-[250] w-[calc(100vw-16px)] sm:w-[420px] md:w-[480px] lg:w-[520px] max-w-[96vw] flex flex-col rounded-2xl overflow-hidden animate-fade-in sakhr-chat-panel">
+        <div className={`sakhr-panel-shell fixed top-[72px] sm:top-[80px] bottom-4 sm:bottom-6 right-2 sm:right-8 z-[250] w-[calc(100vw-16px)] sm:w-[420px] md:w-[480px] lg:w-[520px] max-w-[96vw] flex flex-col rounded-2xl overflow-hidden animate-fade-in ${isLight ? 'sakhr-chat-panel-light sakhr-theme-light' : 'sakhr-chat-panel'}`}>
 
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 shrink-0 border-b border-white/[0.06]">
+          <div className={`flex items-center justify-between px-4 py-3 shrink-0 border-b sakhr-panel-border ${isLight ? 'border-slate-200' : 'border-white/[0.06]'}`}>
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-full sakhr-avatar-accent flex items-center justify-center shrink-0">
-                <span className="text-[#c9a962] font-semibold text-sm font-cairo leading-none">ص</span>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isLight ? 'bg-emerald-soft border border-emerald-main/20' : 'sakhr-avatar-accent'}`}>
+                <span className={`font-semibold text-sm font-cairo leading-none ${isLight ? 'text-emerald-main' : 'text-[#c9a962]'}`}>ص</span>
               </div>
               <div className="flex flex-col min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-[#ececec] font-medium text-sm font-cairo truncate">صخر</span>
+                  <span className={`sakhr-header-title font-medium text-sm font-cairo truncate ${isLight ? 'text-slate-900' : 'text-[#ececec]'}`}>صخر</span>
                   {isAdmin && (
                     <span className="px-1.5 py-0.5 rounded-md bg-white/[0.06] text-neutral-400 text-[10px] font-tajawal shrink-0">
                       Admin
@@ -581,7 +876,7 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
               </button>
               <button
                 onClick={() => openInsertForm('packages')}
-                title="إضافة سطر"
+                title="إضافة جديد"
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-neutral-400 hover:text-neutral-200 hover:bg-white/[0.05] text-[11px] font-tajawal transition-colors cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -609,12 +904,12 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
                 </div>
 
                 <div className="space-y-1.5 max-w-sm">
-                  <h3 className="font-medium text-[17px] text-[#ececec] font-cairo">
+                  <h3 className={`font-medium text-[17px] font-cairo ${isLight ? 'text-slate-900' : 'text-[#ececec]'}`}>
                     كيف يمكنني مساعدتك؟
                   </h3>
-                  <p className="text-[13px] text-neutral-500 leading-relaxed font-tajawal">
+                  <p className={`text-[13px] leading-relaxed font-tajawal ${isLight ? 'text-slate-500' : 'text-neutral-500'}`}>
                     {isAdmin
-                      ? 'استعلم عن البيانات، أدر الجداول، أو درّب صيغ الإجابات.'
+                      ? 'أدر كل الجداول بالمحادثة: "أضف مرشد اسمه محمد الأمين"، "عدّل هاتف فندق دار التوحيد"، "احذف الباقة كذا" — وسأسألك عن باقي البيانات حقلاً بعد حقل.'
                       : 'أستطيع الإجابة عن أي صفحة أو قسم في التطبيق وفتحه لك مباشرة.'}
                   </p>
                 </div>
@@ -629,8 +924,12 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
                     { label: '💳 التقسيط', query: 'ما شروط التقسيط من 2 الى 10 أشهر؟' },
                     ...(isAdmin
                       ? [
-                          { label: 'جدول الباقات', query: 'أظهر لي جدول الباقات' },
-                          { label: 'إضافة بيانات', query: 'أريد إضافة بيانات إلى الجدول' },
+                          { label: '➕ إضافة مرشد', query: 'أضف مرشد جديد' },
+                          { label: '➕ إضافة فندق', query: 'أضف فندق جديد' },
+                          { label: '➕ إضافة باقة', query: 'أضف باقة جديدة' },
+                          { label: '✏️ تعديل مرشد', query: 'عدّل بيانات مرشد' },
+                          { label: '🏨 جدول الفنادق', query: 'افتح جدول الفنادق' },
+                          { label: '👤 المستخدمين', query: 'أظهر جدول المستخدمين والحسابات' },
                         ]
                       : []),
                   ].map((chip, idx) => (
@@ -692,6 +991,36 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
                   >
                     {renderFormattedMessage(displayText)}
                   </div>
+
+                  {m.role === 'ai' && m.adminIntent && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        onClick={() =>
+                          m.adminIntent!.action === 'insert'
+                            ? openInsertForm(m.source!)
+                            : fetchTableData(m.source!)
+                        }
+                        className="sakhr-chip px-3 py-1.5 rounded-full text-[12px] text-neutral-300 hover:text-[#ececec] font-tajawal cursor-pointer flex items-center gap-1.5"
+                      >
+                        {m.adminIntent!.action === 'insert' ? <Plus className="w-3.5 h-3.5" /> : <Table className="w-3.5 h-3.5" />}
+                        إعادة فتح {m.sourceLabel}
+                      </button>
+
+                      {m.adminIntent!.alternatives.map((alt) => (
+                        <button
+                          key={alt.table}
+                          onClick={() =>
+                            m.adminIntent!.action === 'insert'
+                              ? openInsertForm(alt.table)
+                              : fetchTableData(alt.table)
+                          }
+                          className="sakhr-chip px-3 py-1.5 rounded-full text-[12px] text-neutral-400 hover:text-[#ececec] font-tajawal cursor-pointer"
+                        >
+                          بدلاً منه: {alt.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
 
                   {m.escalated && (
                     <div className="p-3 rounded-xl bg-white/[0.04] border border-white/[0.08] text-neutral-300 text-[13px] flex items-center justify-between gap-3">
@@ -1010,8 +1339,26 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
           </div>
 
           {/* Input */}
-          <div className="px-4 pb-4 pt-2 shrink-0 border-t border-white/[0.06]">
-            <div className="sakhr-input-wrap flex items-end gap-2 rounded-2xl px-3 py-2.5">
+          <div className={`px-4 pb-4 pt-2 shrink-0 border-t ${isLight ? 'border-slate-200' : 'border-white/[0.06]'}`}>
+            {adminSession && (
+              <div className={`flex items-center gap-2 mb-2 px-3 py-2 rounded-xl text-[11px] font-tajawal ${isLight ? 'bg-emerald-soft border border-emerald-main/25 text-emerald-main' : 'bg-emerald-500/10 border border-emerald-500/25 text-emerald-300'}`}>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                <span className="truncate">
+                  {adminSession.op === 'insert' ? 'إضافة إلى' : adminSession.op === 'update' ? 'تعديل في' : 'حذف من'}{' '}
+                  {adminSession.label}
+                </span>
+                <button
+                  onClick={() => {
+                    setAdminSession(null);
+                    pushAi('تم إلغاء العملية. لم يُحفظ أي شيء في قاعدة البيانات.');
+                  }}
+                  className="mr-auto shrink-0 px-2 py-0.5 rounded-md hover:bg-white/10 cursor-pointer"
+                >
+                  إلغاء
+                </button>
+              </div>
+            )}
+            <div className={`flex items-end gap-2 rounded-2xl px-3 py-2.5 ${isLight ? 'bg-slate-50 border border-slate-200' : 'sakhr-input-wrap'}`}>
               <input
                 ref={inputRef}
                 type="text"
@@ -1019,19 +1366,29 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
                 dir="rtl"
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-                placeholder={isAdmin ? 'اسأل أو أدر البيانات...' : 'اكتب رسالتك...'}
-                className="flex-1 bg-transparent text-[15px] text-[#ececec] placeholder:text-neutral-500 focus:outline-none font-tajawal text-right leading-relaxed py-1"
+                placeholder={
+                  adminSession
+                    ? 'اكتب الجواب... ("تخطي" أو "إلغاء")'
+                    : isAdmin
+                    ? 'اسأل أو أدر البيانات...'
+                    : 'اكتب رسالتك...'
+                }
+                className={`flex-1 bg-transparent text-[15px] focus:outline-none font-tajawal text-right leading-relaxed py-1 ${isLight ? 'text-slate-900 placeholder:text-slate-400' : 'text-[#ececec] placeholder:text-neutral-500'}`}
               />
               <button
                 onClick={() => sendMessage()}
                 disabled={isThinking || !query.trim()}
-                className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed bg-white text-black hover:bg-neutral-200 disabled:bg-neutral-700 disabled:text-neutral-500"
+                className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed ${
+                  isLight
+                    ? 'bg-emerald-main text-white hover:bg-emerald-light disabled:bg-slate-200 disabled:text-slate-400'
+                    : 'bg-white text-black hover:bg-neutral-200 disabled:bg-neutral-700 disabled:text-neutral-500'
+                }`}
                 title="إرسال"
               >
                 <Send className="w-4 h-4" />
               </button>
             </div>
-            <p className="text-[10px] text-neutral-600 text-center pt-2 font-tajawal">
+            <p className={`text-[10px] text-center pt-2 font-tajawal ${isLight ? 'text-slate-400' : 'text-neutral-600'}`}>
               صخر قد يرتكب أخطاء. تحقق من المعلومات المهمة.
             </p>
           </div>
@@ -1039,244 +1396,205 @@ export default function SakhrAgent({ onSearchFilter }: SakhrAgentProps) {
       )}
 
       {/* ══════════════════════════════════════════════════════════
-           PROFESSIONAL DATABASE TABLE DATA VIEWER MODAL
+           DATABASE RECORDS AS CARDS — hidden (not unmounted) while a
+           detail card is open, so only one window ever paints
       ══════════════════════════════════════════════════════════ */}
       {tableModalData && (
-        <div className="fixed inset-0 z-[320] bg-slate-950/90 backdrop-blur-lg flex items-center justify-center p-3 sm:p-6 font-tajawal">
-          <div className="bg-slate-900 border border-emerald-500/40 rounded-3xl w-full max-w-5xl h-[88vh] flex flex-col shadow-2xl text-white overflow-hidden">
-            {/* Table Viewer Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-slate-950/80 shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
-                  <Table className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-black text-lg font-cairo text-emerald-300">
-                      جدول: {tableModalData.label} ({tableModalData.tableName})
-                    </h3>
-                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold">
-                      {tableModalData.rows?.length || 0} سطر
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-400">استعراض وتصفية بيانات SQLite الحية مباشرة من واجهة الشات</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
+        <div className={`fixed inset-0 z-[320] luxury-modal-overlay flex items-center justify-center p-3 sm:p-6 font-tajawal ${bigCard ? 'modal-layer-hidden' : ''}`}>
+          <div className="luxury-table-shell relative w-full max-w-[92rem] h-[88vh] flex flex-col text-slate-900">
+            <div className="flex items-center justify-between gap-3 px-5 sm:px-6 py-4 border-b border-slate-200 bg-white shrink-0">
+              <h3 className="font-bold text-base sm:text-lg font-cairo text-slate-900 truncate">
+                {tableModalData.label}
+              </h3>
+              <div className="flex items-center gap-2 shrink-0">
                 <button
                   onClick={() => openInsertForm(tableModalData.tableName)}
-                  className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow"
+                  className="btn-pro-primary text-xs py-2 px-3.5 flex items-center gap-1.5 cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
-                  إضافة سطر لهذا الجدول
+                  <span className="hidden sm:inline">إضافة جديد</span>
                 </button>
                 <button
-                  onClick={() => setTableModalData(null)}
-                  className="w-9 h-9 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 flex items-center justify-center transition-all cursor-pointer"
+                  onClick={() => {
+                    setTableModalData(null);
+                    setTableSearchQuery('');
+                    setSelectedRowKey(null);
+                    setBigCard(null);
+                    setTableMenuOpen(false);
+                    setCreatingNew(false);
+                  }}
+                  className="w-9 h-9 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer border border-slate-200"
+                  aria-label="إغلاق"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
 
-            {/* Table Controls (Search & Switcher) */}
-            <div className="px-6 py-3 bg-slate-950/50 border-b border-white/5 flex flex-wrap items-center justify-between gap-3 shrink-0">
-              <div className="relative flex-1 max-w-md">
-                <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
+            <div className="luxury-table-toolbar px-5 sm:px-6 py-3 flex items-center gap-3 shrink-0">
+              <div className="relative flex-1 min-w-0">
+                <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="text"
                   value={tableSearchQuery}
                   onChange={(e) => setTableSearchQuery(e.target.value)}
-                  placeholder="تصفية وسحب البيانات بالبحث..."
-                  className="w-full bg-slate-800/80 border border-white/10 rounded-xl pr-9 pl-4 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500/50"
+                  placeholder="بحث..."
+                  className="luxury-table-search w-full pr-9 pl-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400"
                 />
               </div>
+              <button
+                type="button"
+                onClick={() => setTableMenuOpen((open) => !open)}
+                className="luxury-table-select px-3.5 py-2.5 text-sm shrink-0 cursor-pointer"
+              >
+                الجداول
+              </button>
+            </div>
 
-              <div className="flex items-center gap-2 text-xs text-slate-300">
-                <span>تغيير الجدول:</span>
-                <select
-                  value={tableModalData.tableName}
-                  onChange={(e) => fetchTableData(e.target.value)}
-                  className="bg-slate-800 border border-white/15 rounded-xl px-3 py-1.5 text-xs text-emerald-300 font-bold focus:outline-none"
+            <div className="flex-1 min-h-0 overflow-auto luxury-table-scroll">
+              <RecordCardGrid
+                rows={tableModalData.rows || []}
+                columns={tableModalData.columns}
+                search={deferredTableSearch}
+                selectedKey={selectedRowKey}
+                onSelect={handleCardSelect}
+                tableName={tableModalData.tableName}
+              />
+            </div>
+
+            <div
+              className={`table-side-menu-scrim ${tableMenuOpen ? 'is-open' : ''}`}
+              onClick={() => setTableMenuOpen(false)}
+            />
+            <aside className={`table-side-menu ${tableMenuOpen ? 'is-open' : ''}`} aria-hidden={!tableMenuOpen}>
+              <div className="flex items-center justify-between gap-2 px-4 py-4 border-b border-slate-200">
+                <h4 className="font-cairo font-bold text-base text-slate-900">الجداول</h4>
+                <button
+                  type="button"
+                  onClick={() => setTableMenuOpen(false)}
+                  className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center"
+                  aria-label="إغلاق القائمة"
                 >
-                  {Object.keys(TABLE_LABELS).map((tblKey) => (
-                    <option key={tblKey} value={tblKey}>
-                      {TABLE_LABELS[tblKey]}
-                    </option>
-                  ))}
-                </select>
+                  <X className="w-4 h-4" />
+                </button>
               </div>
-            </div>
-
-            {/* Data Grid Body */}
-            <div className="flex-1 overflow-auto p-4 font-tajawal text-xs">
-              <table className="w-full text-right border-collapse">
-                <thead>
-                  <tr className="bg-slate-950 border-b border-white/10 text-slate-400 sticky top-0 font-cairo">
-                    {tableModalData.columns?.map((col: any) => (
-                      <th key={col.name} className="px-3 py-2.5 whitespace-nowrap">
-                        <div className="flex items-center gap-1 font-bold text-slate-200">
-                          <span>{col.name}</span>
-                          <span className="text-[9px] font-normal px-1 rounded bg-slate-800 text-slate-400">{col.type}</span>
-                        </div>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {tableModalData.rows
-                    ?.filter((row: any) => {
-                      if (!tableSearchQuery.trim()) return true;
-                      return JSON.stringify(row).toLowerCase().includes(tableSearchQuery.toLowerCase());
-                    })
-                    .map((row: any, rIdx: number) => (
-                      <tr key={rIdx} className="hover:bg-slate-800/50 transition-colors">
-                        {tableModalData.columns?.map((col: any) => {
-                          const val = row[col.name];
-                          let valStr = '';
-                          if (val === null || val === undefined) valStr = 'NULL';
-                          else if (typeof val === 'object') valStr = JSON.stringify(val);
-                          else valStr = String(val);
-
-                          return (
-                            <td key={col.name} className="px-3 py-2 max-w-xs truncate text-slate-200 font-mono text-[11px]">
-                              {valStr.length > 50 ? (
-                                <span title={valStr} className="cursor-help text-indigo-300">
-                                  {valStr.substring(0, 50)}...
-                                </span>
-                              ) : (
-                                <span>{valStr}</span>
-                              )}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
+              <nav className="flex-1 overflow-y-auto p-3 space-y-1 luxury-table-scroll">
+                {Object.keys(TABLE_LABELS).map((tblKey) => (
+                  <button
+                    key={tblKey}
+                    type="button"
+                    onClick={() => {
+                      fetchTableData(tblKey);
+                      setTableSearchQuery('');
+                      setSelectedRowKey(null);
+                      setBigCard(null);
+                      setCreatingNew(false);
+                      setTableMenuOpen(false);
+                    }}
+                    className={`table-side-menu-item ${tableModalData.tableName === tblKey ? 'is-active' : ''}`}
+                  >
+                    {tableLabelPlain(tblKey)}
+                  </button>
+                ))}
+              </nav>
+            </aside>
           </div>
         </div>
+      )}
+
+      {/* Expanded, editable record card */}
+      {bigCard && tableModalData && (
+        <RecordBigCard
+          card={bigCard}
+          columns={tableModalData.columns}
+          tableName={tableModalData.tableName}
+          tableLabel={creatingNew ? 'إضافة جديد' : tableModalData.label}
+          isNew={creatingNew}
+          onClose={() => {
+            setCreatingNew(false);
+            setBigCard(null);
+          }}
+          onSaved={(closeCard = true) => {
+            setCreatingNew(false);
+            tableCacheRef.current.delete(tableModalData.tableName);
+            fetchTableData(tableModalData.tableName, { keepCard: !closeCard });
+            if (closeCard) setBigCard(null);
+          }}
+        />
       )}
 
       {/* ══════════════════════════════════════════════════════════
            FORMULA TRAINING MODAL (FOR ADMIN RESPONSE TEMPLATES)
       ══════════════════════════════════════════════════════════ */}
       {formulaModalOpen && (
-        <div className="fixed inset-0 z-[330] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 font-tajawal">
-          <div className="bg-slate-900 border border-amber-500/40 rounded-3xl p-6 w-full max-w-lg space-y-4 shadow-2xl text-white">
-            <div className="flex justify-between items-center border-b border-white/10 pb-3">
-              <div className="flex items-center gap-2">
-                <FileText className="w-5 h-5 text-amber-400" />
-                <h3 className="font-black text-base font-cairo text-amber-300">تدريب صيغة إجابة رسمية لـ صخر AI</h3>
-              </div>
-              <button onClick={() => setFormulaModalOpen(false)} className="text-slate-400 hover:text-white">
-                ✕
+        <div className="fixed inset-0 z-[330] luxury-modal-overlay flex items-center justify-center p-3 sm:p-6 font-tajawal animate-fade-in">
+          <div className="luxury-table-shell w-full max-w-[92rem] h-[88vh] flex flex-col text-slate-900">
+            <div className="flex items-center justify-between gap-3 px-5 sm:px-6 py-4 border-b border-slate-200 bg-white shrink-0">
+              <h3 className="font-bold text-base sm:text-lg font-cairo text-slate-900">
+                تدريب صيغة إجابة
+              </h3>
+              <button
+                onClick={() => setFormulaModalOpen(false)}
+                className="w-9 h-9 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors border border-slate-200 shrink-0"
+                aria-label="إغلاق"
+              >
+                <X className="w-5 h-5" />
               </button>
             </div>
 
             {formulaSuccessMsg && (
-              <div className="p-3 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold text-center">
+              <div className="mx-5 sm:mx-6 mt-3 p-3 rounded-xl bg-emerald-soft border border-emerald-main/25 text-emerald-main text-xs font-semibold text-center">
                 {formulaSuccessMsg}
               </div>
             )}
 
-            <form onSubmit={handleTrainFormulaSubmit} className="space-y-4 text-xs">
-              <div>
-                <label className="block text-slate-300 font-bold mb-1.5">السؤال / الموضوع الذي يطرحه المعتمر:</label>
-                <input
-                  type="text"
-                  required
-                  value={formulaQuestion}
-                  onChange={(e) => setFormulaQuestion(e.target.value)}
-                  placeholder="مثال: شروط استرجاع الحجز عند الإلغاء"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white text-xs focus:outline-none focus:border-amber-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-bold mb-1.5">صيغة الإجابة المعتمدة (النموذج الرسمي):</label>
-                <textarea
-                  required
-                  rows={5}
-                  value={formulaPattern}
-                  onChange={(e) => setFormulaPattern(e.target.value)}
-                  placeholder="اكتب نموذج الإجابة الرسمي هنا، يمكنك استخدام التنسيق **عريض** أو النقاط..."
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white text-xs focus:outline-none focus:border-amber-500 leading-relaxed"
-                />
-              </div>
-
-              <div className="flex gap-2.5 pt-2">
-                <button
-                  type="submit"
-                  disabled={formulaSaving}
-                  className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center justify-center gap-1.5 shadow transition-colors"
-                >
-                  {formulaSaving ? 'جاري الحفظ...' : '🎉 اعتماد وحفظ النموذج بنجاح'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFormulaModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 text-xs"
-                >
-                  إلغاء
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ══════════════════════════════════════════════════════════
-           TABLE ROW INSERTION MODAL
-      ══════════════════════════════════════════════════════════ */}
-      {insertModalData && (
-        <div className="fixed inset-0 z-[340] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 font-tajawal">
-          <div className="bg-slate-900 border border-indigo-500/40 rounded-3xl p-6 w-full max-w-xl max-h-[85vh] flex flex-col shadow-2xl text-white">
-            <div className="flex justify-between items-center border-b border-white/10 pb-3 shrink-0">
-              <div className="flex items-center gap-2">
-                <Plus className="w-5 h-5 text-indigo-400" />
-                <h3 className="font-black text-base font-cairo text-indigo-300">
-                  إضافة سطر جديد إلى جدول [{insertModalData.label}]
-                </h3>
-              </div>
-              <button onClick={() => setInsertModalData(null)} className="text-slate-400 hover:text-white">
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleInsertSubmit} className="flex-1 overflow-y-auto space-y-3 py-3 text-xs pr-1">
-              {insertModalData.columns?.map((col: any) => (
-                <div key={col.name}>
-                  <label className="block text-slate-300 font-bold mb-1">
-                    {col.name} <span className="text-[10px] text-slate-500 font-normal">({col.type})</span>
+            <form onSubmit={handleTrainFormulaSubmit} className="flex flex-col flex-1 min-h-0">
+              <div className="luxury-form-scroll luxury-table-scroll flex-1 space-y-5">
+                <div className="max-w-3xl mx-auto w-full">
+                  <label className="luxury-form-label" htmlFor="formula-question">
+                    السؤال
                   </label>
                   <input
+                    id="formula-question"
                     type="text"
-                    value={insertFormData[col.name] || ''}
-                    onChange={(e) => setInsertFormData({ ...insertFormData, [col.name]: e.target.value })}
-                    placeholder={`أدخل قيمة ${col.name}...`}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-indigo-400"
+                    required
+                    value={formulaQuestion}
+                    onChange={(e) => setFormulaQuestion(e.target.value)}
+                    className="luxury-form-input"
                   />
                 </div>
-              ))}
 
-              <div className="flex gap-2.5 pt-4 shrink-0">
-                <button
-                  type="submit"
-                  disabled={insertSaving}
-                  className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow"
-                >
-                  {insertSaving ? 'جاري الإضافة...' : '✅ إضافة السطر فوراً لـ SQLite'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setInsertModalData(null)}
-                  className="px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 text-xs"
-                >
-                  إلغاء
-                </button>
+                <div className="max-w-3xl mx-auto w-full flex-1 flex flex-col">
+                  <label className="luxury-form-label" htmlFor="formula-pattern">
+                    صيغة الإجابة
+                  </label>
+                  <textarea
+                    id="formula-pattern"
+                    required
+                    value={formulaPattern}
+                    onChange={(e) => setFormulaPattern(e.target.value)}
+                    className="luxury-form-input resize-none leading-relaxed min-h-[280px] flex-1"
+                  />
+                </div>
+              </div>
+
+              <div className="luxury-form-footer">
+                <div className="flex gap-2.5 w-full sm:w-auto sm:mr-auto">
+                  <button
+                    type="button"
+                    onClick={() => setFormulaModalOpen(false)}
+                    className="btn-pro-outline text-xs py-2.5 px-5 flex-1 sm:flex-none"
+                  >
+                    إلغاء
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={formulaSaving}
+                    className="btn-pro-primary text-xs py-2.5 px-5 flex-1 sm:flex-none disabled:opacity-50"
+                  >
+                    {formulaSaving ? 'جاري الحفظ...' : 'حفظ'}
+                  </button>
+                </div>
               </div>
             </form>
           </div>

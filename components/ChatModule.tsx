@@ -1,42 +1,93 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Message, User, MessageType } from '@/types';
-import { Send, MapPin, Mic, ShieldCheck, CheckCheck, Play, Phone, Video } from 'lucide-react';
+import { Send, MapPin, Mic, ShieldCheck, CheckCheck, Phone, Video, Lock, Loader2 } from 'lucide-react';
+
+interface ChatChannel {
+  id: string;
+  type: 'dm' | 'group' | 'staff';
+  name: string;
+  subtitle?: string;
+  avatar: string;
+  lastMessage?: string;
+  lastTime?: string;
+  unread?: number;
+}
 
 interface ChatModuleProps {
   currentUser: User;
 }
 
+function authHeaders(): HeadersInit {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('south_street_token') : null;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 export default function ChatModule({ currentUser }: ChatModuleProps) {
   const [messages, setMessages] = useState<Message[]>([]);
+  const [channels, setChannels] = useState<ChatChannel[]>([]);
   const [inputText, setInputText] = useState('');
-  const [activeChat, setActiveChat] = useState('group-makkah');
+  const [activeChat, setActiveChat] = useState<string | null>(null);
+  const [loadingChannels, setLoadingChannels] = useState(true);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const channels = [
-    { id: 'group-makkah', name: 'حملة سوث ستريت الكبرى (مكة)', subtext: 'الشيخ أحمد: الانطلاق لأداء طواف...', time: '10:30 ص', unread: 0, avatar: '🕋' },
-    { id: 'staff-private', name: 'طاقم الإدارة والمالية', subtext: 'الأستاذ طارق: تم تأكيد فندق مكة', time: 'أمس', unread: 2, avatar: '💼' },
-    { id: 'direct-guide', name: 'الشيخ أحمد بن علي (المرشد)', subtext: 'متصل الآن...', time: '09:45 ص', unread: 0, avatar: '👳' }
-  ];
+  const activeChannel = channels.find((c) => c.id === activeChat);
 
-  const fetchMessages = async (chatId: string) => {
+  const loadChannels = useCallback(async () => {
     try {
-      const res = await fetch(`/api/messages?chatId=${chatId}`);
+      const res = await fetch('/api/messages/contacts', { headers: authHeaders() });
       if (res.ok) {
         const data = await res.json();
-        setMessages(data);
+        setChannels(data.channels || []);
+        if (!activeChat && data.channels?.length) {
+          setActiveChat(data.channels[0].id);
+        }
+      } else {
+        setChannels(fallbackChannels(currentUser));
+        if (!activeChat) setActiveChat('group-campaign-makkah');
       }
     } catch {
-      // Fallback
+      setChannels(fallbackChannels(currentUser));
+      if (!activeChat) setActiveChat('group-campaign-makkah');
+    } finally {
+      setLoadingChannels(false);
     }
-  };
+  }, [activeChat, currentUser]);
+
+  const fetchMessages = useCallback(async (chatId: string, silent = false) => {
+    if (!silent) setLoadingMessages(true);
+    try {
+      const res = await fetch(`/api/messages?chatId=${encodeURIComponent(chatId)}`, {
+        headers: authHeaders(),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMessages(Array.isArray(data) ? data : []);
+      }
+    } catch {
+      /* keep local state */
+    } finally {
+      if (!silent) setLoadingMessages(false);
+    }
+  }, []);
 
   useEffect(() => {
+    loadChannels();
+  }, [loadChannels]);
+
+  useEffect(() => {
+    if (!activeChat) return;
     fetchMessages(activeChat);
-    const interval = setInterval(() => fetchMessages(activeChat), 4000);
-    return () => clearInterval(interval);
-  }, [activeChat]);
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = setInterval(() => fetchMessages(activeChat, true), 1500);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [activeChat, fetchMessages]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -44,272 +95,248 @@ export default function ChatModule({ currentUser }: ChatModuleProps) {
 
   const handleSend = async (type: MessageType = 'text', customText?: string, locData?: { name: string; coords: string }) => {
     const textToSend = customText || inputText.trim();
-    if (!textToSend && type === 'text') return;
+    if (!textToSend || !activeChat || sending) return;
 
-    const newMsg: Message = {
-      id: `MSG-${Date.now()}`,
+    setSending(true);
+    const optimistic: Message = {
+      id: `tmp-${Date.now()}`,
       chatId: activeChat,
       senderId: currentUser.id,
-      senderName: `${currentUser.name} (${currentUser.roleName})`,
+      senderName: currentUser.name,
       senderRole: currentUser.role,
       text: textToSend,
-      time: new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
+      time: new Date().toLocaleTimeString('ar-DZ', { hour: '2-digit', minute: '2-digit' }),
       type,
-      duration: type === 'voice' ? '0:45' : undefined,
       locationName: locData?.name,
       coords: locData?.coords,
-      status: 'read'
+      status: 'sent',
     };
 
-    setMessages((prev) => [...prev, newMsg]);
+    setMessages((prev) => [...prev, optimistic]);
     if (!customText) setInputText('');
 
     try {
-      await fetch('/api/messages', {
+      const res = await fetch('/api/messages', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newMsg),
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify(optimistic),
       });
+      if (res.ok) {
+        const saved = await res.json();
+        setMessages((prev) => prev.map((m) => (m.id === optimistic.id ? saved : m)));
+        loadChannels();
+      }
     } catch {
-      // Save locally fallback
-    }
-
-    // Auto reply simulation from Murshid for demo interactivity if pilgrim sends a message
-    if (currentUser.role === 'pilgrim') {
-      setTimeout(async () => {
-        const guideReply: Message = {
-          id: `MSG-REPLY-${Date.now()}`,
-          chatId: activeChat,
-          senderId: 'USR-003',
-          senderName: 'الشيخ أحمد بن علي (مرشد)',
-          senderRole: 'murshid',
-          text: `حياك الله أخي ${currentUser.name}. تم استلام استفسارك، الفوج يتجه حالياً إلى المسعى. يرجى متابعة المجمّع.`,
-          time: new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
-          type: 'text',
-          status: 'read'
-        };
-        setMessages((prev) => [...prev, guideReply]);
-        try {
-          await fetch('/api/messages', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(guideReply),
-          });
-        } catch {}
-      }, 2200);
+      /* optimistic stays */
+    } finally {
+      setSending(false);
     }
   };
 
   const shareLocation = () => {
     const locations = [
-      { name: 'باب الملك عبد العزيز - الحرم المكي', coords: '21.4190, 39.8260' },
-      { name: 'فندق سويس أوتيل المقام - برج الساعة', coords: '21.4187, 39.8256' },
-      { name: 'محطة حافلات أجياد - مكة المكرمة', coords: '21.4172, 39.8288' }
+      { name: 'باب الملك عبد العزيز — الحرم المكي', coords: '21.4190, 39.8260' },
+      { name: 'فندق سويس أوتيل المقام', coords: '21.4187, 39.8256' },
+      { name: 'محطة حافلات أجياد', coords: '21.4172, 39.8288' },
     ];
     const loc = locations[Math.floor(Math.random() * locations.length)];
-    handleSend('location', `موقعي الجغرافي المباشر: ${loc.name}`, loc);
+    handleSend('location', `📍 ${loc.name}`, loc);
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-3 animate-fade-in">
-      <div className="flex items-center justify-between">
+    <div className="max-w-5xl mx-auto space-y-4 animate-fade-in">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 font-cairo">محادثات سوث ستريت الخصوصية المشفرة</h2>
-          <p className="text-xs text-slate-500">تواصل مباشر مشفر ببروتوكول AES-256 بين أفراد الرحلة والمرشدين</p>
+          <h2 className="text-xl font-bold text-slate-900 font-cairo">المراسلة الخاصة</h2>
+          <p className="text-xs text-slate-500 mt-0.5">تواصل آمن وسريع بين المعتمرين والمرشدين وطاقم الوكالة</p>
         </div>
-        <span className="bg-emerald-soft text-emerald-main border border-emerald-light text-xs font-bold px-3 py-1 rounded-md flex items-center gap-1.5">
-          <ShieldCheck className="w-4 h-4 text-emerald-main" />
-          تشفير E2E مفعل بالكامل
+        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-main bg-emerald-soft px-3 py-1.5 rounded-full border border-emerald-main/20">
+          <Lock className="w-3.5 h-3.5" />
+          اتصال محمي
         </span>
       </div>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col md:flex-row h-[560px]">
-        {/* Sidebar Channels */}
-        <div className="w-full md:w-80 bg-slate-950 border-b md:border-b-0 md:border-l border-slate-800 flex flex-col shrink-0">
-          <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-            <span className="font-bold text-white text-sm">المحادثات والقنوات</span>
-            <span className="text-xs text-gold-main font-bold">سوث ستريت</span>
+      <div className="chat-app flex-col md:flex-row">
+        {/* Sidebar */}
+        <div className="chat-sidebar w-full md:w-auto shrink-0 max-h-48 md:max-h-none overflow-y-auto md:overflow-visible">
+          <div className="chat-sidebar-header">
+            <p className="font-bold text-sm text-slate-800 font-cairo">المحادثات</p>
+            <p className="text-[11px] text-slate-500">{currentUser.roleName}</p>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-2 space-y-1">
-            {channels.map((c) => (
+          {loadingChannels ? (
+            <div className="flex items-center justify-center py-8 text-slate-400">
+              <Loader2 className="w-5 h-5 animate-spin" />
+            </div>
+          ) : (
+            channels.map((c) => (
               <div
                 key={c.id}
                 onClick={() => setActiveChat(c.id)}
-                className={`p-3 rounded-xl cursor-pointer transition-colors flex items-center gap-3 ${
-                  c.id === activeChat ? 'bg-slate-800 border border-gold-main/40' : 'hover:bg-slate-900'
-                }`}
+                className={`chat-contact ${c.id === activeChat ? 'chat-contact-active' : ''}`}
               >
-                <div className="w-10 h-10 rounded-full bg-emerald-dark border border-gold-main/50 flex items-center justify-center text-lg shrink-0">
-                  {c.avatar}
-                </div>
+                <div className="chat-avatar">{c.avatar}</div>
                 <div className="flex-1 min-w-0 text-right">
-                  <div className="flex justify-between items-center mb-0.5">
-                    <span className="font-bold text-white text-xs truncate">{c.name}</span>
-                    <span className="text-[10px] text-slate-400">{c.time}</span>
+                  <div className="flex justify-between items-center gap-2">
+                    <span className="font-semibold text-xs text-slate-800 truncate">{c.name}</span>
+                    {c.lastTime && <span className="text-[10px] text-slate-400 shrink-0">{c.lastTime}</span>}
                   </div>
-                  <p className="text-[11px] text-slate-400 truncate">{c.subtext}</p>
+                  <p className="text-[11px] text-slate-500 truncate mt-0.5">{c.lastMessage || c.subtitle}</p>
                 </div>
+                {c.type === 'dm' && (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-soft text-emerald-main font-bold shrink-0">خاص</span>
+                )}
               </div>
-            ))}
-          </div>
+            ))
+          )}
         </div>
 
-        {/* Main Chat Area */}
-        <div className="flex-1 flex flex-col bg-slate-900 text-right">
-          {/* Header */}
-          <div className="p-3.5 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-emerald-main text-white flex items-center justify-center font-bold text-base shadow">
-                🕋
-              </div>
-              <div>
-                <h4 className="font-bold text-white text-xs">حملة سوث ستريت الكبرى (مكة المكرمة)</h4>
-                <span className="text-[10px] text-emerald-400 font-semibold">متصل الآن • 45 عضو بالجمّع</span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => alert('إجراء مكالمة صوّتية مشفرة WebRTC مع المرشد...')}
-                className="p-2 bg-slate-800 hover:bg-slate-700 text-gold-main rounded-lg transition-colors"
-                title="مكالمة صوتية"
-              >
-                <Phone className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => alert('إجراء مكالمة فيديو مشفرة WebRTC...')}
-                className="p-2 bg-slate-800 hover:bg-slate-700 text-gold-main rounded-lg transition-colors"
-                title="مكالمة فيديو"
-              >
-                <Video className="w-4 h-4" />
-              </button>
-              <button
-                onClick={shareLocation}
-                className="bg-gold-main hover:bg-gold-light text-slate-950 font-bold text-xs px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
-              >
-                <MapPin className="w-3.5 h-3.5" />
-                مشاركة موقعي
-              </button>
-            </div>
-          </div>
-
-          {/* Preset Chips */}
-          <div className="p-2 bg-slate-950/60 border-b border-slate-800/80 flex items-center gap-1.5 overflow-x-auto text-[11px]">
-            <span
-              onClick={() => handleSend('text', 'أنا عند باب الملك عبد العزيز')}
-              className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1 rounded-full cursor-pointer whitespace-nowrap border border-slate-700"
-            >
-              📍 عند باب الملك عبد العزيز
-            </span>
-            <span
-              onClick={() => handleSend('text', 'وصلت للوبي الفندق')}
-              className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1 rounded-full cursor-pointer whitespace-nowrap border border-slate-700"
-            >
-              🏨 باللوبي
-            </span>
-            <span
-              onClick={() => handleSend('text', 'ضاع مني الفوج ومحتاج توجيه')}
-              className="bg-red-950 text-red-300 px-3 py-1 rounded-full cursor-pointer whitespace-nowrap border border-red-800"
-            >
-              ⚠️ ضاع مني الفوج
-            </span>
-            <span
-              onClick={() => handleSend('text', 'جزاكم الله خيراً يا شيخ')}
-              className="bg-slate-800 hover:bg-slate-700 text-gold-main px-3 py-1 rounded-full cursor-pointer whitespace-nowrap border border-gold-main/30"
-            >
-              🤲 تقبل الله
-            </span>
-          </div>
-
-          {/* Messages Body */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3.5">
-            {messages.map((m) => {
-              const isMe = m.senderId === currentUser.id || m.senderRole === currentUser.role;
-              return (
-                <div
-                  key={m.id}
-                  className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
-                >
-                  <div
-                    className={`max-w-xs md:max-w-md p-3 rounded-2xl text-xs leading-relaxed space-y-1.5 shadow-md ${
-                      isMe
-                        ? 'bg-emerald-dark text-white rounded-tl-none border border-emerald-600/40'
-                        : 'bg-slate-800 text-white rounded-tr-none border border-slate-700'
-                    }`}
-                  >
-                    {!isMe && (
-                      <div className="font-bold text-gold-main text-[11px] mb-1">{m.senderName}</div>
-                    )}
-
-                    {m.type === 'location' ? (
-                      <div className="space-y-2">
-                        <p>{m.text}</p>
-                        <div className="bg-slate-950 p-2.5 rounded-xl border border-gold-main/40 text-right">
-                          <div className="font-bold text-gold-main flex items-center gap-1 text-xs">
-                            <MapPin className="w-3.5 h-3.5 text-red-500" />
-                            {m.locationName || 'خريطة التجمع المباشرة'}
-                          </div>
-                          {m.coords && (
-                            <div className="text-[10px] text-emerald-400 font-mono mt-0.5">إحداثيات: {m.coords}</div>
-                          )}
-                        </div>
-                      </div>
-                    ) : m.type === 'voice' ? (
-                      <div className="space-y-1.5">
-                        <p className="font-bold text-[11px] text-gold-main">🎙️ رسالة صوتية إرشادية ({m.duration || '0:42'})</p>
-                        <div className="flex items-center gap-2 bg-slate-950/60 p-2 rounded-lg">
-                          <button className="w-7 h-7 rounded-full bg-emerald-main text-white flex items-center justify-center shrink-0">
-                            <Play className="w-3.5 h-3.5 fill-white" />
-                          </button>
-                          <div className="flex-1 h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                            <div className="w-2/5 h-full bg-emerald-400"></div>
-                          </div>
-                          <span className="text-[10px] text-slate-400">{m.duration || '0:42'}</span>
-                        </div>
-                      </div>
-                    ) : (
-                      <p>{m.text}</p>
-                    )}
-
-                    <div className="flex items-center justify-between text-[10px] text-slate-300/80 pt-1 border-t border-white/10">
-                      <span>{m.time}</span>
-                      {isMe && <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />}
-                    </div>
+        {/* Main chat */}
+        <div className="chat-main flex-1 min-h-[360px]">
+          {activeChannel ? (
+            <>
+              <div className="chat-main-header">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="chat-avatar">{activeChannel.avatar}</div>
+                  <div className="min-w-0">
+                    <h4 className="font-bold text-sm text-slate-800 truncate font-cairo">{activeChannel.name}</h4>
+                    <span className="text-[10px] text-emerald-main font-medium flex items-center gap-1">
+                      <ShieldCheck className="w-3 h-3" />
+                      {activeChannel.type === 'dm' ? 'محادثة خاصة مشفرة' : 'قناة جماعية'}
+                    </span>
                   </div>
                 </div>
-              );
-            })}
-            <div ref={messagesEndRef} />
-          </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button type="button" className="p-2 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors" title="مكالمة صوتية">
+                    <Phone className="w-4 h-4" />
+                  </button>
+                  <button type="button" className="p-2 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors" title="مكالمة فيديو">
+                    <Video className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={shareLocation}
+                    className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-soft text-emerald-main text-[11px] font-bold hover:bg-emerald-main/10 transition-colors"
+                  >
+                    <MapPin className="w-3.5 h-3.5" />
+                    موقعي
+                  </button>
+                </div>
+              </div>
 
-          {/* Input Bar */}
-          <div className="p-3 bg-slate-950 border-t border-slate-800 flex items-center gap-2">
-            <input
-              type="text"
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSend('text')}
-              placeholder="اكتب رسالتك المشفرة E2E هنا..."
-              className="flex-1 bg-slate-800 border border-slate-700 rounded-full px-4 py-2 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-gold-main text-right"
-            />
-            <button
-              onClick={() => handleSend('voice', 'رسالة صوتية مسجلة')}
-              className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-full transition-colors"
-              title="تسجيل صوتي"
-            >
-              <Mic className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => handleSend('text')}
-              className="p-2.5 bg-emerald-main hover:bg-emerald-light text-white rounded-full transition-colors shadow-md"
-              title="إرسال"
-            >
-              <Send className="w-4 h-4 rotate-180" />
-            </button>
-          </div>
+              {/* Quick replies */}
+              <div className="px-3 py-2 bg-white/80 border-b border-slate-100 flex gap-1.5 overflow-x-auto scrollbar-none">
+                {['وصلت للفندق', 'عند باب الملك عبد العزيز', 'محتاج توجيه'].map((q) => (
+                  <button
+                    key={q}
+                    type="button"
+                    onClick={() => handleSend('text', q)}
+                    className="shrink-0 px-3 py-1 rounded-full text-[11px] font-medium bg-white border border-slate-200 text-slate-600 hover:border-emerald-main/40 hover:text-emerald-main transition-colors"
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
+
+              <div className="chat-messages">
+                {loadingMessages && messages.length === 0 ? (
+                  <div className="flex justify-center py-12">
+                    <Loader2 className="w-6 h-6 animate-spin text-emerald-main" />
+                  </div>
+                ) : messages.length === 0 ? (
+                  <div className="text-center py-12 text-slate-400 text-sm">
+                    <p>لا رسائل بعد — ابدأ المحادثة</p>
+                  </div>
+                ) : (
+                  messages.map((m) => {
+                    const isMe = m.senderId === currentUser.id;
+                    return (
+                      <div key={m.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                        <div className={isMe ? 'chat-bubble-me' : 'chat-bubble-them'}>
+                          {!isMe && (
+                            <div className="text-[10px] font-bold text-emerald-main mb-1">{m.senderName}</div>
+                          )}
+                          {m.type === 'location' ? (
+                            <div className="space-y-1">
+                              <p>{m.text}</p>
+                              {m.coords && (
+                                <span className="text-[10px] text-slate-500 font-mono">{m.coords}</span>
+                              )}
+                            </div>
+                          ) : (
+                            <p>{m.text}</p>
+                          )}
+                          <div className="flex items-center justify-end gap-1 mt-1 text-[10px] text-slate-400">
+                            <span>{m.time}</span>
+                            {isMe && <CheckCheck className="w-3 h-3 text-emerald-main" />}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+
+              <div className="chat-input-bar">
+                <input
+                  type="text"
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend('text')}
+                  placeholder="اكتب رسالتك..."
+                  className="chat-input-field text-right"
+                  disabled={sending}
+                />
+                <button
+                  type="button"
+                  onClick={() => handleSend('voice', '🎙️ رسالة صوتية')}
+                  className="p-2 rounded-full hover:bg-slate-100 text-slate-500 transition-colors hidden sm:flex"
+                  title="رسالة صوتية"
+                >
+                  <Mic className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSend('text')}
+                  disabled={!inputText.trim() || sending}
+                  className="chat-send-btn"
+                  title="إرسال"
+                >
+                  <Send className="w-4 h-4 rotate-180" />
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">
+              اختر محادثة للبدء
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
+}
+
+function fallbackChannels(user: User): ChatChannel[] {
+  const base: ChatChannel[] = [
+    {
+      id: 'group-campaign-makkah',
+      type: 'group',
+      name: 'حملة العمرة — مكة',
+      subtitle: 'قناة الفوج',
+      avatar: '🕋',
+      lastMessage: 'مرحباً بالجميع',
+    },
+  ];
+  if (user.role !== 'pilgrim') {
+    base.push({
+      id: 'staff-internal',
+      type: 'staff',
+      name: 'طاقم الإدارة',
+      subtitle: 'داخلي',
+      avatar: '💼',
+    });
+  }
+  return base;
 }
