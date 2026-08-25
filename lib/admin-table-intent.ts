@@ -76,7 +76,7 @@ export const TABLE_TERMS: Record<string, string[]> = {
   messages: ['رسالة', 'رسائل', 'الرسائل', 'محادثة', 'محادثات', 'message', 'messages', 'chat'],
   audit_logs: ['تدقيق', 'سجل الامان', 'سجل الأمان', 'سجلات', 'audit', 'logs', 'log'],
   agency_settings: ['اعدادات', 'إعدادات', 'الوكالة', 'settings', 'agency'],
-  page_content: ['محتوى', 'المحتوى', 'صفحة', 'صفحات', 'content', 'page'],
+  page_content: ['محتوى', 'المحتوى', 'صفحة', 'صفحات', 'content', 'page', 'contenu'],
 };
 
 export function normalizeArabic(text: string): string {

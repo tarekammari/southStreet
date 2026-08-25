@@ -2,14 +2,19 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
+import { PageContentRow, pickPageContent } from '@/lib/page-content';
 
-export default function PromoBillboard() {
+export default function PromoBillboard({ content }: { content?: PageContentRow[] }) {
+  const promo = pickPageContent(content, 'promo_billboard', {
+    title: 'رحلة طيران مباشرة إلى البقاع المقدسة',
+    image: '/images/AIR_ALGERIA.jpg',
+  });
   return (
     <motion.section
       id="direct-flight-section"
-      initial={{ opacity: 0, y: 35 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: '-50px' }}
+      initial={{ opacity: 0, y: 32, filter: 'blur(8px)' }}
+      whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+      viewport={{ once: true, amount: 0.18 }}
       transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
       className="w-full my-4 md:my-6 px-3 sm:px-6 font-tajawal"
     >
@@ -18,8 +23,8 @@ export default function PromoBillboard() {
 
         {/* RAW BACKGROUND IMAGE — FULL BLEED WITH SMOOTH ENTRANCE ZOOM EFFECT */}
         <motion.img
-          src="/images/AIR_ALGERIA.jpg"
-          alt="Air Algérie Plane Direct Flight to Saudi Arabia"
+          src={promo.image || '/images/AIR_ALGERIA.jpg'}
+          alt={promo.title}
           initial={{ scale: 1.08 }}
           whileInView={{ scale: 1 }}
           transition={{ duration: 1.4, ease: 'easeOut' }}
@@ -34,7 +39,7 @@ export default function PromoBillboard() {
           className="relative z-10 bg-black/25 backdrop-blur-sm px-8 py-3.5 sm:px-10 sm:py-4 rounded-[12px] border border-white/20 text-white shadow-2xl max-w-fit mx-4"
         >
           <h2 className="text-xl sm:text-2xl md:text-3xl font-black font-cairo tracking-wide text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)]">
-            رحلة طيران مباشرة إلى البقاع المقدسة
+            {promo.title}
           </h2>
         </motion.div>
 

@@ -1,0 +1,4 @@
+PS D:\data\south_street>netstat -ano | findstr :3000
+PS D:\data\south_street>taskkill /PID <PID> /F
+PS D:\data\south_street>Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
+PS D:\data\south_street>netstat -ano | findstr :3000

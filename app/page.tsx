@@ -11,9 +11,12 @@ import TravelProgramsSection from '@/components/TravelProgramsSection';
 import SakhrAgent from '@/components/lazy/LazySakhrAgent';
 import Footer from '@/components/Footer';
 import { User } from '@/types';
+import { fetchJsonList } from '@/lib/fetch-json';
+import { PageContentRow, pickPageContent } from '@/lib/page-content';
 
 export default function HomePage() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [pageContent, setPageContent] = useState<PageContentRow[]>([]);
 
   useEffect(() => {
     const session = localStorage.getItem('south_street_user');
@@ -21,6 +24,7 @@ export default function HomePage() {
       try { setCurrentUser(JSON.parse(session)); }
       catch { localStorage.removeItem('south_street_user'); }
     }
+    fetchJsonList<PageContentRow>('/api/admin/content').then(setPageContent);
   }, []);
 
   const handleLogout = () => {
@@ -34,25 +38,25 @@ export default function HomePage() {
     if (session) setCurrentUser(JSON.parse(session));
   };
 
+  const navPromo = pickPageContent(pageContent, 'nav_promo', { title: '' });
+
   return (
-    <div className="page-shell min-h-screen bg-slate-app">
-      <Navbar currentUser={currentUser} onLogout={handleLogout} onSelectRole={restoreUser} variant="light" />
+    <div className="page-shell page-shell-home min-h-screen bg-slate-app">
+      <Navbar currentUser={currentUser} onLogout={handleLogout} onSelectRole={restoreUser} variant="light" showPromo promoLine={navPromo.title || undefined} />
       <main className="page-main relative overflow-hidden pb-6">
-        <section id="hero-section" className="relative z-10 w-full px-3 sm:px-6 pt-4">
-          <HeroSection />
-        </section>
+        <HeroSection content={pageContent} />
         <section id="agency-section" className="relative z-10 w-full px-3 py-8 sm:px-6 sm:py-12">
           <AgencySection />
         </section>
         <section id="promo-section">
-          <PromoBillboard />
+          <PromoBillboard content={pageContent} />
         </section>
-        <AboutSection />
+        <AboutSection content={pageContent} />
         <TestimonialsSection />
-        <TravelProgramsSection />
+        <TravelProgramsSection content={pageContent} />
         <SakhrAgent />
       </main>
-      <Footer />
+      <Footer content={pageContent} />
     </div>
   );
 }

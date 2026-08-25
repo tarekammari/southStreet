@@ -5,7 +5,9 @@ import Link from 'next/link';
 import { ChevronDown, ChevronRight, RefreshCw, LogOut, Plus, Trash2, Edit, Save, Globe, Building, Users, Moon, Settings, Package, Image as ImageIcon, Bot } from 'lucide-react';
 import AiKnowledgeManager from '@/components/AiKnowledgeManager';
 import ReviewsModerator from '@/components/ReviewsModerator';
+import ImageUploadField from '@/components/ImageUploadField';
 import { LOGIN_ROLE_OPTIONS, PORTAL_TABS, toPortalRole } from '@/lib/roles';
+import { PAGE_CONTENT_LABELS, PAGE_CONTENT_SECTIONS } from '@/lib/page-content';
 
 interface UserAccount {
   id: string;
@@ -135,6 +137,7 @@ export default function AdminDashboardPage() {
   const [editingPkg, setEditingPkg] = useState<any>(null);
   const [editingHotel, setEditingHotel] = useState<any>(null);
   const [editingMorshid, setEditingMorshid] = useState<any>(null);
+  const [editingContent, setEditingContent] = useState<any>(null);
 
   useEffect(() => {
     const savedUser  = localStorage.getItem('south_street_user');
@@ -272,6 +275,36 @@ export default function AdminDashboardPage() {
     if (!confirm('هل أنت تأكد من حذف هذا العضو؟')) return;
     try {
       const res = await fetch(`/api/admin/morshids?id=${id}`, { method: 'DELETE' });
+      if (res.ok) fetchAllCmsData();
+    } catch {}
+  };
+
+  const handleSaveContent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingContent) return;
+    const key = String(editingContent.key || '').trim();
+    if (!key) {
+      setCmsMsg('مفتاح المحتوى مطلوب');
+      return;
+    }
+    try {
+      const res = await fetch('/api/admin/content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingContent)
+      });
+      if (res.ok) {
+        setEditingContent(null);
+        fetchAllCmsData();
+        setCmsMsg('تم حفظ محتوى الموقع بنجاح!');
+      }
+    } catch {}
+  };
+
+  const handleDeleteContent = async (key: string) => {
+    if (!confirm('هل أنت متأكد من حذف هذا المحتوى؟')) return;
+    try {
+      const res = await fetch(`/api/admin/content?key=${encodeURIComponent(key)}`, { method: 'DELETE' });
       if (res.ok) fetchAllCmsData();
     } catch {}
   };
@@ -516,6 +549,7 @@ export default function AdminDashboardPage() {
                 { label: 'الفنادق المعتمدة', value: hotelsData.length, color: '#0a84ff' },
                 { label: 'طاقم العمل والعلماء', value: morshidsData.length, color: '#ff9f0a' },
                 { label: 'المواسم والرحلات', value: seasonsData.length, color: '#af52de' },
+                { label: 'محتوى الصفحات', value: contentData.length, color: '#ff375f' },
               ].map((s, i) => (
                 <div key={i} className="admin-stat-card">
                   <span className="admin-stat-value" style={{ color: s.color }}>{s.value}</span>
@@ -852,6 +886,141 @@ export default function AdminDashboardPage() {
               </div>
               <button type="submit" className="admin-btn-primary">حفظ الإعدادات في SQLite</button>
             </form>
+          </div>
+        )}
+
+        {activeTab === 'content' && (
+          <div className="space-y-5">
+            <div className="flex justify-between items-center flex-wrap gap-3">
+              <div>
+                <h2 className="text-xl font-bold">📝 محتوى الموقع (النصوص الظاهرة للزوّار)</h2>
+                <p className="text-xs text-slate-500 mt-1">العناوين والنصوص العربية تُعرض مباشرة في الصفحة الرئيسية. الفرنسية والإنجليزية تُحفظ لصخر والبحث.</p>
+              </div>
+              <button
+                onClick={() => setEditingContent({
+                  key: `block_${Date.now()}`,
+                  section: 'homepage',
+                  title_ar: '',
+                  title_fr: '',
+                  title_en: '',
+                  content_ar: '',
+                  content_fr: '',
+                  content_en: '',
+                  image_url: '',
+                  _isNew: true,
+                })}
+                className="admin-btn-primary flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" /> إضافة محتوى
+              </button>
+            </div>
+
+            {editingContent && (
+              <form onSubmit={handleSaveContent} className="p-5 bg-white dark:bg-slate-900 rounded-xl border border-emerald-500 shadow-xl space-y-4">
+                <h3 className="text-lg font-bold text-emerald-600">
+                  {editingContent._isNew ? 'محتوى جديد' : `تعديل: ${PAGE_CONTENT_LABELS[editingContent.key] || editingContent.key}`}
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="admin-label">المفتاح (لاتيني بدون مسافات)</label>
+                    <input
+                      type="text"
+                      required
+                      dir="ltr"
+                      disabled={!editingContent._isNew}
+                      value={editingContent.key || ''}
+                      onChange={e => setEditingContent({ ...editingContent, key: e.target.value })}
+                      className="admin-input"
+                    />
+                  </div>
+                  <div>
+                    <label className="admin-label">القسم</label>
+                    <select
+                      value={editingContent.section || 'homepage'}
+                      onChange={e => setEditingContent({ ...editingContent, section: e.target.value })}
+                      className="admin-input"
+                    >
+                      {PAGE_CONTENT_SECTIONS.map(s => (
+                        <option key={s.id} value={s.id}>{s.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="admin-label">العنوان بالعربية</label>
+                    <input type="text" required value={editingContent.title_ar || ''}
+                      onChange={e => setEditingContent({ ...editingContent, title_ar: e.target.value })} className="admin-input" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="admin-label">النص بالعربية</label>
+                    <textarea rows={4} value={editingContent.content_ar || ''}
+                      onChange={e => setEditingContent({ ...editingContent, content_ar: e.target.value })} className="admin-input" />
+                  </div>
+                  <div>
+                    <label className="admin-label">العنوان بالفرنسية</label>
+                    <input type="text" dir="ltr" value={editingContent.title_fr || ''}
+                      onChange={e => setEditingContent({ ...editingContent, title_fr: e.target.value })} className="admin-input" />
+                  </div>
+                  <div>
+                    <label className="admin-label">العنوان بالإنجليزية</label>
+                    <input type="text" dir="ltr" value={editingContent.title_en || ''}
+                      onChange={e => setEditingContent({ ...editingContent, title_en: e.target.value })} className="admin-input" />
+                  </div>
+                  <div>
+                    <label className="admin-label">النص بالفرنسية</label>
+                    <textarea rows={3} dir="ltr" value={editingContent.content_fr || ''}
+                      onChange={e => setEditingContent({ ...editingContent, content_fr: e.target.value })} className="admin-input" />
+                  </div>
+                  <div>
+                    <label className="admin-label">النص بالإنجليزية</label>
+                    <textarea rows={3} dir="ltr" value={editingContent.content_en || ''}
+                      onChange={e => setEditingContent({ ...editingContent, content_en: e.target.value })} className="admin-input" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <ImageUploadField
+                      label="صورة القسم (اختياري)"
+                      value={editingContent.image_url || ''}
+                      onChange={(url) => setEditingContent({ ...editingContent, image_url: url })}
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button type="submit" className="admin-btn-primary">حفظ المحتوى</button>
+                  <button type="button" onClick={() => setEditingContent(null)} className="admin-btn-secondary">إلغاء</button>
+                </div>
+              </form>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {contentData.length === 0 ? (
+                <p className="text-sm text-slate-500">لا يوجد محتوى محفوظ بعد.</p>
+              ) : contentData.map((block: any) => (
+                <div key={block.key} className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-bold text-emerald-700">
+                        {PAGE_CONTENT_LABELS[block.key] || PAGE_CONTENT_SECTIONS.find(s => s.id === block.section)?.label || block.section}
+                      </p>
+                      <h3 className="font-bold text-lg leading-snug">{block.title_ar || block.key}</h3>
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-400 shrink-0" dir="ltr">{block.key}</span>
+                  </div>
+                  {block.content_ar ? (
+                    <p className="text-sm text-slate-600 leading-relaxed line-clamp-3">{block.content_ar}</p>
+                  ) : null}
+                  {block.image_url ? (
+                    <img src={block.image_url} alt="" className="w-full h-28 object-cover rounded-lg border border-slate-100" />
+                  ) : null}
+                  <div className="flex gap-2 pt-2">
+                    <button onClick={() => setEditingContent({ ...block, _isNew: false })} className="admin-btn-secondary text-xs flex items-center gap-1">
+                      <Edit className="w-3 h-3" /> تعديل
+                    </button>
+                    <button onClick={() => handleDeleteContent(block.key)} className="admin-btn-reject text-xs flex items-center gap-1">
+                      <Trash2 className="w-3 h-3" /> حذف
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

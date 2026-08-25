@@ -1,75 +1,135 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Mail, Phone, MapPin, ArrowUpLeft } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { fetchJsonList } from '@/lib/fetch-json';
+import { PageContentRow, pickPageContent } from '@/lib/page-content';
 
-const FOOTER_LINKS = [
-  { label: 'عن الوكالة', href: '/#about-section' },
-  { label: 'برامج السفر', href: '/#programs-section' },
+const PRODUCT_LINKS = [
   { label: 'الباقات', href: '/packages' },
   { label: 'الفنادق', href: '/hotels' },
+  { label: 'برامج السفر', href: '/#programs-section' },
   { label: 'دليل العمرة', href: '/portal?tab=rituals' },
-  { label: 'بوابة الوكالة', href: '/portal' },
 ];
 
-export default function Footer() {
+const COMPANY_LINKS = [
+  { label: 'عن الوكالة', href: '/#about-section' },
+  { label: 'بوابة الوكالة', href: '/portal' },
+  { label: 'لوحة التحكم', href: '/admin' },
+  { label: 'تواصل معنا', href: '#contact' },
+];
+
+const CONTACT_LINKS = [
+  { label: 'info@south-street.com', href: 'mailto:info@south-street.com' },
+  { label: '+213 21 55 44 33', href: 'tel:+21321554433' },
+  { label: 'الجزائر العاصمة', href: '#contact' },
+];
+
+export default function Footer({ content }: { content?: PageContentRow[] }) {
+  const [email, setEmail] = useState('');
+  const [sent, setSent] = useState(false);
+  const [rows, setRows] = useState<PageContentRow[]>(content || []);
+
+  useEffect(() => {
+    if (content && content.length > 0) {
+      setRows(content);
+      return;
+    }
+    fetchJsonList<PageContentRow>('/api/admin/content').then(setRows);
+  }, [content]);
+
+  const news = pickPageContent(rows, 'footer_newsletter', {
+    title: 'لا تفوّتوا جديدنا',
+    content: 'أدخلوا بريدكم الإلكتروني للأخبار وتحديثات الرحلات',
+  });
+
   return (
-    <footer id="contact" className="footer-light relative pt-16 pb-8 overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_rgba(4,120,87,0.06),_transparent_55%)] pointer-events-none" />
+    <motion.footer
+      id="contact"
+      className="ss-footer"
+      initial={{ opacity: 0, y: 36 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.15 }}
+      transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+    >
+      <motion.div
+        className="ss-footer-mark"
+        aria-hidden="true"
+        initial={{ opacity: 0 }}
+        whileInView={{ opacity: 1 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.85, ease: [0.16, 1, 0.3, 1] }}
+      >
+        ساوث ستريت
+      </motion.div>
 
-      <div className="relative max-w-6xl mx-auto px-6">
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-10 pb-10 border-b border-slate-200">
-          <div className="md:col-span-5 space-y-4 animate-fade-up">
-            <img src="/images/south_street_logo.png" alt="SOUTH STREET" className="h-11 w-auto object-contain" onError={(e) => { (e.target as HTMLImageElement).src = '/images/south_street_logo_white_white.png'; }} />
-            <p className="text-sm text-slate-600 leading-relaxed font-amiri max-w-sm">
-              وكالة ساوث ستريت لتنظيم رحلات العمرة والحج. نرافق ضيوف الرحمن بخدمة منظمة، إقامة مدروسة، ودعم حاضر طوال الرحلة.
-            </p>
-            <div className="inline-flex items-center gap-2 text-xs font-bold text-emerald-main bg-emerald-soft px-3 py-1.5 rounded-full border border-emerald-main/20">
-              <span className="w-2 h-2 rounded-full bg-emerald-main animate-pulse" />
-              فريقنا جاهز لمساعدتك
-            </div>
-          </div>
+      <div className="ss-footer-card">
+        <div className="ss-footer-top">
+          <form
+            className="ss-footer-news"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!email.trim()) return;
+              setSent(true);
+            }}
+          >
+            <h2 className="ss-footer-news-title">{news.title}</h2>
+            <p className="ss-footer-news-copy">{news.content}</p>
+            {sent ? (
+              <p className="ss-footer-thanks">تم تسجيل بريدكم. سنوافيكم بأقرب العروض.</p>
+            ) : (
+              <label className="ss-footer-field">
+                <span className="sr-only">البريد الإلكتروني</span>
+                <input
+                  type="email"
+                  required
+                  dir="ltr"
+                  placeholder="Enter your email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+                <button type="submit" aria-label="إرسال">
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+              </label>
+            )}
+          </form>
 
-          <div className="md:col-span-3 space-y-3 animate-fade-up animate-fade-up-delay-1">
-            <h4 className="font-bold text-gold-dark text-sm font-cairo">روابط سريعة</h4>
-            <nav className="flex flex-col gap-2">
-              {FOOTER_LINKS.map(link => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="text-xs text-slate-500 hover:text-emerald-main transition-colors flex items-center gap-1 group"
-                >
-                  <ArrowUpLeft className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity text-emerald-main" />
-                  {link.label}
-                </Link>
+          <div className="ss-footer-cols">
+            <nav aria-label="البرامج">
+              <h3>البرامج</h3>
+              {PRODUCT_LINKS.map((link) => (
+                <Link key={link.href} href={link.href}>{link.label}</Link>
+              ))}
+            </nav>
+            <nav aria-label="الوكالة">
+              <h3>الوكالة</h3>
+              {COMPANY_LINKS.map((link) => (
+                <Link key={link.href} href={link.href}>{link.label}</Link>
+              ))}
+            </nav>
+            <nav aria-label="التواصل">
+              <h3>التواصل</h3>
+              {CONTACT_LINKS.map((link) => (
+                <a key={link.href} href={link.href}>{link.label}</a>
               ))}
             </nav>
           </div>
-
-          <div className="md:col-span-4 space-y-4 animate-fade-up animate-fade-up-delay-2">
-            <h4 className="font-bold text-gold-dark text-sm font-cairo">التواصل</h4>
-            <div className="space-y-3 text-xs text-slate-600">
-              <div className="flex items-center gap-2.5">
-                <Mail className="w-4 h-4 text-emerald-main shrink-0" />
-                <span>info@south-street.com</span>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <Phone className="w-4 h-4 text-emerald-main shrink-0" />
-                <span dir="ltr">+213 21 55 44 33</span>
-              </div>
-              <div className="flex items-start gap-2.5">
-                <MapPin className="w-4 h-4 text-emerald-main shrink-0 mt-0.5" />
-                <span>شارع 01 نوفمبر 1954، الجزائر العاصمة</span>
-              </div>
-            </div>
-          </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-6 text-xs text-slate-500">
-          <span>© 2026 South Street Agency. جميع الحقوق محفوظة.</span>
-          <span>صُمم بعناية لخدمة ضيوف الرحمن</span>
+        <div className="ss-footer-bottom">
+          <p>
+            <span className="ss-footer-status">الخدمة متاحة</span>
+            <span>© 2026 وكالة ساوث ستريت</span>
+          </p>
+          <p className="ss-footer-legal">
+            <a href="#contact">شروط الخدمة</a>
+            <a href="#contact">سياسة الخصوصية</a>
+          </p>
         </div>
       </div>
-    </footer>
+    </motion.footer>
   );
 }

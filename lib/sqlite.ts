@@ -8,7 +8,12 @@ let dbPathUsed: string | null = null;
 
 export function getSqliteDb(): Database.Database {
   const DB_PATH = resolveDbPath();
-  if (dbInstance && dbPathUsed === DB_PATH) return dbInstance;
+  if (dbInstance && dbPathUsed === DB_PATH) {
+    try { seedPageContent(dbInstance); } catch (err) {
+      console.warn('[Page content seed]:', err);
+    }
+    return dbInstance;
+  }
 
   ensureDbFile(DB_PATH);
 
@@ -20,7 +25,16 @@ export function getSqliteDb(): Database.Database {
   dbInstance = wrapDatabaseWithEncryption(raw);
   dbPathUsed = DB_PATH;
   initTables(dbInstance);
-  seedDefaults(dbInstance);
+  try {
+    seedDefaults(dbInstance);
+  } catch (err) {
+    console.warn('[Seed defaults]:', err);
+  }
+  try {
+    seedPageContent(dbInstance);
+  } catch (err) {
+    console.warn('[Page content seed]:', err);
+  }
   migratePlaintextToEncrypted(dbInstance);
 
   try {
@@ -512,12 +526,12 @@ function seedDefaults(db: Database.Database) {
     `);
     const now = '2026-08-10T09:00:00Z';
     const reviewsSeed = [
-      ['rev_agency_1', 'agency', 'main', 'وكالة ساوث ستريت', 'عمر بن علي', 'usr_pilgrim_user', 5, 'رحلة مرتبة من الألف إلى الياء', 'الفندق قريب من الحرم والتنظيم ممتاز من الاستقبال في المطار حتى العودة. أنصح العائلات بالتعامل معهم.', 'APPROVED', 1, 'سعداء بخدمتكم، حج مبرور إن شاء الله.', now, now],
-      ['rev_agency_2', 'agency', 'main', 'وكالة ساوث ستريت', 'فاطمة الزهراء بن دحمان', '', 5, 'المرشدة النسائية كانت سنداً', 'رافقونا خطوة بخطوة في الطواف والسعي، والتعامل راقٍ وواضح في الأسعار.', 'APPROVED', 1, '', now, now],
-      ['rev_agency_3', 'agency', 'main', 'وكالة ساوث ستريت', 'سليم بلحاج', '', 4, 'تنظيم جيد مع ملاحظة بسيطة', 'الباقة الاقتصادية قيمة مقابل السعر. الحافلة ممتازة. تأخر بسيط في الاستقبال تم حله بسرعة.', 'APPROVED', 0, 'شكراً لملاحظتكم وسنضبط مواعيد الاستقبال أكثر.', now, now],
-      ['rev_staff_s1', 'staff', 's1', 'الأستاذ أحمد المنصوري', 'عبد القادر الوهراني', '', 5, 'متابعة الإدارة مباشرة', 'المدير كان يرد على الاستفسارات بنفسه وطمأن العائلة قبل السفر.', 'APPROVED', 1, '', now, now],
-      ['rev_staff_m1', 'staff', 'm1', 'الشيخ د. عبد الرحمن النوي', 'محمد عبد الله', '', 5, 'شرح المناسك بوضوح', 'الشيخ يشرح بهدوء ويجيب عن الأسئلة في الحرم دون استعجال.', 'APPROVED', 0, '', now, now],
-      ['rev_pending_1', 'agency', 'main', 'وكالة ساوث ستريت', 'خالد بن يوسف', '', 3, 'تجربة قيد المراجعة', 'الرحلة جيدة لكن أرغب أن تراجع الإدارة موضوع توزيع الغرف للعائلات.', 'PENDING', 0, '', now, ''],
+      ['rev_agency_1', 'agency', 'main', 'وكالة ساوث ستريت', 'عمر بن علي', 'usr_pilgrim_user', 5, 'رحلة مرتبة من الألف إلى الياء', 'الفندق قريب من الحرم والتنظيم ممتاز من الاستقبال في المطار حتى العودة. أنصح العائلات بالتعامل معهم.', 'APPROVED', 1, 'سعداء بخدمتكم، حج مبرور إن شاء الله.', now, now, now],
+      ['rev_agency_2', 'agency', 'main', 'وكالة ساوث ستريت', 'فاطمة الزهراء بن دحمان', '', 5, 'المرشدة النسائية كانت سنداً', 'رافقونا خطوة بخطوة في الطواف والسعي، والتعامل راقٍ وواضح في الأسعار.', 'APPROVED', 1, '', '', now, now],
+      ['rev_agency_3', 'agency', 'main', 'وكالة ساوث ستريت', 'سليم بلحاج', '', 4, 'تنظيم جيد مع ملاحظة بسيطة', 'الباقة الاقتصادية قيمة مقابل السعر. الحافلة ممتازة. تأخر بسيط في الاستقبال تم حله بسرعة.', 'APPROVED', 0, 'شكراً لملاحظتكم وسنضبط مواعيد الاستقبال أكثر.', now, now, now],
+      ['rev_staff_s1', 'staff', 's1', 'الأستاذ أحمد المنصوري', 'عبد القادر الوهراني', '', 5, 'متابعة الإدارة مباشرة', 'المدير كان يرد على الاستفسارات بنفسه وطمأن العائلة قبل السفر.', 'APPROVED', 1, '', '', now, now],
+      ['rev_staff_m1', 'staff', 'm1', 'الشيخ د. عبد الرحمن النوي', 'محمد عبد الله', '', 5, 'شرح المناسك بوضوح', 'الشيخ يشرح بهدوء ويجيب عن الأسئلة في الحرم دون استعجال.', 'APPROVED', 0, '', '', now, now],
+      ['rev_pending_1', 'agency', 'main', 'وكالة ساوث ستريت', 'خالد بن يوسف', '', 3, 'تجربة قيد المراجعة', 'الرحلة جيدة لكن أرغب أن تراجع الإدارة موضوع توزيع الغرف للعائلات.', 'PENDING', 0, '', '', now, ''],
     ];
     db.transaction(() => {
       for (const r of reviewsSeed) insertReview.run(...r);
@@ -653,23 +667,83 @@ function seedDefaults(db: Database.Database) {
     }
   })();
 
-  // Seed Page Content
-  const pageContentCount = (db.prepare('SELECT COUNT(*) as cnt FROM page_content').get() as any).cnt;
-  if (pageContentCount === 0) {
-    const insertContent = db.prepare(`
-      INSERT INTO page_content (key, section, title_ar, title_fr, title_en, content_ar, content_fr, content_en, image_url, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
+  seedPageContent(db);
+}
 
-    const defaultContent = [
-      ['hero_banner', 'homepage', 'رحلتك إلى بيت الله الحرام بشعور ملؤه السكينة والإيمان', 'Votre voyage vers la Maison Sacrée d\'Allah', 'Your spiritual journey to the Holy Land', 'نحن نعتني بكافة التفاصيل من الطيران الفاخر، الفنادق المطلة على الكعبة المشرفة، وحتى التأطير الديني الميداني رفقة نخبة كبار العلماء والمرشدين.', 'Nous prenons soin de tous les détails...', 'We take care of all details...', '/images/hero_makkah.jpg', new Date().toISOString()],
-      ['about_section', 'homepage', 'لماذا تختار وكالة ساوث ستريت للعمرة والحج؟', 'Pourquoi choisir South Street?', 'Why Choose South Street?', 'أكثر من 15 عاماً من الخبرة في تنظيم رحلات العمرة والحج المباشرة مع تأطير ميداني 24/7 وفنادق بالمنطقة المركزية.', 'Plus de 15 ans d\'expérience...', 'Over 15 years of experience...', '/images/about_us.jpg', new Date().toISOString()]
-    ];
+type PageContentSeed = [string, string, string, string, string, string, string, string, string];
 
-    db.transaction(() => {
-      for (const c of defaultContent) {
-        insertContent.run(...c);
+const PAGE_CONTENT_SEEDS: PageContentSeed[] = [
+  ['hero_banner', 'homepage',
+    'عمرة تليق بطمأنينتكم.',
+    'Une Omra à la hauteur de votre sérénité.',
+    'An Umrah worthy of your peace of mind.',
+    'عرض شهر أوت 2026 — طيران مباشر وإقامة بجوار الحرم.',
+    'Offre août 2026 — vol direct et hébergement près de la Haram.',
+    'August 2026 offer — direct flight and stay next to the Haram.',
+    ''],
+  ['nav_promo', 'homepage',
+    'خدمتكم شرف نعتز به وكالة ساوث ستريت — رفيقكم الموثوق لأداء العمرة والحج بأعلى درجات الرفاهية والاطمئنان.',
+    'South Street — votre compagnon de confiance pour l\'Omra et le Hajj.',
+    'South Street — your trusted companion for Umrah and Hajj.',
+    '', '', '', ''],
+  ['about_section', 'homepage',
+    'طاقم الوكالة والمرشدون الميدانيون',
+    'L\'équipe de l\'agence et les guides sur le terrain',
+    'The agency team and field guides',
+    'نخبة من الإداريين والعلماء المرشدين لمرافقتك طوال مراحل رحلة العمرة والحج.',
+    'Une élite d\'administrateurs et de savants pour vous accompagner tout au long du voyage.',
+    'A dedicated team of administrators and scholars to accompany you throughout the journey.',
+    ''],
+  ['programs_section', 'homepage',
+    'اختر رحلتك القادمة',
+    'Choisissez votre prochain voyage',
+    'Choose your next journey',
+    'برامج العمرة والحج المتاحة للحجز، والرحلات القادمة للتسجيل المسبق.',
+    'Programmes d\'Omra et de Hajj ouverts à la réservation, et voyages à venir pour préinscription.',
+    'Umrah and Hajj programs open for booking, plus upcoming trips for pre-registration.',
+    ''],
+  ['promo_billboard', 'homepage',
+    'رحلة طيران مباشرة إلى البقاع المقدسة',
+    'Vol direct vers les Lieux Saints',
+    'Direct flight to the Holy Land',
+    '', '', '', '/images/AIR_ALGERIA.jpg'],
+  ['footer_newsletter', 'footer',
+    'لا تفوّتوا جديدنا',
+    'Ne manquez pas nos actualités',
+    'Don\'t miss our updates',
+    'أدخلوا بريدكم الإلكتروني للأخبار وتحديثات الرحلات',
+    'Entrez votre e-mail pour les actualités et les mises à jour des voyages.',
+    'Enter your email for news and trip updates.',
+    ''],
+];
+
+const LEGACY_PAGE_TITLES: Record<string, string> = {
+  hero_banner: 'رحلتك إلى بيت الله الحرام بشعور ملؤه السكينة والإيمان',
+  about_section: 'لماذا تختار وكالة ساوث ستريت للعمرة والحج؟',
+};
+
+function seedPageContent(db: Database.Database) {
+  const now = new Date().toISOString();
+  const insertIgnore = db.prepare(`
+    INSERT OR IGNORE INTO page_content (key, section, title_ar, title_fr, title_en, content_ar, content_fr, content_en, image_url, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const getTitle = db.prepare('SELECT title_ar FROM page_content WHERE key = ?');
+  const updateLegacy = db.prepare(`
+    UPDATE page_content
+    SET section = ?, title_ar = ?, title_fr = ?, title_en = ?, content_ar = ?, content_fr = ?, content_en = ?, image_url = ?, updated_at = ?
+    WHERE key = ?
+  `);
+
+  for (const row of PAGE_CONTENT_SEEDS) {
+    try {
+      insertIgnore.run(row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], now);
+      const existing = getTitle.get(row[0]) as { title_ar?: string } | undefined;
+      if (existing && LEGACY_PAGE_TITLES[row[0]] && existing.title_ar === LEGACY_PAGE_TITLES[row[0]]) {
+        updateLegacy.run(row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], now, row[0]);
       }
-    })();
+    } catch (err) {
+      console.warn('[Page content seed]', row[0], err);
+    }
   }
 }

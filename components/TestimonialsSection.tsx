@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import { StarRating } from '@/components/StarRating';
 import ReviewComposer from '@/components/ReviewComposer';
 
@@ -41,7 +42,15 @@ export default function TestimonialsSection() {
   const maxBar = Math.max(1, ...Object.values(summary.histogram));
 
   return (
-    <section id="testimonials-section" className="w-full my-6 sm:my-10 px-3 sm:px-6 font-tajawal" dir="rtl">
+    <motion.section
+      id="testimonials-section"
+      className="w-full my-6 sm:my-10 px-3 sm:px-6 font-tajawal"
+      dir="rtl"
+      initial={{ opacity: 0, y: 32, filter: 'blur(8px)' }}
+      whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+      viewport={{ once: true, amount: 0.18 }}
+      transition={{ duration: 0.75, ease: [0.16, 1, 0.3, 1] }}
+    >
       <div className="max-w-7xl mx-auto rounded-2xl md:rounded-3xl bg-white border border-slate-200 shadow-xl p-5 sm:p-8 md:p-10">
         <div className="flex flex-col lg:flex-row gap-8">
           <div className="lg:w-72 shrink-0 space-y-3">
@@ -113,6 +122,6 @@ export default function TestimonialsSection() {
           </div>
         </div>
       </div>
-    </section>
+    </motion.section>
   );
 }

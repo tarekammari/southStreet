@@ -6,12 +6,15 @@ import { usePathname } from 'next/navigation';
 import { Menu, X, ShieldCheck, LogOut, User as UserIcon, Settings, ChevronDown, Sparkles } from 'lucide-react';
 import { User } from '@/types';
 import LoginModal from './LoginModal';
+import { motion } from 'framer-motion';
 
 interface NavbarProps {
   currentUser?: User | null;
   onLogout?: () => void;
   onSelectRole?: (code: string, name: string) => void;
-  variant?: 'light' | 'dark';
+  variant?: 'light' | 'dark' | 'apple';
+  showPromo?: boolean;
+  promoLine?: string;
 }
 
 const NAV_LINKS = [
@@ -23,7 +26,10 @@ const NAV_LINKS = [
   { label: 'دليل العمرة', href: '/portal?tab=rituals' },
 ];
 
-export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 'light' }: NavbarProps) {
+const PROMO_LINE =
+  'خدمتكم شرف نعتز به وكالة ساوث ستريت — رفيقكم الموثوق لأداء العمرة والحج بأعلى درجات الرفاهية والاطمئنان.';
+
+export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 'light', showPromo = false, promoLine }: NavbarProps) {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -63,13 +69,15 @@ export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 
 
   const isActive = (href: string) => {
     if (href === '/') return pathname === '/';
-    if (href.startsWith('/#')) return pathname === '/';
+    if (href.startsWith('/#')) return false;
     return pathname === href || pathname.startsWith(href + '/');
   };
 
+  const isApple = variant === 'apple';
   const isLight = variant === 'light';
-  const headerClass = isLight ? 'top-header-light' : 'top-header-clean';
-  const linkClass = isLight ? 'nav-link-light' : 'nav-link-pro';
+  const headerClass = isApple ? 'top-header-apple' : isLight ? 'top-header-light' : 'top-header-clean';
+  const linkClass = isApple ? 'nav-link-apple' : isLight ? 'nav-link-light' : 'nav-link-pro';
+  const logoSrc = isLight ? '/images/south_street_logo.png' : '/images/south_street_logo_white_white.png';
 
   const renderLink = (link: { label: string; href: string }, mobile = false) => {
     const active = isActive(link.href);
@@ -93,12 +101,18 @@ export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 
 
   return (
     <>
+      <motion.div
+        className={showPromo || isApple ? 'nav-chrome nav-chrome-promo' : undefined}
+        initial={{ opacity: 0, y: -12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+      >
       <header className={`${headerClass} ${scrolled ? 'scrolled' : ''}`}>
         <Link href="/" className="flex items-center shrink-0" aria-label="South Street Home">
           <img
-            src={isLight ? '/images/south_street_logo.png' : '/images/south_street_logo_white_white.png'}
+            src={logoSrc}
             alt="SOUTH STREET"
-            className="nav-logo-img"
+            className={`nav-logo-img ${isApple ? 'nav-logo-apple' : ''}`}
             onError={(e) => { (e.target as HTMLImageElement).src = '/images/south_street_logo_white_white.png'; }}
           />
         </Link>
@@ -168,9 +182,9 @@ export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 
           ) : (
             <button
               onClick={() => setIsLoginOpen(true)}
-              className="btn-pro-primary text-sm py-2.5 px-4"
+              className={isApple ? 'nav-apple-cta' : 'btn-pro-primary text-sm py-2.5 px-4'}
             >
-              <Sparkles className="w-4 h-4" />
+              {!isApple && <Sparkles className="w-4 h-4" />}
               بوابة الوكالة
             </button>
           )}
@@ -180,9 +194,15 @@ export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 
           </button>
         </div>
       </header>
+      {showPromo && (
+        <div className="nav-promo-banner" role="note">
+          <p className="nav-promo-line">{promoLine || PROMO_LINE}</p>
+        </div>
+      )}
+      </motion.div>
 
       {mobileOpen && (
-        <nav className={`fixed top-[72px] inset-x-0 z-[199] border-b px-6 py-4 backdrop-blur-xl lg:hidden space-y-1 ${isLight ? 'border-slate-200 bg-white/98' : 'border-white/10 bg-slate-950/98'}`}>
+        <nav className={`nav-mobile-panel fixed inset-x-0 z-[199] border-b px-6 py-4 backdrop-blur-xl lg:hidden space-y-1 ${isLight ? 'border-slate-200 bg-white/98' : 'border-white/10 bg-slate-950/98'}`}>
           {NAV_LINKS.map(link => renderLink(link, true))}
           {isAdmin && (
             <Link href="/admin" onClick={closeMenu} className="flex items-center gap-2 py-3 text-emerald-400 font-bold text-sm">

@@ -6,6 +6,7 @@ import { PhoneCall } from 'lucide-react';
 import { extractImageUrls } from '@/lib/table-cell-utils';
 import { fetchJsonList } from '@/lib/fetch-json';
 import { StarRating } from '@/components/StarRating';
+import { PageContentRow, pickPageContent } from '@/lib/page-content';
 
 interface MorshidRow {
   morshid_id: string;
@@ -15,9 +16,54 @@ interface MorshidRow {
   phone?: string;
   image?: string;
   avatar?: string;
+  category?: string;
   rating?: number;
   review_count?: number;
   reviewCount?: number;
+}
+
+function isFemaleGuide(member: MorshidRow): boolean {
+  const role = member.roleName || '';
+  return member.category === 'women_guide' || role.includes('مرشدة');
+}
+
+function isDirector(member: MorshidRow): boolean {
+  const role = member.roleName || '';
+  const image = (member.image || '').toLowerCase();
+  if (isFemaleGuide(member)) return false;
+  return (
+    image.includes('director') ||
+    role.includes('المدير العام') ||
+    role.includes('مدير عام') ||
+    role.includes('مدير الوكالة')
+  );
+}
+
+function isMaleGuide(member: MorshidRow): boolean {
+  if (isDirector(member) || isFemaleGuide(member)) return false;
+  const role = member.roleName || '';
+  return (
+    member.category === 'religious_guide' ||
+    member.category === 'field_guide' ||
+    (role.includes('مرشد') && !role.includes('مرشدة'))
+  );
+}
+
+function pickBest(rows: MorshidRow[], prefer?: (member: MorshidRow) => boolean): MorshidRow | undefined {
+  const ranked = [...rows].sort((a, b) => {
+    const preferDelta = Number(Boolean(prefer?.(b))) - Number(Boolean(prefer?.(a)));
+    if (preferDelta) return preferDelta;
+    return (Number(b.rating) || 0) - (Number(a.rating) || 0);
+  });
+  return ranked[0];
+}
+
+/** Homepage about-us: director, one male guide, one female guide. */
+function pickAboutMembers(rows: MorshidRow[]): MorshidRow[] {
+  const director = pickBest(rows.filter(isDirector));
+  const male = pickBest(rows.filter(isMaleGuide), (m) => m.category === 'religious_guide');
+  const female = pickBest(rows.filter(isFemaleGuide));
+  return [director, male, female].filter((row): row is MorshidRow => Boolean(row));
 }
 
 function photoOf(member: MorshidRow): string {
@@ -30,15 +76,19 @@ function initialOf(member: MorshidRow): string {
   return (member.name || 'م').charAt(0);
 }
 
-export default function AboutSection() {
+export default function AboutSection({ content }: { content?: PageContentRow[] }) {
   const [members, setMembers] = useState<MorshidRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const about = pickPageContent(content, 'about_section', {
+    title: 'طاقم الوكالة والمرشدون الميدانيون',
+    content: 'نخبة من الإداريين والعلماء المرشدين لمرافقتك طوال مراحل رحلة العمرة والحج.',
+  });
 
   useEffect(() => {
     let cancelled = false;
     fetchJsonList<MorshidRow>('/api/admin/morshids').then((data) => {
       if (cancelled) return;
-      setMembers(data);
+      setMembers(pickAboutMembers(data));
       setLoading(false);
     });
     return () => {
@@ -47,14 +97,21 @@ export default function AboutSection() {
   }, []);
 
   return (
-    <section id="about-section" className="w-full my-6 sm:my-10 px-3 sm:px-6 font-tajawal">
+    <motion.section
+      id="about-section"
+      className="w-full my-6 sm:my-10 px-3 sm:px-6 font-tajawal"
+      initial={{ opacity: 0, y: 32, filter: 'blur(8px)' }}
+      whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+      viewport={{ once: true, amount: 0.18 }}
+      transition={{ duration: 0.75, ease: [0.16, 1, 0.3, 1] }}
+    >
       <div className="relative w-full rounded-2xl md:rounded-3xl bg-[#f8fafc] border border-slate-200 shadow-xl overflow-hidden py-10 sm:py-14 px-4 sm:px-8 md:px-12 text-slate-900">
         <div className="relative z-10 max-w-7xl mx-auto text-center space-y-3 mb-10 sm:mb-12">
           <h2 className="font-cairo text-2xl sm:text-3xl md:text-4xl font-black text-slate-900">
-            طاقم الوكالة والمرشدون الميدانيون
+            {about.title}
           </h2>
           <p className="text-sm sm:text-base text-slate-600 max-w-2xl mx-auto leading-relaxed">
-            نخبة من الإداريين والعلماء المرشدين لمرافقتك طوال مراحل رحلة العمرة والحج.
+            {about.content}
           </p>
         </div>
 
@@ -67,7 +124,7 @@ export default function AboutSection() {
             لا يوجد أعضاء في جدول المرشدين حالياً.
           </div>
         ) : (
-          <div className="relative z-10 max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="relative z-10 max-w-5xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {members.map((member) => {
               const photo = photoOf(member);
               const phoneHref = member.phone ? `tel:${member.phone.replace(/\s+/g, '')}` : undefined;
@@ -137,6 +194,6 @@ export default function AboutSection() {
           </div>
         )}
       </div>
-    </section>
+    </motion.section>
   );
 }

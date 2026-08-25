@@ -132,6 +132,10 @@ export const COLUMN_LABELS_AR: Record<string, string> = {
   admin_reply: 'رد الإدارة',
   content_key: 'مفتاح المحتوى',
   content_ar: 'المحتوى',
+  content_fr: 'المحتوى بالفرنسية',
+  content_en: 'المحتوى بالإنجليزية',
+  title_fr: 'العنوان بالفرنسية',
+  title_en: 'العنوان بالإنجليزية',
   section: 'القسم',
 };
 

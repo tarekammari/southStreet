@@ -806,16 +806,21 @@ export default function SakhrAgent({ onSearchFilter, theme = 'dark' }: SakhrAgen
         <button
           onClick={() => setIsOpen((v) => !v)}
           aria-label="مساعد صخر الذكي"
-          className={`relative w-14 h-14 sm:w-[60px] sm:h-[60px] rounded-full focus:outline-none group cursor-pointer flex items-center justify-center ${isLight ? 'sakhr-fab-light' : 'sakhr-fab'}`}
+          className={`sakhr-fab-future relative w-14 h-14 sm:w-[64px] sm:h-[64px] rounded-full focus:outline-none group cursor-pointer flex items-center justify-center ${isOpen ? 'is-open' : ''}`}
         >
-          {isOpen ? (
-            <X className="w-5 h-5 text-neutral-400 group-hover:text-white transition-colors" />
-          ) : (
-            <>
-              <span className="text-[#c9a962] font-bold text-lg sm:text-xl font-cairo leading-none">ص</span>
-              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-[#171717]" />
-            </>
-          )}
+          <span className="sakhr-fab-aura" aria-hidden="true" />
+          <span className="sakhr-fab-ring" aria-hidden="true" />
+          <span className="sakhr-fab-ring sakhr-fab-ring-outer" aria-hidden="true" />
+          <span className="sakhr-fab-spark-track" aria-hidden="true">
+            <span className="sakhr-fab-spark" />
+          </span>
+          <span className="sakhr-fab-core">
+            {isOpen ? (
+              <X className="w-5 h-5 text-white drop-shadow" />
+            ) : (
+              <span className="sakhr-fab-letter">ص</span>
+            )}
+          </span>
         </button>
       </div>
 
