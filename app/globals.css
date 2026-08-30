@@ -2412,14 +2412,14 @@ body.modal-open .sakhr-panel-shell {
 .hero-apple-inner {
   position: relative;
   z-index: 2;
-  width: min(100%, 1140px);
+  width: min(100%, 1280px);
   margin: 0 auto;
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem 2.5rem;
-  padding: 2.25rem 5% 5.25rem;
+  gap: 0.75rem 1.5rem;
+  padding: 2.25rem 4% 5.25rem;
 }
 
 .hero-apple-copy {
@@ -2631,46 +2631,47 @@ body.modal-open .sakhr-panel-shell {
 
 .hero-kaaba-side {
   position: relative;
-  flex: 0 1 560px;
+  flex: 1 1 720px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  min-width: 0;
   min-height: 0;
   overflow: visible;
 }
 
 .hero-postcard-perspective {
   position: relative;
-  width: min(100%, 580px);
+  width: min(100%, 760px);
   overflow: visible;
-  -webkit-perspective: 2000px;
-  perspective: 2000px;
-  perspective-origin: 50% 38%;
+  -webkit-perspective: 1600px;
+  perspective: 1600px;
+  perspective-origin: 50% 42%;
 }
 
 .hero-postcard-perspective.is-flow {
-  -webkit-perspective: 2200px;
-  perspective: 2200px;
+  -webkit-perspective: 1600px;
+  perspective: 1600px;
 }
 
 .hero-postcard-perspective.is-interactive:hover {
-  -webkit-perspective: 2400px;
-  perspective: 2400px;
+  -webkit-perspective: 1500px;
+  perspective: 1500px;
 }
 
 .hero-postcard-perspective.is-interactive.is-mobile {
-  -webkit-perspective: 1600px;
-  perspective: 1600px;
+  -webkit-perspective: 1200px;
+  perspective: 1200px;
 }
 
 .hero-postcard-stage {
   position: relative;
   width: 100%;
-  height: min(56vh, 470px);
+  height: min(58vh, 520px);
   transform-style: preserve-3d;
   -webkit-transform-style: preserve-3d;
-  cursor: default;
+  cursor: ew-resize;
   outline: none;
   user-select: none;
   touch-action: pan-y;
@@ -2709,18 +2710,19 @@ body.modal-open .sakhr-panel-shell {
 .hero-postcard {
   position: absolute;
   left: 50%;
-  top: 44%;
-  width: min(62%, 340px);
+  top: 46%;
+  width: min(46%, 268px);
   aspect-ratio: 1 / 1;
   height: auto;
   --offset: 0;
   padding: 0;
-  background: #0f0f0f;
-  border-radius: 6px;
+  background: #111;
+  border-radius: 8px;
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.08),
-    0 16px 40px rgba(0, 0, 0, 0.35),
-    0 4px 12px rgba(0, 0, 0, 0.2);
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 18px 40px rgba(0, 0, 0, 0.32),
+    0 4px 12px rgba(0, 0, 0, 0.18);
+  transform: translate(-50%, -50%);
   transform-origin: center center;
   transform-style: preserve-3d;
   -webkit-transform-style: preserve-3d;
@@ -2730,38 +2732,66 @@ body.modal-open .sakhr-panel-shell {
   overflow: hidden;
   will-change: transform, opacity, filter;
   transition:
-    --offset 0.72s cubic-bezier(0.32, 0.72, 0, 1),
-    transform 0.72s cubic-bezier(0.32, 0.72, 0, 1),
-    opacity 0.55s cubic-bezier(0.32, 0.72, 0, 1),
-    filter 0.55s cubic-bezier(0.32, 0.72, 0, 1),
-    box-shadow 0.55s cubic-bezier(0.32, 0.72, 0, 1),
-    visibility 0s linear 0.55s;
+    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s linear 0.5s;
 }
 
-/* iPod / iPhone Cover Flow */
-.hero-postcard-perspective.is-flow .hero-postcard {
-  transform: translate(-50%, -50%)
-    translateX(calc(var(--offset) * 112px))
-    translateZ(calc(90px - abs(var(--offset)) * 38px))
-    rotateY(calc(var(--offset) * -68deg))
-    scale(calc(1.12 - abs(var(--offset)) * 0.08));
-  opacity: calc(1 - max(0, abs(var(--offset)) - 1) * 0.38);
-  filter: brightness(calc(1 - abs(var(--offset)) * 0.1)) saturate(calc(1 - abs(var(--offset)) * 0.04));
-}
-
-.hero-postcard-perspective.is-flow .hero-postcard.is-front {
+/* iPod / iPhone Cover Flow — explicit slots so side albums stay visible */
+.hero-postcard-perspective.is-flow .hero-postcard[data-offset="0"] {
+  transform: translate(-50%, -50%) translateZ(140px) scale(1.08);
+  opacity: 1;
+  filter: brightness(1.04) saturate(1.04);
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.12),
-    0 28px 56px rgba(0, 0, 0, 0.42),
-    0 0 48px rgba(0, 113, 227, 0.14);
+    0 0 0 1px rgba(255, 255, 255, 0.16),
+    0 28px 56px rgba(0, 0, 0, 0.4),
+    0 0 40px rgba(0, 113, 227, 0.16);
 }
 
-.hero-postcard-perspective.is-flow.is-mobile .hero-postcard {
-  transform: translate(-50%, -50%)
-    translateX(calc(var(--offset) * 82px))
-    translateZ(calc(64px - abs(var(--offset)) * 28px))
-    rotateY(calc(var(--offset) * -58deg))
-    scale(calc(1.08 - abs(var(--offset)) * 0.07));
+.hero-postcard-perspective.is-flow .hero-postcard[data-offset="1"] {
+  transform: translate(-50%, -50%) translateX(198px) translateZ(8px) rotateY(-58deg) scale(0.9);
+  opacity: 1;
+  filter: brightness(0.86) saturate(0.92);
+}
+
+.hero-postcard-perspective.is-flow .hero-postcard[data-offset="-1"] {
+  transform: translate(-50%, -50%) translateX(-198px) translateZ(8px) rotateY(58deg) scale(0.9);
+  opacity: 1;
+  filter: brightness(0.86) saturate(0.92);
+}
+
+.hero-postcard-perspective.is-flow .hero-postcard[data-offset="2"] {
+  transform: translate(-50%, -50%) translateX(338px) translateZ(-70px) rotateY(-70deg) scale(0.78);
+  opacity: 0.72;
+  filter: brightness(0.72) saturate(0.82);
+}
+
+.hero-postcard-perspective.is-flow .hero-postcard[data-offset="-2"] {
+  transform: translate(-50%, -50%) translateX(-338px) translateZ(-70px) rotateY(70deg) scale(0.78);
+  opacity: 0.72;
+  filter: brightness(0.72) saturate(0.82);
+}
+
+.hero-postcard-perspective.is-flow.is-mobile .hero-postcard[data-offset="0"] {
+  transform: translate(-50%, -50%) translateZ(90px) scale(1.04);
+}
+
+.hero-postcard-perspective.is-flow.is-mobile .hero-postcard[data-offset="1"] {
+  transform: translate(-50%, -50%) translateX(138px) translateZ(4px) rotateY(-52deg) scale(0.88);
+}
+
+.hero-postcard-perspective.is-flow.is-mobile .hero-postcard[data-offset="-1"] {
+  transform: translate(-50%, -50%) translateX(-138px) translateZ(4px) rotateY(52deg) scale(0.88);
+}
+
+.hero-postcard-perspective.is-flow.is-mobile .hero-postcard[data-offset="2"] {
+  transform: translate(-50%, -50%) translateX(236px) translateZ(-50px) rotateY(-64deg) scale(0.76);
+}
+
+.hero-postcard-perspective.is-flow.is-mobile .hero-postcard[data-offset="-2"] {
+  transform: translate(-50%, -50%) translateX(-236px) translateZ(-50px) rotateY(64deg) scale(0.76);
 }
 
 .hero-postcard.is-away {
@@ -2780,7 +2810,7 @@ body.modal-open .sakhr-panel-shell {
 }
 
 .hero-postcard-perspective.is-interactive .hero-postcard.is-side:hover {
-  filter: brightness(calc(1 - abs(var(--offset)) * 0.06)) saturate(calc(1 - abs(var(--offset)) * 0.02));
+  filter: brightness(0.96) saturate(0.98);
 }
 
 .hero-postcard-perspective.is-interactive .hero-postcard.is-side:focus-visible {
@@ -2971,12 +3001,29 @@ body.modal-open .sakhr-panel-shell {
       filter 0.25s ease;
   }
 
-  .hero-postcard-perspective.is-flow .hero-postcard,
-  .hero-postcard-perspective.is-flow.is-mobile .hero-postcard {
-    transform: translate(-50%, -50%)
-      translateX(calc(var(--offset) * 92px))
-      scale(calc(1.06 - abs(var(--offset)) * 0.05));
-    filter: brightness(calc(1 - abs(var(--offset)) * 0.06));
+  .hero-postcard-perspective.is-flow .hero-postcard[data-offset="0"],
+  .hero-postcard-perspective.is-flow.is-mobile .hero-postcard[data-offset="0"] {
+    transform: translate(-50%, -50%) scale(1.04);
+  }
+
+  .hero-postcard-perspective.is-flow .hero-postcard[data-offset="1"],
+  .hero-postcard-perspective.is-flow.is-mobile .hero-postcard[data-offset="1"] {
+    transform: translate(-50%, -50%) translateX(150px) scale(0.9);
+  }
+
+  .hero-postcard-perspective.is-flow .hero-postcard[data-offset="-1"],
+  .hero-postcard-perspective.is-flow.is-mobile .hero-postcard[data-offset="-1"] {
+    transform: translate(-50%, -50%) translateX(-150px) scale(0.9);
+  }
+
+  .hero-postcard-perspective.is-flow .hero-postcard[data-offset="2"],
+  .hero-postcard-perspective.is-flow.is-mobile .hero-postcard[data-offset="2"] {
+    transform: translate(-50%, -50%) translateX(270px) scale(0.8);
+  }
+
+  .hero-postcard-perspective.is-flow .hero-postcard[data-offset="-2"],
+  .hero-postcard-perspective.is-flow.is-mobile .hero-postcard[data-offset="-2"] {
+    transform: translate(-50%, -50%) translateX(-270px) scale(0.8);
   }
 }
 
@@ -3074,7 +3121,7 @@ body.modal-open .sakhr-panel-shell {
   }
 
   .hero-postcard {
-    width: min(72%, 280px);
+    width: min(52%, 220px);
   }
 
   .hero-postcard-hint {

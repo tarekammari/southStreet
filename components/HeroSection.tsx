@@ -388,6 +388,7 @@ function PostcardCoverFlow() {
               <article
                 key={card.src}
                 className={`hero-postcard hero-album-cover${isFront ? ' is-front' : ' is-side'}${isVisible ? '' : ' is-away'}`}
+                data-offset={offset}
                 style={{
                   ['--offset' as string]: offset,
                   zIndex: count - Math.abs(offset),

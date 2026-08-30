@@ -43,7 +43,7 @@ export default function HomePage() {
   return (
     <div className="page-shell page-shell-home min-h-screen bg-slate-app">
       <Navbar currentUser={currentUser} onLogout={handleLogout} onSelectRole={restoreUser} variant="light" showPromo promoLine={navPromo.title || undefined} />
-      <main className="page-main relative overflow-hidden pb-6">
+      <main className="page-main relative overflow-x-clip pb-6">
         <HeroSection content={pageContent} />
         <section id="agency-section" className="relative z-10 w-full px-3 py-8 sm:px-6 sm:py-12">
           <AgencySection />
