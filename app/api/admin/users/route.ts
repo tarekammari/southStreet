@@ -3,15 +3,37 @@ import { getDatabase } from '@/lib/db';
 import { ensureUserAccount, updateUserAccess } from '@/lib/accounts';
 import { getSqliteDb } from '@/lib/sqlite';
 import { normalizeLoginRole, LOGIN_ROLE_LABELS, toPortalRole, PORTAL_TABS } from '@/lib/roles';
+import { enrichUsersWithSessions, isImageSource, resolveUserPhoto } from '@/lib/user-access-view';
 
-function publicUser(u: any) {
+/** Staff members carry the real portrait; users only link to them through staffId. */
+function loadStaffPhotos(sqlite: any): Map<string, string> {
+  const photos = new Map<string, string>();
+  try {
+    const staff = sqlite.prepare('SELECT morshid_id, image, avatar FROM morshids').all() as any[];
+    for (const member of staff) {
+      const src = isImageSource(member?.image)
+        ? member.image
+        : isImageSource(member?.avatar)
+          ? member.avatar
+          : '';
+      if (src) photos.set(member.morshid_id, String(src).trim());
+    }
+  } catch {
+    /* staff table unavailable — everyone falls back to the default portrait */
+  }
+  return photos;
+}
+
+function publicUser(u: any, staffPhotos?: Map<string, string>) {
   const role = normalizeLoginRole(u.role, { email: u.email, roleName: u.roleName });
   const portal = toPortalRole(role);
+  const photo = resolveUserPhoto(u.avatar, u.staffId ? staffPhotos?.get(u.staffId) : undefined);
   return {
     id: u.id,
     name: u.name,
     email: u.email,
     username: u.username,
+    photo,
     role,
     roleName: u.roleName || LOGIN_ROLE_LABELS[role],
     status: u.status || 'APPROVED',
@@ -30,11 +52,32 @@ export async function GET() {
     const overlay = getDatabase();
     const sqlite = getSqliteDb();
     const rows = sqlite.prepare('SELECT * FROM users').all() as any[];
+    const staffPhotos = loadStaffPhotos(sqlite);
+    const users = enrichUsersWithSessions(
+      rows.map((row) => publicUser(row, staffPhotos)),
+      overlay.sessions || []
+    );
+    const onlineCount = users.filter((u) => u.isOnline).length;
+    const pendingCount = users.filter((u) => u.status === 'PENDING_APPROVAL').length;
+    const suspendedCount = users.filter((u) => u.status === 'SUSPENDED' || u.loginEnabled === false).length;
+    const sessions = overlay.sessions || [];
+    const neverLoggedIn = users.filter((u) => !u.lastLogin).length;
+
     return NextResponse.json({
-      users: rows.map(publicUser),
-      sessions: overlay.sessions,
+      users,
+      sessions,
       accessRequests: overlay.accessRequests,
-      securityKey: overlay.securityKey
+      securityKey: overlay.securityKey,
+      serverTime: new Date().toISOString(),
+      stats: {
+        total: users.length,
+        online: onlineCount,
+        pending: pendingCount,
+        suspended: suspendedCount,
+        active: users.filter((u) => u.status === 'APPROVED' && u.loginEnabled !== false).length,
+        sessions: sessions.length,
+        neverLoggedIn,
+      },
     });
   } catch (error) {
     return NextResponse.json({ error: 'خطأ في جلب بيانات المستخدمين' }, { status: 500 });
@@ -124,7 +167,7 @@ export async function PATCH(req: Request) {
       message: nextStatus === 'APPROVED'
         ? 'تمت الموافقة وتحديد الصلاحية. يمكن للعضو الدخول الآن.'
         : `تم تحديث حالة الحساب إلى (${nextStatus || nextRole}) بنجاح`,
-      user: publicUser(updated),
+      user: publicUser(updated, loadStaffPhotos(sqlite)),
     });
   } catch (error) {
     return NextResponse.json({ error: 'خطأ في تحديث صلاحية الحساب' }, { status: 500 });

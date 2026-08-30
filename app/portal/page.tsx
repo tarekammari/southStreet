@@ -9,6 +9,7 @@ import { User, Reservation, CustomerDocument, Receipt } from '@/types';
 import { toPortalRole, PORTAL_TABS, defaultPortalTab } from '@/lib/roles';
 import ReviewComposer from '@/components/ReviewComposer';
 import AccountSecurityPanel from '@/components/AccountSecurityPanel';
+import SessionHeartbeat from '@/components/SessionHeartbeat';
 
 const TabFallback = () => (
   <div className="luxury-card p-10 flex items-center justify-center text-xs text-slate-400 gap-2">
@@ -261,6 +262,7 @@ function CustomerPortalContent() {
 
   return (
     <div className="portal-shell font-tajawal">
+      <SessionHeartbeat />
       <Navbar currentUser={currentUser} variant="light" />
 
       <main className="pt-28 pb-16 max-w-6xl mx-auto px-4 sm:px-6 space-y-6">

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="5H1) 'DE3*./E 'D'A*1'6J)">
+  <defs>
+    <linearGradient id="duBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#eef1f6"/>
+      <stop offset="1" stop-color="#dfe4ec"/>
+    </linearGradient>
+    <clipPath id="duClip">
+      <circle cx="32" cy="32" r="32"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#duClip)">
+    <rect width="64" height="64" fill="url(#duBg)"/>
+    <circle cx="32" cy="24.5" r="10.5" fill="#a3adbe"/>
+    <path d="M32 38.5c-11.2 0-20.3 7.1-20.3 15.9V70h40.6V54.4C52.3 45.6 43.2 38.5 32 38.5z" fill="#a3adbe"/>
+  </g>
+</svg>

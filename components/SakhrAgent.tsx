@@ -8,7 +8,7 @@ import {
   MapPin, CheckCircle, Eye, Layers,
   PhoneCall, Play,
   Table, Database, Plus, Search, FileText,
-  Sparkles, BookOpen, ShieldCheck
+  Sparkles, BookOpen, ShieldCheck, Brain
 } from 'lucide-react';
 import { Package, Hotel, MediaAsset, AiAction, AiCard } from '@/types';
 import { RecordCardModel, buildRecordCard, emptyRecordCard } from '@/lib/record-card';
@@ -802,12 +802,13 @@ export default function SakhrAgent({ onSearchFilter, theme = 'dark' }: SakhrAgen
   return (
     <>
       {/* Floating trigger */}
-      <div className="fixed bottom-5 right-5 sm:bottom-8 sm:right-8 z-50 select-none">
+      <div className="fixed bottom-5 right-5 sm:bottom-8 sm:right-8 z-50 select-none sakhr-fab-shell">
         <button
           onClick={() => setIsOpen((v) => !v)}
           aria-label="مساعد صخر الذكي"
           className={`sakhr-fab-future relative w-14 h-14 sm:w-[64px] sm:h-[64px] rounded-full focus:outline-none group cursor-pointer flex items-center justify-center ${isOpen ? 'is-open' : ''}`}
         >
+          <span className="sakhr-fab-attention" aria-hidden="true" />
           <span className="sakhr-fab-aura" aria-hidden="true" />
           <span className="sakhr-fab-ring" aria-hidden="true" />
           <span className="sakhr-fab-ring sakhr-fab-ring-outer" aria-hidden="true" />
@@ -821,6 +822,11 @@ export default function SakhrAgent({ onSearchFilter, theme = 'dark' }: SakhrAgen
               <span className="sakhr-fab-letter">ص</span>
             )}
           </span>
+          {!isOpen ? (
+            <span className="sakhr-fab-brain-badge" aria-hidden="true">
+              <Brain className="w-3 h-3" />
+            </span>
+          ) : null}
         </button>
       </div>
 
