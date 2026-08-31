@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextFetchEvent, NextRequest } from 'next/server';
-import { classifyRequest, normalizeIp, type SecurityEvent, type Verdict } from '@/lib/security-threats';
+import { classifyRequest, classifyAsset, normalizeIp, type SecurityEvent, type Verdict } from '@/lib/security-threats';
 import { INGEST_HEADER, INGEST_TOKEN } from '@/lib/security-transport';
 
 /**
@@ -33,9 +33,9 @@ function edge(): EdgeState {
       queue: [],
       blocked: new Set(),
       allowed: new Set(),
-      floodLimit: 120,
+      floodLimit: 60,
       firewallOn: true,
-      blockBots: false,
+      blockBots: true,
       blockScanners: true,
       blockInjection: true,
       policyAt: 0,
@@ -75,7 +75,8 @@ function shouldBlock(s: EdgeState, ip: string, verdict: Verdict): boolean {
   if (s.blocked.has(ip)) return true;
   if (s.blockInjection && (verdict.threat === 'INJECTION' || verdict.threat === 'TRAVERSAL')) return true;
   if (s.blockScanners && verdict.threat === 'SCANNER') return true;
-  if (s.blockBots && verdict.threat === 'BOT' && verdict.severity !== 'info') return true;
+  if (verdict.threat === 'BOT' && verdict.severity !== 'info') return true;
+  if (verdict.threat === 'FLOOD' || verdict.threat === 'AUTH_ABUSE') return true;
   return false;
 }
 
@@ -96,7 +97,7 @@ async function flush(origin: string, s: EdgeState) {
     s.blockBots = Boolean(policy?.settings?.blockBots);
     s.blockScanners = policy?.settings?.blockScanners !== false;
     s.blockInjection = policy?.settings?.blockInjection !== false;
-    s.floodLimit = Number(policy?.settings?.floodLimit) || 120;
+    s.floodLimit = Number(policy?.settings?.floodLimit) || 60;
     s.policyAt = Date.now();
   } catch {
     /* monitoring must never take the site down */
@@ -129,23 +130,30 @@ export function middleware(request: NextRequest, event: NextFetchEvent) {
   });
 
   const blocked = shouldBlock(s, ip, verdict);
+  const asset = classifyAsset(url.pathname, request.method);
+  const skipNoise = asset.noise && verdict.threat === 'CLEAN' && !blocked;
 
-  s.queue.push({
-    id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-    ts: new Date().toISOString(),
-    ip,
-    method: request.method,
-    path: url.pathname,
-    query: url.search.replace(/^\?/, '').slice(0, 300),
-    userAgent: userAgent.slice(0, 300),
-    referer: (request.headers.get('referer') || '').slice(0, 200),
-    threat: blocked && s.blocked.has(ip) ? 'BLOCKED' : verdict.threat,
-    severity: blocked ? 'critical' : verdict.severity,
-    reason: blocked ? `${verdict.reason || 'عنوان محظور'} — تم الرفض` : verdict.reason,
-    blocked,
-    trusted: false,
-    country: request.headers.get('x-vercel-ip-country') || '',
-  });
+  if (!skipNoise) {
+    s.queue.push({
+      id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      ts: new Date().toISOString(),
+      ip,
+      method: request.method,
+      path: url.pathname,
+      query: url.search.replace(/^\?/, '').slice(0, 300),
+      userAgent: userAgent.slice(0, 300),
+      referer: (request.headers.get('referer') || '').slice(0, 200),
+      threat: blocked && s.blocked.has(ip) ? 'BLOCKED' : verdict.threat,
+      severity: blocked ? 'critical' : verdict.severity,
+      reason: blocked ? `${verdict.reason || 'عنوان محظور'} — تم الرفض` : verdict.reason,
+      blocked,
+      trusted: false,
+      country: request.headers.get('x-vercel-ip-country') || '',
+      noise: false,
+      dataClass: asset.dataClass,
+      dataLabel: asset.dataLabel,
+    });
+  }
 
   const stale = Date.now() - s.policyAt > POLICY_TTL_MS;
   const due = s.queue.length >= FLUSH_AT_COUNT || Date.now() - s.flushAt > FLUSH_EVERY_MS;

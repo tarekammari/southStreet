@@ -6,6 +6,7 @@ import { findUserForLogin, findUserByQr, queueAccessRequest, repairSuperAdminLog
 import { signToken } from '@/lib/auth';
 import { normalizeLoginRole, postLoginPath, requiresSecurityKey, LOGIN_ROLE_LABELS } from '@/lib/roles';
 import { dbLogAudit } from '@/lib/db';
+import { recordLoginIncident } from '@/lib/security-monitor';
 
 const failedAttemptsMap = new Map<string, { count: number; lockUntil: number }>();
 let superAdminReady = false;
@@ -25,13 +26,23 @@ function clientMeta(req: Request) {
   return { clientIp, userAgent, pcPrint };
 }
 
-function recordFailure(ip: string) {
+function recordFailure(ip: string, reason = 'بيانات دخول خاطئة', userAgent = '') {
   if (isLocalDev(ip)) return;
   const now = Date.now();
   const rec = failedAttemptsMap.get(ip) || { count: 0, lockUntil: 0 };
   rec.count += 1;
-  if (rec.count >= 5) rec.lockUntil = now + 15 * 60 * 1000;
+  if (rec.count >= 4) rec.lockUntil = now + 15 * 60 * 1000;
   failedAttemptsMap.set(ip, rec);
+  try {
+    recordLoginIncident({
+      ip,
+      userAgent,
+      reason: rec.lockUntil > now ? `${reason} — تم حظر العنوان 15 دقيقة` : reason,
+      blocked: rec.lockUntil > now,
+    });
+  } catch {
+    /* monitoring must not break login */
+  }
 }
 
 function lockoutResponse(ip: string) {
@@ -158,7 +169,7 @@ export async function POST(req: Request) {
     if (qrPayload) {
       const found = findUserByQr(String(qrPayload));
       if (!found) {
-        recordFailure(meta.clientIp);
+        recordFailure(meta.clientIp, 'رمز QR غير صالح', meta.userAgent);
         dbLogAudit('Unknown', 'unknown', 'فشل دخول QR', meta.clientIp);
         return NextResponse.json({ error: 'رمز QR غير صالح أو منتهي' }, { status: 401 });
       }
@@ -175,7 +186,7 @@ export async function POST(req: Request) {
           (sqlite.prepare('SELECT * FROM users WHERE email = ?').get(String(identifier).toLowerCase()) as any);
       }
       if (!user || !verifyPassword(String(password), user.passwordHash || user.password_hash)) {
-        recordFailure(meta.clientIp);
+        recordFailure(meta.clientIp, 'اسم مستخدم أو كلمة مرور خاطئة', meta.userAgent);
         return NextResponse.json({ error: 'بيانات الدخول غير صحيحة' }, { status: 401 });
       }
       user.__plainPassword = String(password);
@@ -202,13 +213,9 @@ export async function POST(req: Request) {
           pcPrint: meta.pcPrint,
         });
       }
-      const isKeyValid =
-        cleanKey.includes(currentSecurityKey) ||
-        currentSecurityKey.includes(cleanKey) ||
-        cleanKey.includes('SOUTHSTREET-KEY-v1-') ||
-        cleanKey.includes('SOUTHSTREET SECURITY KEY BLOCK');
+      const isKeyValid = cleanKey === currentSecurityKey || cleanKey.includes(currentSecurityKey);
       if (!isKeyValid) {
-        recordFailure(meta.clientIp);
+        recordFailure(meta.clientIp, 'مفتاح أمان خاطئ', meta.userAgent);
         return NextResponse.json({ error: 'مفتاح الأمان غير صحيح' }, { status: 403 });
       }
     }

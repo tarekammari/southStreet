@@ -1,6 +1,23 @@
 import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { getSqliteDb } from '@/lib/sqlite';
 import { saveGoogleClientId } from '@/lib/google-auth-config';
+import { verifyToken } from '@/lib/auth';
+import { getTokenFromRequest } from '@/lib/request-auth';
+import { normalizeLoginRole } from '@/lib/roles';
+
+const ADMIN_ROLES = new Set(['SUPER_ADMIN', 'AGENCY_MANAGER']);
+
+function requireAdmin(req: NextRequest) {
+  const token = getTokenFromRequest(req);
+  const payload = token ? verifyToken(token) : null;
+  if (!payload?.sub) return false;
+  const role = normalizeLoginRole(String(payload.role || ''), {
+    email: payload.email,
+    roleName: payload.roleName,
+  });
+  return ADMIN_ROLES.has(role);
+}
 
 export async function GET() {
   try {
@@ -9,17 +26,22 @@ export async function GET() {
     if (!row) {
       return NextResponse.json({ error: 'البيانات غير موجودة' }, { status: 404 });
     }
+    const { google_client_id: _omit, security_key: _key, ...publicRow } = row;
     return NextResponse.json({
-      ...row,
-      supported_languages: JSON.parse(row.supported_languages || '[]')
+      ...publicRow,
+      supported_languages: JSON.parse(row.supported_languages || '[]'),
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
-export async function PUT(req: Request) {
+export async function PUT(req: NextRequest) {
   try {
+    if (!requireAdmin(req)) {
+      return NextResponse.json({ error: 'صلاحية غير كافية' }, { status: 403 });
+    }
+
     const body = await req.json();
     const db = getSqliteDb();
 

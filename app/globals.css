@@ -2425,15 +2425,15 @@ body.modal-open .sakhr-panel-shell {
 .hero-apple-copy {
   position: relative;
   z-index: 3;
-  flex: 0 1 420px;
+  flex: 0 1 auto;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: flex-start;
-  max-width: 420px;
-  width: 100%;
+  width: max-content;
+  max-width: min(26rem, 100%);
   padding-bottom: 1.25rem;
-  text-align: right;
+  text-align: start;
 }
 
 .hero-branding {
@@ -2441,17 +2441,7 @@ body.modal-open .sakhr-panel-shell {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  text-align: right;
-  padding-inline-end: 0.35rem;
-}
-
-.hero-kicker {
-  margin: 0 0 0.15rem;
-  font-family: var(--font-cairo), 'Cairo', sans-serif;
-  font-size: clamp(0.82rem, 1.5vw, 0.95rem);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: #6e6e73;
+  text-align: start;
 }
 
 .hero-headline {
@@ -2460,7 +2450,7 @@ body.modal-open .sakhr-panel-shell {
 }
 
 .hero-headline-word {
-  display: block;
+  display: inline-block;
   font-family: var(--font-cairo), 'Cairo', sans-serif;
   font-size: clamp(3.25rem, 9vw, 5.75rem);
   font-weight: 900;
@@ -2494,52 +2484,30 @@ body.modal-open .sakhr-panel-shell {
 }
 
 .hero-offer {
-  margin-top: 1.85rem;
+  margin-top: 1.35rem;
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
+  flex-direction: column;
+  align-items: stretch;
   justify-content: flex-start;
-  gap: 1.25rem 1.5rem;
+  gap: 1.1rem;
   width: 100%;
 }
 
-.hero-offer-copy {
-  min-width: 0;
-  flex: 1 1 16rem;
-}
-
-.hero-offer-label {
-  margin: 0;
-  font-family: var(--font-tajawal), 'Tajawal', sans-serif;
-  font-size: 0.78rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: #6e6e73;
-}
-
-.hero-offer-title {
-  margin: 0.35rem 0 0;
-  font-family: var(--font-cairo), 'Cairo', sans-serif;
-  font-size: clamp(1rem, 1.8vw, 1.15rem);
-  font-weight: 800;
-  color: #1d1d1f;
-  line-height: 1.35;
-}
-
 .hero-offer-date {
-  margin: 0.35rem 0 0;
+  margin: 0.55rem 0 0;
   font-family: var(--font-tajawal), 'Tajawal', sans-serif;
-  font-size: 0.88rem;
+  font-size: clamp(1rem, 1.7vw, 1.15rem);
   font-weight: 600;
   color: #c2410c;
 }
 
 .hero-offer-price {
-  margin: 0.65rem 0 0;
+  margin: 0;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: baseline;
-  gap: 0.35rem 0.5rem;
+  justify-content: flex-start;
+  gap: 0.4rem 0.5rem;
   line-height: 1;
 }
 
@@ -2567,9 +2535,11 @@ body.modal-open .sakhr-panel-shell {
 
 .hero-offer-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0.65rem;
   align-items: center;
+  justify-content: flex-start;
+  width: 100%;
 }
 
 .hero-offer-meta {
@@ -2583,16 +2553,19 @@ body.modal-open .sakhr-panel-shell {
 }
 
 .hero-buy-btn {
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  min-height: 3.15rem;
+  padding: 0.75rem 1.75rem;
   background: #0071e3;
   color: #ffffff;
   font-family: var(--font-cairo), 'Cairo', sans-serif;
   font-size: 0.95rem;
   font-weight: 700;
-  padding: 0.65rem 1.45rem;
-  border: none;
+  line-height: 1.2;
+  border: 1.5px solid transparent;
   border-radius: 980px;
   cursor: pointer;
   box-shadow: 0 8px 20px rgba(0, 113, 227, 0.22);
@@ -2600,9 +2573,7 @@ body.modal-open .sakhr-panel-shell {
 }
 
 .hero-buy-btn-primary {
-  font-size: clamp(1.05rem, 2vw, 1.2rem);
   font-weight: 800;
-  padding: 0.9rem 2.35rem;
   min-width: 9.5rem;
   box-shadow: 0 12px 32px rgba(0, 113, 227, 0.32);
 }
@@ -3081,13 +3052,16 @@ body.modal-open .sakhr-panel-shell {
   .hero-branding {
     align-items: center;
     text-align: center;
-    padding-inline-end: 0;
   }
 
   .hero-offer {
     justify-content: center;
     align-items: center;
     text-align: center;
+  }
+
+  .hero-offer-price {
+    justify-content: center;
   }
 
   .hero-offer-actions {
@@ -3163,8 +3137,6 @@ body.modal-open .sakhr-panel-shell {
   }
 
   .hero-offer {
-    flex-direction: column;
-    align-items: stretch;
     margin-top: 1.25rem;
   }
 

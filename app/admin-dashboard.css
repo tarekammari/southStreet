@@ -1293,6 +1293,135 @@
   gap: 0.35rem;
 }
 
+.gset-wrap {
+  max-width: 720px;
+}
+
+.gset-card {
+  background: #fff;
+  border: 1px solid #e8ebf0;
+  border-radius: 22px;
+  padding: 1.4rem 1.5rem 1.6rem;
+}
+
+.gset-head {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.gset-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #eef2ff;
+  color: #4f46e5;
+  flex-shrink: 0;
+}
+
+.gset-head h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.gset-head p {
+  margin: 0.35rem 0 0;
+  font-size: 0.84rem;
+  line-height: 1.55;
+  color: #64748b;
+}
+
+.gset-status {
+  margin: 0 0 0.85rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.gset-status.is-on {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #15803d;
+}
+
+.gset-error,
+.gset-ok {
+  margin: 0 0 0.75rem;
+  padding: 0.65rem 0.8rem;
+  border-radius: 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.gset-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+}
+
+.gset-ok {
+  background: #ecfdf5;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+}
+
+.gset-form label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #334155;
+  margin-bottom: 0.4rem;
+}
+
+.gset-form input {
+  width: 100%;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid #e2e5ec;
+  border-radius: 12px;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.82rem;
+  outline: none;
+}
+
+.gset-form input:focus {
+  border-color: #818cf8;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.gset-hint {
+  margin: 0.55rem 0 1rem;
+  font-size: 0.75rem;
+  line-height: 1.55;
+  color: #94a3b8;
+}
+
+.gset-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.7rem 1.2rem;
+  border: 0;
+  border-radius: 12px;
+  background: #4f46e5;
+  color: #fff;
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.gset-save:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .inn-row.is-clickable,
 .inn-user-card.is-clickable {
   cursor: pointer;
@@ -1355,7 +1484,7 @@
 
 @media (min-width: 1000px) {
   .sec-stats {
-    grid-template-columns: 1.3fr repeat(4, minmax(0, 1fr));
+    grid-template-columns: 1.2fr repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -1595,6 +1724,84 @@
 .sec-row.sev-high { border-inline-start-color: #f97316; background: #fff8f1; }
 .sec-row.sev-critical { border-inline-start-color: #ef4444; background: #fff1f2; }
 .sec-row.is-blocked { background: #fee2e2; }
+.sec-row.is-sensitive {
+  background: #fffbeb;
+  border-inline-start-color: #d97706;
+}
+.sec-row.is-secrets {
+  background: #f5f3ff;
+  border-inline-start-color: #7c3aed;
+}
+
+.sec-data-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.14rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  white-space: nowrap;
+  background: #f1f5f9;
+  color: #334155;
+  flex-shrink: 0;
+}
+
+.sec-data-badge.is-users { background: #ffedd5; color: #9a3412; }
+.sec-data-badge.is-secrets { background: #ede9fe; color: #6d28d9; }
+.sec-data-badge.is-auth { background: #fee2e2; color: #b91c1c; }
+.sec-data-badge.is-database { background: #e0f2fe; color: #075985; }
+
+.sec-report-list {
+  list-style: none;
+  margin: 0;
+  padding: 0.4rem 0.6rem 0.6rem;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.sec-report {
+  padding: 0.7rem 0.6rem;
+  border-radius: 12px;
+  border: 1px solid #fee2e2;
+  background: #fff7f7;
+  margin-bottom: 0.45rem;
+}
+
+.sec-report-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.sec-report-head strong {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #be123c;
+}
+
+.sec-report-meta,
+.sec-report-path {
+  margin: 0.25rem 0 0;
+  font-size: 0.68rem;
+  color: #64748b;
+}
+
+.sec-report-path {
+  font-family: ui-monospace, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sec-report .sec-mini-btn {
+  margin-top: 0.45rem;
+}
+
+.sec-ip.is-sensitive-hit {
+  background: #fffbeb;
+}
 
 .sec-row-time {
   font-family: ui-monospace, 'SF Mono', Menlo, monospace;

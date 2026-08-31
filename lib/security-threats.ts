@@ -18,6 +18,9 @@ export type ThreatKind =
 
 export type Severity = 'info' | 'low' | 'medium' | 'high' | 'critical';
 
+/** What kind of application data this request touches. */
+export type DataClass = 'none' | 'public' | 'session' | 'database' | 'users' | 'secrets' | 'auth';
+
 export type SecurityEvent = {
   id: string;
   ts: string;
@@ -33,6 +36,9 @@ export type SecurityEvent = {
   blocked: boolean;
   trusted: boolean;
   country: string;
+  noise?: boolean;
+  dataClass?: DataClass;
+  dataLabel?: string;
 };
 
 export const SEVERITY_ORDER: Record<Severity, number> = {
@@ -44,15 +50,25 @@ export const SEVERITY_ORDER: Record<Severity, number> = {
 };
 
 export const THREAT_LABELS: Record<ThreatKind, string> = {
-  CLEAN: 'طلب سليم',
-  BOT: 'روبوت / زاحف',
+  CLEAN: 'سليم',
+  BOT: 'روبوت',
   SCANNER: 'فحص ثغرات',
-  INJECTION: 'محاولة حقن',
+  INJECTION: 'حقن SQL',
   TRAVERSAL: 'اختراق مسار',
-  AUTH_ABUSE: 'ضغط على الدخول',
-  FLOOD: 'إغراق بالطلبات',
+  AUTH_ABUSE: 'اقتحام دخول',
+  FLOOD: 'إغراق / DDoS',
   NO_AGENT: 'عميل مجهول',
-  BLOCKED: 'محظور بالجدار',
+  BLOCKED: 'محظور',
+};
+
+export const DATA_LABELS: Record<DataClass, string> = {
+  none: '',
+  public: '',
+  session: 'جلسة',
+  database: 'قاعدة البيانات',
+  users: 'بيانات المستخدمين',
+  secrets: 'كلمات المرور والمفاتيح',
+  auth: 'محاولة دخول',
 };
 
 export const SEVERITY_LABELS: Record<Severity, string> = {
@@ -81,6 +97,63 @@ const INJECTION_PATTERNS =
 const TRAVERSAL_PATTERNS = /(\.\.\/|\.\.\\|%2e%2e%2f|%2e%2e\/|\.\.%2f|%252e%252e)/i;
 
 const AUTH_PATHS = /^\/api\/(admin\/auth|auth\/(register|connect|google)|account\/security)/i;
+
+const CATALOG_GET =
+  /^\/api\/(admin\/(content|packages|hotels|morshids|seasons|agency)|reviews|auth\/config)$/i;
+
+export function classifyAsset(path: string, method: string): {
+  noise: boolean;
+  dataClass: DataClass;
+  dataLabel: string;
+} {
+  const p = path || '/';
+  const m = (method || 'GET').toUpperCase();
+
+  if (/^\/api\/(admin\/auth|auth\/)/i.test(p)) {
+    return { noise: false, dataClass: 'auth', dataLabel: DATA_LABELS.auth };
+  }
+  if (/^\/api\/(admin\/(security-key|credentials)|account\/security)/i.test(p)) {
+    return { noise: false, dataClass: 'secrets', dataLabel: DATA_LABELS.secrets };
+  }
+  if (/^\/api\/(admin\/users|users)\b/i.test(p)) {
+    return { noise: false, dataClass: 'users', dataLabel: DATA_LABELS.users };
+  }
+  if (/^\/api\/admin\/db-tables/i.test(p)) {
+    return { noise: false, dataClass: 'database', dataLabel: 'جداول قاعدة البيانات' };
+  }
+  if (p.startsWith('/api/session/heartbeat')) {
+    return { noise: true, dataClass: 'session', dataLabel: '' };
+  }
+  if (m === 'GET' && CATALOG_GET.test(p)) {
+    return { noise: true, dataClass: 'public', dataLabel: '' };
+  }
+  if (p.startsWith('/api/') && m !== 'GET') {
+    return { noise: false, dataClass: 'database', dataLabel: DATA_LABELS.database };
+  }
+  if (p.startsWith('/api/admin/')) {
+    return { noise: false, dataClass: 'database', dataLabel: DATA_LABELS.database };
+  }
+  if (m === 'GET' && !p.startsWith('/api/')) {
+    return { noise: true, dataClass: 'public', dataLabel: '' };
+  }
+  return { noise: false, dataClass: 'none', dataLabel: '' };
+}
+
+export function isSensitiveData(dataClass?: DataClass): boolean {
+  return dataClass === 'users' || dataClass === 'secrets' || dataClass === 'auth' || dataClass === 'database';
+}
+
+export function isImportantEvent(event: {
+  threat: ThreatKind;
+  blocked?: boolean;
+  noise?: boolean;
+  dataClass?: DataClass;
+}): boolean {
+  if (event.blocked) return true;
+  if (event.threat !== 'CLEAN') return true;
+  if (isSensitiveData(event.dataClass)) return true;
+  return !event.noise;
+}
 
 /** Loopback and RFC1918 space — the operator's own network. */
 export function isTrustedIp(ip: string): boolean {
@@ -142,12 +215,12 @@ export function classifyRequest(input: ClassifyInput): Verdict {
     return { threat: 'SCANNER', severity: 'high', reason: `فحص مسار غير موجود على هذا الخادم (${path})` };
   }
 
-  const floodLimit = input.floodThreshold ?? 120;
+  const floodLimit = input.floodThreshold ?? 60;
   if (!trusted && (input.recentHits ?? 0) > floodLimit) {
     return { threat: 'FLOOD', severity: 'high', reason: `${input.recentHits} طلب خلال دقيقة واحدة من نفس العنوان` };
   }
 
-  if (!trusted && AUTH_PATHS.test(path) && (input.recentAuthHits ?? 0) > 8) {
+  if (!trusted && AUTH_PATHS.test(path) && (input.recentAuthHits ?? 0) > 4) {
     return { threat: 'AUTH_ABUSE', severity: 'high', reason: `${input.recentAuthHits} محاولة دخول متتالية` };
   }
 

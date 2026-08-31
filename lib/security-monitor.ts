@@ -1,8 +1,12 @@
 import { getSqliteDb } from '@/lib/sqlite';
 import {
+  isSensitiveData,
+  isImportantEvent,
   isTrustedIp,
   normalizeIp,
   SEVERITY_ORDER,
+  THREAT_LABELS,
+  classifyAsset,
   type SecurityEvent,
   type Severity,
   type ThreatKind,
@@ -34,7 +38,17 @@ type MonitorState = {
   live: SecurityEvent[];
   ips: Map<string, IpStat>;
   window: { start: number; total: number; blocked: number; threats: number };
-  totals: { requests: number; blocked: number; threats: number; bots: number };
+  totals: {
+    requests: number;
+    blocked: number;
+    threats: number;
+    bots: number;
+    injection: number;
+    flood: number;
+    scanners: number;
+    auth: number;
+    sensitive: number;
+  };
   bootedAt: number;
 };
 
@@ -46,7 +60,17 @@ function state(): MonitorState {
       live: [],
       ips: new Map(),
       window: { start: Date.now(), total: 0, blocked: 0, threats: 0 },
-      totals: { requests: 0, blocked: 0, threats: 0, bots: 0 },
+      totals: {
+        requests: 0,
+        blocked: 0,
+        threats: 0,
+        bots: 0,
+        injection: 0,
+        flood: 0,
+        scanners: 0,
+        auth: 0,
+        sensitive: 0,
+      },
       bootedAt: Date.now(),
     };
   }
@@ -94,7 +118,7 @@ function db() {
         block_bots INTEGER DEFAULT 0,
         block_scanners INTEGER DEFAULT 1,
         block_injection INTEGER DEFAULT 1,
-        flood_limit INTEGER DEFAULT 120
+        flood_limit INTEGER DEFAULT 60
       );
 
       CREATE INDEX IF NOT EXISTS idx_fw_rules_key ON firewall_rules(rule_key);
@@ -115,10 +139,10 @@ export type FirewallSettings = {
 
 const DEFAULT_SETTINGS: FirewallSettings = {
   enabled: true,
-  blockBots: false,
+  blockBots: true,
   blockScanners: true,
   blockInjection: true,
-  floodLimit: 120,
+  floodLimit: 60,
 };
 
 export function getFirewallSettings(): FirewallSettings {
@@ -127,7 +151,7 @@ export function getFirewallSettings(): FirewallSettings {
     if (!row) {
       db().exec(
         `INSERT INTO firewall_settings (id, status, block_bots, block_scanners, block_injection, flood_limit)
-         VALUES ('main', 'ACTIVE', 0, 1, 1, 120)`
+         VALUES ('main', 'ACTIVE', 1, 1, 1, 60)`
       );
       return DEFAULT_SETTINGS;
     }
@@ -136,7 +160,7 @@ export function getFirewallSettings(): FirewallSettings {
       blockBots: Boolean(row.block_bots),
       blockScanners: Boolean(row.block_scanners),
       blockInjection: Boolean(row.block_injection),
-      floodLimit: Number(row.flood_limit) || 120,
+      floodLimit: Number(row.flood_limit) || 60,
     };
   } catch {
     return DEFAULT_SETTINGS;
@@ -303,10 +327,14 @@ export function recordEvents(events: SecurityEvent[]): void {
   const incidents: SecurityEvent[] = [];
 
   for (const raw of events) {
+    const asset = classifyAsset(raw.path || '/', raw.method || 'GET');
     const event: SecurityEvent = {
       ...raw,
       ip: normalizeIp(raw.ip),
       trusted: isTrustedIp(raw.ip),
+      noise: raw.noise ?? asset.noise,
+      dataClass: raw.dataClass || asset.dataClass,
+      dataLabel: raw.dataLabel || asset.dataLabel,
     };
 
     s.live.push(event);
@@ -321,6 +349,11 @@ export function recordEvents(events: SecurityEvent[]): void {
       s.window.threats += 1;
     }
     if (event.threat === 'BOT') s.totals.bots += 1;
+    if (event.threat === 'INJECTION') s.totals.injection = (s.totals.injection || 0) + 1;
+    if (event.threat === 'FLOOD') s.totals.flood = (s.totals.flood || 0) + 1;
+    if (event.threat === 'SCANNER') s.totals.scanners = (s.totals.scanners || 0) + 1;
+    if (event.threat === 'AUTH_ABUSE') s.totals.auth = (s.totals.auth || 0) + 1;
+    if (isSensitiveData(event.dataClass)) s.totals.sensitive += 1;
 
     const stat = s.ips.get(event.ip) || {
       ip: event.ip,
@@ -344,7 +377,7 @@ export function recordEvents(events: SecurityEvent[]): void {
     if (SEVERITY_ORDER[event.severity] > SEVERITY_ORDER[stat.worst]) stat.worst = event.severity;
     s.ips.set(event.ip, stat);
 
-    if (event.blocked || SEVERITY_ORDER[event.severity] >= SEVERITY_ORDER.medium) {
+    if (event.blocked || SEVERITY_ORDER[event.severity] >= SEVERITY_ORDER.medium || event.threat === 'AUTH_ABUSE') {
       incidents.push(event);
     }
   }
@@ -423,15 +456,67 @@ export type IpSummary = {
   ruled: 'BLOCK' | 'ALLOW' | null;
 };
 
-export function getLiveFeed(limit = 120, options?: { severity?: Severity; onlyThreats?: boolean }): SecurityEvent[] {
+export function getLiveFeed(
+  limit = 120,
+  options?: { severity?: Severity; onlyThreats?: boolean; important?: boolean }
+): SecurityEvent[] {
   const s = state();
   let feed = [...s.live].reverse();
-  if (options?.onlyThreats) feed = feed.filter((e) => e.threat !== 'CLEAN');
+  if (options?.important !== false) feed = feed.filter((e) => isImportantEvent(e));
+  if (options?.onlyThreats) feed = feed.filter((e) => e.threat !== 'CLEAN' || e.blocked);
   if (options?.severity) {
     const min = SEVERITY_ORDER[options.severity];
     feed = feed.filter((e) => SEVERITY_ORDER[e.severity] >= min);
   }
   return feed.slice(0, limit);
+}
+
+export function getSensitiveEvents(limit = 40): SecurityEvent[] {
+  return [...state().live]
+    .reverse()
+    .filter((e) => isSensitiveData(e.dataClass))
+    .slice(0, limit);
+}
+
+export type AttackReport = {
+  threat: ThreatKind;
+  label: string;
+  count: number;
+  lastAt: string;
+  lastIp: string;
+  lastPath: string;
+  lastNote: string;
+};
+
+export function getAttackReports(): AttackReport[] {
+  const order: ThreatKind[] = ['INJECTION', 'FLOOD', 'AUTH_ABUSE', 'BOT', 'SCANNER', 'TRAVERSAL', 'BLOCKED'];
+  const buckets = new Map<ThreatKind, AttackReport>();
+  const live = [...state().live].reverse();
+
+  const consider = (threat: ThreatKind, at: string, ip: string, path: string, note: string) => {
+    if (!order.includes(threat) && threat !== 'NO_AGENT') return;
+    const key = threat === 'NO_AGENT' ? 'SCANNER' : threat;
+    const label = THREAT_LABELS[key] || key;
+    const existing = buckets.get(key);
+    if (!existing) {
+      buckets.set(key, { threat: key, label, count: 1, lastAt: at, lastIp: ip, lastPath: path, lastNote: note });
+      return;
+    }
+    existing.count += 1;
+    if (at > existing.lastAt) {
+      existing.lastAt = at;
+      existing.lastIp = ip;
+      existing.lastPath = path;
+      existing.lastNote = note;
+    }
+  };
+
+  for (const e of live) {
+    if (e.threat === 'CLEAN' && !e.blocked) continue;
+    consider(e.blocked && e.threat === 'CLEAN' ? 'BLOCKED' : e.threat, e.ts, e.ip, e.path, e.reason);
+  }
+
+  return order.map((threat) => buckets.get(threat)).filter(Boolean) as AttackReport[];
 }
 
 export function getIpSummaries(limit = 20): IpSummary[] {
@@ -507,7 +592,12 @@ export function getSecuritySummary() {
     uniqueIps,
     untrustedIps: untrusted,
     criticalInBuffer: critical,
-    bufferSize: live.length,
+    bufferSize: live.filter((e) => isImportantEvent(e)).length,
+    injection: s.totals.injection || 0,
+    flood: s.totals.flood || 0,
+    scanners: s.totals.scanners || 0,
+    authAttacks: s.totals.auth || 0,
+    sensitiveHits: s.totals.sensitive || 0,
   };
 }
 
@@ -515,6 +605,35 @@ export function getSecuritySummary() {
 export function getIpCounters(ip: string): { hits: number; authHits: number } {
   const stat = state().ips.get(normalizeIp(ip));
   return { hits: stat?.hits || 0, authHits: stat?.authHits || 0 };
+}
+
+export function recordLoginIncident(input: {
+  ip: string;
+  userAgent?: string;
+  reason: string;
+  blocked?: boolean;
+}): void {
+  recordEvents([
+    {
+      id: `auth_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      ts: new Date().toISOString(),
+      ip: input.ip,
+      method: 'POST',
+      path: '/api/admin/auth',
+      query: '',
+      userAgent: (input.userAgent || '').slice(0, 300),
+      referer: '',
+      threat: 'AUTH_ABUSE',
+      severity: input.blocked ? 'critical' : 'high',
+      reason: input.reason,
+      blocked: Boolean(input.blocked),
+      trusted: isTrustedIp(input.ip),
+      country: '',
+      noise: false,
+      dataClass: 'auth',
+      dataLabel: 'محاولة دخول',
+    },
+  ]);
 }
 
 export function clearLiveFeed(): void {

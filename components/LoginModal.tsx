@@ -248,7 +248,7 @@ export default function LoginModal({ onClose, onSelectRole }: LoginModalProps) {
     setError('');
     setInfo('');
     if (!googleClientId) {
-      setError('الدخول بجوجل غير مفعّل بعد. من لوحة الإدارة ← الحسابات الصق معرف عميل جوجل ثم أعد فتح نافذة الدخول.');
+      setError('الدخول بجوجل غير مفعّل بعد. من لوحة الإدارة ← دخول جوجل الصق معرف العميل ثم أعد فتح النافذة.');
       return;
     }
     if (!window.google?.accounts?.id) {

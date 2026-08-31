@@ -5,19 +5,22 @@ import {
   Activity,
   Ban,
   Bug,
-  CheckCircle2,
+  Database,
   Eraser,
-  Globe,
+  KeyRound,
   Pause,
   Play,
   ShieldAlert,
   ShieldCheck,
   Siren,
   Trash2,
+  Users,
 } from 'lucide-react';
 import {
+  DATA_LABELS,
   SEVERITY_LABELS,
   THREAT_LABELS,
+  type DataClass,
   type SecurityEvent,
   type Severity,
   type ThreatKind,
@@ -68,6 +71,21 @@ type Summary = {
   criticalInBuffer: number;
   bufferSize: number;
   uptimeSince: string;
+  injection: number;
+  flood: number;
+  scanners: number;
+  authAttacks: number;
+  sensitiveHits: number;
+};
+
+type AttackReport = {
+  threat: ThreatKind;
+  label: string;
+  count: number;
+  lastAt: string;
+  lastIp: string;
+  lastPath: string;
+  lastNote: string;
 };
 
 const EMPTY_SUMMARY: Summary = {
@@ -83,6 +101,11 @@ const EMPTY_SUMMARY: Summary = {
   criticalInBuffer: 0,
   bufferSize: 0,
   uptimeSince: new Date().toISOString(),
+  injection: 0,
+  flood: 0,
+  scanners: 0,
+  authAttacks: 0,
+  sensitiveHits: 0,
 };
 
 const POLL_MS = 3000;
@@ -99,37 +122,43 @@ function hhmmss(value: string): string {
 }
 
 function threatIcon(threat: ThreatKind) {
-  if (threat === 'BLOCKED') return <Ban className="w-3.5 h-3.5" />;
-  if (threat === 'INJECTION' || threat === 'TRAVERSAL') return <Siren className="w-3.5 h-3.5" />;
-  if (threat === 'SCANNER') return <Bug className="w-3.5 h-3.5" />;
-  if (threat === 'BOT') return <Globe className="w-3.5 h-3.5" />;
-  if (threat === 'CLEAN') return <CheckCircle2 className="w-3.5 h-3.5" />;
+  if (threat === 'BLOCKED' || threat === 'AUTH_ABUSE') return <Ban className="w-3.5 h-3.5" />;
+  if (threat === 'INJECTION' || threat === 'TRAVERSAL' || threat === 'FLOOD') return <Siren className="w-3.5 h-3.5" />;
+  if (threat === 'SCANNER' || threat === 'BOT') return <Bug className="w-3.5 h-3.5" />;
   return <ShieldAlert className="w-3.5 h-3.5" />;
+}
+
+function dataIcon(dataClass?: DataClass) {
+  if (dataClass === 'secrets') return <KeyRound className="w-3.5 h-3.5" />;
+  if (dataClass === 'users') return <Users className="w-3.5 h-3.5" />;
+  if (dataClass === 'database' || dataClass === 'auth') return <Database className="w-3.5 h-3.5" />;
+  return null;
 }
 
 export default function SecurityCenter() {
   const [summary, setSummary] = useState<Summary>(EMPTY_SUMMARY);
   const [feed, setFeed] = useState<SecurityEvent[]>([]);
+  const [sensitive, setSensitive] = useState<SecurityEvent[]>([]);
+  const [reports, setReports] = useState<AttackReport[]>([]);
   const [ips, setIps] = useState<IpSummary[]>([]);
   const [rules, setRules] = useState<FirewallRule[]>([]);
   const [settings, setSettings] = useState<FirewallSettings>({
     enabled: true,
-    blockBots: false,
+    blockBots: true,
     blockScanners: true,
     blockInjection: true,
-    floodLimit: 120,
+    floodLimit: 60,
   });
-  const [onlyThreats, setOnlyThreats] = useState(false);
+  const [showAll, setShowAll] = useState(false);
   const [paused, setPaused] = useState(false);
   const [manualIp, setManualIp] = useState('');
   const [toast, setToast] = useState('');
   const [error, setError] = useState('');
-  const [pulseKey, setPulseKey] = useState(0);
   const seenIds = useRef<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`/api/security/monitor?limit=140${onlyThreats ? '&threats=1' : ''}`, {
+      const res = await fetch(`/api/security/monitor?limit=80${showAll ? '&all=1' : ''}`, {
         headers: { Authorization: `Bearer ${token()}` },
         cache: 'no-store',
       });
@@ -142,14 +171,15 @@ export default function SecurityCenter() {
       setError('');
       setSummary({ ...EMPTY_SUMMARY, ...(data.summary || {}) });
       setFeed(data.feed || []);
+      setSensitive(data.sensitive || []);
+      setReports(data.reports || []);
       setIps(data.ips || []);
       setRules(data.rules || []);
       if (data.settings) setSettings(data.settings);
-      setPulseKey((k) => k + 1);
     } catch {
       setError('تعذّر الاتصال بخدمة المراقبة');
     }
-  }, [onlyThreats]);
+  }, [showAll]);
 
   useEffect(() => {
     load();
@@ -187,7 +217,6 @@ export default function SecurityCenter() {
     load();
   };
 
-  /** Rows that arrived since the previous poll animate in. */
   const feedWithFlags = useMemo(() => {
     const rows = feed.map((event) => ({ event, fresh: !seenIds.current.has(event.id) }));
     for (const { event } of rows) seenIds.current.add(event.id);
@@ -195,22 +224,21 @@ export default function SecurityCenter() {
     return rows;
   }, [feed]);
 
+  const attacks = summary.totalThreats + summary.totalBlocked;
   const blockedRules = rules.filter((r) => r.type === 'BLOCK');
-  const allowedRules = rules.filter((r) => r.type === 'ALLOW');
 
   return (
     <div className="sec-wrap">
       {toast ? <div className="sec-toast">{toast}</div> : null}
       {error ? <div className="sec-error">{error}</div> : null}
 
-      {/* ── Status strip ── */}
       <section className="sec-stats">
         <article className={`sec-stat sec-stat-shield${settings.enabled ? ' is-on' : ' is-off'}`}>
           <span className="sec-stat-icon">
             {settings.enabled ? <ShieldCheck className="w-5 h-5" /> : <ShieldAlert className="w-5 h-5" />}
           </span>
           <div>
-            <p className="sec-stat-label">حالة الجدار الناري</p>
+            <p className="sec-stat-label">الجدار الناري</p>
             <strong className="sec-stat-value">{settings.enabled ? 'يعمل' : 'متوقف'}</strong>
           </div>
           <label className="inn-switch" title={settings.enabled ? 'إيقاف الجدار' : 'تشغيل الجدار'}>
@@ -223,47 +251,40 @@ export default function SecurityCenter() {
           </label>
         </article>
 
-        <article className="sec-stat">
-          <p className="sec-stat-label">طلبات / دقيقة</p>
-          <strong key={`rpm-${pulseKey}`} className="sec-stat-value sec-tick">{summary.requestsPerMinute}</strong>
-          <span className="sec-stat-sub">{summary.totalRequests} منذ الإقلاع</span>
+        <article className={`sec-stat${attacks > 0 ? ' is-danger' : ''}`}>
+          <p className="sec-stat-label">هجمات مرصودة</p>
+          <strong className="sec-stat-value">{attacks}</strong>
+          <span className="sec-stat-sub">حقن {summary.injection || 0} · إغراق {summary.flood || 0} · روبوت {summary.totalBots}</span>
         </article>
 
         <article className={`sec-stat${summary.totalBlocked > 0 ? ' is-danger' : ''}`}>
-          <p className="sec-stat-label">طلبات محظورة</p>
+          <p className="sec-stat-label">مرفوض</p>
           <strong className="sec-stat-value">{summary.totalBlocked}</strong>
-          <span className="sec-stat-sub">{summary.blockedPerMinute} خلال الدقيقة</span>
+          <span className="sec-stat-sub">{summary.authAttacks || 0} اقتحام دخول</span>
         </article>
 
-        <article className={`sec-stat${summary.totalThreats > 0 ? ' is-warn' : ''}`}>
-          <p className="sec-stat-label">تهديدات مرصودة</p>
-          <strong className="sec-stat-value">{summary.totalThreats}</strong>
-          <span className="sec-stat-sub">{summary.totalBots} روبوت</span>
-        </article>
-
-        <article className="sec-stat">
-          <p className="sec-stat-label">عناوين متصلة</p>
-          <strong className="sec-stat-value">{summary.uniqueIps}</strong>
-          <span className="sec-stat-sub">{summary.untrustedIps} غير موثوق</span>
+        <article className={`sec-stat${summary.sensitiveHits > 0 ? ' is-warn' : ''}`}>
+          <p className="sec-stat-label">بيانات حسّاسة</p>
+          <strong className="sec-stat-value">{summary.sensitiveHits || 0}</strong>
+          <span className="sec-stat-sub">مستخدمون · كلمات مرور · قاعدة البيانات</span>
         </article>
       </section>
 
       <div className="sec-grid">
-        {/* ── Live request stream ── */}
         <section className="sec-panel sec-panel-feed">
           <header className="sec-panel-head">
             <div className="sec-panel-title">
               <span className={`sec-live-dot${paused ? ' is-paused' : ''}`} />
-              <h3>حركة الخادم المباشرة</h3>
+              <h3>النشاط المهم</h3>
               <span className="sec-count">{summary.bufferSize} حدث</span>
             </div>
             <div className="sec-panel-tools">
               <button
                 type="button"
-                className={`sec-chip${onlyThreats ? ' is-active' : ''}`}
-                onClick={() => setOnlyThreats((v) => !v)}
+                className={`sec-chip${showAll ? ' is-active' : ''}`}
+                onClick={() => setShowAll((v) => !v)}
               >
-                التهديدات فقط
+                {showAll ? 'إخفاء الضجيج' : 'كل الطلبات'}
               </button>
               <button type="button" className="sec-icon-btn" onClick={() => setPaused((v) => !v)} title={paused ? 'استئناف' : 'إيقاف مؤقت'}>
                 {paused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
@@ -278,66 +299,130 @@ export default function SecurityCenter() {
             {feedWithFlags.length === 0 ? (
               <li className="sec-feed-empty">
                 <Activity className="w-5 h-5" />
-                لا توجد حركة مسجّلة بعد. تصفّح الموقع في تبويب آخر لترى الطلبات هنا مباشرة.
+                لا يوجد نشاط مهم بعد. نبضات الجلسة وتصفّح الصفحات مخفيّان هنا.
               </li>
             ) : (
-              feedWithFlags.map(({ event, fresh }) => (
-                <li
-                  key={event.id}
-                  className={`sec-row sev-${event.severity}${event.blocked ? ' is-blocked' : ''}${fresh ? ' is-fresh' : ''}`}
-                >
-                  <span className="sec-row-time" dir="ltr">{hhmmss(event.ts)}</span>
-                  <span className={`sec-row-badge sev-${event.severity}`}>
-                    {threatIcon(event.threat)}
-                    {THREAT_LABELS[event.threat] || event.threat}
-                  </span>
-                  <span className="sec-row-method" dir="ltr">{event.method}</span>
-                  <span className="sec-row-path" dir="ltr" title={`${event.path}${event.query ? `?${event.query}` : ''}`}>
-                    {event.path}
-                    {event.query ? <em>?{event.query}</em> : null}
-                  </span>
-                  <span className="sec-row-ip" dir="ltr" title={event.userAgent}>
-                    {event.ip}
-                    {event.trusted ? <b className="sec-tag-trusted">موثوق</b> : null}
-                  </span>
-                  {event.reason ? <span className="sec-row-reason">{event.reason}</span> : null}
-                  {!event.trusted && event.ip !== 'unknown' ? (
-                    <button
-                      type="button"
-                      className="sec-row-block"
-                      onClick={() => callFirewall({ action: 'block', ip: event.ip, note: event.reason || 'حظر من السجل الحي' })}
-                      title={`حظر ${event.ip}`}
-                    >
-                      <Ban className="w-3.5 h-3.5" />
-                    </button>
-                  ) : null}
-                </li>
-              ))
+              feedWithFlags.map(({ event, fresh }) => {
+                const sensitiveRow = event.dataClass === 'users' || event.dataClass === 'secrets' || event.dataClass === 'auth';
+                return (
+                  <li
+                    key={event.id}
+                    className={`sec-row sev-${event.severity}${event.blocked ? ' is-blocked' : ''}${sensitiveRow ? ' is-sensitive' : ''}${event.dataClass === 'secrets' ? ' is-secrets' : ''}${fresh ? ' is-fresh' : ''}`}
+                  >
+                    <span className="sec-row-time" dir="ltr">{hhmmss(event.ts)}</span>
+                    <span className={`sec-row-badge sev-${event.severity}`}>
+                      {threatIcon(event.threat)}
+                      {THREAT_LABELS[event.threat] || event.threat}
+                    </span>
+                    {event.dataLabel ? (
+                      <span className={`sec-data-badge is-${event.dataClass || 'none'}`}>
+                        {dataIcon(event.dataClass)}
+                        {event.dataLabel}
+                      </span>
+                    ) : null}
+                    <span className="sec-row-method" dir="ltr">{event.method}</span>
+                    <span className="sec-row-path" dir="ltr" title={`${event.path}${event.query ? `?${event.query}` : ''}`}>
+                      {event.path}
+                    </span>
+                    <span className="sec-row-ip" dir="ltr">{event.ip}</span>
+                    {event.reason ? <span className="sec-row-reason">{event.reason}</span> : null}
+                    {!event.trusted && event.ip !== 'unknown' ? (
+                      <button
+                        type="button"
+                        className="sec-row-block"
+                        onClick={() => callFirewall({ action: 'block', ip: event.ip, note: event.reason || event.dataLabel || 'حظر من السجل' })}
+                        title={`حظر ${event.ip}`}
+                      >
+                        <Ban className="w-3.5 h-3.5" />
+                      </button>
+                    ) : null}
+                  </li>
+                );
+              })
             )}
           </ul>
         </section>
 
-        {/* ── Connections + firewall ── */}
         <aside className="sec-side">
           <section className="sec-panel">
             <header className="sec-panel-head">
               <div className="sec-panel-title">
-                <h3>العناوين المتصلة</h3>
+                <h3>تقرير الهجمات</h3>
+              </div>
+            </header>
+            <ul className="sec-report-list">
+              {reports.length === 0 ? (
+                <li className="sec-feed-empty">لا توجد محاولات هجوم مسجّلة</li>
+              ) : (
+                reports.map((row) => (
+                  <li key={row.threat} className={`sec-report sev-${row.threat === 'INJECTION' || row.threat === 'FLOOD' ? 'critical' : 'high'}`}>
+                    <div className="sec-report-head">
+                      <span className="sec-row-badge sev-critical">
+                        {threatIcon(row.threat)}
+                        {row.label}
+                      </span>
+                      <strong>{row.count}</strong>
+                    </div>
+                    <p className="sec-report-meta">
+                      آخرها {hhmmss(row.lastAt)} · <span dir="ltr">{row.lastIp}</span>
+                    </p>
+                    <p className="sec-report-path" dir="ltr">{row.lastPath}</p>
+                    {row.lastNote ? <p className="sec-row-reason">{row.lastNote}</p> : null}
+                    {row.lastIp && row.lastIp !== 'unknown' ? (
+                      <button
+                        type="button"
+                        className="sec-mini-btn is-danger"
+                        onClick={() => callFirewall({ action: 'block', ip: row.lastIp, note: row.lastNote || row.label })}
+                      >
+                        حظر العنوان
+                      </button>
+                    ) : null}
+                  </li>
+                ))
+              )}
+            </ul>
+          </section>
+
+          <section className="sec-panel">
+            <header className="sec-panel-head">
+              <div className="sec-panel-title">
+                <h3>كلمات المرور والمستخدمون</h3>
+              </div>
+            </header>
+            <ul className="sec-ip-list">
+              {sensitive.length === 0 ? (
+                <li className="sec-feed-empty">لا وصول حديث لبيانات الحسابات</li>
+              ) : (
+                sensitive.slice(0, 12).map((event) => (
+                  <li key={event.id} className="sec-ip is-sensitive-hit">
+                    <div className="sec-ip-main">
+                      <span className="sec-ip-addr">{event.dataLabel || DATA_LABELS[event.dataClass || 'none'] || 'بيانات حسّاسة'}</span>
+                      <span className="sec-ip-meta">
+                        {hhmmss(event.ts)} · <span dir="ltr">{event.ip}</span>
+                      </span>
+                      <span className="sec-ip-path" dir="ltr">{event.method} {event.path}</span>
+                    </div>
+                  </li>
+                ))
+              )}
+            </ul>
+          </section>
+
+          <section className="sec-panel">
+            <header className="sec-panel-head">
+              <div className="sec-panel-title">
+                <h3>العناوين</h3>
               </div>
             </header>
             <ul className="sec-ip-list">
               {ips.length === 0 ? (
-                <li className="sec-feed-empty">لا توجد عناوين بعد</li>
+                <li className="sec-feed-empty">لا عناوين بعد</li>
               ) : (
-                ips.map((entry) => (
-                  <li key={entry.ip} className={`sec-ip${entry.trusted ? ' is-trusted' : ''}${entry.ruled === 'BLOCK' ? ' is-blocked' : ''}`}>
+                ips.slice(0, 8).map((entry) => (
+                  <li key={entry.ip} className={`sec-ip${entry.ruled === 'BLOCK' ? ' is-blocked' : ''}`}>
                     <div className="sec-ip-main">
                       <span className="sec-ip-addr" dir="ltr">{entry.ip}</span>
-                      <span className="sec-ip-meta">
-                        {entry.hits} طلب · {entry.threats} تهديد
-                        {entry.trusted ? ' · شبكة داخلية' : ''}
-                      </span>
-                      <span className="sec-ip-path" dir="ltr" title={entry.agent}>{entry.lastPath}</span>
+                      <span className="sec-ip-meta">{entry.hits} طلب · {entry.threats} تهديد</span>
                     </div>
                     <div className="sec-ip-actions">
                       <span className={`sec-sev sev-${entry.worst}`}>{SEVERITY_LABELS[entry.worst]}</span>
@@ -352,17 +437,6 @@ export default function SecurityCenter() {
                           حظر
                         </button>
                       )}
-                      {entry.ruled !== 'ALLOW' ? (
-                        <button
-                          type="button"
-                          className="sec-mini-btn"
-                          onClick={() => callFirewall({ action: 'allow', ip: entry.ip })}
-                        >
-                          توثيق
-                        </button>
-                      ) : (
-                        <span className="sec-tag-trusted">مسموح</span>
-                      )}
                     </div>
                   </li>
                 ))
@@ -373,11 +447,10 @@ export default function SecurityCenter() {
           <section className="sec-panel">
             <header className="sec-panel-head">
               <div className="sec-panel-title">
-                <h3>قواعد الجدار الناري</h3>
-                <span className="sec-count">{blockedRules.length} حظر · {allowedRules.length} سماح</span>
+                <h3>قواعد الحظر</h3>
+                <span className="sec-count">{blockedRules.length}</span>
               </div>
             </header>
-
             <form
               className="sec-add"
               onSubmit={(e) => {
@@ -392,83 +465,26 @@ export default function SecurityCenter() {
                 dir="ltr"
                 value={manualIp}
                 onChange={(e) => setManualIp(e.target.value)}
-                placeholder="مثال: 203.0.113.45"
+                placeholder="IP للحظر"
               />
               <button type="submit" className="sec-add-btn">حظر</button>
             </form>
-
             <ul className="sec-rule-list">
               {rules.length === 0 ? (
-                <li className="sec-feed-empty">لا توجد قواعد بعد</li>
+                <li className="sec-feed-empty">لا قواعد بعد</li>
               ) : (
                 rules.map((rule) => (
                   <li key={rule.id} className={`sec-rule${rule.type === 'ALLOW' ? ' is-allow' : ''}${rule.active ? '' : ' is-off'}`}>
                     <div>
                       <span className="sec-rule-ip" dir="ltr">{rule.ip}</span>
-                      <span className="sec-rule-note">{rule.note || (rule.type === 'ALLOW' ? 'عنوان موثوق' : 'محظور')}</span>
-                      {rule.hits > 0 ? <span className="sec-rule-hits">{rule.hits} محاولة مرفوضة</span> : null}
+                      <span className="sec-rule-note">{rule.note || 'محظور'}</span>
                     </div>
-                    <div className="sec-rule-actions">
-                      <label className="inn-switch" title={rule.active ? 'تعطيل' : 'تفعيل'}>
-                        <input
-                          type="checkbox"
-                          checked={rule.active}
-                          onChange={(e) => callFirewall({ action: 'toggle', id: rule.id, active: e.target.checked })}
-                        />
-                        <span className="inn-switch-track" />
-                      </label>
-                      <button type="button" className="sec-mini-btn is-danger" onClick={() => callFirewall({ action: 'remove', id: rule.id })}>
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                    <button type="button" className="sec-mini-btn is-danger" onClick={() => callFirewall({ action: 'remove', id: rule.id })}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </li>
                 ))
               )}
-            </ul>
-          </section>
-
-          <section className="sec-panel">
-            <header className="sec-panel-head">
-              <div className="sec-panel-title">
-                <h3>سياسات الحماية</h3>
-              </div>
-            </header>
-            <ul className="sec-toggles">
-              {[
-                { key: 'blockInjection' as const, label: 'رفض محاولات الحقن والاختراق', hint: 'SQLi · XSS · تجاوز المسار' },
-                { key: 'blockScanners' as const, label: 'رفض فاحصي الثغرات', hint: 'wp-admin · .env · phpMyAdmin' },
-                { key: 'blockBots' as const, label: 'رفض الروبوتات الآلية', hint: 'curl · python-requests · scrapers' },
-              ].map((row) => (
-                <li key={row.key}>
-                  <div>
-                    <p>{row.label}</p>
-                    <span>{row.hint}</span>
-                  </div>
-                  <label className="inn-switch">
-                    <input
-                      type="checkbox"
-                      checked={settings[row.key]}
-                      onChange={(e) => callFirewall({ action: 'settings', ...settings, [row.key]: e.target.checked })}
-                    />
-                    <span className="inn-switch-track" />
-                  </label>
-                </li>
-              ))}
-              <li>
-                <div>
-                  <p>حد الإغراق لكل دقيقة</p>
-                  <span>يُعتبر ما فوقه هجوم إغراق</span>
-                </div>
-                <input
-                  type="number"
-                  min={20}
-                  max={1000}
-                  className="sec-num"
-                  value={settings.floodLimit}
-                  onChange={(e) => setSettings((s) => ({ ...s, floodLimit: Number(e.target.value) }))}
-                  onBlur={() => callFirewall({ action: 'settings', ...settings })}
-                />
-              </li>
             </ul>
           </section>
         </aside>

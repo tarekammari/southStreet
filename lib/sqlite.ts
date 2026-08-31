@@ -488,6 +488,18 @@ function seedDefaults(db: Database.Database) {
     );
   }
 
+  try {
+    const envGoogle = (process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '').trim();
+    if (envGoogle) {
+      db.prepare(
+        `UPDATE agency_settings SET google_client_id = ?
+         WHERE id = 'main' AND (google_client_id IS NULL OR google_client_id = '')`
+      ).run(envGoogle);
+    }
+  } catch {
+    /* optional Google client id */
+  }
+
   // Seed Morshids / Team
   const morshidCount = (db.prepare('SELECT COUNT(*) as cnt FROM morshids').get() as any).cnt;
   if (morshidCount === 0) {

@@ -5,10 +5,12 @@ import { getTokenFromRequest } from '@/lib/request-auth';
 import { normalizeLoginRole } from '@/lib/roles';
 import {
   clearLiveFeed,
+  getAttackReports,
   getFirewallSettings,
   getIpSummaries,
   getLiveFeed,
   getSecuritySummary,
+  getSensitiveEvents,
   listIncidents,
   listRules,
 } from '@/lib/security-monitor';
@@ -41,18 +43,22 @@ export async function GET(req: NextRequest) {
 
   const url = new URL(req.url);
   const onlyThreats = url.searchParams.get('threats') === '1';
+  const all = url.searchParams.get('all') === '1';
   const severity = (url.searchParams.get('severity') || '') as Severity | '';
-  const limit = Math.min(Number(url.searchParams.get('limit')) || 120, 300);
+  const limit = Math.min(Number(url.searchParams.get('limit')) || 80, 200);
 
   return NextResponse.json({
     serverTime: new Date().toISOString(),
     summary: getSecuritySummary(),
     feed: getLiveFeed(limit, {
       onlyThreats,
+      important: !all,
       severity: severity || undefined,
     }),
-    ips: getIpSummaries(24),
-    incidents: listIncidents(50),
+    sensitive: getSensitiveEvents(30),
+    reports: getAttackReports(),
+    ips: getIpSummaries(16),
+    incidents: listIncidents(40),
     rules: listRules(),
     settings: getFirewallSettings(),
   });

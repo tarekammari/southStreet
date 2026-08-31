@@ -9,7 +9,7 @@ export interface GoogleProfile {
 
 export async function verifyGoogleIdToken(idToken: string): Promise<GoogleProfile> {
   const clientId = getGoogleClientId();
-  if (!clientId) throw new Error('تسجيل جوجل غير مُعد. الصق معرف عميل جوجل من لوحة الإدارة ← الحسابات.');
+  if (!clientId) throw new Error('تسجيل جوجل غير مُعد. من لوحة الإدارة ← دخول جوجل الصق معرف عميل جوجل.');
   if (!idToken) throw new Error('رمز جوجل مفقود');
 
   const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);

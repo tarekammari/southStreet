@@ -6,6 +6,7 @@ import {
   ArrowUpRight,
   Bell,
   Clock,
+  KeyRound,
   LayoutGrid,
   List,
   LogOut,
@@ -23,6 +24,7 @@ import { LOGIN_ROLE_LABELS, LOGIN_ROLE_OPTIONS } from '@/lib/roles';
 import { DEFAULT_USER_PHOTO, formatAdminDate, type EnrichedUser } from '@/lib/user-access-view';
 import SecurityCenter from '@/components/admin/SecurityCenter';
 import UserProfileModal from '@/components/admin/UserProfileModal';
+import GoogleLoginSettings from '@/components/admin/GoogleLoginSettings';
 
 type DashboardStats = {
   total: number;
@@ -183,7 +185,7 @@ export default function UserAccessDashboard({
   const [sideOpen, setSideOpen] = useState(false);
   const [syncedAt, setSyncedAt] = useState<string | null>(null);
   const [clock, setClock] = useState('');
-  const [section, setSection] = useState<'users' | 'security'>('users');
+  const [section, setSection] = useState<'users' | 'security' | 'google'>('users');
   const [profileId, setProfileId] = useState<string | null>(null);
 
   const loadUsers = useCallback(async (silent = false) => {
@@ -402,6 +404,14 @@ export default function UserAccessDashboard({
                 <ShieldCheck className="w-4 h-4" />
                 الجدار الناري
               </button>
+              <button
+                type="button"
+                className={`inn-menu-link inn-menu-shield${section === 'google' ? ' is-active' : ''}`}
+                onClick={() => setSection('google')}
+              >
+                <KeyRound className="w-4 h-4" />
+                دخول جوجل
+              </button>
               <Link href="/" className="inn-menu-link">الموقع</Link>
             </nav>
 
@@ -481,6 +491,7 @@ export default function UserAccessDashboard({
           {toast ? <div className="inn-toast">{toast}</div> : null}
 
           {section === 'security' ? <SecurityCenter /> : null}
+          {section === 'google' ? <GoogleLoginSettings /> : null}
 
           <div hidden={section !== 'users'}>
           <section className="inn-quick-row">

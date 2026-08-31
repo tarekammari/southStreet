@@ -212,32 +212,27 @@ export default function HeroSection({ content: _content }: { content?: PageConte
           dir="rtl"
         >
           <motion.div variants={heroFadeUp} className="hero-branding">
-            <p className="hero-kicker">وكالة ساوث ستريت</p>
             <h1 className="hero-headline">
               <motion.span variants={heroHeadlinePop} className="hero-headline-word">
                 عمرة
               </motion.span>
             </h1>
+            {offer?.date ? <p className="hero-offer-date">{offer.date}</p> : null}
           </motion.div>
 
           {offer ? (
             <motion.div variants={heroFadeUp} className="hero-offer">
-              <div className="hero-offer-copy">
-                <p className="hero-offer-label">العرض القادم</p>
-                <p className="hero-offer-title">{offer.name}</p>
-                {offer.date ? <p className="hero-offer-date">{offer.date}</p> : null}
-                {offer.priceFrom != null ? (
-                  <motion.p variants={heroPricePop} className="hero-offer-price">
-                    <span className="hero-offer-price-from">ابتداءً من</span>
-                    <span className="hero-offer-price-amount">
-                      {offer.priceFrom.toLocaleString('ar-DZ')}
-                    </span>
-                    <span className="hero-offer-price-currency">دج</span>
-                  </motion.p>
-                ) : (
-                  <p className="hero-offer-price">السعر عند الطلب</p>
-                )}
-              </div>
+              {offer.priceFrom != null ? (
+                <motion.p variants={heroPricePop} className="hero-offer-price">
+                  <span className="hero-offer-price-from">ابتداءً من</span>
+                  <span className="hero-offer-price-amount">
+                    {offer.priceFrom.toLocaleString('ar-DZ')}
+                  </span>
+                  <span className="hero-offer-price-currency">دج</span>
+                </motion.p>
+              ) : (
+                <p className="hero-offer-price">السعر عند الطلب</p>
+              )}
               <motion.div variants={heroFadeUp} className="hero-offer-actions">
                 <button
                   type="button"
@@ -251,7 +246,7 @@ export default function HeroSection({ content: _content }: { content?: PageConte
                   onClick={() => { window.location.href = '/packages'; }}
                   className="hero-buy-btn hero-buy-btn-secondary"
                 >
-                  جميع البرامج والباقات
+                  جميع الرحلات و العروض
                 </button>
               </motion.div>
             </motion.div>
