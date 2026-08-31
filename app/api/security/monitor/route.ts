@@ -31,8 +31,11 @@ function requireAdmin(req: NextRequest): { ok: true; name: string } | { ok: fals
     email: payload.email,
     roleName: payload.roleName,
   });
-  if (!ADMIN_ROLES.has(role)) {
-    return { ok: false, res: NextResponse.json({ error: 'صلاحية غير كافية' }, { status: 403 }) };
+  if (!ADMIN_ROLES.has(role) && role !== 'SUPER_ADMIN') {
+    const portal = String(payload.role || '').toLowerCase();
+    if (portal !== 'admin' && portal !== 'manager') {
+      return { ok: false, res: NextResponse.json({ error: 'صلاحية غير كافية' }, { status: 403 }) };
+    }
   }
   return { ok: true, name: payload.name || 'admin' };
 }

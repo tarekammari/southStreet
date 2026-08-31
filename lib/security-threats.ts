@@ -36,6 +36,14 @@ export type SecurityEvent = {
   blocked: boolean;
   trusted: boolean;
   country: string;
+  countryName?: string;
+  city?: string;
+  region?: string;
+  geoId?: string;
+  userId?: string;
+  userName?: string;
+  userRole?: string;
+  userRoleName?: string;
   noise?: boolean;
   dataClass?: DataClass;
   dataLabel?: string;
@@ -177,6 +185,23 @@ export function normalizeIp(ip: string): string {
   return (ip || '').trim().replace(/^::ffff:/, '') || 'unknown';
 }
 
+/**
+ * Local Next.js has no x-forwarded-for, so the firewall used to label every
+ * request as "unknown" and then flood-block the operator's own dashboard.
+ */
+export function resolveRequestIp(input: {
+  forwarded?: string | null;
+  realIp?: string | null;
+  fallback?: string | null;
+}): string {
+  const forwarded = (input.forwarded || '').split(',')[0].trim();
+  const real = (input.realIp || '').trim();
+  const fallback = (input.fallback || '').trim();
+  const normalized = normalizeIp(forwarded || real || fallback);
+  if (!normalized || normalized === 'unknown' || normalized === '::1' || normalized === 'localhost') return '127.0.0.1';
+  return normalized;
+}
+
 export type Verdict = {
   threat: ThreatKind;
   severity: Severity;
@@ -255,4 +280,163 @@ export function shortAgent(ua: string): string {
 
 export function isSuspicious(verdict: Verdict): boolean {
   return verdict.threat !== 'CLEAN' && SEVERITY_ORDER[verdict.severity] >= SEVERITY_ORDER.medium;
+}
+
+const COUNTRY_NAMES: Record<string, string> = {
+  DZ: 'الجزائر',
+  SA: 'السعودية',
+  AE: 'الإمارات',
+  EG: 'مصر',
+  MA: 'المغرب',
+  TN: 'تونس',
+  LY: 'ليبيا',
+  MR: 'موريتانيا',
+  FR: 'فرنسا',
+  US: 'الولايات المتحدة',
+  GB: 'بريطانيا',
+  DE: 'ألمانيا',
+  IT: 'إيطاليا',
+  ES: 'إسبانيا',
+  TR: 'تركيا',
+  QA: 'قطر',
+  KW: 'الكويت',
+  BH: 'البحرين',
+  OM: 'عُمان',
+  JO: 'الأردن',
+  LB: 'لبنان',
+  IQ: 'العراق',
+  SY: 'سوريا',
+  YE: 'اليمن',
+  PS: 'فلسطين',
+  CN: 'الصين',
+  RU: 'روسيا',
+  IN: 'الهند',
+  PK: 'باكستان',
+  NL: 'هولندا',
+  BE: 'بلجيكا',
+  CA: 'كندا',
+  AU: 'أستراليا',
+  BR: 'البرازيل',
+  NG: 'نيجيريا',
+  SN: 'السنغال',
+};
+
+export type ConnectionGeo = {
+  country: string;
+  countryName: string;
+  city: string;
+  region: string;
+  geoId: string;
+};
+
+function fingerprint(value: string): string {
+  let hash = 5381;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash * 33) ^ value.charCodeAt(i);
+  }
+  return (hash >>> 0).toString(16).toUpperCase().padStart(6, '0').slice(0, 6);
+}
+
+function slugPart(value: string, fallback: string): string {
+  const slug = (value || '')
+    .normalize('NFKD')
+    .replace(/[^\w]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .toUpperCase()
+    .slice(0, 10);
+  return slug || fallback;
+}
+
+export function countryNameOf(code: string): string {
+  const cc = (code || '').trim().toUpperCase();
+  if (!cc) return 'غير معروف';
+  return COUNTRY_NAMES[cc] || cc;
+}
+
+export function flagEmoji(code: string): string {
+  const cc = (code || '').trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(cc)) return '';
+  return String.fromCodePoint(...[...cc].map((ch) => 127397 + ch.charCodeAt(0)));
+}
+
+/** Edge-safe geo label. Private IPs map to the agency's home country. */
+export function resolveConnectionGeo(input: {
+  ip: string;
+  country?: string | null;
+  city?: string | null;
+  region?: string | null;
+}): ConnectionGeo {
+  const ip = normalizeIp(input.ip);
+  const headerCountry = (input.country || '').trim().toUpperCase();
+  const headerCity = (input.city || '').trim();
+  const headerRegion = (input.region || '').trim();
+  const local = isTrustedIp(ip);
+
+  const country = headerCountry || (local ? 'DZ' : '');
+  const countryName = countryNameOf(country);
+  const city = headerCity || (local ? 'الجهاز المحلي' : '');
+  const region = headerRegion || (local ? 'خادم الوكالة' : '');
+  const place = local ? 'LOCAL' : slugPart(headerRegion || headerCity, country ? 'WAN' : 'UNK');
+  const geoId = `GEO-${country || 'XX'}-${place}-${fingerprint(ip)}`;
+
+  return { country, countryName, city, region, geoId };
+}
+
+export type RequestActor = {
+  userId: string;
+  userName: string;
+  userRole: string;
+  userRoleName: string;
+};
+
+function utf8FromBinary(binary: string): string {
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i) & 0xff;
+  return new TextDecoder('utf-8').decode(bytes);
+}
+
+/** Fix Arabic that was decoded as Latin-1 (Ø·Ø§Ø±Ù …). */
+export function repairMojibake(value?: string | null): string {
+  const text = String(value || '');
+  if (!text) return '';
+  if (/[\u0600-\u06FF]/.test(text) && !/[À-ÿ]{2,}/.test(text)) return text;
+  if (!/[À-ÿ]/.test(text)) return text;
+  try {
+    const fixed = utf8FromBinary(text);
+    if (/[\u0600-\u06FF]/.test(fixed)) return fixed;
+  } catch {
+    /* keep original */
+  }
+  return text;
+}
+
+/** Decode a JWT payload without verifying it — telemetry only, never authorization. */
+export function peekJwtIdentity(token?: string | null): RequestActor | null {
+  let raw = (token || '').trim().replace(/^Bearer\s+/i, '');
+  try {
+    raw = decodeURIComponent(raw);
+  } catch {
+    /* already decoded */
+  }
+  if (!raw || raw.split('.').length < 2) return null;
+  try {
+    const payload = raw.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const pad = payload + '='.repeat((4 - (payload.length % 4)) % 4);
+    const json = JSON.parse(utf8FromBinary(atob(pad))) as {
+      sub?: string;
+      name?: string;
+      role?: string;
+      roleName?: string;
+      username?: string;
+    };
+    if (!json.sub && !json.name) return null;
+    return {
+      userId: String(json.sub || ''),
+      userName: repairMojibake(json.name || json.username || ''),
+      userRole: String(json.role || ''),
+      userRoleName: repairMojibake(json.roleName || ''),
+    };
+  } catch {
+    return null;
+  }
 }

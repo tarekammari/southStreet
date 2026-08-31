@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextFetchEvent, NextRequest } from 'next/server';
-import { classifyRequest, classifyAsset, normalizeIp, type SecurityEvent, type Verdict } from '@/lib/security-threats';
+import { classifyRequest, classifyAsset, resolveRequestIp, peekJwtIdentity, resolveConnectionGeo, type SecurityEvent, type Verdict } from '@/lib/security-threats';
 import { INGEST_HEADER, INGEST_TOKEN } from '@/lib/security-transport';
 
 /**
@@ -107,12 +107,11 @@ async function flush(origin: string, s: EdgeState) {
 export function middleware(request: NextRequest, event: NextFetchEvent) {
   const s = edge();
   const url = request.nextUrl;
-  const ip =
-    normalizeIp(
-      request.headers.get('x-forwarded-for')?.split(',')[0] ||
-        request.headers.get('x-real-ip') ||
-        ''
-    ) || 'unknown';
+  const ip = resolveRequestIp({
+    forwarded: request.headers.get('x-forwarded-for'),
+    realIp: request.headers.get('x-real-ip'),
+    fallback: '',
+  });
 
   const userAgent = request.headers.get('user-agent') || '';
   const isAuthPath = url.pathname.startsWith('/api/admin/auth') || url.pathname.startsWith('/api/auth');
@@ -134,6 +133,18 @@ export function middleware(request: NextRequest, event: NextFetchEvent) {
   const skipNoise = asset.noise && verdict.threat === 'CLEAN' && !blocked;
 
   if (!skipNoise) {
+    const geo = resolveConnectionGeo({
+      ip,
+      country:
+        request.headers.get('x-vercel-ip-country') ||
+        request.headers.get('cf-ipcountry') ||
+        request.headers.get('cloudfront-viewer-country') ||
+        request.headers.get('x-country-code'),
+      city: request.headers.get('x-vercel-ip-city') || request.headers.get('cf-ipcity'),
+      region: request.headers.get('x-vercel-ip-country-region') || request.headers.get('cf-region'),
+    });
+    const cookieToken = request.cookies.get('south_street_token')?.value;
+    const actor = peekJwtIdentity(cookieToken) || peekJwtIdentity(request.headers.get('authorization'));
     s.queue.push({
       id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       ts: new Date().toISOString(),
@@ -148,7 +159,15 @@ export function middleware(request: NextRequest, event: NextFetchEvent) {
       reason: blocked ? `${verdict.reason || 'عنوان محظور'} — تم الرفض` : verdict.reason,
       blocked,
       trusted: false,
-      country: request.headers.get('x-vercel-ip-country') || '',
+      country: geo.country,
+      countryName: geo.countryName,
+      city: geo.city,
+      region: geo.region,
+      geoId: geo.geoId,
+      userId: actor?.userId || '',
+      userName: actor?.userName || '',
+      userRole: actor?.userRole || '',
+      userRoleName: actor?.userRoleName || '',
       noise: false,
       dataClass: asset.dataClass,
       dataLabel: asset.dataLabel,

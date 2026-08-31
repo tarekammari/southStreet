@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSqliteDb } from '@/lib/sqlite';
 import { verifyToken } from '@/lib/auth';
 import { generateDeviceFingerprint } from '@/lib/security';
 import { getTokenFromRequest } from '@/lib/request-auth';
+import { resolveRequestIp } from '@/lib/security-threats';
+import { endUserSession, upsertUserSession } from '@/lib/presence';
 
 function clientMeta(req: NextRequest) {
   const headers = req.headers;
-  const ip = headers.get('x-forwarded-for')?.split(',')[0]?.trim() || headers.get('x-real-ip') || '127.0.0.1';
+  const ip = resolveRequestIp({
+    forwarded: headers.get('x-forwarded-for'),
+    realIp: headers.get('x-real-ip'),
+    fallback: '127.0.0.1',
+  });
   const userAgent = headers.get('user-agent') || 'Mozilla/5.0';
   const acceptLang = headers.get('accept-language') || 'ar-DZ';
   const { pcPrint } = generateDeviceFingerprint(ip, userAgent, acceptLang);
@@ -25,35 +30,24 @@ export async function POST(req: NextRequest) {
   }
 
   const { ip, userAgent, pcPrint } = clientMeta(req);
-  const now = new Date().toISOString();
 
   try {
-    const db = getSqliteDb();
-    const result = db
-      .prepare('UPDATE sessions SET lastActive = ?, ip = ?, pcPrint = ?, userAgent = ? WHERE userId = ?')
-      .run(now, ip, pcPrint, userAgent, payload.sub);
+    const session = upsertUserSession({
+      userId: payload.sub,
+      userName: payload.name || '',
+      userEmail: payload.email || '',
+      userRole: String(payload.role || ''),
+      ip,
+      pcPrint,
+      userAgent,
+    });
 
-    if (result.changes === 0) {
-      db.prepare(
-        `INSERT INTO sessions (id, userId, userName, userEmail, userRole, ip, pcPrint, userAgent, loginTime, lastActive)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      ).run(
-        `sess_${Date.now()}_${payload.sub}`,
-        payload.sub,
-        payload.name || '',
-        payload.email || '',
-        payload.role || '',
-        ip,
-        pcPrint,
-        userAgent,
-        now,
-        now
-      );
-    }
-
-    db.prepare('UPDATE users SET lastLoginIp = ?, pcFingerprint = ? WHERE id = ?').run(ip, pcPrint, payload.sub);
-
-    return NextResponse.json({ ok: true, userId: payload.sub, lastActive: now, ip });
+    return NextResponse.json({
+      ok: true,
+      userId: payload.sub,
+      lastActive: session.lastActive,
+      ip: session.ip,
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error?.message || 'تعذّر تحديث الجلسة' }, { status: 500 });
   }
@@ -64,11 +58,6 @@ export async function DELETE(req: NextRequest) {
   const token = getTokenFromRequest(req);
   const payload = token ? verifyToken(token) : null;
   if (!payload?.sub) return NextResponse.json({ ok: true });
-
-  try {
-    getSqliteDb().prepare('DELETE FROM sessions WHERE userId = ?').run(payload.sub);
-  } catch {
-    /* signing out must never fail on the client */
-  }
+  endUserSession(payload.sub);
   return NextResponse.json({ ok: true });
 }

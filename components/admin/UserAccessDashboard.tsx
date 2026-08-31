@@ -34,6 +34,16 @@ type DashboardStats = {
   active: number;
   sessions: number;
   neverLoggedIn: number;
+  liveIps: number;
+};
+
+type LiveIpRow = {
+  ip: string;
+  hits: number;
+  trusted?: boolean;
+  lastPath?: string;
+  lastSeen?: string;
+  agent?: string;
 };
 
 const EMPTY_STATS: DashboardStats = {
@@ -44,6 +54,7 @@ const EMPTY_STATS: DashboardStats = {
   active: 0,
   sessions: 0,
   neverLoggedIn: 0,
+  liveIps: 0,
 };
 
 const HEARTBEAT_MS = 45000;
@@ -182,21 +193,28 @@ export default function UserAccessDashboard({
   const [pendingRoles, setPendingRoles] = useState<Record<string, string>>({});
   const [toast, setToast] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
-  const [sideOpen, setSideOpen] = useState(false);
+  const [sideOpen, setSideOpen] = useState(true);
   const [syncedAt, setSyncedAt] = useState<string | null>(null);
   const [clock, setClock] = useState('');
   const [section, setSection] = useState<'users' | 'security' | 'google'>('users');
   const [profileId, setProfileId] = useState<string | null>(null);
+  const [liveIps, setLiveIps] = useState<LiveIpRow[]>([]);
 
   const loadUsers = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     else setRefreshing(true);
     try {
-      const res = await fetch('/api/admin/users', { cache: 'no-store' });
+      const token = typeof window !== 'undefined' ? localStorage.getItem('south_street_token') : null;
+      const res = await fetch('/api/admin/users', {
+        cache: 'no-store',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: 'same-origin',
+      });
       if (!res.ok) return;
       const data = await res.json();
       setUsers(data.users || []);
       setStats({ ...EMPTY_STATS, ...(data.stats || {}) });
+      setLiveIps(Array.isArray(data.liveIps) ? data.liveIps : []);
       setSyncedAt(data.serverTime || new Date().toISOString());
     } finally {
       setLoading(false);
@@ -212,10 +230,39 @@ export default function UserAccessDashboard({
       await fetch('/api/session/heartbeat', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
+        keepalive: true,
+        credentials: 'same-origin',
       });
     } catch {
       /* presence is best-effort; the dashboard keeps working offline */
     }
+  }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem('south_street_token');
+    if (token) {
+      document.cookie = `south_street_token=${encodeURIComponent(token)}; Path=/; Max-Age=604800; SameSite=Lax`;
+    }
+    try {
+      const saved = localStorage.getItem('south_street_admin_side');
+      if (saved === '0') setSideOpen(false);
+      else if (saved === '1') setSideOpen(true);
+      else setSideOpen(window.innerWidth >= 1180);
+    } catch {
+      setSideOpen(window.innerWidth >= 1180);
+    }
+  }, []);
+
+  const toggleSide = useCallback(() => {
+    setSideOpen((v) => {
+      const next = !v;
+      try {
+        localStorage.setItem('south_street_admin_side', next ? '1' : '0');
+      } catch {
+        /* ignore quota */
+      }
+      return next;
+    });
   }, []);
 
   useEffect(() => {
@@ -225,8 +272,9 @@ export default function UserAccessDashboard({
       if (alive) loadUsers(true);
     };
 
-    setSideOpen(window.innerWidth >= 1180);
-    sendHeartbeat().then(() => loadUsers());
+    sendHeartbeat().then(() => {
+      if (alive) loadUsers();
+    });
 
     const refresh = window.setInterval(() => loadUsers(true), REFRESH_MS);
     const beat = window.setInterval(tick, HEARTBEAT_MS);
@@ -278,8 +326,31 @@ export default function UserAccessDashboard({
     else patchUser(user.id, { status: 'APPROVED', loginEnabled: true });
   };
 
+  const isSelf = useCallback(
+    (user: EnrichedUser) =>
+      Boolean(
+        (currentUser?.id && user.id === currentUser.id) ||
+        (currentUser?.email && user.email && user.email === currentUser.email)
+      ),
+    [currentUser]
+  );
+
+  const liveUsers = useMemo(
+    () =>
+      users.map((user) => {
+        if (!isSelf(user)) return user;
+        return {
+          ...user,
+          isOnline: true,
+          lastActive: user.lastActive || new Date().toISOString(),
+          displayIp: !user.displayIp || user.displayIp === '—' ? 'هذا الجهاز' : user.displayIp,
+        };
+      }),
+    [users, isSelf]
+  );
+
   const filtered = useMemo(() => {
-    let list = [...users];
+    let list = [...liveUsers];
     if (filter === 'online') list = list.filter((u) => u.isOnline);
     if (filter === 'active') list = list.filter((u) => u.status === 'APPROVED' && u.loginEnabled !== false);
     if (filter === 'pending') list = list.filter((u) => u.status === 'PENDING_APPROVAL');
@@ -295,15 +366,34 @@ export default function UserAccessDashboard({
         u.displayIp.toLowerCase().includes(q) ||
         u.displayFingerprint.toLowerCase().includes(q)
     );
-  }, [users, filter, query]);
+  }, [liveUsers, filter, query]);
 
-  const onlineUsers = useMemo(
-    () =>
-      users
-        .filter((u) => u.isOnline)
-        .sort((a, b) => new Date(b.lastActive || 0).getTime() - new Date(a.lastActive || 0).getTime()),
-    [users]
-  );
+  const onlineUsers = useMemo(() => {
+    const list = liveUsers
+      .filter((u) => u.isOnline)
+      .sort((a, b) => new Date(b.lastActive || 0).getTime() - new Date(a.lastActive || 0).getTime());
+    if (list.length > 0 || !currentUser) return list;
+    return [
+      {
+        id: currentUser.id || 'self',
+        name: currentUser.name || 'Admin',
+        email: currentUser.email || '',
+        photo: DEFAULT_USER_PHOTO,
+        role: currentUser.role || 'SUPER_ADMIN',
+        roleName: '',
+        status: 'APPROVED',
+        isOnline: true,
+        lastLogin: new Date().toISOString(),
+        lastActive: new Date().toISOString(),
+        displayIp: 'هذا الجهاز',
+        displayFingerprint: '—',
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+      } as EnrichedUser,
+    ];
+  }, [liveUsers, currentUser]);
+
+  const onlineCount = Math.max(onlineUsers.length, currentUser ? 1 : 0);
+  const remoteIps = useMemo(() => liveIps.filter((entry) => !entry.trusted), [liveIps]);
 
   const recentLogins = useMemo(
     () =>
@@ -316,7 +406,7 @@ export default function UserAccessDashboard({
 
   const roleBreakdown = useMemo(() => {
     const counts = new Map<string, { total: number; online: number }>();
-    for (const u of users) {
+    for (const u of liveUsers) {
       const key = u.roleName || u.role;
       const entry = counts.get(key) || { total: 0, online: 0 };
       entry.total += 1;
@@ -324,11 +414,11 @@ export default function UserAccessDashboard({
       counts.set(key, entry);
     }
     return [...counts.entries()].sort((a, b) => b[1].total - a[1].total);
-  }, [users]);
+  }, [liveUsers]);
 
   const me = useMemo(
-    () => users.find((u) => u.id === currentUser?.id || (currentUser?.email && u.email === currentUser.email)),
-    [users, currentUser]
+    () => liveUsers.find((u) => isSelf(u)),
+    [liveUsers, isSelf]
   );
 
   const profileUser = useMemo(() => users.find((u) => u.id === profileId) || null, [users, profileId]);
@@ -351,7 +441,7 @@ export default function UserAccessDashboard({
   const activePct = stats.total ? Math.round((stats.active / stats.total) * 100) : 0;
 
   return (
-    <div className="inn-shell">
+    <div className={`inn-shell${sideOpen ? '' : ' is-side-hidden'}`}>
       <div className="inn-frame">
         {/* ── Dark header block ── */}
         <header className="inn-dark">
@@ -359,7 +449,7 @@ export default function UserAccessDashboard({
             <button
               type="button"
               className={`inn-side-toggle${sideOpen ? ' is-open' : ''}`}
-              onClick={() => setSideOpen((v) => !v)}
+              onClick={toggleSide}
               aria-expanded={sideOpen}
               aria-controls="inn-side-panel"
               title={sideOpen ? 'إخفاء اللوحة الجانبية' : 'إظهار اللوحة الجانبية'}
@@ -452,7 +542,7 @@ export default function UserAccessDashboard({
             <div className="inn-hero-actions">
               <span className="inn-online-chip">
                 <span className="inn-online-pulse" />
-                {stats.online} متصل الآن
+                {onlineCount} متصل الآن
               </span>
               <button type="button" className="inn-cta" onClick={() => loadUsers(true)} disabled={refreshing}>
                 <RefreshCw className={`w-4 h-4${refreshing ? ' animate-spin' : ''}`} />
@@ -490,7 +580,21 @@ export default function UserAccessDashboard({
         <div className="inn-body" dir="rtl">
           {toast ? <div className="inn-toast">{toast}</div> : null}
 
-          {section === 'security' ? <SecurityCenter /> : null}
+          {sideOpen ? (
+            <button
+              type="button"
+              className="inn-side-backdrop"
+              aria-label="إغلاق اللوحة الجانبية"
+              onClick={() => {
+                setSideOpen(false);
+                try { localStorage.setItem('south_street_admin_side', '0'); } catch { /* ignore */ }
+              }}
+            />
+          ) : null}
+
+          <div className={`inn-layout${sideOpen ? '' : ' is-collapsed'}`}>
+            <div className="inn-main">
+          {section === 'security' ? <SecurityCenter sideOpen={sideOpen} /> : null}
           {section === 'google' ? <GoogleLoginSettings /> : null}
 
           <div hidden={section !== 'users'}>
@@ -512,7 +616,7 @@ export default function UserAccessDashboard({
             >
               <span className="inn-metric-label">متصل الآن</span>
               <div className="inn-metric-row">
-                <strong>{stats.online}</strong>
+                <strong>{onlineCount}</strong>
                 <span className="inn-metric-note">من {stats.total}</span>
               </div>
             </button>
@@ -532,22 +636,13 @@ export default function UserAccessDashboard({
             </article>
           </section>
 
-          {sideOpen ? (
-            <button
-              type="button"
-              className="inn-side-backdrop"
-              aria-label="إغلاق اللوحة الجانبية"
-              onClick={() => setSideOpen(false)}
-            />
-          ) : null}
-
-          <div className={`inn-layout${sideOpen ? '' : ' is-collapsed'}`}>
+          <div className="inn-panel-wrap">
             <section className="inn-panel">
               <div className="inn-panel-head">
                 <div>
                   <h2 className="inn-panel-title">قائمة الحسابات</h2>
                   <p className="inn-panel-sub">
-                    عرض {filtered.length} من {stats.total} حساب · {stats.online} متصل الآن
+                    عرض {filtered.length} من {stats.total} حساب · {onlineCount} متصل الآن
                   </p>
                 </div>
                 <div className="inn-panel-search">
@@ -740,11 +835,17 @@ export default function UserAccessDashboard({
                 </div>
               )}
             </section>
+          </div>
+          </div>
+            </div>
 
             <aside id="inn-side-panel" className={`inn-side${sideOpen ? ' is-open' : ''}`}>
               <div className="inn-side-head">
                 <h2 className="inn-side-heading">لوحة الجلسات</h2>
-                <button type="button" className="inn-side-close" onClick={() => setSideOpen(false)} aria-label="إخفاء اللوحة">
+                <button type="button" className="inn-side-close" onClick={() => {
+                  setSideOpen(false);
+                  try { localStorage.setItem('south_street_admin_side', '0'); } catch { /* ignore */ }
+                }} aria-label="إخفاء اللوحة">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -752,7 +853,7 @@ export default function UserAccessDashboard({
               <article className="inn-side-card inn-side-card-live">
                 <h3 className="inn-side-title">
                   <span className="inn-online-pulse" />
-                  متصل الآن ({onlineUsers.length})
+                  متصل الآن ({onlineCount})
                 </h3>
                 <ul className="inn-activity">
                   {onlineUsers.length === 0 ? (
@@ -776,6 +877,29 @@ export default function UserAccessDashboard({
                   )}
                 </ul>
               </article>
+
+              {remoteIps.length > 0 ? (
+              <article className="inn-side-card inn-side-card-live">
+                <h3 className="inn-side-title">
+                  <span className="inn-online-pulse" />
+                  اتصالات خارجية ({remoteIps.length})
+                </h3>
+                <ul className="inn-activity">
+                  {remoteIps.map((entry) => (
+                      <li key={entry.ip} className="inn-activity-item is-live">
+                        <div className="inn-activity-copy">
+                          <p dir="ltr" title={entry.ip}>{entry.ip}</p>
+                          <span>
+                            {entry.hits} طلب
+                            {entry.lastPath ? ` · ${entry.lastPath}` : ''}
+                          </span>
+                        </div>
+                        <time>{timeAgo(entry.lastSeen)}</time>
+                      </li>
+                    ))}
+                </ul>
+              </article>
+              ) : null}
 
               <article className="inn-side-card">
                 <h3 className="inn-side-title">آخر تسجيلات الدخول</h3>
@@ -827,7 +951,6 @@ export default function UserAccessDashboard({
                 </p>
               </article>
             </aside>
-          </div>
           </div>
         </div>
       </div>

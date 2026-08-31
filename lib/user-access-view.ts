@@ -46,12 +46,19 @@ function sessionTime(session: ActiveSession): number {
   return Number.isFinite(t) ? t : 0;
 }
 
+function sameUser(session: ActiveSession, user: { id?: string; email?: string }): boolean {
+  if (session.userId && user.id && session.userId === user.id) return true;
+  const sessionEmail = (session.userEmail || '').trim().toLowerCase();
+  const userEmail = (user.email || '').trim().toLowerCase();
+  return Boolean(sessionEmail && userEmail && sessionEmail === userEmail);
+}
+
 export function enrichUsersWithSessions(users: any[], sessions: ActiveSession[]): EnrichedUser[] {
   const now = Date.now();
 
   return users.map((u) => {
     const userSessions = sessions
-      .filter((s) => s.userId === u.id)
+      .filter((s) => sameUser(s, u))
       .sort((a, b) => sessionTime(b) - sessionTime(a));
 
     const latest = userSessions[0];

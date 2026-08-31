@@ -1,9 +1,15 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/db';
 import { ensureUserAccount, updateUserAccess } from '@/lib/accounts';
 import { getSqliteDb } from '@/lib/sqlite';
 import { normalizeLoginRole, LOGIN_ROLE_LABELS, toPortalRole, PORTAL_TABS } from '@/lib/roles';
 import { enrichUsersWithSessions, isImageSource, resolveUserPhoto } from '@/lib/user-access-view';
+import { verifyToken } from '@/lib/auth';
+import { getTokenFromRequest } from '@/lib/request-auth';
+import { generateDeviceFingerprint } from '@/lib/security';
+import { resolveRequestIp } from '@/lib/security-threats';
+import { listSessions, upsertUserSession } from '@/lib/presence';
+import { getIpSummaries } from '@/lib/security-monitor';
 
 /** Staff members carry the real portrait; users only link to them through staffId. */
 function loadStaffPhotos(sqlite: any): Map<string, string> {
@@ -47,25 +53,54 @@ function publicUser(u: any, staffPhotos?: Map<string, string>) {
   };
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const overlay = getDatabase();
     const sqlite = getSqliteDb();
+
+    const token = getTokenFromRequest(req);
+    const payload = token ? verifyToken(token) : null;
+    if (payload?.sub) {
+      const ip = resolveRequestIp({
+        forwarded: req.headers.get('x-forwarded-for'),
+        realIp: req.headers.get('x-real-ip'),
+        fallback: '127.0.0.1',
+      });
+      const userAgent = req.headers.get('user-agent') || 'Mozilla/5.0';
+      const acceptLang = req.headers.get('accept-language') || 'ar-DZ';
+      const { pcPrint } = generateDeviceFingerprint(ip, userAgent, acceptLang);
+      try {
+        upsertUserSession({
+          userId: payload.sub,
+          userName: payload.name || '',
+          userEmail: payload.email || '',
+          userRole: String(payload.role || ''),
+          ip,
+          pcPrint,
+          userAgent,
+        });
+      } catch {
+        /* presence is best-effort */
+      }
+    }
+
     const rows = sqlite.prepare('SELECT * FROM users').all() as any[];
     const staffPhotos = loadStaffPhotos(sqlite);
+    const sessions = listSessions();
     const users = enrichUsersWithSessions(
       rows.map((row) => publicUser(row, staffPhotos)),
-      overlay.sessions || []
+      sessions
     );
     const onlineCount = users.filter((u) => u.isOnline).length;
     const pendingCount = users.filter((u) => u.status === 'PENDING_APPROVAL').length;
     const suspendedCount = users.filter((u) => u.status === 'SUSPENDED' || u.loginEnabled === false).length;
-    const sessions = overlay.sessions || [];
     const neverLoggedIn = users.filter((u) => !u.lastLogin).length;
+    const liveIps = getIpSummaries(12);
 
     return NextResponse.json({
       users,
       sessions,
+      liveIps,
       accessRequests: overlay.accessRequests,
       securityKey: overlay.securityKey,
       serverTime: new Date().toISOString(),
@@ -77,6 +112,7 @@ export async function GET() {
         active: users.filter((u) => u.status === 'APPROVED' && u.loginEnabled !== false).length,
         sessions: sessions.length,
         neverLoggedIn,
+        liveIps: liveIps.length,
       },
     });
   } catch (error) {

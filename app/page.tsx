@@ -10,6 +10,7 @@ import TestimonialsSection from '@/components/TestimonialsSection';
 import TravelProgramsSection from '@/components/TravelProgramsSection';
 import SakhrAgent from '@/components/lazy/LazySakhrAgent';
 import Footer from '@/components/Footer';
+import SessionHeartbeat from '@/components/SessionHeartbeat';
 import { User } from '@/types';
 import { fetchJsonList } from '@/lib/fetch-json';
 import { PageContentRow, pickPageContent } from '@/lib/page-content';
@@ -57,6 +58,7 @@ export default function HomePage() {
         <SakhrAgent />
       </main>
       <Footer content={pageContent} />
+      {currentUser ? <SessionHeartbeat /> : null}
     </div>
   );
 }

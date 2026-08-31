@@ -158,6 +158,12 @@ const PLAIN_EXACT = new Set([
   'googleId',
   'google_client_id',
   'security_key',
+  'lastActive',
+  'loginTime',
+  'requestTime',
+  'createdAt',
+  'updatedAt',
+  'updated_at',
 ]);
 
 export function shouldEncryptColumn(columnName: string): boolean {

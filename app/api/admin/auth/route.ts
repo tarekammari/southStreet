@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server';
-import { getDatabase, saveDatabase, ActiveSession } from '@/lib/db';
+import { getDatabase } from '@/lib/db';
 import { getSqliteDb } from '@/lib/sqlite';
+import { upsertUserSession } from '@/lib/presence';
 import { hashPassword, verifyPassword, needsPasswordRehash, generateDeviceFingerprint } from '@/lib/security';
 import { findUserForLogin, findUserByQr, queueAccessRequest, repairSuperAdminLogin } from '@/lib/accounts';
 import { signToken } from '@/lib/auth';
 import { normalizeLoginRole, postLoginPath, requiresSecurityKey, LOGIN_ROLE_LABELS } from '@/lib/roles';
 import { dbLogAudit } from '@/lib/db';
 import { recordLoginIncident } from '@/lib/security-monitor';
+import { resolveRequestIp } from '@/lib/security-threats';
 
 const failedAttemptsMap = new Map<string, { count: number; lockUntil: number }>();
 let superAdminReady = false;
@@ -19,7 +21,11 @@ function isLocalDev(ip: string) {
 
 function clientMeta(req: Request) {
   const headers = req.headers;
-  const clientIp = headers.get('x-forwarded-for')?.split(',')[0] || headers.get('x-real-ip') || '127.0.0.1';
+  const clientIp = resolveRequestIp({
+    forwarded: headers.get('x-forwarded-for'),
+    realIp: headers.get('x-real-ip'),
+    fallback: '127.0.0.1',
+  });
   const userAgent = headers.get('user-agent') || 'Mozilla/5.0';
   const acceptLang = headers.get('accept-language') || 'ar-DZ';
   const { pcPrint } = generateDeviceFingerprint(clientIp, userAgent, acceptLang);
@@ -78,7 +84,6 @@ function publicUser(user: any, pcPrint: string, clientIp: string) {
 }
 
 function completeLogin(user: any, reqMeta: { clientIp: string; userAgent: string; pcPrint: string }) {
-  const db = getDatabase();
   user.lastLoginIp = reqMeta.clientIp;
   user.pcFingerprint = reqMeta.pcPrint;
 
@@ -91,27 +96,16 @@ function completeLogin(user: any, reqMeta: { clientIp: string; userAgent: string
       .run(hashPassword(user.__plainPassword), user.id);
   }
 
-  const newSession: ActiveSession = {
-    id: `sess_${Date.now()}`,
-    userId: user.id,
-    userName: user.name,
-    userEmail: user.email,
-    userRole: user.role,
-    ip: reqMeta.clientIp,
-    pcPrint: reqMeta.pcPrint,
-    userAgent: reqMeta.userAgent,
-    loginTime: new Date().toISOString(),
-    lastActive: new Date().toISOString(),
-  };
-
   try {
-    db.sessions = [newSession, ...(db.sessions || []).filter((s) => s.userId !== user.id).slice(0, 15)];
-    const match = db.users.find((u) => u.id === user.id);
-    if (match) {
-      match.lastLoginIp = reqMeta.clientIp;
-      match.pcFingerprint = reqMeta.pcPrint;
-    }
-    saveDatabase(db);
+    upsertUserSession({
+      userId: user.id,
+      userName: user.name,
+      userEmail: user.email,
+      userRole: user.role,
+      ip: reqMeta.clientIp,
+      pcPrint: reqMeta.pcPrint,
+      userAgent: reqMeta.userAgent,
+    });
   } catch (saveErr: any) {
     console.warn('[Session Save Notice]:', saveErr?.message);
   }
@@ -135,11 +129,18 @@ function completeLogin(user: any, reqMeta: { clientIp: string; userAgent: string
     /* login must succeed even if the audit table is old */
   }
 
-  return NextResponse.json({
+  const res = NextResponse.json({
     status: 'SUCCESS',
     user: safeUser,
     token,
   });
+  res.cookies.set('south_street_token', token, {
+    httpOnly: false,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 60 * 60 * 24,
+  });
+  return res;
 }
 
 export async function POST(req: Request) {

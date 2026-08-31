@@ -7,6 +7,8 @@ import {
   SEVERITY_ORDER,
   THREAT_LABELS,
   classifyAsset,
+  resolveConnectionGeo,
+  repairMojibake,
   type SecurityEvent,
   type Severity,
   type ThreatKind,
@@ -319,6 +321,66 @@ function rollWindow(s: MonitorState) {
   }
 }
 
+const actorMemo = new Map<string, { t: number; v: { userId: string; userName: string; userRole: string } | null }>();
+
+function lookupActor(ip: string): { userId: string; userName: string; userRole: string } | null {
+  const hit = actorMemo.get(ip);
+  if (hit && Date.now() - hit.t < 15_000) return hit.v;
+  let found: { userId: string; userName: string; userRole: string } | null = null;
+  try {
+    const variants = Array.from(
+      new Set([ip, ip === '127.0.0.1' ? '::1' : '', ip === '::1' ? '127.0.0.1' : ''].filter(Boolean).map(normalizeIp))
+    ).filter((value) => value && value !== 'unknown');
+    const stmt = db().prepare(
+      `SELECT userId, userName, userRole FROM sessions WHERE ip = ? ORDER BY rowid DESC LIMIT 1`
+    );
+    for (const value of variants) {
+      const row = stmt.get(value) as { userId?: string; userName?: string; userRole?: string } | undefined;
+      if (row?.userName || row?.userId) {
+        found = {
+          userId: row.userId || '',
+          userName: repairMojibake(row.userName || ''),
+          userRole: row.userRole || '',
+        };
+        break;
+      }
+    }
+  } catch {
+    /* sessions table is optional for the live feed */
+  }
+  actorMemo.set(ip, { t: Date.now(), v: found });
+  return found;
+}
+
+function looksBrokenArabic(value?: string | null): boolean {
+  const text = String(value || '');
+  return /[À-ÿ]/.test(text) && !/[\u0600-\u06FF]/.test(text);
+}
+
+function decorateEvent(raw: SecurityEvent): SecurityEvent {
+  const geo = resolveConnectionGeo({
+    ip: raw.ip,
+    country: raw.country,
+    city: raw.city,
+    region: raw.region,
+  });
+  const name = repairMojibake(raw.userName);
+  const roleName = repairMojibake(raw.userRoleName);
+  const actor = !name || looksBrokenArabic(name) || !raw.userId ? lookupActor(raw.ip) : null;
+  return {
+    ...raw,
+    country: geo.country,
+    countryName: raw.countryName || geo.countryName,
+    city: raw.city || geo.city,
+    region: raw.region || geo.region,
+    geoId: raw.geoId || geo.geoId,
+    userId: raw.userId || actor?.userId || '',
+    userName: looksBrokenArabic(name) ? repairMojibake(actor?.userName) || name : name || repairMojibake(actor?.userName) || '',
+    userRole: raw.userRole || actor?.userRole || '',
+    userRoleName: roleName || '',
+  };
+}
+
 export function recordEvents(events: SecurityEvent[]): void {
   if (!events?.length) return;
   const s = state();
@@ -328,14 +390,14 @@ export function recordEvents(events: SecurityEvent[]): void {
 
   for (const raw of events) {
     const asset = classifyAsset(raw.path || '/', raw.method || 'GET');
-    const event: SecurityEvent = {
+    const event: SecurityEvent = decorateEvent({
       ...raw,
       ip: normalizeIp(raw.ip),
       trusted: isTrustedIp(raw.ip),
       noise: raw.noise ?? asset.noise,
       dataClass: raw.dataClass || asset.dataClass,
       dataLabel: raw.dataLabel || asset.dataLabel,
-    };
+    });
 
     s.live.push(event);
     s.totals.requests += 1;
@@ -468,7 +530,7 @@ export function getLiveFeed(
     const min = SEVERITY_ORDER[options.severity];
     feed = feed.filter((e) => SEVERITY_ORDER[e.severity] >= min);
   }
-  return feed.slice(0, limit);
+  return feed.slice(0, limit).map(decorateEvent);
 }
 
 export function getSensitiveEvents(limit = 40): SecurityEvent[] {
@@ -614,7 +676,7 @@ export function recordLoginIncident(input: {
   blocked?: boolean;
 }): void {
   recordEvents([
-    {
+    decorateEvent({
       id: `auth_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       ts: new Date().toISOString(),
       ip: input.ip,
@@ -632,7 +694,7 @@ export function recordLoginIncident(input: {
       noise: false,
       dataClass: 'auth',
       dataLabel: 'محاولة دخول',
-    },
+    }),
   ]);
 }
 
