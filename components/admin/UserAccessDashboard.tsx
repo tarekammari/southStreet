@@ -429,7 +429,7 @@ export default function UserAccessDashboard({
   };
 
   return (
-    <div className={`inn-shell${sideOpen ? '' : ' is-side-collapsed'}`}>
+    <div className={`inn-shell${sideOpen ? '' : ' is-side-collapsed'}${profileUser ? ' is-detail-open' : ''}`}>
       <div className="inn-frame">
         {/* ── Dark header block ── */}
         <header className="inn-dark">

@@ -2,7 +2,7 @@ import type { ActiveSession } from '@/lib/db';
 
 export const ONLINE_WINDOW_MS = 15 * 60 * 1000;
 
-export const DEFAULT_USER_PHOTO = '/images/default-user.svg';
+export const DEFAULT_USER_PHOTO = '/images/persona.png';
 
 /** Accepts only values that a browser can load directly as an <img> source. */
 export function isImageSource(value?: string | null): boolean {
@@ -12,9 +12,13 @@ export function isImageSource(value?: string | null): boolean {
 }
 
 export function resolveUserPhoto(avatar?: string | null, staffPhoto?: string | null): string {
-  if (isImageSource(avatar)) return String(avatar).trim();
-  if (isImageSource(staffPhoto)) return String(staffPhoto).trim();
-  return DEFAULT_USER_PHOTO;
+  const pick = (value?: string | null) => {
+    if (!isImageSource(value)) return '';
+    const src = String(value).trim();
+    if (src === '/images/default-user.svg') return DEFAULT_USER_PHOTO;
+    return src;
+  };
+  return pick(avatar) || pick(staffPhoto) || DEFAULT_USER_PHOTO;
 }
 
 export type EnrichedUser = {
@@ -22,6 +26,7 @@ export type EnrichedUser = {
   name: string;
   email: string;
   username?: string;
+  phone?: string;
   photo: string;
   role: string;
   roleName: string;
@@ -108,6 +113,35 @@ export function presenceOf(user: { isOnline?: boolean; lastActive?: string | nul
   const t = new Date(raw).getTime();
   if (!Number.isFinite(t) || t <= 0) return 'offline';
   return Date.now() - t < INACTIVE_WINDOW_MS ? 'inactive' : 'offline';
+}
+
+export const JOURNEY_STEPS = [
+  { id: 'registered', label: 'تسجيل' },
+  { id: 'review', label: 'مراجعة' },
+  { id: 'activated', label: 'تفعيل' },
+  { id: 'signedin', label: 'دخول' },
+  { id: 'live', label: 'متصل' },
+] as const;
+
+/** How far the account has moved through onboarding → live session. */
+export function journeyIndex(user: EnrichedUser): number {
+  if (user.isOnline) return 4;
+  if (user.lastLogin || user.lastActive) return 3;
+  if (user.status === 'APPROVED' && user.loginEnabled !== false) return 2;
+  if (user.status === 'PENDING_APPROVAL' || user.status === 'REJECTED') return 1;
+  return 0;
+}
+
+export type AccountTone = 'progress' | 'live' | 'idle' | 'off' | 'hold';
+
+export function accountStatusOf(user: EnrichedUser): { label: string; tone: AccountTone } {
+  if (user.status === 'PENDING_APPROVAL') return { label: 'قيد المعالجة', tone: 'progress' };
+  if (user.status === 'SUSPENDED' || user.loginEnabled === false) return { label: 'موقوف', tone: 'hold' };
+  if (user.status === 'REJECTED') return { label: 'مرفوض', tone: 'off' };
+  const presence = presenceOf(user);
+  if (presence === 'connected') return { label: 'متصل', tone: 'live' };
+  if (presence === 'inactive') return { label: 'خامل', tone: 'idle' };
+  return { label: 'غير متصل', tone: 'off' };
 }
 
 export function deviceLabel(userAgent?: string | null): string {

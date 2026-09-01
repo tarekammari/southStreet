@@ -10,6 +10,7 @@ import { generateDeviceFingerprint } from '@/lib/security';
 import { resolveRequestIp } from '@/lib/security-threats';
 import { listSessions, upsertUserSession } from '@/lib/presence';
 import { getIpSummaries } from '@/lib/security-monitor';
+import { collectUserActivity } from '@/lib/user-activity';
 
 /** Staff members carry the real portrait; users only link to them through staffId. */
 function loadStaffPhotos(sqlite: any): Map<string, string> {
@@ -39,6 +40,7 @@ function publicUser(u: any, staffPhotos?: Map<string, string>) {
     name: u.name,
     email: u.email,
     username: u.username,
+    phone: u.phone || '',
     photo,
     role,
     roleName: u.roleName || LOGIN_ROLE_LABELS[role],
@@ -82,6 +84,11 @@ export async function GET(req: NextRequest) {
       } catch {
         /* presence is best-effort */
       }
+    }
+
+    const activityFor = req.nextUrl.searchParams.get('activityFor');
+    if (activityFor) {
+      return NextResponse.json({ activity: collectUserActivity(activityFor) });
     }
 
     const rows = sqlite.prepare('SELECT * FROM users').all() as any[];
