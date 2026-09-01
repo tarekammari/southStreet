@@ -3,28 +3,43 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
-  ArrowUpRight,
   Bell,
+  Calendar,
+  ChevronDown,
+  ChevronUp,
+  Circle,
   Clock,
+  Globe,
   KeyRound,
+  LayoutDashboard,
   LayoutGrid,
   List,
   LogOut,
-  Mail,
+  MessageCircle,
   PanelLeftClose,
   PanelLeftOpen,
   RefreshCw,
   Search,
+  Settings,
   ShieldCheck,
-  UserPlus,
-  Users,
+  Square,
+  Star,
+  Triangle,
   X,
 } from 'lucide-react';
-import { LOGIN_ROLE_LABELS, LOGIN_ROLE_OPTIONS } from '@/lib/roles';
-import { DEFAULT_USER_PHOTO, formatAdminDate, type EnrichedUser } from '@/lib/user-access-view';
+import {
+  DEFAULT_USER_PHOTO,
+  deviceLabel,
+  formatAdminDate,
+  isImageSource,
+  PRESENCE_LABELS,
+  presenceOf,
+  type EnrichedUser,
+} from '@/lib/user-access-view';
 import SecurityCenter from '@/components/admin/SecurityCenter';
 import UserProfileModal from '@/components/admin/UserProfileModal';
 import GoogleLoginSettings from '@/components/admin/GoogleLoginSettings';
+import PresenceTimeline from '@/components/admin/PresenceTimeline';
 
 type DashboardStats = {
   total: number;
@@ -62,20 +77,31 @@ const REFRESH_MS = 20000;
 
 type FilterKey = 'all' | 'online' | 'active' | 'pending' | 'suspended';
 
-const STATUS_LABEL: Record<string, string> = {
-  APPROVED: 'مفعّل',
-  PENDING_APPROVAL: 'جديد',
-  REJECTED: 'مرفوض',
-  SUSPENDED: 'موقوف',
-};
-
-const FILTER_PILLS: { id: FilterKey; label: string; dot?: string }[] = [
-  { id: 'all', label: 'الكل' },
-  { id: 'online', label: 'متصل', dot: 'orange' },
-  { id: 'active', label: 'مفعّل', dot: 'green' },
-  { id: 'pending', label: 'بانتظار', dot: 'purple' },
-  { id: 'suspended', label: 'موقوف', dot: 'pink' },
+const FILTER_PILLS: { id: FilterKey; label: string; tone: string }[] = [
+  { id: 'all', label: 'الكل', tone: 'blue' },
+  { id: 'online', label: 'متصل', tone: 'cyan' },
+  { id: 'active', label: 'مفعّل', tone: 'yellow' },
+  { id: 'pending', label: 'بانتظار', tone: 'purple' },
+  { id: 'suspended', label: 'موقوف', tone: 'red' },
 ];
+
+const AGENCY_LOGO_FALLBACK = '/images/south_street_logo.png';
+
+function resolveAgencyLogo(logo?: string | null): string {
+  if (!logo) return AGENCY_LOGO_FALLBACK;
+  const src = String(logo).trim();
+  if (!src || src.startsWith('file:') || /^[a-zA-Z]:[\\/]/.test(src)) return AGENCY_LOGO_FALLBACK;
+  if (src.startsWith('images/')) return `/${src}`;
+  if (isImageSource(src)) return src;
+  return AGENCY_LOGO_FALLBACK;
+}
+
+function FilterShape({ tone }: { tone: string }) {
+  if (tone === 'purple') return <Triangle className="w-3 h-3" fill="currentColor" />;
+  if (tone === 'red') return <Square className="w-3 h-3" fill="currentColor" />;
+  if (tone === 'yellow') return <Star className="w-3.5 h-3.5" fill="currentColor" />;
+  return <Circle className="w-3 h-3" fill="currentColor" />;
+}
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/);
@@ -90,53 +116,25 @@ function splitName(full: string): { name: string; note: string } {
   return { name: full.trim(), note: '' };
 }
 
-function firstName(name: string): string {
-  return name.trim().split(/\s+/)[0] || name;
-}
+function BrandLogo({ src, name }: { src: string; name: string }) {
+  const [url, setUrl] = useState(src);
 
-function timeAgo(value?: string | null): string {
-  if (!value) return '—';
-  const ms = Date.now() - new Date(value).getTime();
-  if (!Number.isFinite(ms) || ms < 0) return '—';
-  const min = Math.floor(ms / 60000);
-  if (min < 1) return 'الآن';
-  if (min < 60) return `${min}د`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}س`;
-  return `${Math.floor(hr / 24)}ي`;
-}
+  useEffect(() => {
+    setUrl(src);
+  }, [src]);
 
-function clockTime(value?: string | null): string {
-  if (!value) return '—';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleTimeString('ar-DZ', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-}
-
-function deviceLabel(userAgent?: string | null): string {
-  if (!userAgent) return 'جهاز غير معروف';
-  const ua = userAgent.toLowerCase();
-  const os = ua.includes('windows')
-    ? 'Windows'
-    : ua.includes('android')
-      ? 'Android'
-      : ua.includes('iphone') || ua.includes('ipad')
-        ? 'iOS'
-        : ua.includes('mac os')
-          ? 'macOS'
-          : ua.includes('linux')
-            ? 'Linux'
-            : 'نظام آخر';
-  const browser = ua.includes('edg/')
-    ? 'Edge'
-    : ua.includes('chrome')
-      ? 'Chrome'
-      : ua.includes('firefox')
-        ? 'Firefox'
-        : ua.includes('safari')
-          ? 'Safari'
-          : 'متصفح';
-  return `${browser} · ${os}`;
+  return (
+    <span className="inn-brand-lockup">
+      <img
+        src={url}
+        alt={name}
+        decoding="async"
+        onError={() => {
+          if (url !== AGENCY_LOGO_FALLBACK) setUrl(AGENCY_LOGO_FALLBACK);
+        }}
+      />
+    </span>
+  );
 }
 
 function UserAvatar({
@@ -168,15 +166,6 @@ function UserAvatar({
   );
 }
 
-function statusTone(user: EnrichedUser): string {
-  if (user.status === 'PENDING_APPROVAL') return 'new';
-  if (user.status === 'SUSPENDED' || user.loginEnabled === false) return 'cancelled';
-  if (user.isOnline) return 'checked-in';
-  if (user.status === 'APPROVED') return 'confirmed';
-  if (user.status === 'REJECTED') return 'cancelled';
-  return 'completed';
-}
-
 export default function UserAccessDashboard({
   currentUser,
   onLogout,
@@ -190,15 +179,21 @@ export default function UserAccessDashboard({
   const [refreshing, setRefreshing] = useState(false);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<FilterKey>('all');
-  const [pendingRoles, setPendingRoles] = useState<Record<string, string>>({});
   const [toast, setToast] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [sideOpen, setSideOpen] = useState(true);
+  const [accountsOpen, setAccountsOpen] = useState(true);
+  const [flyout, setFlyout] = useState<'accounts' | 'sessions' | null>(null);
   const [syncedAt, setSyncedAt] = useState<string | null>(null);
   const [clock, setClock] = useState('');
   const [section, setSection] = useState<'users' | 'security' | 'google'>('users');
   const [profileId, setProfileId] = useState<string | null>(null);
   const [liveIps, setLiveIps] = useState<LiveIpRow[]>([]);
+  const [agency, setAgency] = useState<{ name: string; legal: string; logo: string }>({
+    name: 'ساوث ستريت',
+    legal: 'South Street',
+    logo: AGENCY_LOGO_FALLBACK,
+  });
 
   const loadUsers = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -236,6 +231,20 @@ export default function UserAccessDashboard({
     } catch {
       /* presence is best-effort; the dashboard keeps working offline */
     }
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/admin/agency')
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data || data.error) return;
+        setAgency({
+          name: String(data.agency_name || 'ساوث ستريت').trim() || 'ساوث ستريت',
+          legal: String(data.legal_name || 'South Street').trim() || 'South Street',
+          logo: resolveAgencyLogo(data.logo),
+        });
+      })
+      .catch(() => { /* keep default branding */ });
   }, []);
 
   useEffect(() => {
@@ -320,12 +329,6 @@ export default function UserAccessDashboard({
     window.setTimeout(() => setToast(''), 3200);
   };
 
-  const toggleActive = (user: EnrichedUser) => {
-    const suspend = user.status === 'APPROVED' && user.loginEnabled !== false;
-    if (suspend) patchUser(user.id, { status: 'SUSPENDED', loginEnabled: false });
-    else patchUser(user.id, { status: 'APPROVED', loginEnabled: true });
-  };
-
   const isSelf = useCallback(
     (user: EnrichedUser) =>
       Boolean(
@@ -393,28 +396,6 @@ export default function UserAccessDashboard({
   }, [liveUsers, currentUser]);
 
   const onlineCount = Math.max(onlineUsers.length, currentUser ? 1 : 0);
-  const remoteIps = useMemo(() => liveIps.filter((entry) => !entry.trusted), [liveIps]);
-
-  const recentLogins = useMemo(
-    () =>
-      users
-        .filter((u) => u.lastLogin)
-        .sort((a, b) => new Date(b.lastLogin || 0).getTime() - new Date(a.lastLogin || 0).getTime())
-        .slice(0, 6),
-    [users]
-  );
-
-  const roleBreakdown = useMemo(() => {
-    const counts = new Map<string, { total: number; online: number }>();
-    for (const u of liveUsers) {
-      const key = u.roleName || u.role;
-      const entry = counts.get(key) || { total: 0, online: 0 };
-      entry.total += 1;
-      if (u.isOnline) entry.online += 1;
-      counts.set(key, entry);
-    }
-    return [...counts.entries()].sort((a, b) => b[1].total - a[1].total);
-  }, [liveUsers]);
 
   const me = useMemo(
     () => liveUsers.find((u) => isSelf(u)),
@@ -438,10 +419,17 @@ export default function UserAccessDashboard({
   }, []);
 
   const todayLabel = new Date().toLocaleDateString('ar-DZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-  const activePct = stats.total ? Math.round((stats.active / stats.total) * 100) : 0;
+  const workspaceLabel = section === 'security' ? 'الجدار الناري' : section === 'google' ? 'دخول جوجل' : 'إدارة الحسابات';
+  const filterCount = (id: FilterKey) => {
+    if (id === 'online') return onlineCount;
+    if (id === 'active') return stats.active;
+    if (id === 'pending') return stats.pending;
+    if (id === 'suspended') return stats.suspended;
+    return stats.total;
+  };
 
   return (
-    <div className={`inn-shell${sideOpen ? '' : ' is-side-hidden'}`}>
+    <div className={`inn-shell${sideOpen ? '' : ' is-side-collapsed'}`}>
       <div className="inn-frame">
         {/* ── Dark header block ── */}
         <header className="inn-dark">
@@ -452,125 +440,50 @@ export default function UserAccessDashboard({
               onClick={toggleSide}
               aria-expanded={sideOpen}
               aria-controls="inn-side-panel"
-              title={sideOpen ? 'إخفاء اللوحة الجانبية' : 'إظهار اللوحة الجانبية'}
+              title={sideOpen ? 'طي القائمة الجانبية' : 'توسيع القائمة الجانبية'}
             >
               {sideOpen ? <PanelLeftClose className="w-[18px] h-[18px]" /> : <PanelLeftOpen className="w-[18px] h-[18px]" />}
             </button>
 
-            <div className="inn-logo">
-              <span className="inn-logo-mark">
-                <img src="/images/south_street_logo_trans.png" alt="" />
-              </span>
-              <span>South Street</span>
-            </div>
+            <Link href="/" className="inn-logo inn-logo-compact" aria-label="الصفحة الرئيسية">
+              <BrandLogo src={agency.logo} name={agency.name} />
+            </Link>
 
-            <nav className="inn-menu" aria-label="القائمة الرئيسية">
-              <button
-                type="button"
-                className={`inn-menu-link${section === 'users' && filter === 'all' ? ' is-active' : ''}`}
-                onClick={() => { setSection('users'); setFilter('all'); }}
-              >
-                Dashboard
-              </button>
-              <button
-                type="button"
-                className={`inn-menu-link${section === 'users' && filter === 'online' ? ' is-active' : ''}`}
-                onClick={() => { setSection('users'); setFilter('online'); }}
-              >
-                الجلسات
-              </button>
-              <button
-                type="button"
-                className={`inn-menu-link${section === 'users' && filter === 'pending' ? ' is-active' : ''}`}
-                onClick={() => { setSection('users'); setFilter('pending'); }}
-              >
-                الموافقات
-              </button>
-              <button
-                type="button"
-                className={`inn-menu-link inn-menu-shield${section === 'security' ? ' is-active' : ''}`}
-                onClick={() => setSection('security')}
-              >
-                <ShieldCheck className="w-4 h-4" />
-                الجدار الناري
-              </button>
-              <button
-                type="button"
-                className={`inn-menu-link inn-menu-shield${section === 'google' ? ' is-active' : ''}`}
-                onClick={() => setSection('google')}
-              >
-                <KeyRound className="w-4 h-4" />
-                دخول جوجل
-              </button>
-              <Link href="/" className="inn-menu-link">الموقع</Link>
-            </nav>
+            <div className="inn-profile-chip">
+              <span className="inn-profile-photo">
+                <img
+                  src={me?.photo || DEFAULT_USER_PHOTO}
+                  alt=""
+                  onError={(e) => {
+                    e.currentTarget.src = DEFAULT_USER_PHOTO;
+                  }}
+                />
+              </span>
+              <span className="inn-profile-copy">
+                <strong>{splitName(currentUser?.name || me?.name || 'Admin').name}</strong>
+                <em>{todayLabel}</em>
+              </span>
+            </div>
 
             <div className="inn-topnav-tools">
               <span className="inn-live-clock" title="توقيت الخادم المحلي">
                 <Clock className="w-[14px] h-[14px]" />
                 <span dir="ltr">{clock}</span>
               </span>
-              <button type="button" className="inn-tool-btn" aria-label="بحث" onClick={() => setFilter('all')}>
+              <button type="button" className="inn-tool-btn" aria-label="بحث" onClick={() => { setSection('users'); setFilter('all'); setProfileId(null); }}>
                 <Search className="w-[18px] h-[18px]" />
-              </button>
-              <button type="button" className="inn-tool-btn" aria-label="رسائل">
-                <Mail className="w-[18px] h-[18px]" />
               </button>
               <button
                 type="button"
                 className="inn-tool-btn inn-tool-bell"
                 aria-label="إشعارات"
-                onClick={() => setFilter('pending')}
+                onClick={() => { setSection('users'); setFilter('pending'); setProfileId(null); }}
               >
                 <Bell className="w-[18px] h-[18px]" />
                 {stats.pending > 0 ? <span className="inn-bell-badge">{stats.pending}</span> : null}
               </button>
-              <button type="button" className="inn-avatar-btn" onClick={endSessionAndLogout} title="تسجيل الخروج">
-                <img src={me?.photo || DEFAULT_USER_PHOTO} alt={currentUser?.name || 'Admin'} />
-              </button>
-            </div>
-          </div>
-
-          <div className="inn-hero">
-            <div>
-              <h1 className="inn-hero-title">مرحباً، {firstName(currentUser?.name || 'Admin')}!</h1>
-              <p className="inn-hero-date">
-                {todayLabel}
-                {syncedAt ? <span className="inn-hero-sync"> · آخر مزامنة {clockTime(syncedAt)}</span> : null}
-              </p>
-            </div>
-            <div className="inn-hero-actions">
-              <span className="inn-online-chip">
-                <span className="inn-online-pulse" />
-                {onlineCount} متصل الآن
-              </span>
-              <button type="button" className="inn-cta" onClick={() => loadUsers(true)} disabled={refreshing}>
-                <RefreshCw className={`w-4 h-4${refreshing ? ' animate-spin' : ''}`} />
-                تحديث البيانات
-              </button>
-            </div>
-          </div>
-
-          <div className="inn-filters-row" hidden={section !== 'users'}>
-            <div className="inn-filters">
-              {FILTER_PILLS.map((pill) => (
-                <button
-                  key={pill.id}
-                  type="button"
-                  className={`inn-filter-pill${filter === pill.id ? ' is-active' : ''}`}
-                  onClick={() => setFilter(pill.id)}
-                >
-                  {pill.dot ? <span className={`inn-filter-dot inn-dot-${pill.dot}`} /> : null}
-                  {pill.label}
-                </button>
-              ))}
-            </div>
-            <div className="inn-view-toggle">
-              <button type="button" className={`inn-view-btn${viewMode === 'list' ? ' is-active' : ''}`} onClick={() => setViewMode('list')} aria-label="قائمة">
-                <List className="w-4 h-4" />
-              </button>
-              <button type="button" className={`inn-view-btn${viewMode === 'grid' ? ' is-active' : ''}`} onClick={() => setViewMode('grid')} aria-label="شبكة">
-                <LayoutGrid className="w-4 h-4" />
+              <button type="button" className="inn-tool-btn" onClick={endSessionAndLogout} title="تسجيل الخروج">
+                <LogOut className="w-[16px] h-[16px]" />
               </button>
             </div>
           </div>
@@ -598,201 +511,93 @@ export default function UserAccessDashboard({
           {section === 'google' ? <GoogleLoginSettings /> : null}
 
           <div hidden={section !== 'users'}>
-          <section className="inn-quick-row">
-            <button type="button" className="inn-quick inn-quick-green" onClick={() => setFilter('active')}>
-              <UserPlus className="w-5 h-5" />
-              <span>حسابات مفعّلة</span>
-              <strong>{stats.active}</strong>
-            </button>
-            <button type="button" className="inn-quick inn-quick-dark" onClick={() => setFilter('suspended')}>
-              <LogOut className="w-5 h-5" />
-              <span>حسابات موقوفة</span>
-              <strong>{stats.suspended}</strong>
-            </button>
-            <button
-              type="button"
-              className="inn-metric inn-metric-live"
-              onClick={() => setFilter('online')}
-            >
-              <span className="inn-metric-label">متصل الآن</span>
-              <div className="inn-metric-row">
-                <strong>{onlineCount}</strong>
-                <span className="inn-metric-note">من {stats.total}</span>
-              </div>
-            </button>
-            <article className="inn-metric">
-              <span className="inn-metric-label">نسبة التفعيل</span>
-              <div className="inn-metric-row">
-                <strong>{activePct}%</strong>
-                <span className="inn-metric-note">{stats.pending} بانتظار</span>
-              </div>
-            </article>
-            <article className="inn-metric">
-              <span className="inn-metric-label">إجمالي المستخدمين</span>
-              <div className="inn-metric-row">
-                <strong>{stats.total}</strong>
-                <Users className="w-4 h-4 inn-metric-icon" />
-              </div>
-            </article>
-          </section>
-
           <div className="inn-panel-wrap">
-            <section className="inn-panel">
+            <section className={`inn-panel inn-view-stack${profileUser ? ' is-detail' : ''}`}>
+              <div className="inn-view-list" aria-hidden={Boolean(profileUser)}>
               <div className="inn-panel-head">
                 <div>
                   <h2 className="inn-panel-title">قائمة الحسابات</h2>
                   <p className="inn-panel-sub">
                     عرض {filtered.length} من {stats.total} حساب · {onlineCount} متصل الآن
+                    {syncedAt ? ` · آخر مزامنة ${formatAdminDate(syncedAt)}` : ''}
                   </p>
-                </div>
-                <div className="inn-panel-search">
-                  <Search className="w-4 h-4" />
-                  <input
-                    type="search"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="بحث بالاسم، IP، البصمة..."
-                  />
                 </div>
               </div>
 
               {viewMode === 'list' ? (
-                <div className="inn-rows">
+                <div className="ts-table-wrap">
                   {loading ? (
                     <p className="inn-empty">جاري التحميل...</p>
                   ) : filtered.length === 0 ? (
                     <p className="inn-empty">لا توجد نتائج</p>
                   ) : (
-                    filtered.map((user) => {
-                      const isActive = user.status === 'APPROVED' && user.loginEnabled !== false;
-                      const isPending = user.status === 'PENDING_APPROVAL';
-                      const tone = statusTone(user);
-                      const { name, note } = splitName(user.name);
-                      const perms = user.options || [];
-
-                      return (
-                        <article
-                          key={user.id}
-                          className={`inn-row is-clickable${user.isOnline ? ' is-live-row' : ''}`}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => setProfileId(user.id)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              setProfileId(user.id);
-                            }
-                          }}
-                        >
-                          <div className="inn-row-identity">
-                            <UserAvatar user={user} />
-                            <div className="inn-row-id-text">
-                              <p className="inn-row-name" title={user.name}>
-                                {name}
-                                {user.id === me?.id ? <span className="inn-you">أنت</span> : null}
-                              </p>
-                              <span className="inn-row-sub">
-                                {note ? <span className="inn-row-note">{note}</span> : null}
-                                <span className="inn-row-email" dir="ltr" title={user.email || user.username || ''}>
-                                  {user.email || user.username || '—'}
-                                </span>
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="inn-row-fields">
-                            <div className="inn-field">
-                              <span className="inn-field-label">IP</span>
-                              <b className="inn-field-value inn-mono" dir="ltr">{user.displayIp}</b>
-                            </div>
-                            <div className="inn-field">
-                              <span className="inn-field-label">البصمة</span>
-                              <b className="inn-field-value inn-mono" dir="ltr" title={user.displayFingerprint}>
-                                {user.displayFingerprint}
-                              </b>
-                            </div>
-                            <div className="inn-field inn-field-date">
-                              <span className="inn-field-label">{user.isOnline ? 'نشط منذ' : 'آخر دخول'}</span>
-                              <b
-                                className={`inn-field-value${user.isOnline ? ' is-live-value' : ''}`}
-                                title={formatAdminDate(user.lastActive || user.lastLogin)}
-                              >
-                                {user.isOnline
-                                  ? timeAgo(user.lastActive)
-                                  : formatAdminDate(user.lastLogin || user.lastActive)}
-                              </b>
-                            </div>
-                            <div className="inn-field">
-                              <span className="inn-field-label">الدور</span>
-                              <b className="inn-field-value">{user.roleName || user.role}</b>
-                            </div>
-                            <div className="inn-field inn-field-perms">
-                              <span className="inn-field-label">الصلاحيات</span>
-                              <span className="inn-perms" title={perms.join('، ')}>
-                                {perms.length === 0 ? (
-                                  <b className="inn-field-value">—</b>
-                                ) : (
-                                  <>
-                                    {perms.slice(0, 2).map((perm) => (
-                                      <span key={perm} className="inn-perm-chip">{perm}</span>
-                                    ))}
-                                    {perms.length > 2 ? <span className="inn-perm-more">+{perms.length - 2}</span> : null}
-                                  </>
-                                )}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="inn-row-end" onClick={(e) => e.stopPropagation()}>
-                            <span className={`inn-status inn-status-${tone}`}>
-                              {user.isOnline ? 'متصل' : STATUS_LABEL[user.status] || user.status}
-                            </span>
-
-                            {isPending ? (
-                              <div className="inn-row-actions">
-                                <select
-                                  className="inn-select"
-                                  value={pendingRoles[user.id] || user.role}
-                                  onChange={(e) => setPendingRoles((m) => ({ ...m, [user.id]: e.target.value }))}
-                                >
-                                  {LOGIN_ROLE_OPTIONS.map((r) => (
-                                    <option key={r.value} value={r.value}>{r.label}</option>
-                                  ))}
-                                </select>
-                                <button type="button" className="inn-mini inn-mini-ok" onClick={() => patchUser(user.id, { status: 'APPROVED', role: pendingRoles[user.id] || user.role, loginEnabled: true })}>✓</button>
-                                <button type="button" className="inn-mini inn-mini-no" onClick={() => patchUser(user.id, { status: 'REJECTED', loginEnabled: false })}>✕</button>
-                              </div>
-                            ) : (
-                              <label className="inn-switch" title={isActive ? 'إيقاف' : 'تفعيل'}>
-                                <input type="checkbox" checked={isActive} onChange={() => toggleActive(user)} />
-                                <span className="inn-switch-track" />
-                              </label>
-                            )}
-
-                            <button
-                              type="button"
-                              className="inn-row-action"
-                              aria-label="عرض الملف"
+                    <table className="ts-table">
+                      <thead>
+                        <tr>
+                          <th>المستخدم</th>
+                          <th>IP</th>
+                          <th>الجهاز</th>
+                          <th>الاتصال</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filtered.map((user) => {
+                          const { name } = splitName(user.name);
+                          const presence = presenceOf(user);
+                          return (
+                            <tr
+                              key={user.id}
+                              className={`ts-row is-${presence}`}
+                              tabIndex={0}
                               onClick={() => setProfileId(user.id)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  setProfileId(user.id);
+                                }
+                              }}
                             >
-                              <ArrowUpRight className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </article>
-                      );
-                    })
+                              <td>
+                                <div className="ts-name">
+                                  <span className={`ts-dot is-${presence}`} title={PRESENCE_LABELS[presence]} />
+                                  <UserAvatar user={user} />
+                                  <div className="ts-name-copy">
+                                    <span className="ts-name-link">
+                                      {name}
+                                      {user.id === me?.id ? <span className="inn-you">أنت</span> : null}
+                                    </span>
+                                    <span className="ts-name-sub" dir="ltr">{user.email || user.username || '—'}</span>
+                                  </div>
+                                </div>
+                              </td>
+                              <td>
+                                <code className="ts-ip" dir="ltr">{user.displayIp}</code>
+                              </td>
+                              <td>
+                                <span className="ts-os">{deviceLabel(user.userAgent)}</span>
+                              </td>
+                              <td>
+                                <div className={`ts-seen is-${presence}`}>
+                                  {presence === 'connected' ? 'متصل' : PRESENCE_LABELS[presence]}
+                                </div>
+                                <PresenceTimeline presence={presence} compact />
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   )}
                 </div>
               ) : (
                 <div className="inn-grid-cards">
                   {filtered.map((user) => {
-                    const isActive = user.status === 'APPROVED' && user.loginEnabled !== false;
-                    const tone = statusTone(user);
-                    const { name, note } = splitName(user.name);
+                    const { name } = splitName(user.name);
+                    const presence = presenceOf(user);
                     return (
                       <article
                         key={user.id}
-                        className="inn-user-card is-clickable"
+                        className={`inn-user-card is-clickable is-${presence}`}
                         role="button"
                         tabIndex={0}
                         onClick={() => setProfileId(user.id)}
@@ -805,168 +610,289 @@ export default function UserAccessDashboard({
                       >
                         <div className="inn-user-card-top">
                           <UserAvatar user={user} size="lg" />
-                          <span className={`inn-status inn-status-${tone}`}>{user.isOnline ? 'متصل' : STATUS_LABEL[user.status]}</span>
+                          <span className={`ts-seen is-${presence}`}>{PRESENCE_LABELS[presence]}</span>
                         </div>
                         <h3 className="inn-user-card-name">{name}</h3>
-                        <p className="inn-user-card-role">{note || user.roleName || user.role}</p>
+                        <p className="inn-user-card-role" dir="ltr">{user.email || user.username || '—'}</p>
                         <dl className="inn-user-card-meta">
                           <div><dt>IP</dt><dd dir="ltr">{user.displayIp}</dd></div>
-                          <div><dt>البصمة</dt><dd dir="ltr">{user.displayFingerprint}</dd></div>
-                          <div><dt>آخر دخول</dt><dd>{formatAdminDate(user.lastLogin || user.lastActive)}</dd></div>
-                          <div><dt>الصلاحيات</dt><dd>{(user.options || []).slice(0, 2).join('، ') || '—'}</dd></div>
+                          <div><dt>الجهاز</dt><dd>{deviceLabel(user.userAgent)}</dd></div>
                         </dl>
-                        <div className="inn-user-card-foot" onClick={(e) => e.stopPropagation()}>
-                          <label className="inn-switch" title={isActive ? 'إيقاف' : 'تفعيل'}>
-                            <input type="checkbox" checked={isActive} onChange={() => toggleActive(user)} />
-                            <span className="inn-switch-track" />
-                          </label>
-                          <button
-                            type="button"
-                            className="inn-row-action"
-                            aria-label="عرض الملف"
-                            onClick={() => setProfileId(user.id)}
-                          >
-                            <ArrowUpRight className="w-4 h-4" />
-                          </button>
-                        </div>
+                        <PresenceTimeline presence={presence} compact />
                       </article>
                     );
                   })}
                 </div>
               )}
+              </div>
+              {profileUser ? (
+                <div className="inn-view-detail">
+                  <UserProfileModal
+                    key={profileUser.id}
+                    embedded
+                    user={profileUser}
+                    isSelf={profileUser.id === me?.id}
+                    onClose={() => setProfileId(null)}
+                    onPatch={(userId, body) => {
+                      patchUser(userId, body);
+                    }}
+                    onBlockIp={blockIp}
+                  />
+                </div>
+              ) : null}
             </section>
           </div>
           </div>
             </div>
 
-            <aside id="inn-side-panel" className={`inn-side${sideOpen ? ' is-open' : ''}`}>
+            <aside
+              id="inn-side-panel"
+              className={`inn-side${sideOpen ? ' is-open' : ' is-collapsed'}`}
+              onMouseLeave={() => setFlyout(null)}
+            >
               <div className="inn-side-head">
-                <h2 className="inn-side-heading">لوحة الجلسات</h2>
+                <h2 className="inn-side-heading">القائمة</h2>
                 <button type="button" className="inn-side-close" onClick={() => {
                   setSideOpen(false);
                   try { localStorage.setItem('south_street_admin_side', '0'); } catch { /* ignore */ }
-                }} aria-label="إخفاء اللوحة">
+                }} aria-label="طي القائمة">
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <article className="inn-side-card inn-side-card-live">
-                <h3 className="inn-side-title">
-                  <span className="inn-online-pulse" />
-                  متصل الآن ({onlineCount})
-                </h3>
-                <ul className="inn-activity">
-                  {onlineUsers.length === 0 ? (
-                    <li className="inn-activity-empty">لا توجد جلسات نشطة خلال آخر 15 دقيقة</li>
-                  ) : (
-                    onlineUsers.map((user) => (
-                      <li key={user.id} className="inn-activity-item is-live">
-                        <UserAvatar user={user} size="sm" />
-                        <div className="inn-activity-copy">
-                          <p title={user.name}>
-                            {splitName(user.name).name}
-                            {user.id === me?.id ? <span className="inn-you">أنت</span> : null}
-                          </p>
-                          <span>
-                            <span dir="ltr">{user.displayIp}</span> · {deviceLabel(user.userAgent)}
-                          </span>
-                        </div>
-                        <time title={formatAdminDate(user.lastActive)}>{timeAgo(user.lastActive)}</time>
-                      </li>
-                    ))
-                  )}
-                </ul>
-              </article>
+              <Link href="/" className="inn-side-brand" aria-label="الصفحة الرئيسية" title="الصفحة الرئيسية">
+                <BrandLogo src={agency.logo} name={agency.name} />
+              </Link>
 
-              {remoteIps.length > 0 ? (
-              <article className="inn-side-card inn-side-card-live">
-                <h3 className="inn-side-title">
-                  <span className="inn-online-pulse" />
-                  اتصالات خارجية ({remoteIps.length})
-                </h3>
-                <ul className="inn-activity">
-                  {remoteIps.map((entry) => (
-                      <li key={entry.ip} className="inn-activity-item is-live">
-                        <div className="inn-activity-copy">
-                          <p dir="ltr" title={entry.ip}>{entry.ip}</p>
-                          <span>
-                            {entry.hits} طلب
-                            {entry.lastPath ? ` · ${entry.lastPath}` : ''}
-                          </span>
-                        </div>
-                        <time>{timeAgo(entry.lastSeen)}</time>
-                      </li>
-                    ))}
-                </ul>
-              </article>
+              <button
+                type="button"
+                className="inn-side-workspace"
+                onClick={() => { setSection('users'); setFilter('all'); setProfileId(null); }}
+                title={workspaceLabel}
+              >
+                <span className="inn-side-workspace-icon">
+                  <LayoutDashboard className="w-4 h-4" />
+                </span>
+                <span className="inn-side-workspace-copy">
+                  <strong>{workspaceLabel}</strong>
+                  <em>{stats.total} حساب · {onlineCount} متصل</em>
+                </span>
+                <span className="inn-side-workspace-chevs inn-side-label">
+                  <ChevronUp className="w-3 h-3" />
+                  <ChevronDown className="w-3 h-3" />
+                </span>
+              </button>
+
+              <nav className="inn-side-primary" aria-label="القائمة الرئيسية">
+                <button
+                  type="button"
+                  className={`inn-side-link${section === 'users' && filter === 'online' ? ' is-active' : ''}`}
+                  onClick={() => { setSection('users'); setFilter('online'); setProfileId(null); }}
+                  onMouseEnter={() => { if (!sideOpen) setFlyout('sessions'); }}
+                  title="الجلسات"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  <span className="inn-side-label">الجلسات</span>
+                  {onlineCount > 0 ? <span className="inn-side-badge">{onlineCount}</span> : <span className="inn-side-dot" />}
+                </button>
+                <button
+                  type="button"
+                  className={`inn-side-link${section === 'users' && filter === 'pending' ? ' is-active' : ''}`}
+                  onClick={() => { setSection('users'); setFilter('pending'); setProfileId(null); }}
+                  title="الموافقات"
+                >
+                  <Calendar className="w-4 h-4" />
+                  <span className="inn-side-label">الموافقات</span>
+                  {stats.pending > 0 ? <span className="inn-side-badge">{stats.pending}</span> : null}
+                </button>
+                <button
+                  type="button"
+                  className={`inn-side-link${section === 'security' ? ' is-active' : ''}`}
+                  onClick={() => { setSection('security'); setProfileId(null); }}
+                  title="الجدار الناري"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span className="inn-side-label">الجدار الناري</span>
+                </button>
+                <button
+                  type="button"
+                  className={`inn-side-link${section === 'google' ? ' is-active' : ''}`}
+                  onClick={() => { setSection('google'); setProfileId(null); }}
+                  title="دخول جوجل"
+                >
+                  <KeyRound className="w-4 h-4" />
+                  <span className="inn-side-label">دخول جوجل</span>
+                </button>
+                <Link href="/" className="inn-side-link" title="الموقع">
+                  <Globe className="w-4 h-4" />
+                  <span className="inn-side-label">الموقع</span>
+                </Link>
+              </nav>
+
+              <div className="inn-side-rule" />
+
+              <div
+                className="inn-side-section"
+                onMouseEnter={() => { if (!sideOpen) setFlyout('accounts'); }}
+              >
+                <button
+                  type="button"
+                  className={`inn-side-section-toggle${accountsOpen ? ' is-open' : ''}`}
+                  onClick={() => {
+                    if (!sideOpen) {
+                      setFlyout((v) => (v === 'accounts' ? null : 'accounts'));
+                      return;
+                    }
+                    setAccountsOpen((v) => !v);
+                  }}
+                  title="الحسابات"
+                >
+                  <List className="w-4 h-4" />
+                  <span className="inn-side-label">الحسابات</span>
+                  {accountsOpen ? <ChevronUp className="w-3.5 h-3.5 inn-side-label" /> : <ChevronDown className="w-3.5 h-3.5 inn-side-label" />}
+                </button>
+
+                {sideOpen && accountsOpen ? (
+                  <ul className="inn-side-sub">
+                    {FILTER_PILLS.map((pill) => {
+                      const count = filterCount(pill.id);
+                      return (
+                        <li key={pill.id}>
+                          <button
+                            type="button"
+                            className={`inn-side-sub-item is-${pill.tone}${filter === pill.id && section === 'users' ? ' is-active' : ''}`}
+                            onClick={() => { setSection('users'); setFilter(pill.id); setProfileId(null); }}
+                          >
+                            <span className={`inn-side-shape is-${pill.tone}`}><FilterShape tone={pill.tone} /></span>
+                            <span className="inn-side-label">{pill.label}</span>
+                            {count > 0 ? <span className="inn-side-count">{count}</span> : null}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : null}
+              </div>
+
+              <div className="inn-side-tools">
+                <div className="inn-side-search">
+                  <Search className="w-4 h-4" />
+                  <input
+                    type="search"
+                    value={query}
+                    onChange={(e) => { setSection('users'); setQuery(e.target.value); setProfileId(null); }}
+                    placeholder="بحث بالاسم، IP، البصمة..."
+                  />
+                </div>
+                <div className="inn-side-actions">
+                  <button type="button" className="inn-side-cta" onClick={() => loadUsers(true)} disabled={refreshing} title="تحديث البيانات">
+                    <RefreshCw className={`w-4 h-4${refreshing ? ' animate-spin' : ''}`} />
+                    <span className="inn-side-label">تحديث البيانات</span>
+                  </button>
+                  <div className="inn-view-toggle">
+                    <button type="button" className={`inn-view-btn${viewMode === 'grid' ? ' is-active' : ''}`} onClick={() => setViewMode('grid')} aria-label="شبكة">
+                      <LayoutGrid className="w-4 h-4" />
+                    </button>
+                    <button type="button" className={`inn-view-btn${viewMode === 'list' ? ' is-active' : ''}`} onClick={() => setViewMode('list')} aria-label="قائمة">
+                      <List className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {!sideOpen && flyout ? (
+                <div className="inn-side-flyout" role="dialog" aria-label="تفاصيل القائمة">
+                  {flyout === 'accounts' ? (
+                    <>
+                      <p className="inn-side-flyout-title">تصفية الحسابات</p>
+                      <ul className="inn-side-flyout-list">
+                        {FILTER_PILLS.map((pill) => (
+                          <li key={pill.id}>
+                            <button
+                              type="button"
+                              className={`inn-side-flyout-item${filter === pill.id ? ' is-active' : ''}`}
+                              onClick={() => { setSection('users'); setFilter(pill.id); setProfileId(null); }}
+                            >
+                              <span className="inn-flyout-grip" aria-hidden="true" />
+                              <span className={`inn-flyout-icon is-${pill.tone}`}><FilterShape tone={pill.tone} /></span>
+                              <span>
+                                <strong>{pill.label}</strong>
+                                <em>{filterCount(pill.id)} حساب</em>
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  ) : (
+                    <>
+                      <p className="inn-side-flyout-title">متصل الآن</p>
+                      <ul className="inn-side-flyout-list">
+                        {onlineUsers.length === 0 ? (
+                          <li className="inn-activity-empty">لا توجد جلسات نشطة</li>
+                        ) : (
+                          onlineUsers.map((user) => (
+                            <li key={user.id}>
+                              <button type="button" className="inn-side-flyout-item" onClick={() => { setSection('users'); setProfileId(user.id); }}>
+                                <span className="inn-flyout-grip" aria-hidden="true" />
+                                <span className="inn-flyout-icon">{initials(splitName(user.name).name)}</span>
+                                <span>
+                                  <strong>{splitName(user.name).name}</strong>
+                                  <em dir="ltr">{user.displayIp} · {deviceLabel(user.userAgent)}</em>
+                                </span>
+                              </button>
+                            </li>
+                          ))
+                        )}
+                      </ul>
+                    </>
+                  )}
+                </div>
               ) : null}
 
-              <article className="inn-side-card">
-                <h3 className="inn-side-title">آخر تسجيلات الدخول</h3>
-                <ul className="inn-activity">
-                  {recentLogins.length === 0 ? (
-                    <li className="inn-activity-empty">لم يسجّل أي مستخدم دخوله بعد</li>
-                  ) : (
-                    recentLogins.map((user) => (
-                      <li key={user.id} className={`inn-activity-item${user.isOnline ? ' is-live' : ''}`}>
-                        <UserAvatar user={user} size="sm" />
-                        <div className="inn-activity-copy">
-                          <p title={user.name}>{splitName(user.name).name}</p>
-                          <span>{formatAdminDate(user.lastLogin)}</span>
-                        </div>
-                        <time>{timeAgo(user.lastLogin)}</time>
-                      </li>
-                    ))
-                  )}
-                </ul>
-              </article>
+              {sideOpen ? (
+                <div className="inn-side-live">
+                  <p className="inn-side-live-title">
+                    <span className="inn-online-pulse" />
+                    متصل الآن
+                    {liveIps.some((entry) => !entry.trusted) ? ` · ${liveIps.filter((entry) => !entry.trusted).length} خارجي` : ''}
+                  </p>
+                  <ul className="inn-side-flyout-list">
+                    {onlineUsers.length === 0 ? (
+                      <li className="inn-activity-empty">لا توجد جلسات نشطة</li>
+                    ) : (
+                      onlineUsers.slice(0, 6).map((user) => (
+                        <li key={user.id}>
+                          <button type="button" className="inn-side-flyout-item" onClick={() => { setSection('users'); setProfileId(user.id); }}>
+                            <span className="inn-flyout-grip" aria-hidden="true" />
+                            <span className="inn-flyout-icon">{initials(splitName(user.name).name)}</span>
+                            <span>
+                              <strong>{splitName(user.name).name}</strong>
+                              <em dir="ltr">{user.displayIp} · {deviceLabel(user.userAgent)}</em>
+                            </span>
+                          </button>
+                        </li>
+                      ))
+                    )}
+                  </ul>
+                </div>
+              ) : null}
 
-              <article className="inn-side-card inn-side-stats">
-                <h3 className="inn-side-title">توزيع الأدوار</h3>
-                <ul className="inn-role-list">
-                  {roleBreakdown.map(([role, count]) => (
-                    <li key={role}>
-                      <span>{role}</span>
-                      <span className="inn-role-count">
-                        {count.online > 0 ? <em className="inn-role-online">{count.online} متصل</em> : null}
-                        <strong>{count.total}</strong>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-                <dl className="inn-side-facts">
-                  <div>
-                    <dt>جلسات مسجّلة</dt>
-                    <dd>{stats.sessions}</dd>
-                  </div>
-                  <div>
-                    <dt>لم يسجّل دخولاً</dt>
-                    <dd>{stats.neverLoggedIn}</dd>
-                  </div>
-                </dl>
-                <p className="inn-side-foot">
-                  {LOGIN_ROLE_LABELS[currentUser?.role as keyof typeof LOGIN_ROLE_LABELS] || 'مدير'}
-                  {' · '}
-                  تحديث تلقائي كل {REFRESH_MS / 1000} ثانية
-                </p>
-              </article>
+              <div className="inn-side-bottom">
+                <button type="button" className="inn-side-link" onClick={() => { setSection('google'); setProfileId(null); }} title="الإعدادات">
+                  <Settings className="w-4 h-4" />
+                  <span className="inn-side-label">الإعدادات</span>
+                </button>
+                <button type="button" className="inn-side-link" onClick={endSessionAndLogout} title="تسجيل الخروج">
+                  <LogOut className="w-4 h-4" />
+                  <span className="inn-side-label">خروج</span>
+                </button>
+              </div>
             </aside>
           </div>
         </div>
       </div>
 
-      {profileUser ? (
-        <UserProfileModal
-          user={profileUser}
-          isSelf={profileUser.id === me?.id}
-          onClose={() => setProfileId(null)}
-          onPatch={(userId, body) => {
-            patchUser(userId, body);
-            setProfileId(null);
-          }}
-          onBlockIp={blockIp}
-        />
-      ) : null}
     </div>
   );
 }

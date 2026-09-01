@@ -80,7 +80,7 @@ export function enrichUsersWithSessions(users: any[], sessions: ActiveSession[])
 export function formatAdminDate(value?: string | null): string {
   if (!value) return '—';
   const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '—';
+  if (!Number.isFinite(d.getTime())) return '—';
   return d.toLocaleString('ar-DZ', {
     year: 'numeric',
     month: 'short',
@@ -88,4 +88,50 @@ export function formatAdminDate(value?: string | null): string {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+export type Presence = 'connected' | 'inactive' | 'offline';
+
+export const PRESENCE_LABELS: Record<Presence, string> = {
+  connected: 'متصل',
+  inactive: 'خامل',
+  offline: 'غير متصل',
+};
+
+const INACTIVE_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/** Live heartbeat, idle within 24h, or fully offline. */
+export function presenceOf(user: { isOnline?: boolean; lastActive?: string | null; lastLogin?: string | null }): Presence {
+  if (user.isOnline) return 'connected';
+  const raw = user.lastActive || user.lastLogin;
+  if (!raw) return 'offline';
+  const t = new Date(raw).getTime();
+  if (!Number.isFinite(t) || t <= 0) return 'offline';
+  return Date.now() - t < INACTIVE_WINDOW_MS ? 'inactive' : 'offline';
+}
+
+export function deviceLabel(userAgent?: string | null): string {
+  if (!userAgent) return 'جهاز غير معروف';
+  const ua = userAgent.toLowerCase();
+  const os = ua.includes('windows')
+    ? 'Windows'
+    : ua.includes('android')
+      ? 'Android'
+      : ua.includes('iphone') || ua.includes('ipad')
+        ? 'iOS'
+        : ua.includes('mac os')
+          ? 'macOS'
+          : ua.includes('linux')
+            ? 'Linux'
+            : 'نظام آخر';
+  const browser = ua.includes('edg/')
+    ? 'Edge'
+    : ua.includes('chrome')
+      ? 'Chrome'
+      : ua.includes('firefox')
+        ? 'Firefox'
+        : ua.includes('safari')
+          ? 'Safari'
+          : 'متصفح';
+  return `${browser} · ${os}`;
 }

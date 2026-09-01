@@ -2,20 +2,25 @@
 
 import React, { useEffect, useState } from 'react';
 import {
+  ArrowRight,
   Ban,
-  CalendarDays,
   Fingerprint,
   Globe,
-  KeyRound,
-  Mail,
   MonitorSmartphone,
   Power,
   ShieldCheck,
-  UserRound,
   X,
 } from 'lucide-react';
 import { LOGIN_ROLE_OPTIONS } from '@/lib/roles';
-import { DEFAULT_USER_PHOTO, formatAdminDate, type EnrichedUser } from '@/lib/user-access-view';
+import {
+  DEFAULT_USER_PHOTO,
+  deviceLabel,
+  formatAdminDate,
+  PRESENCE_LABELS,
+  presenceOf,
+  type EnrichedUser,
+} from '@/lib/user-access-view';
+import PresenceTimeline from '@/components/admin/PresenceTimeline';
 
 type TabKey = 'overview' | 'security' | 'permissions';
 
@@ -37,44 +42,20 @@ function splitName(full: string): { name: string; note: string } {
   return { name: full.trim(), note: '' };
 }
 
-function deviceLabel(userAgent?: string | null): string {
-  if (!userAgent) return 'جهاز غير معروف';
-  const ua = userAgent.toLowerCase();
-  const os = ua.includes('windows')
-    ? 'Windows'
-    : ua.includes('android')
-      ? 'Android'
-      : ua.includes('iphone') || ua.includes('ipad')
-        ? 'iOS'
-        : ua.includes('mac os')
-          ? 'macOS'
-          : ua.includes('linux')
-            ? 'Linux'
-            : 'نظام آخر';
-  const browser = ua.includes('edg/')
-    ? 'Edge'
-    : ua.includes('chrome')
-      ? 'Chrome'
-      : ua.includes('firefox')
-        ? 'Firefox'
-        : ua.includes('safari')
-          ? 'Safari'
-          : 'متصفح';
-  return `${browser} · ${os}`;
-}
-
 export default function UserProfileModal({
   user,
   isSelf,
   onClose,
   onPatch,
   onBlockIp,
+  embedded = false,
 }: {
   user: EnrichedUser;
   isSelf: boolean;
   onClose: () => void;
   onPatch: (userId: string, body: Record<string, unknown>) => void;
   onBlockIp: (ip: string) => void;
+  embedded?: boolean;
 }) {
   const [tab, setTab] = useState<TabKey>('overview');
   const [closing, setClosing] = useState(false);
@@ -83,17 +64,30 @@ export default function UserProfileModal({
   const { name, note } = splitName(user.name);
   const isActive = user.status === 'APPROVED' && user.loginEnabled !== false;
   const canBlockIp = user.displayIp && user.displayIp !== '—' && user.displayIp !== 'N/A';
+  const presence = presenceOf(user);
 
   const dismiss = () => {
+    if (embedded) {
+      onClose();
+      return;
+    }
     setClosing(true);
     window.setTimeout(onClose, 190);
   };
+
+  useEffect(() => {
+    setRole(user.role);
+    setTab('overview');
+  }, [user.id, user.role]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') dismiss();
     };
     document.addEventListener('keydown', onKey);
+    if (embedded) {
+      return () => document.removeEventListener('keydown', onKey);
+    }
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
@@ -101,26 +95,30 @@ export default function UserProfileModal({
       document.body.style.overflow = previous;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [embedded]);
 
-  return (
-    <div className={`upm-overlay${closing ? ' is-closing' : ''}`} role="dialog" aria-modal="true" aria-label={`ملف ${name}`}>
-      <button type="button" className="upm-backdrop" aria-label="إغلاق" onClick={dismiss} />
-
-      <div className={`upm-panel${closing ? ' is-closing' : ''}`} dir="rtl">
-        <button type="button" className="upm-close" onClick={dismiss} aria-label="إغلاق">
-          <X className="w-4 h-4" />
-        </button>
+  const panel = (
+      <div className={`upm-panel${closing ? ' is-closing' : ''}${embedded ? ' is-embedded' : ''}`} dir="rtl">
+        {embedded ? (
+          <button type="button" className="upm-back" onClick={dismiss}>
+            <ArrowRight className="w-4 h-4" />
+            رجوع
+          </button>
+        ) : (
+          <button type="button" className="upm-close" onClick={dismiss} aria-label="إغلاق">
+            <X className="w-4 h-4" />
+          </button>
+        )}
 
         {/* ── Hero ── */}
-        <header className={`upm-hero${user.isOnline ? ' is-live' : ''}`}>
+        <header className={`upm-hero is-${presence}`}>
           <div className="upm-hero-glow" />
           <div className="upm-avatar-wrap">
-            <span className={`upm-avatar${user.isOnline ? ' is-live' : ''}`}>
+            <span className={`upm-avatar${presence === 'connected' ? ' is-live' : ''}`}>
               <img src={user.photo || DEFAULT_USER_PHOTO} alt={user.name} onError={(e) => { (e.currentTarget.style.display = 'none'); }} />
               <b className="upm-avatar-initials">{initials(user.name)}</b>
             </span>
-            {user.isOnline ? <span className="upm-ring" /> : null}
+            <span className={`ts-dot is-${presence}`} />
           </div>
 
           <div className="upm-hero-text">
@@ -128,11 +126,12 @@ export default function UserProfileModal({
               {name}
               {isSelf ? <span className="upm-self">أنت</span> : null}
             </h2>
-            <p className="upm-sub">{note || user.roleName || user.role}</p>
+            <p className="upm-sub">{note || user.roleName || user.role} · {user.email || user.username || '—'}</p>
             <div className="upm-badges">
-              <span className={`upm-badge${user.isOnline ? ' is-live' : ' is-idle'}`}>
+              <span className={`upm-badge is-${presence}`}>
                 <span className="upm-dot" />
-                {user.isOnline ? 'متصل الآن' : 'غير متصل'}
+                {PRESENCE_LABELS[presence]}
+                {presence === 'connected' ? ' الآن' : ''}
               </span>
               <span className={`upm-badge${isActive ? ' is-ok' : ' is-off'}`}>
                 {isActive ? 'الحساب مفعّل' : 'الحساب موقوف'}
@@ -159,13 +158,59 @@ export default function UserProfileModal({
 
         <div className="upm-body" key={tab}>
           {tab === 'overview' ? (
-            <div className="upm-cards">
-              <Card icon={<UserRound className="w-4 h-4" />} label="الاسم الكامل" value={user.name} delay={0} />
-              <Card icon={<Mail className="w-4 h-4" />} label="البريد الإلكتروني" value={user.email || user.username || '—'} ltr delay={1} />
-              <Card icon={<KeyRound className="w-4 h-4" />} label="اسم المستخدم" value={user.username || '—'} ltr delay={2} />
-              <Card icon={<ShieldCheck className="w-4 h-4" />} label="الدور" value={user.roleName || user.role} delay={3} />
-              <Card icon={<CalendarDays className="w-4 h-4" />} label="تاريخ الإنشاء" value={formatAdminDate(user.createdAt)} delay={4} />
-              <Card icon={<CalendarDays className="w-4 h-4" />} label="آخر دخول" value={formatAdminDate(user.lastLogin)} delay={5} />
+            <div className="upm-machine">
+              <section className="upm-timeline-card">
+                <h3>خط الاتصال</h3>
+                <PresenceTimeline presence={presence} />
+                <p className="upm-timeline-note">
+                  {presence === 'connected'
+                    ? 'الجلسة نشطة خلال آخر 15 دقيقة.'
+                    : presence === 'inactive'
+                      ? 'ظهر خلال آخر 24 ساعة ثم أصبح خاملًا.'
+                      : 'لا نشاط حديث، الجهاز غير متصل.'}
+                </p>
+              </section>
+
+              <dl className="upm-props">
+                <div>
+                  <dt>المالك</dt>
+                  <dd>{name}</dd>
+                </div>
+                <div>
+                  <dt>البريد</dt>
+                  <dd dir="ltr">{user.email || user.username || '—'}</dd>
+                </div>
+                <div>
+                  <dt>نظام التشغيل</dt>
+                  <dd>{deviceLabel(user.userAgent)}</dd>
+                </div>
+                <div>
+                  <dt>الدور</dt>
+                  <dd>{user.roleName || user.role}</dd>
+                </div>
+                <div>
+                  <dt>تاريخ الإنشاء</dt>
+                  <dd>{formatAdminDate(user.createdAt)}</dd>
+                </div>
+                <div>
+                  <dt>آخر ظهور</dt>
+                  <dd>{formatAdminDate(user.lastActive || user.lastLogin)}</dd>
+                </div>
+              </dl>
+
+              <section className="upm-addr-card">
+                <h3>العناوين</h3>
+                <ul>
+                  <li>
+                    <span>IP</span>
+                    <code dir="ltr">{user.displayIp}</code>
+                  </li>
+                  <li>
+                    <span>البصمة</span>
+                    <code dir="ltr">{user.displayFingerprint}</code>
+                  </li>
+                </ul>
+              </section>
             </div>
           ) : null}
 
@@ -272,10 +317,24 @@ export default function UserProfileModal({
           ) : null}
 
           <button type="button" className="upm-btn upm-btn-ghost upm-btn-end" onClick={dismiss}>
-            إغلاق
+            {embedded ? 'رجوع' : 'إغلاق'}
           </button>
         </footer>
       </div>
+  );
+
+  if (embedded) {
+    return (
+      <div className="upm-embedded" role="region" aria-label={`ملف ${name}`}>
+        {panel}
+      </div>
+    );
+  }
+
+  return (
+    <div className={`upm-overlay${closing ? ' is-closing' : ''}`} role="dialog" aria-modal="true" aria-label={`ملف ${name}`}>
+      <button type="button" className="upm-backdrop" aria-label="إغلاق" onClick={dismiss} />
+      {panel}
     </div>
   );
 }
