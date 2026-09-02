@@ -515,7 +515,7 @@ export default function SecurityCenter({ sideOpen = true }: { sideOpen?: boolean
               <span>الجهاز</span>
               <span className="sec-ledger-col-action">إجراء</span>
             </div>
-            <ul className="sec-feed">
+            <ul key={`${dateFilter}|${userFilter}|${ipFilter}|${roleFilter}`} className="sec-feed inn-swap">
             {feedWithFlags.length === 0 ? (
               <li className="sec-feed-empty">
                 <Activity className="w-5 h-5" />

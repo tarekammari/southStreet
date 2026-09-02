@@ -276,6 +276,7 @@ export default function UserProfileModal({
           </header>
 
           <div className="upm-table-wrap">
+            <div key={tab} className="upm-table-swap">
             <table className="upm-table">
               <tbody>
                 {rows.map((row) => (
@@ -350,6 +351,7 @@ export default function UserProfileModal({
                   حظر IP
                 </button>
               ) : null}
+            </div>
             </div>
           </div>
 

@@ -497,8 +497,18 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .inn-online-pulse {
-    animation: none;
+  .inn-swap,
+  .inn-stage-pane,
+  .inn-view-list,
+  .inn-view-detail,
+  .inn-side-fold,
+  .inn-side-flyout,
+  .upm-table-swap,
+  .ts-table tbody tr,
+  .inn-user-card,
+  .inn-layout {
+    animation: none !important;
+    transition: none !important;
   }
 }
 
@@ -945,6 +955,114 @@
   display: flex;
   flex-direction: column;
   animation: inn-detail-in 0.38s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes inn-detail-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+}
+
+.inn-view-stack.is-detail.is-leaving .inn-view-list {
+  opacity: 1;
+  transform: none;
+}
+
+.inn-view-stack.is-detail.is-leaving .inn-view-detail {
+  animation: inn-detail-out 0.28s ease forwards;
+  pointer-events: none;
+}
+
+.inn-stage {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  overflow: clip;
+}
+
+.inn-stage-pane {
+  grid-area: 1 / 1;
+  min-width: 0;
+  opacity: 0;
+  transform: translateX(22px);
+  pointer-events: none;
+  visibility: hidden;
+  transition:
+    opacity 0.36s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.36s cubic-bezier(0.16, 1, 0.3, 1),
+    visibility 0.36s;
+}
+
+.inn-stage-pane:not(.is-active) {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.inn-stage-pane.is-active {
+  position: relative;
+  z-index: 1;
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+  visibility: visible;
+}
+
+.inn-swap,
+.upm-table-swap {
+  animation: inn-swap-in 0.38s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes inn-swap-in {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.ts-table tbody tr,
+.inn-user-card {
+  animation: inn-row-in 0.34s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes inn-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.inn-side-fold {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.inn-side-fold.is-open {
+  grid-template-rows: 1fr;
+}
+
+.inn-side-fold-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.inn-side.is-collapsed .inn-side-fold {
+  display: none;
 }
 
 .inn-panel-head {
@@ -1656,7 +1774,7 @@
 }
 
 .inn-user-card-role {
-  margin: 0.2rem 0 0.75rem;
+  margin: 0.2rem 0 0;
   font-size: 0.78rem;
   color: var(--inn-text-muted);
 }
@@ -1696,6 +1814,8 @@
   border-radius: 22px;
   min-height: 640px;
   min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .inn-status {
@@ -1745,6 +1865,10 @@
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 1rem;
   padding: 1.15rem 1.25rem;
+}
+
+.inn-user-card .ts-tags {
+  margin: 0.2rem 0 0.65rem;
 }
 
 .inn-user-card-top {
@@ -2114,6 +2238,7 @@
   font-weight: 500;
   cursor: pointer;
   text-align: right;
+  transition: background 0.18s ease, color 0.18s ease;
 }
 
 .inn-side-sub-item:hover {
@@ -2124,6 +2249,13 @@
 .inn-side-sub-item.is-active {
   background: #222226;
   color: #fff;
+}
+
+.inn-side-sub-item .inn-side-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .inn-side-shape {
@@ -2145,6 +2277,10 @@
 .inn-flyout-icon.is-red { color: #f43f5e; }
 .inn-side-shape.is-yellow,
 .inn-flyout-icon.is-yellow { color: #eab308; }
+.inn-side-shape.is-green,
+.inn-flyout-icon.is-green { color: #22c55e; }
+.inn-side-shape.is-gold,
+.inn-flyout-icon.is-gold { color: #d4af37; }
 
 .inn-side-count {
   margin-inline-start: auto;
@@ -2336,6 +2472,18 @@
   background: #18181b;
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: -18px 18px 50px rgba(0, 0, 0, 0.55);
+  animation: inn-flyout-in 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes inn-flyout-in {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .inn-side-flyout-title {
@@ -3387,6 +3535,7 @@
   padding: 1.25rem;
   background: rgba(15, 23, 42, 0.52);
   backdrop-filter: blur(10px);
+  animation: inn-swap-in 0.28s ease;
 }
 
 .sec-detail {
@@ -3402,6 +3551,7 @@
     linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
   border: 1px solid rgba(14, 116, 144, 0.18);
   box-shadow: 0 32px 80px rgba(15, 23, 42, 0.28);
+  animation: inn-detail-in 0.38s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .sec-detail-close {
@@ -5685,6 +5835,7 @@
   font-size: 0.74rem;
   font-weight: 700;
   cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
 .upm-seg-btn.is-active {
@@ -5699,6 +5850,10 @@
   border-radius: 18px;
   background: #1c1c1e;
   border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.upm-table-swap {
+  min-height: 100%;
 }
 
 .upm-table {
@@ -5933,6 +6088,8 @@
 }
 
 .inn-shell.is-detail-open .inn-main,
+.inn-shell.is-detail-open .inn-stage,
+.inn-shell.is-detail-open .inn-stage-pane.is-active,
 .inn-shell.is-detail-open .inn-panel-wrap,
 .inn-shell.is-detail-open .inn-view-stack,
 .inn-shell.is-detail-open .upm-studio-wrap,
@@ -5949,7 +6106,8 @@
   height: 100%;
 }
 
-.inn-shell.is-detail-open .inn-main > div:not([hidden]) {
+.inn-shell.is-detail-open .inn-stage,
+.inn-shell.is-detail-open .inn-stage-pane.is-active {
   flex: 1;
   min-height: 0;
   display: flex;

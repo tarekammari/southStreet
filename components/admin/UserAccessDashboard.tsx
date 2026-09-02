@@ -4,6 +4,9 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   Bell,
+  BookOpen,
+  Briefcase,
+  Calculator,
   Calendar,
   ChevronDown,
   ChevronUp,
@@ -11,6 +14,7 @@ import {
   Clock,
   Globe,
   KeyRound,
+  Landmark,
   LayoutDashboard,
   LayoutGrid,
   List,
@@ -21,10 +25,13 @@ import {
   RefreshCw,
   Search,
   Settings,
+  Shield,
   ShieldCheck,
   Square,
   Star,
   Triangle,
+  UserCog,
+  Users,
   X,
 } from 'lucide-react';
 import {
@@ -36,6 +43,12 @@ import {
   presenceOf,
   type EnrichedUser,
 } from '@/lib/user-access-view';
+import {
+  LOGIN_ROLE_LABELS,
+  LOGIN_ROLE_OPTIONS,
+  normalizeLoginRole,
+  type LoginRole,
+} from '@/lib/roles';
 import SecurityCenter from '@/components/admin/SecurityCenter';
 import UserProfileModal from '@/components/admin/UserProfileModal';
 import GoogleLoginSettings from '@/components/admin/GoogleLoginSettings';
@@ -76,6 +89,8 @@ const HEARTBEAT_MS = 45000;
 const REFRESH_MS = 20000;
 
 type FilterKey = 'all' | 'online' | 'active' | 'pending' | 'suspended';
+type RoleFilter = 'all' | LoginRole;
+type FlyoutKey = 'accounts' | 'sessions' | 'types' | null;
 
 const FILTER_PILLS: { id: FilterKey; label: string; tone: string }[] = [
   { id: 'all', label: 'الكل', tone: 'blue' },
@@ -84,6 +99,34 @@ const FILTER_PILLS: { id: FilterKey; label: string; tone: string }[] = [
   { id: 'pending', label: 'بانتظار', tone: 'purple' },
   { id: 'suspended', label: 'موقوف', tone: 'red' },
 ];
+
+const ROLE_TONES: Record<LoginRole, string> = {
+  SUPER_ADMIN: 'yellow',
+  AGENCY_MANAGER: 'purple',
+  ACCOUNTANT: 'cyan',
+  GUIDE_MURSHID: 'green',
+  AGENCY_AGENT: 'gold',
+  PILGRIM_USER: 'blue',
+};
+
+const ROLE_PILLS: { id: RoleFilter; label: string; tone: string }[] = [
+  { id: 'all', label: 'كل الأنواع', tone: 'blue' },
+  ...LOGIN_ROLE_OPTIONS.map((option) => ({
+    id: option.value as RoleFilter,
+    label: option.label,
+    tone: ROLE_TONES[option.value],
+  })),
+];
+
+function userLoginRole(user: { role?: string; email?: string; roleName?: string }): LoginRole {
+  return normalizeLoginRole(user.role, { email: user.email, roleName: user.roleName });
+}
+
+function roleLabelOf(user: { role?: string; email?: string; roleName?: string }): string {
+  const named = (user.roleName || '').trim();
+  if (named) return named;
+  return LOGIN_ROLE_LABELS[userLoginRole(user)];
+}
 
 const AGENCY_LOGO_FALLBACK = '/images/south_street_logo.png';
 
@@ -101,6 +144,16 @@ function FilterShape({ tone }: { tone: string }) {
   if (tone === 'red') return <Square className="w-3 h-3" fill="currentColor" />;
   if (tone === 'yellow') return <Star className="w-3.5 h-3.5" fill="currentColor" />;
   return <Circle className="w-3 h-3" fill="currentColor" />;
+}
+
+function RoleGlyph({ role }: { role: RoleFilter }) {
+  if (role === 'SUPER_ADMIN') return <Shield className="w-3.5 h-3.5" />;
+  if (role === 'AGENCY_MANAGER') return <Briefcase className="w-3.5 h-3.5" />;
+  if (role === 'ACCOUNTANT') return <Calculator className="w-3.5 h-3.5" />;
+  if (role === 'GUIDE_MURSHID') return <BookOpen className="w-3.5 h-3.5" />;
+  if (role === 'AGENCY_AGENT') return <UserCog className="w-3.5 h-3.5" />;
+  if (role === 'PILGRIM_USER') return <Landmark className="w-3.5 h-3.5" />;
+  return <Users className="w-3.5 h-3.5" />;
 }
 
 function initials(name: string): string {
@@ -179,11 +232,14 @@ export default function UserAccessDashboard({
   const [refreshing, setRefreshing] = useState(false);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<FilterKey>('all');
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
   const [toast, setToast] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [sideOpen, setSideOpen] = useState(true);
   const [accountsOpen, setAccountsOpen] = useState(true);
-  const [flyout, setFlyout] = useState<'accounts' | 'sessions' | null>(null);
+  const [typesOpen, setTypesOpen] = useState(true);
+  const [flyout, setFlyout] = useState<FlyoutKey>(null);
+  const [detailLeaving, setDetailLeaving] = useState(false);
   const [syncedAt, setSyncedAt] = useState<string | null>(null);
   const [clock, setClock] = useState('');
   const [section, setSection] = useState<'users' | 'security' | 'google'>('users');
@@ -358,18 +414,23 @@ export default function UserAccessDashboard({
     if (filter === 'active') list = list.filter((u) => u.status === 'APPROVED' && u.loginEnabled !== false);
     if (filter === 'pending') list = list.filter((u) => u.status === 'PENDING_APPROVAL');
     if (filter === 'suspended') list = list.filter((u) => u.status === 'SUSPENDED' || u.loginEnabled === false);
+    if (roleFilter !== 'all') list = list.filter((u) => userLoginRole(u) === roleFilter);
 
     const q = query.trim().toLowerCase();
     if (!q) return list;
-    return list.filter(
-      (u) =>
+    return list.filter((u) => {
+      const roleText = roleLabelOf(u).toLowerCase();
+      return (
         u.name.toLowerCase().includes(q) ||
         (u.email || '').toLowerCase().includes(q) ||
         (u.username || '').toLowerCase().includes(q) ||
         u.displayIp.toLowerCase().includes(q) ||
-        u.displayFingerprint.toLowerCase().includes(q)
-    );
-  }, [liveUsers, filter, query]);
+        u.displayFingerprint.toLowerCase().includes(q) ||
+        roleText.includes(q) ||
+        (u.role || '').toLowerCase().includes(q)
+      );
+    });
+  }, [liveUsers, filter, roleFilter, query]);
 
   const onlineUsers = useMemo(() => {
     const list = liveUsers
@@ -404,6 +465,50 @@ export default function UserAccessDashboard({
 
   const profileUser = useMemo(() => users.find((u) => u.id === profileId) || null, [users, profileId]);
 
+  useEffect(() => {
+    if (!detailLeaving) return;
+    const id = window.setTimeout(() => {
+      setProfileId(null);
+      setDetailLeaving(false);
+    }, 280);
+    return () => window.clearTimeout(id);
+  }, [detailLeaving]);
+
+  const openProfile = (id: string) => {
+    setDetailLeaving(false);
+    setSection('users');
+    setProfileId(id);
+  };
+
+  const goUsers = (patch: { filter?: FilterKey; role?: RoleFilter } = {}) => {
+    setSection('users');
+    if (patch.filter) setFilter(patch.filter);
+    if (patch.role !== undefined) setRoleFilter(patch.role);
+    if (profileId) setDetailLeaving(true);
+  };
+
+  const goSection = (next: 'users' | 'security' | 'google') => {
+    setSection(next);
+    setDetailLeaving(false);
+    setProfileId(null);
+  };
+
+  const roleCounts = useMemo(() => {
+    const counts: Record<RoleFilter, number> = {
+      all: liveUsers.length,
+      SUPER_ADMIN: 0,
+      AGENCY_MANAGER: 0,
+      ACCOUNTANT: 0,
+      GUIDE_MURSHID: 0,
+      AGENCY_AGENT: 0,
+      PILGRIM_USER: 0,
+    };
+    liveUsers.forEach((user) => {
+      counts[userLoginRole(user)] += 1;
+    });
+    return counts;
+  }, [liveUsers]);
+
   const blockIp = useCallback(async (ip: string) => {
     const res = await fetch('/api/security/firewall', {
       method: 'POST',
@@ -420,6 +525,7 @@ export default function UserAccessDashboard({
 
   const todayLabel = new Date().toLocaleDateString('ar-DZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const workspaceLabel = section === 'security' ? 'الجدار الناري' : section === 'google' ? 'دخول جوجل' : 'إدارة الحسابات';
+  const roleFilterLabel = roleFilter === 'all' ? '' : LOGIN_ROLE_LABELS[roleFilter];
   const filterCount = (id: FilterKey) => {
     if (id === 'online') return onlineCount;
     if (id === 'active') return stats.active;
@@ -470,14 +576,14 @@ export default function UserAccessDashboard({
                 <Clock className="w-[14px] h-[14px]" />
                 <span dir="ltr">{clock}</span>
               </span>
-              <button type="button" className="inn-tool-btn" aria-label="بحث" onClick={() => { setSection('users'); setFilter('all'); setProfileId(null); }}>
+              <button type="button" className="inn-tool-btn" aria-label="بحث" onClick={() => goUsers({ filter: 'all' })}>
                 <Search className="w-[18px] h-[18px]" />
               </button>
               <button
                 type="button"
                 className="inn-tool-btn inn-tool-bell"
                 aria-label="إشعارات"
-                onClick={() => { setSection('users'); setFilter('pending'); setProfileId(null); }}
+                onClick={() => goUsers({ filter: 'pending' })}
               >
                 <Bell className="w-[18px] h-[18px]" />
                 {stats.pending > 0 ? <span className="inn-bell-badge">{stats.pending}</span> : null}
@@ -507,25 +613,39 @@ export default function UserAccessDashboard({
 
           <div className={`inn-layout${sideOpen ? '' : ' is-collapsed'}`}>
             <div className="inn-main">
-          {section === 'security' ? <SecurityCenter sideOpen={sideOpen} /> : null}
-          {section === 'google' ? <GoogleLoginSettings /> : null}
+          <div className="inn-stage">
+          {section === 'security' ? (
+            <div key="security" className="inn-stage-pane is-active inn-swap">
+              <SecurityCenter sideOpen={sideOpen} />
+            </div>
+          ) : null}
+          {section === 'google' ? (
+            <div key="google" className="inn-stage-pane is-active inn-swap">
+              <GoogleLoginSettings />
+            </div>
+          ) : null}
 
-          <div hidden={section !== 'users'}>
+          <div
+            className={`inn-stage-pane${section === 'users' ? ' is-active' : ''}`}
+            aria-hidden={section !== 'users'}
+          >
           <div className="inn-panel-wrap">
-            <section className={`inn-panel inn-view-stack${profileUser ? ' is-detail' : ''}`}>
-              <div className="inn-view-list" aria-hidden={Boolean(profileUser)}>
+            <section className={`inn-panel inn-view-stack${profileUser ? ' is-detail' : ''}${detailLeaving ? ' is-leaving' : ''}`}>
+              <div className="inn-view-list" aria-hidden={Boolean(profileUser) && !detailLeaving}>
               <div className="inn-panel-head">
                 <div>
                   <h2 className="inn-panel-title">قائمة الحسابات</h2>
                   <p className="inn-panel-sub">
-                    عرض {filtered.length} من {stats.total} حساب · {onlineCount} متصل الآن
+                    عرض {filtered.length} من {stats.total} حساب
+                    {roleFilterLabel ? ` · ${roleFilterLabel}` : ''}
+                    {' · '}{onlineCount} متصل الآن
                     {syncedAt ? ` · آخر مزامنة ${formatAdminDate(syncedAt)}` : ''}
                   </p>
                 </div>
               </div>
 
               {viewMode === 'list' ? (
-                <div className="ts-table-wrap">
+                <div key={`list-${filter}-${roleFilter}`} className="ts-table-wrap inn-swap">
                   {loading ? (
                     <p className="inn-empty">جاري التحميل...</p>
                   ) : filtered.length === 0 ? (
@@ -549,11 +669,11 @@ export default function UserAccessDashboard({
                               key={user.id}
                               className={`ts-row is-${presence}`}
                               tabIndex={0}
-                              onClick={() => setProfileId(user.id)}
+                              onClick={() => openProfile(user.id)}
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter' || e.key === ' ') {
                                   e.preventDefault();
-                                  setProfileId(user.id);
+                                  openProfile(user.id);
                                 }
                               }}
                             >
@@ -567,6 +687,9 @@ export default function UserAccessDashboard({
                                       {user.id === me?.id ? <span className="inn-you">أنت</span> : null}
                                     </span>
                                     <span className="ts-name-sub" dir="ltr">{user.email || user.username || '—'}</span>
+                                    <span className="ts-tags">
+                                      <span className="ts-tag is-muted">{roleLabelOf(user)}</span>
+                                    </span>
                                   </div>
                                 </div>
                               </td>
@@ -590,7 +713,7 @@ export default function UserAccessDashboard({
                   )}
                 </div>
               ) : (
-                <div className="inn-grid-cards">
+                <div key={`grid-${filter}-${roleFilter}`} className="inn-grid-cards inn-swap">
                   {filtered.map((user) => {
                     const { name } = splitName(user.name);
                     const presence = presenceOf(user);
@@ -600,11 +723,11 @@ export default function UserAccessDashboard({
                         className={`inn-user-card is-clickable is-${presence}`}
                         role="button"
                         tabIndex={0}
-                        onClick={() => setProfileId(user.id)}
+                        onClick={() => openProfile(user.id)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault();
-                            setProfileId(user.id);
+                            openProfile(user.id);
                           }
                         }}
                       >
@@ -614,6 +737,9 @@ export default function UserAccessDashboard({
                         </div>
                         <h3 className="inn-user-card-name">{name}</h3>
                         <p className="inn-user-card-role" dir="ltr">{user.email || user.username || '—'}</p>
+                        <span className="ts-tags">
+                          <span className="ts-tag is-muted">{roleLabelOf(user)}</span>
+                        </span>
                         <dl className="inn-user-card-meta">
                           <div><dt>IP</dt><dd dir="ltr">{user.displayIp}</dd></div>
                           <div><dt>الجهاز</dt><dd>{deviceLabel(user.userAgent)}</dd></div>
@@ -632,7 +758,7 @@ export default function UserAccessDashboard({
                     embedded
                     user={profileUser}
                     isSelf={profileUser.id === me?.id}
-                    onClose={() => setProfileId(null)}
+                    onClose={() => setDetailLeaving(true)}
                     onPatch={(userId, body) => {
                       patchUser(userId, body);
                     }}
@@ -641,6 +767,7 @@ export default function UserAccessDashboard({
                 </div>
               ) : null}
             </section>
+          </div>
           </div>
           </div>
             </div>
@@ -667,7 +794,7 @@ export default function UserAccessDashboard({
               <button
                 type="button"
                 className="inn-side-workspace"
-                onClick={() => { setSection('users'); setFilter('all'); setProfileId(null); }}
+                onClick={() => goUsers({ filter: 'all', role: 'all' })}
                 title={workspaceLabel}
               >
                 <span className="inn-side-workspace-icon">
@@ -687,7 +814,7 @@ export default function UserAccessDashboard({
                 <button
                   type="button"
                   className={`inn-side-link${section === 'users' && filter === 'online' ? ' is-active' : ''}`}
-                  onClick={() => { setSection('users'); setFilter('online'); setProfileId(null); }}
+                  onClick={() => goUsers({ filter: 'online' })}
                   onMouseEnter={() => { if (!sideOpen) setFlyout('sessions'); }}
                   title="الجلسات"
                 >
@@ -698,7 +825,7 @@ export default function UserAccessDashboard({
                 <button
                   type="button"
                   className={`inn-side-link${section === 'users' && filter === 'pending' ? ' is-active' : ''}`}
-                  onClick={() => { setSection('users'); setFilter('pending'); setProfileId(null); }}
+                  onClick={() => goUsers({ filter: 'pending' })}
                   title="الموافقات"
                 >
                   <Calendar className="w-4 h-4" />
@@ -708,7 +835,7 @@ export default function UserAccessDashboard({
                 <button
                   type="button"
                   className={`inn-side-link${section === 'security' ? ' is-active' : ''}`}
-                  onClick={() => { setSection('security'); setProfileId(null); }}
+                  onClick={() => goSection('security')}
                   title="الجدار الناري"
                 >
                   <ShieldCheck className="w-4 h-4" />
@@ -717,7 +844,7 @@ export default function UserAccessDashboard({
                 <button
                   type="button"
                   className={`inn-side-link${section === 'google' ? ' is-active' : ''}`}
-                  onClick={() => { setSection('google'); setProfileId(null); }}
+                  onClick={() => goSection('google')}
                   title="دخول جوجل"
                 >
                   <KeyRound className="w-4 h-4" />
@@ -752,26 +879,73 @@ export default function UserAccessDashboard({
                   {accountsOpen ? <ChevronUp className="w-3.5 h-3.5 inn-side-label" /> : <ChevronDown className="w-3.5 h-3.5 inn-side-label" />}
                 </button>
 
-                {sideOpen && accountsOpen ? (
-                  <ul className="inn-side-sub">
-                    {FILTER_PILLS.map((pill) => {
-                      const count = filterCount(pill.id);
-                      return (
-                        <li key={pill.id}>
-                          <button
-                            type="button"
-                            className={`inn-side-sub-item is-${pill.tone}${filter === pill.id && section === 'users' ? ' is-active' : ''}`}
-                            onClick={() => { setSection('users'); setFilter(pill.id); setProfileId(null); }}
-                          >
-                            <span className={`inn-side-shape is-${pill.tone}`}><FilterShape tone={pill.tone} /></span>
-                            <span className="inn-side-label">{pill.label}</span>
-                            {count > 0 ? <span className="inn-side-count">{count}</span> : null}
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                ) : null}
+                <div className={`inn-side-fold${sideOpen && accountsOpen ? ' is-open' : ''}`}>
+                  <div className="inn-side-fold-inner">
+                    <ul className="inn-side-sub">
+                      {FILTER_PILLS.map((pill) => {
+                        const count = filterCount(pill.id);
+                        return (
+                          <li key={pill.id}>
+                            <button
+                              type="button"
+                              className={`inn-side-sub-item is-${pill.tone}${filter === pill.id && section === 'users' ? ' is-active' : ''}`}
+                              onClick={() => goUsers({ filter: pill.id })}
+                            >
+                              <span className={`inn-side-shape is-${pill.tone}`}><FilterShape tone={pill.tone} /></span>
+                              <span className="inn-side-label">{pill.label}</span>
+                              {count > 0 ? <span className="inn-side-count">{count}</span> : null}
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                className="inn-side-section"
+                onMouseEnter={() => { if (!sideOpen) setFlyout('types'); }}
+              >
+                <button
+                  type="button"
+                  className={`inn-side-section-toggle${typesOpen || roleFilter !== 'all' ? ' is-open' : ''}`}
+                  onClick={() => {
+                    if (!sideOpen) {
+                      setFlyout((v) => (v === 'types' ? null : 'types'));
+                      return;
+                    }
+                    setTypesOpen((v) => !v);
+                  }}
+                  title="النوع"
+                >
+                  <Users className="w-4 h-4" />
+                  <span className="inn-side-label">النوع</span>
+                  {typesOpen ? <ChevronUp className="w-3.5 h-3.5 inn-side-label" /> : <ChevronDown className="w-3.5 h-3.5 inn-side-label" />}
+                </button>
+
+                <div className={`inn-side-fold${sideOpen && typesOpen ? ' is-open' : ''}`}>
+                  <div className="inn-side-fold-inner">
+                    <ul className="inn-side-sub">
+                      {ROLE_PILLS.map((pill) => {
+                        const count = roleCounts[pill.id];
+                        return (
+                          <li key={pill.id}>
+                            <button
+                              type="button"
+                              className={`inn-side-sub-item is-${pill.tone}${roleFilter === pill.id && section === 'users' ? ' is-active' : ''}`}
+                              onClick={() => goUsers({ role: pill.id })}
+                            >
+                              <span className={`inn-side-shape is-${pill.tone}`}><RoleGlyph role={pill.id} /></span>
+                              <span className="inn-side-label">{pill.label}</span>
+                              {count > 0 ? <span className="inn-side-count">{count}</span> : null}
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                </div>
               </div>
 
               <div className="inn-side-tools">
@@ -780,7 +954,7 @@ export default function UserAccessDashboard({
                   <input
                     type="search"
                     value={query}
-                    onChange={(e) => { setSection('users'); setQuery(e.target.value); setProfileId(null); }}
+                    onChange={(e) => { goUsers(); setQuery(e.target.value); }}
                     placeholder="بحث بالاسم، IP، البصمة..."
                   />
                 </div>
@@ -811,13 +985,35 @@ export default function UserAccessDashboard({
                             <button
                               type="button"
                               className={`inn-side-flyout-item${filter === pill.id ? ' is-active' : ''}`}
-                              onClick={() => { setSection('users'); setFilter(pill.id); setProfileId(null); }}
+                              onClick={() => goUsers({ filter: pill.id })}
                             >
                               <span className="inn-flyout-grip" aria-hidden="true" />
                               <span className={`inn-flyout-icon is-${pill.tone}`}><FilterShape tone={pill.tone} /></span>
                               <span>
                                 <strong>{pill.label}</strong>
                                 <em>{filterCount(pill.id)} حساب</em>
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  ) : flyout === 'types' ? (
+                    <>
+                      <p className="inn-side-flyout-title">تصفية النوع</p>
+                      <ul className="inn-side-flyout-list">
+                        {ROLE_PILLS.map((pill) => (
+                          <li key={pill.id}>
+                            <button
+                              type="button"
+                              className={`inn-side-flyout-item${roleFilter === pill.id ? ' is-active' : ''}`}
+                              onClick={() => goUsers({ role: pill.id })}
+                            >
+                              <span className="inn-flyout-grip" aria-hidden="true" />
+                              <span className={`inn-flyout-icon is-${pill.tone}`}><RoleGlyph role={pill.id} /></span>
+                              <span>
+                                <strong>{pill.label}</strong>
+                                <em>{roleCounts[pill.id]} حساب</em>
                               </span>
                             </button>
                           </li>
@@ -833,7 +1029,7 @@ export default function UserAccessDashboard({
                         ) : (
                           onlineUsers.map((user) => (
                             <li key={user.id}>
-                              <button type="button" className="inn-side-flyout-item" onClick={() => { setSection('users'); setProfileId(user.id); }}>
+                              <button type="button" className="inn-side-flyout-item" onClick={() => openProfile(user.id)}>
                                 <span className="inn-flyout-grip" aria-hidden="true" />
                                 <span className="inn-flyout-icon">{initials(splitName(user.name).name)}</span>
                                 <span>
@@ -863,7 +1059,7 @@ export default function UserAccessDashboard({
                     ) : (
                       onlineUsers.slice(0, 6).map((user) => (
                         <li key={user.id}>
-                          <button type="button" className="inn-side-flyout-item" onClick={() => { setSection('users'); setProfileId(user.id); }}>
+                          <button type="button" className="inn-side-flyout-item" onClick={() => openProfile(user.id)}>
                             <span className="inn-flyout-grip" aria-hidden="true" />
                             <span className="inn-flyout-icon">{initials(splitName(user.name).name)}</span>
                             <span>
@@ -879,7 +1075,7 @@ export default function UserAccessDashboard({
               ) : null}
 
               <div className="inn-side-bottom">
-                <button type="button" className="inn-side-link" onClick={() => { setSection('google'); setProfileId(null); }} title="الإعدادات">
+                <button type="button" className="inn-side-link" onClick={() => goSection('google')} title="الإعدادات">
                   <Settings className="w-4 h-4" />
                   <span className="inn-side-label">الإعدادات</span>
                 </button>
