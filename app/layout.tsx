@@ -4,25 +4,31 @@ import './globals.css';
 
 const tajawal = Tajawal({
   subsets: ['arabic'],
-  weight: ['400', '500', '700', '800', '900'],
+  weight: ['400', '700', '800'],
+  display: 'swap',
   variable: '--font-tajawal',
 });
 
 const amiri = Amiri({
   subsets: ['arabic'],
   weight: ['400', '700'],
+  display: 'swap',
+  preload: false,
   variable: '--font-amiri',
 });
 
 const cairo = Cairo({
   subsets: ['arabic'],
-  weight: ['400', '600', '700', '800', '900'],
+  weight: ['400', '700', '800'],
+  display: 'swap',
   variable: '--font-cairo',
 });
 
 const arefRuqaa = Aref_Ruqaa({
   subsets: ['arabic'],
   weight: ['400', '700'],
+  display: 'swap',
+  preload: false,
   variable: '--font-ruqaa',
 });
 

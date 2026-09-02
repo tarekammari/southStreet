@@ -22,13 +22,35 @@ import {
 } from '@/lib/user-access-view';
 import UserActivityMap from '@/components/admin/UserActivityMap';
 
-type TabKey = 'data' | 'session' | 'access';
+type TabKey = 'data' | 'session' | 'access' | 'history';
 
 const TABS: { id: TabKey; label: string }[] = [
   { id: 'data', label: 'البيانات' },
   { id: 'session', label: 'الجلسة' },
   { id: 'access', label: 'الصلاحيات' },
+  { id: 'history', label: 'السجل' },
 ];
+
+type UserDevice = {
+  id: string;
+  ip: string;
+  fingerprint: string;
+  userAgent: string;
+  device: string;
+  firstSeen: string;
+  lastSeen: string;
+  active: boolean;
+};
+
+type UserHistoryEvent = {
+  id: string;
+  at: string;
+  kind: string;
+  title: string;
+  detail: string;
+  ip?: string;
+  device?: string;
+};
 
 function splitName(full: string): { name: string; note: string } {
   const match = full.trim().match(/^(.*?)\s*[（(]\s*([^）)]*?)\s*[）)]$/);
@@ -111,6 +133,8 @@ export default function UserProfileModal({
   const [role, setRole] = useState(user.role);
   const [photoBroken, setPhotoBroken] = useState(false);
   const [activity, setActivity] = useState<Record<string, number>>({});
+  const [devices, setDevices] = useState<UserDevice[]>([]);
+  const [history, setHistory] = useState<UserHistoryEvent[]>([]);
 
   const { name, note } = splitName(user.name);
   const isActive = user.status === 'APPROVED' && user.loginEnabled !== false;
@@ -138,6 +162,8 @@ export default function UserProfileModal({
     setTab('data');
     setPhotoBroken(false);
     setActivity(seedActivity(user));
+    setDevices([]);
+    setHistory([]);
     const token = typeof window !== 'undefined' ? localStorage.getItem('south_street_token') : null;
     fetch(`/api/admin/users?activityFor=${encodeURIComponent(user.id)}`, {
       cache: 'no-store',
@@ -148,6 +174,8 @@ export default function UserProfileModal({
         if (data?.activity && typeof data.activity === 'object') {
           setActivity({ ...seedActivity(user), ...data.activity });
         }
+        if (Array.isArray(data?.devices)) setDevices(data.devices);
+        if (Array.isArray(data?.events)) setHistory(data.events);
       })
       .catch(() => { /* heatmap stays on known dates */ });
   }, [user.id, user.role]);
@@ -277,6 +305,7 @@ export default function UserProfileModal({
 
           <div className="upm-table-wrap">
             <div key={tab} className="upm-table-swap">
+            {tab !== 'history' ? (
             <table className="upm-table">
               <tbody>
                 {rows.map((row) => (
@@ -287,6 +316,48 @@ export default function UserProfileModal({
                 ))}
               </tbody>
             </table>
+            ) : (
+              <div className="upm-history">
+                <section className="upm-history-block">
+                  <h3>أجهزة الدخول</h3>
+                  {devices.length === 0 ? (
+                    <p className="upm-history-empty">لا توجد أجهزة مسجّلة بعد</p>
+                  ) : (
+                    <ul className="upm-device-list">
+                      {devices.map((item) => (
+                        <li key={item.id} className={item.active ? 'is-live' : ''}>
+                          <div>
+                            <strong>{item.device}</strong>
+                            <span>{item.active ? 'جلسة نشطة' : 'جلسة سابقة'}</span>
+                          </div>
+                          <p dir="ltr">{item.ip}</p>
+                          <em>{formatAdminDate(item.lastSeen)}</em>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+                <section className="upm-history-block">
+                  <h3>سجل النشاط والأوامر</h3>
+                  {history.length === 0 ? (
+                    <p className="upm-history-empty">لا يوجد سجل بعد</p>
+                  ) : (
+                    <ol className="upm-timeline">
+                      {history.map((item) => (
+                        <li key={item.id} className={`is-${item.kind}`}>
+                          <time>{formatAdminDate(item.at)}</time>
+                          <strong>{item.title}</strong>
+                          <span>{item.detail}</span>
+                          {item.ip || item.device ? (
+                            <em>{[item.device, item.ip].filter(Boolean).join(' · ')}</em>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                </section>
+              </div>
+            )}
 
             {tab === 'access' ? (
               <div className="upm-table-actions">
@@ -309,6 +380,7 @@ export default function UserProfileModal({
               </div>
             ) : null}
 
+            {tab !== 'history' ? (
             <div className="upm-table-actions">
               {user.status === 'PENDING_APPROVAL' ? (
                 <>
@@ -352,6 +424,7 @@ export default function UserProfileModal({
                 </button>
               ) : null}
             </div>
+            ) : null}
             </div>
           </div>
 

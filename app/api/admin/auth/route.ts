@@ -124,7 +124,7 @@ function completeLogin(user: any, reqMeta: { clientIp: string; userAgent: string
   });
 
   try {
-    dbLogAudit(user.name, user.role, 'تسجيل دخول ناجح', `username=${user.username || user.email}`);
+    dbLogAudit(user.name, user.role, 'تسجيل دخول ناجح', `username=${user.username || user.email}`, reqMeta.clientIp);
   } catch {
     /* login must succeed even if the audit table is old */
   }

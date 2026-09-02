@@ -2,27 +2,18 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Activity,
+  ArrowRight,
   Ban,
-  Bug,
   Calendar,
-  Database,
   Eraser,
-  Eye,
   Filter,
   Globe,
-  KeyRound,
-  MapPin,
-  Monitor,
   Pause,
   Play,
   ShieldAlert,
   ShieldCheck,
-  Siren,
-  Trash2,
   UserRound,
   Users,
-  X,
 } from 'lucide-react';
 import {
   DATA_LABELS,
@@ -31,25 +22,10 @@ import {
   countryNameOf,
   flagEmoji,
   repairMojibake,
-  type DataClass,
   type SecurityEvent,
   type Severity,
-  type ThreatKind,
 } from '@/lib/security-threats';
 import { LOGIN_ROLE_LABELS, LOGIN_ROLE_OPTIONS, normalizeLoginRole, type LoginRole } from '@/lib/roles';
-
-type IpSummary = {
-  ip: string;
-  hits: number;
-  blocked: number;
-  threats: number;
-  worst: Severity;
-  trusted: boolean;
-  lastSeen: string;
-  lastPath: string;
-  agent: string;
-  ruled: 'BLOCK' | 'ALLOW' | null;
-};
 
 type FirewallRule = {
   id: string;
@@ -57,9 +33,6 @@ type FirewallRule = {
   type: 'BLOCK' | 'ALLOW';
   active: boolean;
   note: string;
-  createdAt: string;
-  createdBy: string;
-  hits: number;
 };
 
 type FirewallSettings = {
@@ -76,28 +49,12 @@ type Summary = {
   totalThreats: number;
   totalBots: number;
   requestsPerMinute: number;
-  blockedPerMinute: number;
-  threatsPerMinute: number;
   uniqueIps: number;
-  untrustedIps: number;
-  criticalInBuffer: number;
   bufferSize: number;
-  uptimeSince: string;
   injection: number;
   flood: number;
-  scanners: number;
   authAttacks: number;
   sensitiveHits: number;
-};
-
-type AttackReport = {
-  threat: ThreatKind;
-  label: string;
-  count: number;
-  lastAt: string;
-  lastIp: string;
-  lastPath: string;
-  lastNote: string;
 };
 
 const EMPTY_SUMMARY: Summary = {
@@ -106,21 +63,15 @@ const EMPTY_SUMMARY: Summary = {
   totalThreats: 0,
   totalBots: 0,
   requestsPerMinute: 0,
-  blockedPerMinute: 0,
-  threatsPerMinute: 0,
   uniqueIps: 0,
-  untrustedIps: 0,
-  criticalInBuffer: 0,
   bufferSize: 0,
-  uptimeSince: new Date().toISOString(),
   injection: 0,
   flood: 0,
-  scanners: 0,
   authAttacks: 0,
   sensitiveHits: 0,
 };
 
-const POLL_MS = 3000;
+const POLL_MS = 8000;
 
 type DateFilter = 'all' | 'hour' | 'today' | 'yesterday' | 'day' | 'week';
 
@@ -133,12 +84,6 @@ function roleLabel(role?: string | null, roleName?: string | null): string {
 
 function actorNameOf(event: SecurityEvent): string {
   return repairMojibake(event.userName) || 'زائر غير مسجّل';
-}
-
-function initialsOf(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`;
-  return name.slice(0, 2) || '؟';
 }
 
 function token(): string {
@@ -175,7 +120,7 @@ function displayIp(ip?: string | null): { ip: string; local: boolean } {
 }
 
 function agentLabel(userAgent?: string | null): string {
-  if (!userAgent) return 'عميل غير معروف';
+  if (!userAgent) return 'جهاز غير معروف';
   const ua = userAgent.toLowerCase();
   const os = ua.includes('windows')
     ? 'Windows'
@@ -200,26 +145,9 @@ function agentLabel(userAgent?: string | null): string {
   return `${browser} · ${os}`;
 }
 
-function threatIcon(threat: ThreatKind) {
-  if (threat === 'BLOCKED' || threat === 'AUTH_ABUSE') return <Ban className="w-3.5 h-3.5" />;
-  if (threat === 'INJECTION' || threat === 'TRAVERSAL' || threat === 'FLOOD') return <Siren className="w-3.5 h-3.5" />;
-  if (threat === 'SCANNER' || threat === 'BOT') return <Bug className="w-3.5 h-3.5" />;
-  return <ShieldAlert className="w-3.5 h-3.5" />;
-}
-
-function dataIcon(dataClass?: DataClass) {
-  if (dataClass === 'secrets') return <KeyRound className="w-3.5 h-3.5" />;
-  if (dataClass === 'users') return <Users className="w-3.5 h-3.5" />;
-  if (dataClass === 'database' || dataClass === 'auth') return <Database className="w-3.5 h-3.5" />;
-  return null;
-}
-
 export default function SecurityCenter({ sideOpen = true }: { sideOpen?: boolean }) {
   const [summary, setSummary] = useState<Summary>(EMPTY_SUMMARY);
   const [feed, setFeed] = useState<SecurityEvent[]>([]);
-  const [sensitive, setSensitive] = useState<SecurityEvent[]>([]);
-  const [reports, setReports] = useState<AttackReport[]>([]);
-  const [ips, setIps] = useState<IpSummary[]>([]);
   const [rules, setRules] = useState<FirewallRule[]>([]);
   const [settings, setSettings] = useState<FirewallSettings>({
     enabled: true,
@@ -256,9 +184,6 @@ export default function SecurityCenter({ sideOpen = true }: { sideOpen?: boolean
       setError('');
       setSummary({ ...EMPTY_SUMMARY, ...(data.summary || {}) });
       setFeed(data.feed || []);
-      setSensitive(data.sensitive || []);
-      setReports(data.reports || []);
-      setIps(data.ips || []);
       setRules(data.rules || []);
       if (data.settings) setSettings(data.settings);
     } catch {
@@ -343,98 +268,72 @@ export default function SecurityCenter({ sideOpen = true }: { sideOpen?: boolean
   const filterOptions = useMemo(() => {
     const users = new Map<string, string>();
     const ips = new Set<string>();
-    const roles = new Map<string, string>();
     for (const event of feed) {
       if (event.userName) {
         const name = actorNameOf(event);
         if (name && name !== 'زائر غير مسجّل') users.set(name, name);
       }
       ips.add(displayIp(event.ip).ip);
-      if (event.userRole) roles.set(event.userRole, roleLabel(event.userRole, event.userRoleName));
     }
     return {
       users: [...users.keys()].sort((a, b) => a.localeCompare(b, 'ar')),
       ips: [...ips],
-      roles: [...roles.entries()].sort((a, b) => a[1].localeCompare(b[1], 'ar')),
     };
   }, [feed]);
 
   const filtersOn = dateFilter !== 'all' || Boolean(userFilter || ipFilter || roleFilter);
-
-  const clearFilters = () => {
-    setDateFilter('all');
-    setUserFilter('');
-    setIpFilter('');
-    setRoleFilter('');
-  };
-
   const attacks = summary.totalThreats + summary.totalBlocked;
-  const blockedRules = rules.filter((r) => r.type === 'BLOCK');
+  const blockedCount = rules.filter((rule) => rule.type === 'BLOCK' && rule.active).length;
+  void sideOpen;
+
+  const selectedOrigin = selected ? displayIp(selected.ip) : null;
+  const selectedCountry = selected
+    ? selected.country || (selectedOrigin?.local ? 'DZ' : '')
+    : '';
+  const selectedCountryName = selected
+    ? selected.countryName || countryNameOf(selectedCountry)
+    : '';
 
   return (
-    <div className={`sec-wrap${sideOpen ? ' is-with-rail' : ' is-side-hidden'}`}>
-      {toast ? <div className="sec-toast">{toast}</div> : null}
+    <div className="inn-panel-wrap">
+      {toast ? <div className="inn-toast">{toast}</div> : null}
       {error ? <div className="sec-error">{error}</div> : null}
 
-      <section className="sec-stats">
-        <article className={`sec-stat sec-stat-shield${settings.enabled ? ' is-on' : ' is-off'}`}>
-          <span className="sec-stat-icon">
-            {settings.enabled ? <ShieldCheck className="w-5 h-5" /> : <ShieldAlert className="w-5 h-5" />}
-          </span>
-          <div>
-            <p className="sec-stat-label">الجدار الناري</p>
-            <strong className="sec-stat-value">{settings.enabled ? 'يعمل' : 'متوقف'}</strong>
-          </div>
-          <label className="inn-switch" title={settings.enabled ? 'إيقاف الجدار' : 'تشغيل الجدار'}>
-            <input
-              type="checkbox"
-              checked={settings.enabled}
-              onChange={(e) => callFirewall({ action: 'settings', ...settings, enabled: e.target.checked })}
-            />
-            <span className="inn-switch-track" />
-          </label>
-        </article>
-
-        <article className={`sec-stat${attacks > 0 ? ' is-danger' : ''}`}>
-          <p className="sec-stat-label">هجمات مرصودة</p>
-          <strong className="sec-stat-value">{attacks}</strong>
-          <span className="sec-stat-sub">حقن {summary.injection || 0} · إغراق {summary.flood || 0} · روبوت {summary.totalBots}</span>
-        </article>
-
-        <article className={`sec-stat${summary.totalBlocked > 0 ? ' is-danger' : ''}`}>
-          <p className="sec-stat-label">مرفوض</p>
-          <strong className="sec-stat-value">{summary.totalBlocked}</strong>
-          <span className="sec-stat-sub">{summary.authAttacks || 0} اقتحام دخول</span>
-        </article>
-
-        <article className={`sec-stat${summary.sensitiveHits > 0 ? ' is-warn' : ''}`}>
-          <p className="sec-stat-label">بيانات حسّاسة</p>
-          <strong className="sec-stat-value">{summary.sensitiveHits || 0}</strong>
-          <span className="sec-stat-sub">مستخدمون · كلمات مرور · قاعدة البيانات</span>
-        </article>
-
-        <article className="sec-stat sec-stat-live">
-          <p className="sec-stat-label">اتصالات حية</p>
-          <strong className="sec-stat-value">{summary.uniqueIps || 0}</strong>
-          <span className="sec-stat-sub">{summary.requestsPerMinute || 0} طلب/دقيقة على هذا الخادم</span>
-        </article>
-      </section>
-
-      <div className="sec-grid">
-        <section className="sec-panel sec-panel-feed">
-          <header className="sec-panel-head">
-            <div className="sec-panel-title">
-              <span className={`sec-live-dot${paused ? ' is-paused' : ''}`} />
-              <h3>النشاط المهم</h3>
-              <span className="sec-count">{feedWithFlags.length} / {summary.bufferSize} حدث</span>
+      <section className={`inn-panel inn-view-stack${selected ? ' is-detail' : ''}`}>
+        <div className="inn-view-list" aria-hidden={Boolean(selected)}>
+          <div className="inn-panel-head">
+            <div>
+              <h2 className="inn-panel-title">الجدار الناري</h2>
+              <p className="inn-panel-sub">
+                {settings.enabled ? 'يعمل' : 'متوقف'}
+                {' · '}
+                {summary.uniqueIps || 0} اتصال حي
+                {' · '}
+                {summary.sensitiveHits || 0} بيانات حسّاسة
+                {' · '}
+                {summary.totalBlocked} مرفوض
+                {' · '}
+                {attacks} هجوم
+                {' · '}
+                {feedWithFlags.length} حدث
+                {blockedCount ? ` · ${blockedCount} حظر` : ''}
+              </p>
             </div>
-            <div className="sec-panel-tools">
+            <div className="fw-head-tools">
+              <label className="inn-switch" title={settings.enabled ? 'إيقاف الجدار' : 'تشغيل الجدار'}>
+                <input
+                  type="checkbox"
+                  checked={settings.enabled}
+                  onChange={(e) => callFirewall({ action: 'settings', ...settings, enabled: e.target.checked })}
+                />
+                <span className="inn-switch-track" />
+              </label>
               <button
                 type="button"
                 className={`sec-chip${showAll ? ' is-active' : ''}`}
                 onClick={() => setShowAll((v) => !v)}
               >
-                {showAll ? 'إخفاء الضجيج' : 'كل الطلبات'}
+                {showAll ? 'المهم فقط' : 'كل الطلبات'}
               </button>
               <button type="button" className="sec-icon-btn" onClick={() => setPaused((v) => !v)} title={paused ? 'استئناف' : 'إيقاف مؤقت'}>
                 {paused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
@@ -443,9 +342,9 @@ export default function SecurityCenter({ sideOpen = true }: { sideOpen?: boolean
                 <Eraser className="w-4 h-4" />
               </button>
             </div>
-          </header>
+          </div>
 
-          <div className="sec-filters" role="search">
+          <div className="fw-filters" role="search">
             <span className="sec-filters-label">
               <Filter className="w-3.5 h-3.5" />
               تصفية
@@ -486,257 +385,10 @@ export default function SecurityCenter({ sideOpen = true }: { sideOpen?: boolean
                 {LOGIN_ROLE_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
-                {filterOptions.roles
-                  .filter(([value]) => !LOGIN_ROLE_OPTIONS.some((opt) => opt.value === value))
-                  .map(([value, label]) => (
-                    <option key={value} value={value}>{label}</option>
-                  ))}
               </select>
             </label>
-            {filtersOn ? (
-              <button type="button" className="sec-filter-clear" onClick={clearFilters}>
-                مسح الفلاتر
-              </button>
-            ) : null}
-          </div>
-
-          <div className="sec-ledger">
-            <div className="sec-ledger-head" aria-hidden="true">
-              <span>الوقت</span>
-              <span>الطريقة</span>
-              <span>المسار</span>
-              <span>المستخدم</span>
-              <span>العنوان</span>
-              <span>الدولة</span>
-              <span>معرّف جغرافي</span>
-              <span>التصنيف</span>
-              <span>البيانات</span>
-              <span>الخطورة</span>
-              <span>الجهاز</span>
-              <span className="sec-ledger-col-action">إجراء</span>
-            </div>
-            <ul key={`${dateFilter}|${userFilter}|${ipFilter}|${roleFilter}`} className="sec-feed inn-swap">
-            {feedWithFlags.length === 0 ? (
-              <li className="sec-feed-empty">
-                <Activity className="w-5 h-5" />
-                {filtersOn
-                  ? 'لا توجد نتائج مطابقة للتصفية الحالية.'
-                  : 'لا يوجد نشاط مهم بعد. نبضات الجلسة وتصفّح الصفحات مخفيّان هنا.'}
-              </li>
-            ) : (
-              feedWithFlags.map(({ event, fresh }) => {
-                const sensitiveRow = event.dataClass === 'users' || event.dataClass === 'secrets' || event.dataClass === 'auth';
-                const origin = displayIp(event.ip);
-                const fullPath = `${event.path}${event.query ? `?${event.query}` : ''}`;
-                const country = event.country || (origin.local ? 'DZ' : '');
-                const countryName = event.countryName || countryNameOf(country);
-                const geoId = event.geoId || '—';
-                const actorName = actorNameOf(event);
-                const actorRole = roleLabel(event.userRole, event.userRoleName);
-                return (
-                  <li
-                    key={event.id}
-                    className={`sec-act sev-${event.severity}${event.blocked ? ' is-blocked' : ''}${sensitiveRow ? ' is-sensitive' : ''}${event.dataClass === 'secrets' ? ' is-secrets' : ''}${fresh ? ' is-fresh' : ''}${origin.local ? ' is-local' : ''}`}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => setSelected(event)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        setSelected(event);
-                      }
-                    }}
-                  >
-                    <span className="sec-act-pair">
-                      <em>الوقت</em>
-                      <b className="sec-act-time" dir="ltr" title={fullStamp(event.ts)}>{hhmmss(event.ts)}</b>
-                    </span>
-                    <span className="sec-act-pair">
-                      <em>الطريقة</em>
-                      <b className={`sec-act-method is-${event.method.toLowerCase()}`} dir="ltr">{event.method}</b>
-                    </span>
-                    <span className="sec-act-pair">
-                      <em>المسار</em>
-                      <b className="sec-act-path" dir="ltr" title={fullPath}>{fullPath || '—'}</b>
-                    </span>
-                    <span className="sec-act-user" title={`${actorName} · ${actorRole}`}>
-                      <i>{initialsOf(actorName)}</i>
-                      <span>
-                        <b>{actorName}</b>
-                        <em>{actorRole}</em>
-                      </span>
-                    </span>
-                    <span className="sec-act-pair">
-                      <em>العنوان</em>
-                      <b className="sec-act-ip" dir="ltr" title={event.ip}>
-                        {origin.ip}
-                        {origin.local ? <i>هذا الجهاز</i> : null}
-                      </b>
-                    </span>
-                    <span className="sec-act-geo" title={[countryName, event.city, event.region].filter(Boolean).join(' · ')}>
-                      <b>{flagEmoji(country) || <Globe className="w-3.5 h-3.5" />}</b>
-                      <span>
-                        <strong>{countryName}</strong>
-                        <em>{event.city || event.region || country || '—'}</em>
-                      </span>
-                    </span>
-                    <span className="sec-act-geoid" dir="ltr" title={geoId}>
-                      <MapPin className="w-3 h-3" />
-                      {geoId}
-                    </span>
-                    <span className={`sec-act-pill sev-${event.severity}`}>
-                      {threatIcon(event.threat)}
-                      {THREAT_LABELS[event.threat] || event.threat}
-                    </span>
-                    <span className={`sec-act-pill is-data is-${event.dataClass || 'none'}`}>
-                      {dataIcon(event.dataClass)}
-                      {event.dataLabel || DATA_LABELS[event.dataClass || 'none'] || 'عام'}
-                    </span>
-                    <span className={`sec-act-chip sev-${event.severity}`}>
-                      {SEVERITY_LABELS[event.severity] || event.severity}
-                    </span>
-                    <span className="sec-act-chip" title={event.userAgent || ''}>
-                      <Monitor className="w-3 h-3" />
-                      {agentLabel(event.userAgent)}
-                    </span>
-                    <span className="sec-act-action">
-                      <span className="sec-act-view" aria-hidden="true">
-                        <Eye className="w-3.5 h-3.5" />
-                        تفاصيل
-                      </span>
-                      {!event.trusted && !origin.local && event.ip !== 'unknown' ? (
-                        <button
-                          type="button"
-                          className="sec-act-block"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            callFirewall({ action: 'block', ip: event.ip, note: event.reason || event.dataLabel || 'حظر من السجل' });
-                          }}
-                          title={`حظر ${event.ip}`}
-                        >
-                          <Ban className="w-3.5 h-3.5" />
-                          حظر
-                        </button>
-                      ) : null}
-                    </span>
-                  </li>
-                );
-              })
-            )}
-            </ul>
-          </div>
-        </section>
-
-        <aside className="sec-side">
-          <section className="sec-panel">
-            <header className="sec-panel-head">
-              <div className="sec-panel-title">
-                <h3>تقرير الهجمات</h3>
-              </div>
-            </header>
-            <ul className="sec-report-list">
-              {reports.length === 0 ? (
-                <li className="sec-feed-empty">لا توجد محاولات هجوم مسجّلة</li>
-              ) : (
-                reports.map((row) => (
-                  <li key={row.threat} className={`sec-report sev-${row.threat === 'INJECTION' || row.threat === 'FLOOD' ? 'critical' : 'high'}`}>
-                    <div className="sec-report-head">
-                      <span className="sec-row-badge sev-critical">
-                        {threatIcon(row.threat)}
-                        {row.label}
-                      </span>
-                      <strong>{row.count}</strong>
-                    </div>
-                    <p className="sec-report-meta">
-                      آخرها {hhmmss(row.lastAt)} · <span dir="ltr">{row.lastIp}</span>
-                    </p>
-                    <p className="sec-report-path" dir="ltr">{row.lastPath}</p>
-                    {row.lastNote ? <p className="sec-row-reason">{row.lastNote}</p> : null}
-                    {row.lastIp && row.lastIp !== 'unknown' ? (
-                      <button
-                        type="button"
-                        className="sec-mini-btn is-danger"
-                        onClick={() => callFirewall({ action: 'block', ip: row.lastIp, note: row.lastNote || row.label })}
-                      >
-                        حظر العنوان
-                      </button>
-                    ) : null}
-                  </li>
-                ))
-              )}
-            </ul>
-          </section>
-
-          <section className="sec-panel">
-            <header className="sec-panel-head">
-              <div className="sec-panel-title">
-                <h3>كلمات المرور والمستخدمون</h3>
-              </div>
-            </header>
-            <ul className="sec-ip-list">
-              {sensitive.length === 0 ? (
-                <li className="sec-feed-empty">لا وصول حديث لبيانات الحسابات</li>
-              ) : (
-                sensitive.slice(0, 12).map((event) => (
-                  <li key={event.id} className="sec-ip is-sensitive-hit">
-                    <div className="sec-ip-main">
-                      <span className="sec-ip-addr">{event.dataLabel || DATA_LABELS[event.dataClass || 'none'] || 'بيانات حسّاسة'}</span>
-                      <span className="sec-ip-meta">
-                        {hhmmss(event.ts)} · <span dir="ltr">{event.ip}</span>
-                      </span>
-                      <span className="sec-ip-path" dir="ltr">{event.method} {event.path}</span>
-                    </div>
-                  </li>
-                ))
-              )}
-            </ul>
-          </section>
-
-          <section className="sec-panel">
-            <header className="sec-panel-head">
-              <div className="sec-panel-title">
-                <h3>العناوين</h3>
-              </div>
-            </header>
-            <ul className="sec-ip-list">
-              {ips.length === 0 ? (
-                <li className="sec-feed-empty">لا عناوين بعد</li>
-              ) : (
-                ips.slice(0, 8).map((entry) => (
-                  <li key={entry.ip} className={`sec-ip${entry.ruled === 'BLOCK' ? ' is-blocked' : ''}`}>
-                    <div className="sec-ip-main">
-                      <span className="sec-ip-addr" dir="ltr">{entry.ip}</span>
-                      <span className="sec-ip-meta">{entry.hits} طلب · {entry.threats} تهديد</span>
-                    </div>
-                    <div className="sec-ip-actions">
-                      <span className={`sec-sev sev-${entry.worst}`}>{SEVERITY_LABELS[entry.worst]}</span>
-                      {entry.ruled === 'BLOCK' ? (
-                        <span className="sec-tag-blocked">محظور</span>
-                      ) : (
-                        <button
-                          type="button"
-                          className="sec-mini-btn is-danger"
-                          onClick={() => callFirewall({ action: 'block', ip: entry.ip, note: `حظر يدوي — ${entry.lastPath}` })}
-                        >
-                          حظر
-                        </button>
-                      )}
-                    </div>
-                  </li>
-                ))
-              )}
-            </ul>
-          </section>
-
-          <section className="sec-panel">
-            <header className="sec-panel-head">
-              <div className="sec-panel-title">
-                <h3>قواعد الحظر</h3>
-                <span className="sec-count">{blockedRules.length}</span>
-              </div>
-            </header>
             <form
-              className="sec-add"
+              className="fw-block-form"
               onSubmit={(e) => {
                 e.preventDefault();
                 if (!manualIp.trim()) return;
@@ -751,187 +403,127 @@ export default function SecurityCenter({ sideOpen = true }: { sideOpen?: boolean
                 onChange={(e) => setManualIp(e.target.value)}
                 placeholder="IP للحظر"
               />
-              <button type="submit" className="sec-add-btn">حظر</button>
+              <button type="submit">حظر</button>
             </form>
-            <ul className="sec-rule-list">
-              {rules.length === 0 ? (
-                <li className="sec-feed-empty">لا قواعد بعد</li>
-              ) : (
-                rules.map((rule) => (
-                  <li key={rule.id} className={`sec-rule${rule.type === 'ALLOW' ? ' is-allow' : ''}${rule.active ? '' : ' is-off'}`}>
-                    <div>
-                      <span className="sec-rule-ip" dir="ltr">{rule.ip}</span>
-                      <span className="sec-rule-note">{rule.note || 'محظور'}</span>
-                    </div>
-                    <button type="button" className="sec-mini-btn is-danger" onClick={() => callFirewall({ action: 'remove', id: rule.id })}>
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </li>
-                ))
-              )}
-            </ul>
-          </section>
-        </aside>
-      </div>
+            {filtersOn ? (
+              <button type="button" className="sec-filter-clear" onClick={() => {
+                setDateFilter('all');
+                setUserFilter('');
+                setIpFilter('');
+                setRoleFilter('');
+              }}>
+                مسح الفلاتر
+              </button>
+            ) : null}
+          </div>
 
-      {selected ? (
-        <div className="sec-detail-overlay" onClick={() => setSelected(null)} role="presentation">
-          <div
-            className="sec-detail"
-            role="dialog"
-            aria-modal="true"
-            aria-label="تفاصيل الاتصال"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {(() => {
-              const origin = displayIp(selected.ip);
-              const country = selected.country || (origin.local ? 'DZ' : '');
-              const countryName = selected.countryName || countryNameOf(country);
-              const name = actorNameOf(selected);
-              const role = roleLabel(selected.userRole, selected.userRoleName);
-              const fullPath = `${selected.path}${selected.query ? `?${selected.query}` : ''}`;
-              return (
-                <>
-                  <header className="sec-detail-hero">
-                    <span className="sec-detail-avatar">{initialsOf(name)}</span>
-                    <div className="sec-detail-hero-copy">
-                      <p className="sec-detail-kicker">تفاصيل الاتصال</p>
-                      <h3>{name}</h3>
-                      <p>{role} · {fullStamp(selected.ts)}</p>
-                    </div>
-                    <div className="sec-detail-badges">
-                      <span className={`sec-detail-badge is-threat sev-${selected.severity}`}>
-                        {THREAT_LABELS[selected.threat] || selected.threat}
-                      </span>
-                      <span className={`sec-detail-badge is-severity sev-${selected.severity}`}>
-                        {SEVERITY_LABELS[selected.severity] || selected.severity}
-                      </span>
-                      {selected.blocked ? (
-                        <span className="sec-detail-badge is-blocked">مرفوض</span>
-                      ) : null}
-                    </div>
-                    <button type="button" className="sec-detail-close" onClick={() => setSelected(null)} aria-label="إغلاق">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </header>
-
-                  <div className="sec-detail-body">
-                    <section className="sec-detail-section">
-                      <h4>الطلب</h4>
-                      <dl className="sec-detail-grid">
-                        <div>
-                          <dt>الوقت</dt>
-                          <dd dir="ltr">{fullStamp(selected.ts)}</dd>
-                        </div>
-                        <div>
-                          <dt>الطريقة</dt>
-                          <dd><span className="sec-detail-code">{selected.method}</span></dd>
-                        </div>
-                        <div className="is-wide">
-                          <dt>المسار</dt>
-                          <dd dir="ltr" className="sec-detail-mono">{fullPath || '—'}</dd>
-                        </div>
-                      </dl>
-                    </section>
-
-                    <section className="sec-detail-section">
-                      <h4>المستخدم والشبكة</h4>
-                      <dl className="sec-detail-grid">
-                        <div>
-                          <dt>المستخدم</dt>
-                          <dd>{name}</dd>
-                        </div>
-                        <div>
-                          <dt>الدور</dt>
-                          <dd>{role}</dd>
-                        </div>
-                        <div>
-                          <dt>العنوان</dt>
-                          <dd dir="ltr">{origin.ip}{origin.local ? ' · هذا الجهاز' : ''}</dd>
-                        </div>
-                        <div>
-                          <dt>الدولة</dt>
-                          <dd>{flagEmoji(country)} {countryName}</dd>
-                        </div>
-                        <div>
-                          <dt>المدينة / المنطقة</dt>
-                          <dd>{[selected.city, selected.region].filter(Boolean).join(' · ') || '—'}</dd>
-                        </div>
-                        <div>
-                          <dt>معرّف جغرافي</dt>
-                          <dd dir="ltr" className="sec-detail-mono">{selected.geoId || '—'}</dd>
-                        </div>
-                      </dl>
-                    </section>
-
-                    <section className="sec-detail-section">
-                      <h4>التصنيف الأمني</h4>
-                      <dl className="sec-detail-grid">
-                        <div>
-                          <dt>التصنيف</dt>
-                          <dd>{THREAT_LABELS[selected.threat] || selected.threat}</dd>
-                        </div>
-                        <div>
-                          <dt>البيانات</dt>
-                          <dd>{selected.dataLabel || DATA_LABELS[selected.dataClass || 'none'] || 'عام'}</dd>
-                        </div>
-                        <div>
-                          <dt>الخطورة</dt>
-                          <dd>{SEVERITY_LABELS[selected.severity] || selected.severity}</dd>
-                        </div>
-                        <div>
-                          <dt>المصدر</dt>
-                          <dd>{selected.blocked ? 'مرفوض' : origin.local || selected.trusted ? 'محلي موثوق' : 'خارجي'}</dd>
-                        </div>
-                        {selected.reason ? (
-                          <div className="is-wide">
-                            <dt>السبب</dt>
-                            <dd>{selected.reason}</dd>
-                          </div>
-                        ) : null}
-                      </dl>
-                    </section>
-
-                    <section className="sec-detail-section">
-                      <h4>العميل والمراجع</h4>
-                      <dl className="sec-detail-grid">
-                        <div>
-                          <dt>الجهاز</dt>
-                          <dd>{agentLabel(selected.userAgent)}</dd>
-                        </div>
-                        <div className="is-wide">
-                          <dt>وكيل المستخدم</dt>
-                          <dd dir="ltr" className="sec-detail-mono is-wrap">{selected.userAgent || '—'}</dd>
-                        </div>
-                        <div className="is-wide">
-                          <dt>المرجع</dt>
-                          <dd dir="ltr" className="sec-detail-mono is-wrap">{selected.referer || '—'}</dd>
-                        </div>
-                      </dl>
-                    </section>
-                  </div>
-
-                  <footer className="sec-detail-foot">
-                    <button type="button" className="sec-detail-dismiss" onClick={() => setSelected(null)}>
-                      إغلاق
-                    </button>
-                    {!selected.trusted && !origin.local && selected.ip !== 'unknown' ? (
-                      <button
-                        type="button"
-                        className="sec-detail-block"
-                        onClick={() => callFirewall({ action: 'block', ip: selected.ip, note: selected.reason || selected.dataLabel || 'حظر من التفاصيل' })}
+          <div className="ts-table-wrap">
+            {feedWithFlags.length === 0 ? (
+              <p className="inn-empty">
+                {filtersOn ? 'لا توجد نتائج مطابقة للتصفية الحالية.' : 'لا يوجد نشاط مهم بعد.'}
+              </p>
+            ) : (
+              <table className="ts-table">
+                <thead>
+                  <tr>
+                    <th>الوقت</th>
+                    <th>المستخدم</th>
+                    <th>المسار</th>
+                    <th>العنوان</th>
+                    <th>التصنيف</th>
+                    <th>الجهاز</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {feedWithFlags.map(({ event }) => {
+                    const origin = displayIp(event.ip);
+                    const fullPath = `${event.path}${event.query ? `?${event.query}` : ''}`;
+                    const actorName = actorNameOf(event);
+                    return (
+                      <tr
+                        key={event.id}
+                        className={`ts-row${event.blocked ? ' is-blocked' : ''}`}
+                        tabIndex={0}
+                        onClick={() => setSelected(event)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            setSelected(event);
+                          }
+                        }}
                       >
-                        <Ban className="w-4 h-4" />
-                        حظر هذا العنوان
-                      </button>
-                    ) : null}
-                  </footer>
-                </>
-              );
-            })()}
+                        <td>{hhmmss(event.ts)}</td>
+                        <td>
+                          <span className="ts-user">
+                            <b>{actorName}</b>
+                            <em>{event.method}</em>
+                          </span>
+                        </td>
+                        <td dir="ltr">{fullPath || '—'}</td>
+                        <td dir="ltr">{origin.ip}</td>
+                        <td>{THREAT_LABELS[event.threat] || event.threat}</td>
+                        <td>{agentLabel(event.userAgent)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
-      ) : null}
+
+        {selected && selectedOrigin ? (
+          <div className="inn-view-detail">
+            <div className="upm-embedded" role="region" aria-label="تفاصيل الاتصال">
+              <div className="upm-panel upm-studio-wrap is-embedded">
+                <div className="fw-detail" dir="rtl">
+                  <header className="upm-studio-head">
+                    <button type="button" className="upm-studio-back" onClick={() => setSelected(null)}>
+                      <ArrowRight className="w-4 h-4" />
+                      رجوع
+                    </button>
+                    <h2>تفاصيل الاتصال</h2>
+                  </header>
+                  <div className="upm-table-wrap">
+                    <table className="upm-table">
+                      <tbody>
+                        <tr><th>الوقت</th><td>{fullStamp(selected.ts)}</td></tr>
+                        <tr><th>المستخدم</th><td>{actorNameOf(selected)}</td></tr>
+                        <tr><th>الدور</th><td>{roleLabel(selected.userRole, selected.userRoleName)}</td></tr>
+                        <tr><th>الطريقة</th><td dir="ltr">{selected.method}</td></tr>
+                        <tr><th>المسار</th><td dir="ltr">{`${selected.path}${selected.query ? `?${selected.query}` : ''}` || '—'}</td></tr>
+                        <tr><th>العنوان</th><td dir="ltr">{selectedOrigin.ip}{selectedOrigin.local ? ' · هذا الجهاز' : ''}</td></tr>
+                        <tr><th>الدولة</th><td>{flagEmoji(selectedCountry)} {selectedCountryName}</td></tr>
+                        <tr><th>التصنيف</th><td>{THREAT_LABELS[selected.threat] || selected.threat}</td></tr>
+                        <tr><th>البيانات</th><td>{selected.dataLabel || DATA_LABELS[selected.dataClass || 'none'] || 'عام'}</td></tr>
+                        <tr><th>الخطورة</th><td>{SEVERITY_LABELS[selected.severity as Severity] || selected.severity}</td></tr>
+                        <tr><th>الجهاز</th><td>{agentLabel(selected.userAgent)}</td></tr>
+                        <tr><th>المرجع</th><td dir="ltr">{selected.referer || '—'}</td></tr>
+                        {selected.reason ? <tr><th>السبب</th><td>{selected.reason}</td></tr> : null}
+                      </tbody>
+                    </table>
+                    <div className="upm-table-actions">
+                      <button type="button" className="upm-btn upm-btn-ghost" onClick={() => setSelected(null)}>
+                        رجوع
+                      </button>
+                      {!selected.trusted && !selectedOrigin.local && selected.ip !== 'unknown' ? (
+                        <button
+                          type="button"
+                          className="upm-btn upm-btn-danger"
+                          onClick={() => callFirewall({ action: 'block', ip: selected.ip, note: selected.reason || selected.dataLabel || 'حظر من التفاصيل' })}
+                        >
+                          <Ban className="w-4 h-4" />
+                          حظر هذا العنوان
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </section>
     </div>
   );
 }

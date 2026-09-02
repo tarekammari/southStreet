@@ -1,22 +1,33 @@
 const fs = require('fs');
 const path = require('path');
 
-// Ensure image assets in ./images are synced to ./public/images for Next.js static serving
-const srcDir = path.join(__dirname, 'images');
-const destDir = path.join(__dirname, 'public', 'images');
+function syncImages() {
+  const srcDir = path.join(__dirname, 'images');
+  const destDir = path.join(__dirname, 'public', 'images');
+  if (!fs.existsSync(srcDir)) return;
+  if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
 
-if (fs.existsSync(srcDir)) {
-  if (!fs.existsSync(destDir)) {
-    fs.mkdirSync(destDir, { recursive: true });
-  }
-  const files = fs.readdirSync(srcDir);
-  for (const file of files) {
+  for (const file of fs.readdirSync(srcDir)) {
     const srcFile = path.join(srcDir, file);
-    if (fs.statSync(srcFile).isFile()) {
-      fs.copyFileSync(srcFile, path.join(destDir, file));
+    let stat;
+    try {
+      stat = fs.statSync(srcFile);
+    } catch {
+      continue;
     }
+    if (!stat.isFile()) continue;
+    const destFile = path.join(destDir, file);
+    try {
+      const dest = fs.statSync(destFile);
+      if (dest.size === stat.size && dest.mtimeMs >= stat.mtimeMs) continue;
+    } catch {
+      /* destination missing */
+    }
+    fs.copyFileSync(srcFile, destFile);
   }
 }
+
+syncImages();
 
 // Remove legacy index.html if present so Next.js App Router (app/page.tsx) is the sole handler
 const legacyHtml = path.join(__dirname, 'index.html');
@@ -35,9 +46,10 @@ const nextConfig = {
   },
   experimental: {
     optimizePackageImports: ['lucide-react'],
+    webpackMemoryOptimizations: true,
   },
   // better-sqlite3 is a native Node module — must not be bundled for Vercel
-  serverExternalPackages: ['better-sqlite3'],
+  serverExternalPackages: ['better-sqlite3', 'bcryptjs'],
   async rewrites() {
     return [
       { source: '/images/uploads/:filename', destination: '/api/staff-image/:filename' },

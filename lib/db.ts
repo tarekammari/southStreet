@@ -39,6 +39,7 @@ export interface ActiveSession {
   userAgent: string;
   loginTime: string;
   lastActive: string;
+  endedAt?: string | null;
 }
 
 export interface AccessRequest {

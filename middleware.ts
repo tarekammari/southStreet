@@ -194,6 +194,6 @@ export const config = {
   matcher: [
     // Build assets are noise. The whole /api/security prefix is skipped so the
     // dashboard's own polling does not recurse into — or drown out — the feed.
-    '/((?!_next/static|_next/image|favicon.ico|api/security/).*)',
+    '/((?!_next/|favicon.ico|api/security/|api/session/heartbeat).*)',
   ],
 };

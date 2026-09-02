@@ -5,7 +5,7 @@
   "description": "South Street Umrah & Hajj Agency - Next.js 15 & TypeScript E2E Application",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node --max-old-space-size=4096 node_modules/next/dist/bin/next build",
     "start": "next start",
     "lint": "next lint"
   },

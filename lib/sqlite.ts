@@ -9,9 +9,6 @@ let dbPathUsed: string | null = null;
 export function getSqliteDb(): Database.Database {
   const DB_PATH = resolveDbPath();
   if (dbInstance && dbPathUsed === DB_PATH) {
-    try { seedPageContent(dbInstance); } catch (err) {
-      console.warn('[Page content seed]:', err);
-    }
     return dbInstance;
   }
 
@@ -91,7 +88,8 @@ function initTables(db: Database.Database) {
       pcPrint TEXT,
       userAgent TEXT,
       loginTime TEXT,
-      lastActive TEXT
+      lastActive TEXT,
+      endedAt TEXT
     );
 
     CREATE TABLE IF NOT EXISTS access_requests (
@@ -417,6 +415,7 @@ function initTables(db: Database.Database) {
     // 4. sessions migrations
     ensureColumn('sessions', 'pcPrint', 'TEXT');
     ensureColumn('sessions', 'userAgent', 'TEXT');
+    ensureColumn('sessions', 'endedAt', 'TEXT');
 
     // 5. access_requests migrations
     ensureColumn('access_requests', 'pcPrint', 'TEXT');

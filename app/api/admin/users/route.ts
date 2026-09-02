@@ -10,7 +10,8 @@ import { generateDeviceFingerprint } from '@/lib/security';
 import { resolveRequestIp } from '@/lib/security-threats';
 import { listSessions, upsertUserSession } from '@/lib/presence';
 import { getIpSummaries } from '@/lib/security-monitor';
-import { collectUserActivity } from '@/lib/user-activity';
+import { collectUserHistory } from '@/lib/user-activity';
+import { dbLogAudit } from '@/lib/db';
 
 /** Staff members carry the real portrait; users only link to them through staffId. */
 function loadStaffPhotos(sqlite: any): Map<string, string> {
@@ -88,7 +89,8 @@ export async function GET(req: NextRequest) {
 
     const activityFor = req.nextUrl.searchParams.get('activityFor');
     if (activityFor) {
-      return NextResponse.json({ activity: collectUserActivity(activityFor) });
+      const history = collectUserHistory(activityFor);
+      return NextResponse.json(history);
     }
 
     const rows = sqlite.prepare('SELECT * FROM users').all() as any[];
@@ -172,7 +174,7 @@ export async function POST(req: Request) {
   }
 }
 
-export async function PATCH(req: Request) {
+export async function PATCH(req: NextRequest) {
   try {
     const { userId, status, role, roleName, loginEnabled } = await req.json();
 
@@ -203,6 +205,35 @@ export async function PATCH(req: Request) {
       roleName: roleName || (nextRole ? LOGIN_ROLE_LABELS[nextRole] : undefined),
       loginEnabled: enabled,
     });
+
+    try {
+      const token = getTokenFromRequest(req);
+      const payload = token ? verifyToken(token) : null;
+      const actor = payload?.name || 'الإدارة';
+      const actorRole = String(payload?.role || 'SUPER_ADMIN');
+      const action =
+        nextStatus === 'APPROVED'
+          ? 'موافقة على حساب'
+          : nextStatus === 'REJECTED'
+            ? 'رفض حساب'
+            : nextStatus === 'SUSPENDED'
+              ? 'إيقاف حساب'
+              : nextRole
+                ? 'تغيير دور'
+                : loginEnabled
+                  ? 'تفعيل حساب'
+                  : loginEnabled === false
+                    ? 'إيقاف حساب'
+                    : 'تحديث حساب';
+      dbLogAudit(
+        actor,
+        actorRole,
+        action,
+        `${user.name || userId} · ${nextStatus || nextRole || ''}`.trim()
+      );
+    } catch {
+      /* history still updates even if audit write fails */
+    }
 
     const updated = sqlite.prepare('SELECT * FROM users WHERE id = ?').get(userId);
     return NextResponse.json({
