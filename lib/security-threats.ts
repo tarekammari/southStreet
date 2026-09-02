@@ -10,7 +10,14 @@ export type ThreatKind =
   | 'BOT'
   | 'SCANNER'
   | 'INJECTION'
+  | 'XSS'
+  | 'SSTI'
+  | 'SSRF'
   | 'TRAVERSAL'
+  | 'WEBSHELL'
+  | 'ZERO_DAY'
+  | 'HEADER_ABUSE'
+  | 'METHOD_ABUSE'
   | 'AUTH_ABUSE'
   | 'FLOOD'
   | 'NO_AGENT'
@@ -47,6 +54,16 @@ export type SecurityEvent = {
   noise?: boolean;
   dataClass?: DataClass;
   dataLabel?: string;
+  /** http / https */
+  scheme?: string;
+  /** HTTP/1.1 or HTTP/2 */
+  httpVersion?: string;
+  host?: string;
+  origin?: string;
+  contentType?: string;
+  accept?: string;
+  /** e.g. GET /api/users?id=1 HTTP/1.1 */
+  requestLine?: string;
 };
 
 export const SEVERITY_ORDER: Record<Severity, number> = {
@@ -62,7 +79,14 @@ export const THREAT_LABELS: Record<ThreatKind, string> = {
   BOT: 'روبوت',
   SCANNER: 'فحص ثغرات',
   INJECTION: 'حقن SQL',
+  XSS: 'حقن سكربت',
+  SSTI: 'حقن قوالب',
+  SSRF: 'طلب خادم داخلي',
   TRAVERSAL: 'اختراق مسار',
+  WEBSHELL: 'صدفة ويب',
+  ZERO_DAY: 'استغلال معروف',
+  HEADER_ABUSE: 'تلاعب بالترويسة',
+  METHOD_ABUSE: 'طريقة HTTP محظورة',
   AUTH_ABUSE: 'اقتحام دخول',
   FLOOD: 'إغراق / DDoS',
   NO_AGENT: 'عميل مجهول',
@@ -89,20 +113,41 @@ export const SEVERITY_LABELS: Record<Severity, string> = {
 
 /** Crawlers and scanners that identify themselves in the User-Agent. */
 const BOT_AGENTS =
-  /(bot|crawl|spider|slurp|scrapy|curl|wget|python-requests|httpclient|okhttp|java\/|go-http|libwww|perl|nikto|sqlmap|nmap|masscan|zgrab|nuclei|dirbuster|gobuster|wpscan|acunetix|nessus|semrush|ahrefs|mj12|dotbot|petalbot|bytespider|censys|shodan)/i;
+  /(bot|crawl|spider|slurp|scrapy|curl|wget|python-requests|httpclient|okhttp|java\/|go-http|libwww|perl|nikto|sqlmap|nmap|masscan|zgrab|nuclei|dirbuster|gobuster|ffuf|feroxbuster|wfuzz|wpscan|acunetix|nessus|openvas|burpsuite|sqlninja|hydra|medusa|semrush|ahrefs|mj12|dotbot|petalbot|bytespider|censys|shodan|zmap|httpx|katana)/i;
 
 /** Search engines we do not want to flag as hostile. */
 const FRIENDLY_BOTS = /(googlebot|bingbot|duckduckbot|applebot|yandexbot|facebookexternalhit|twitterbot|linkedinbot|whatsapp)/i;
 
 /** Paths that only exist on other stacks — requesting them means someone is probing. */
 const SCANNER_PATHS =
-  /(\/wp-admin|\/wp-login|\/wp-content|\/wp-includes|xmlrpc\.php|\/phpmyadmin|\/pma\/|\/mysql|\/adminer|\/\.env|\/\.git|\/\.svn|\/\.aws|\/\.ssh|\/config\.php|\/shell|\/cgi-bin|eval-stdin\.php|\/vendor\/phpunit|\/solr\/|\/actuator|\/jenkins|\/\.well-known\/security|\/backup|\/dump\.sql|\/db\.sql|\/id_rsa|\/composer\.json|\/server-status|\/telescope|\/debug\/)/i;
+  /(\/wp-admin|\/wp-login|\/wp-content|\/wp-includes|xmlrpc\.php|\/phpmyadmin|\/pma\/|\/mysql|\/adminer|\/\.env|\/\.git|\/\.svn|\/\.aws|\/\.ssh|\/config\.php|\/shell|\/cgi-bin|eval-stdin\.php|\/vendor\/phpunit|\/solr\/|\/actuator|\/jenkins|\/\.well-known\/security|\/backup|\/dump\.sql|\/db\.sql|\/id_rsa|\/composer\.json|\/server-status|\/telescope|\/debug\/|\/phpinfo|\/info\.php|\/elmah|\/trace\.axd|\/web\.config|\/crossdomain\.xml|\/sitemap\.xml\.bak)/i;
 
-/** Classic SQLi / XSS / command-injection markers. */
+/** Classic SQLi / command-injection markers. */
 const INJECTION_PATTERNS =
-  /(union(\s|\+|%20)+select|select.+from.+information_schema|or\s+1\s*=\s*1|';?\s*drop\s+table|<script|javascript:|onerror\s*=|onload\s*=|\$\{jndi:|\/etc\/passwd|cmd\.exe|powershell|base64_decode|\bexec\s*\(|benchmark\s*\(|sleep\s*\(\s*\d)/i;
+  /(union(\s|\+|%20)+select|select.+from.+information_schema|or\s+1\s*=\s*1|and\s+1\s*=\s*1|';?\s*drop\s+table|waitfor\s+delay|xp_cmdshell|load_file\s*\(|into\s+(out|dump)file|\/etc\/passwd|cmd\.exe|powershell|base64_decode|\bexec\s*\(|benchmark\s*\(|sleep\s*\(\s*\d|pg_sleep|information_schema\.tables)/i;
 
-const TRAVERSAL_PATTERNS = /(\.\.\/|\.\.\\|%2e%2e%2f|%2e%2e\/|\.\.%2f|%252e%252e)/i;
+const XSS_PATTERNS =
+  /(<script[\s>]|javascript:|vbscript:|data:text\/html|on(error|load|click|mouseover|focus|submit|toggle|pointer)\s*=|<iframe|<svg[\s/][^>]*onload|<img[^>]+onerror|expression\s*\()/i;
+
+const SSTI_PATTERNS =
+  /(\{\{[^}]{0,80}(7\s*\*\s*7|config|self\.__class__|lipsum|request\.application)|\$\{jndi:|\$\{[^}]{0,40}7\s*\*\s*7|<%[=#][^%]{0,80}%>|#\{[^}]{0,40}\}|freemarker\.template)/i;
+
+const SSRF_PATTERNS =
+  /(169\.254\.169\.254|metadata\.google\.internal|metadata\.amazonaws\.com|latest\/meta-data|file:\/\/\/|gopher:\/\/|dict:\/\/|ldap:\/\/\/|0\.0\.0\.0(:\d+)?\/|127\.0\.0\.1:\d{2,5}\/)/i;
+
+const TRAVERSAL_PATTERNS = /(\.\.\/|\.\.\\|%2e%2e%2f|%2e%2e\/|\.\.%2f|%252e%252e|%c0%ae%c0%ae)/i;
+
+const WEBSHELL_PATTERNS =
+  /(\/c99|\/r57|\/weevely|\/wso\.php|\/b374k|\/filesman|eval-stdin|phpunit\/.*eval|\/alfa\.php|\/mini\.php|\/shell\.php|\/cmd\.php|\/backdoor|\/webshell)/i;
+
+const ZERO_DAY_PATHS =
+  /(\/cgi-bin\/luci|thinkphp|\/index\.php\?s=|\/vendor\/phpunit|\/solr\/.*config|\/actuator\/(gateway|env|heapdump)|\/_ignition\/execute-solution|\/debug\/default\/view|\/console\/|struts2|\/manager\/html|\/jmx-console|\/invoker\/JMX|\/owa\/auth|\/autodiscover|\/HNAP1|\/GponForm|\/setup\.cgi|\/boafrm\/|\/cgi-bin\/nas_sharing|\/wp-json\/.*exploit|\$\{jndi:)/i;
+
+const NULL_BYTE = /(%00|\x00)/i;
+const CRLF_INJECTION = /(%0d%0a|%0a%0d|\r\n)/i;
+const GRAPHQL_INTROSPECTION = /__schema|__type\s*\{/;
+
+const ABUSED_METHODS = new Set(['TRACE', 'TRACK', 'CONNECT', 'DEBUG', 'PROPFIND', 'MOVE', 'COPY', 'LOCK', 'UNLOCK']);
 
 const AUTH_PATHS = /^\/api\/(admin\/auth|auth\/(register|connect|google)|account\/security)/i;
 
@@ -214,6 +259,9 @@ export type ClassifyInput = {
   method: string;
   userAgent: string;
   ip: string;
+  host?: string;
+  contentType?: string;
+  origin?: string;
   /** Requests seen from this IP inside the current sliding window. */
   recentHits?: number;
   /** Failed auth attempts already recorded for this IP. */
@@ -224,16 +272,54 @@ export type ClassifyInput = {
 export function classifyRequest(input: ClassifyInput): Verdict {
   const path = input.path || '/';
   const query = input.query || '';
+  const method = (input.method || 'GET').toUpperCase();
   const target = `${path}?${query}`;
+  const decoded = decodeSafely(target);
   const ua = input.userAgent || '';
   const trusted = isTrustedIp(input.ip);
+  const host = input.host || '';
+  const origin = input.origin || '';
+  const contentType = input.contentType || '';
+  const haystack = `${decoded} ${host} ${origin} ${contentType}`;
+
+  if (ABUSED_METHODS.has(method)) {
+    return { threat: 'METHOD_ABUSE', severity: 'high', reason: `طريقة HTTP غير مسموحة (${method})` };
+  }
+
+  if (NULL_BYTE.test(target) || CRLF_INJECTION.test(haystack)) {
+    return { threat: 'HEADER_ABUSE', severity: 'critical', reason: 'محاولة حقن ترويسة أو بايت فارغ' };
+  }
+
+  if (host && /[\s<>'"]/.test(host)) {
+    return { threat: 'HEADER_ABUSE', severity: 'high', reason: 'ترويسة Host غير صالحة' };
+  }
 
   if (TRAVERSAL_PATTERNS.test(target)) {
     return { threat: 'TRAVERSAL', severity: 'critical', reason: 'محاولة الوصول لمسارات خارج جذر التطبيق' };
   }
 
-  if (INJECTION_PATTERNS.test(decodeSafely(target))) {
-    return { threat: 'INJECTION', severity: 'critical', reason: 'نمط حقن SQL أو سكربت داخل الرابط' };
+  if (WEBSHELL_PATTERNS.test(path) || WEBSHELL_PATTERNS.test(decoded)) {
+    return { threat: 'WEBSHELL', severity: 'critical', reason: 'محاولة رفع أو استدعاء صدفة ويب' };
+  }
+
+  if (ZERO_DAY_PATHS.test(path) || ZERO_DAY_PATHS.test(haystack)) {
+    return { threat: 'ZERO_DAY', severity: 'critical', reason: `محاولة استغلال معروف على ${path}` };
+  }
+
+  if (SSRF_PATTERNS.test(decoded)) {
+    return { threat: 'SSRF', severity: 'critical', reason: 'محاولة الوصول لموارد داخلية عبر الرابط' };
+  }
+
+  if (SSTI_PATTERNS.test(decoded)) {
+    return { threat: 'SSTI', severity: 'critical', reason: 'نمط حقن قوالب الخادم' };
+  }
+
+  if (XSS_PATTERNS.test(decoded)) {
+    return { threat: 'XSS', severity: 'high', reason: 'نمط حقن سكربت داخل الرابط' };
+  }
+
+  if (INJECTION_PATTERNS.test(decoded) || GRAPHQL_INTROSPECTION.test(decoded)) {
+    return { threat: 'INJECTION', severity: 'critical', reason: 'نمط حقن SQL أو استعلام غير مشروع داخل الرابط' };
   }
 
   if (SCANNER_PATHS.test(path)) {
@@ -262,6 +348,43 @@ export function classifyRequest(input: ClassifyInput): Verdict {
   }
 
   return { threat: 'CLEAN', severity: 'info', reason: '' };
+}
+
+export function resolveHttpVersion(headers: {
+  forwardedHttp?: string | null;
+  cfHttp?: string | null;
+  altUsed?: string | null;
+}): string {
+  const raw = (headers.forwardedHttp || headers.cfHttp || '').trim();
+  if (/^HTTP\/\d/i.test(raw)) return raw.toUpperCase().replace(/HTTP\/2\.0/i, 'HTTP/2');
+  if (raw === '2' || raw === 'h2' || raw === 'h2c') return 'HTTP/2';
+  if (raw === '3' || raw === 'h3') return 'HTTP/3';
+  if (raw === '1.0') return 'HTTP/1.0';
+  if (headers.altUsed) return 'HTTP/2';
+  return 'HTTP/1.1';
+}
+
+export function buildRequestLine(input: {
+  method: string;
+  path: string;
+  query?: string;
+  httpVersion?: string;
+}): string {
+  const method = (input.method || 'GET').toUpperCase();
+  const path = input.path || '/';
+  const qs = input.query ? `?${input.query}` : '';
+  const version = input.httpVersion || 'HTTP/1.1';
+  return `${method} ${path}${qs} ${version}`;
+}
+
+export function parseQueryPairs(query?: string | null): { key: string; value: string }[] {
+  const raw = String(query || '').replace(/^\?/, '');
+  if (!raw) return [];
+  return raw.split('&').slice(0, 24).map((part) => {
+    const eq = part.indexOf('=');
+    if (eq < 0) return { key: decodeSafely(part), value: '' };
+    return { key: decodeSafely(part.slice(0, eq)), value: decodeSafely(part.slice(eq + 1)).slice(0, 180) };
+  });
 }
 
 function decodeSafely(value: string): string {

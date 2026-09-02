@@ -371,6 +371,7 @@ function initTables(db: Database.Database) {
     ensureColumn('users', 'googleId', 'TEXT');
     ensureColumn('agency_settings', 'google_client_id', 'TEXT');
     ensureColumn('agency_settings', 'security_key', 'TEXT');
+    ensureColumn('agency_settings', 'security_key_issued_at', 'TEXT');
     ensureColumn('morshids', 'review_count', 'INTEGER DEFAULT 0');
     ensureColumn('audit_logs', 'actorName', 'TEXT');
     ensureColumn('audit_logs', 'actorRole', 'TEXT');

@@ -628,6 +628,87 @@ export function updateUserAccess(userId: string, patch: {
   }
 }
 
+export function updateUserProfile(userId: string, patch: {
+  name?: string;
+  email?: string;
+  username?: string;
+  phone?: string;
+  password?: string;
+  role?: string;
+  roleName?: string;
+}, options?: { allowPersonal?: boolean }) {
+  const db = getSqliteDb();
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId) as any;
+  if (!user) throw new Error('المستخدم غير موجود');
+
+  const info = usersTableInfo(db);
+  const names = new Set(info.map((c) => c.name));
+  const tableSql = usersTableSql(db);
+  const payload: Record<string, unknown> = {};
+  const allowPersonal = Boolean(options?.allowPersonal);
+
+  if (allowPersonal && patch.name != null && patch.name.trim()) {
+    assignUserColumns(names, payload, 'name', patch.name.trim());
+  }
+  if (allowPersonal && patch.phone != null) {
+    assignUserColumns(names, payload, 'phone', patch.phone.trim());
+  }
+  if (patch.role != null) {
+    const role = normalizeLoginRole(patch.role);
+    assignUserColumns(names, payload, 'role', roleForLegacyCheck(role, tableSql));
+    assignUserColumns(names, payload, 'roleName', patch.roleName || LOGIN_ROLE_LABELS[role]);
+    assignUserColumns(names, payload, 'requiresFileKey', requiresSecurityKey(role) ? 1 : 0);
+  }
+
+  const keys = Object.keys(payload);
+  if (keys.length) {
+    db.prepare(`UPDATE users SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`)
+      .run(...keys.map((k) => payload[k]), userId);
+  }
+
+  const username = patch.username?.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '') || undefined;
+  if (username && username !== user.username) {
+    const taken = findUserForLogin(username);
+    if (taken && taken.id !== userId) throw new Error('اسم المستخدم مستخدم مسبقاً');
+  }
+  const email = patch.email?.trim().toLowerCase() || undefined;
+  if (email && email !== user.email) {
+    const taken = findUserForLogin(email);
+    if (taken && taken.id !== userId) throw new Error('البريد الإلكتروني مسجّل مسبقاً');
+  }
+  if (username || email || patch.password) {
+    persistHashes(db, userId, {
+      username: username || user.username,
+      email: email || user.email,
+      password: patch.password?.trim() || undefined,
+    });
+  }
+}
+
+export function deleteUserAccount(userId: string, actorId?: string) {
+  const db = getSqliteDb();
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId) as any;
+  if (!user) throw new Error('المستخدم غير موجود');
+  if (actorId && actorId === userId) throw new Error('لا يمكن حذف حسابك الحالي');
+  const role = normalizeLoginRole(user.role, { email: user.email, roleName: user.roleName });
+  if (role === 'SUPER_ADMIN') {
+    const admins = (db.prepare('SELECT id, role, roleName, email FROM users').all() as any[])
+      .filter((row) => normalizeLoginRole(row.role, { email: row.email, roleName: row.roleName }) === 'SUPER_ADMIN');
+    if (admins.length <= 1) throw new Error('لا يمكن حذف مدير النظام الوحيد');
+  }
+  db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+  try {
+    db.prepare('DELETE FROM sessions WHERE userId = ?').run(userId);
+  } catch {
+    /* optional */
+  }
+  try {
+    db.prepare('DELETE FROM access_requests WHERE userId = ?').run(userId);
+  } catch {
+    /* optional */
+  }
+}
+
 export function repairSuperAdminLogin(): void {
   ensureUserAccount({
     id: 'usr_super_admin',

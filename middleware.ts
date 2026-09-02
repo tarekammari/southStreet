@@ -1,6 +1,16 @@
 import { NextResponse } from 'next/server';
 import type { NextFetchEvent, NextRequest } from 'next/server';
-import { classifyRequest, classifyAsset, resolveRequestIp, peekJwtIdentity, resolveConnectionGeo, type SecurityEvent, type Verdict } from '@/lib/security-threats';
+import {
+  classifyRequest,
+  classifyAsset,
+  resolveRequestIp,
+  peekJwtIdentity,
+  resolveConnectionGeo,
+  resolveHttpVersion,
+  buildRequestLine,
+  type SecurityEvent,
+  type Verdict,
+} from '@/lib/security-threats';
 import { INGEST_HEADER, INGEST_TOKEN } from '@/lib/security-transport';
 
 /**
@@ -20,6 +30,9 @@ type EdgeState = {
   blockBots: boolean;
   blockScanners: boolean;
   blockInjection: boolean;
+  blockXss: boolean;
+  blockExploits: boolean;
+  listenAll: boolean;
   policyAt: number;
   flushAt: number;
   hits: Map<string, { count: number; windowStart: number; auth: number }>;
@@ -38,6 +51,9 @@ function edge(): EdgeState {
       blockBots: true,
       blockScanners: true,
       blockInjection: true,
+      blockXss: true,
+      blockExploits: true,
+      listenAll: true,
       policyAt: 0,
       flushAt: 0,
       hits: new Map(),
@@ -74,8 +90,12 @@ function shouldBlock(s: EdgeState, ip: string, verdict: Verdict): boolean {
   if (s.allowed.has(ip)) return false;
   if (s.blocked.has(ip)) return true;
   if (s.blockInjection && (verdict.threat === 'INJECTION' || verdict.threat === 'TRAVERSAL')) return true;
+  if (s.blockXss && (verdict.threat === 'XSS' || verdict.threat === 'SSTI')) return true;
+  if (s.blockExploits && (verdict.threat === 'SSRF' || verdict.threat === 'WEBSHELL' || verdict.threat === 'ZERO_DAY' || verdict.threat === 'HEADER_ABUSE' || verdict.threat === 'METHOD_ABUSE')) {
+    return true;
+  }
   if (s.blockScanners && verdict.threat === 'SCANNER') return true;
-  if (verdict.threat === 'BOT' && verdict.severity !== 'info') return true;
+  if (s.blockBots && verdict.threat === 'BOT' && verdict.severity !== 'info') return true;
   if (verdict.threat === 'FLOOD' || verdict.threat === 'AUTH_ABUSE') return true;
   return false;
 }
@@ -97,6 +117,9 @@ async function flush(origin: string, s: EdgeState) {
     s.blockBots = Boolean(policy?.settings?.blockBots);
     s.blockScanners = policy?.settings?.blockScanners !== false;
     s.blockInjection = policy?.settings?.blockInjection !== false;
+    s.blockXss = policy?.settings?.blockXss !== false;
+    s.blockExploits = policy?.settings?.blockExploits !== false;
+    s.listenAll = policy?.settings?.listenAll !== false;
     s.floodLimit = Number(policy?.settings?.floodLimit) || 60;
     s.policyAt = Date.now();
   } catch {
@@ -114,15 +137,33 @@ export function middleware(request: NextRequest, event: NextFetchEvent) {
   });
 
   const userAgent = request.headers.get('user-agent') || '';
+  const host = request.headers.get('host') || request.headers.get('x-forwarded-host') || request.nextUrl.host || '';
+  const origin = request.headers.get('origin') || '';
+  const contentType = request.headers.get('content-type') || '';
+  const accept = request.headers.get('accept') || '';
+  const scheme = (
+    request.headers.get('x-forwarded-proto') ||
+    request.nextUrl.protocol.replace(':', '') ||
+    'https'
+  ).toLowerCase();
+  const httpVersion = resolveHttpVersion({
+    forwardedHttp: request.headers.get('x-http-version') || request.headers.get('x-forwarded-http-version'),
+    cfHttp: request.headers.get('cf-http-version'),
+    altUsed: request.headers.get('alt-used'),
+  });
   const isAuthPath = url.pathname.startsWith('/api/admin/auth') || url.pathname.startsWith('/api/auth');
   const counters = countHit(s, ip, isAuthPath);
+  const query = url.search.replace(/^\?/, '').slice(0, 400);
 
   const verdict = classifyRequest({
     path: url.pathname,
-    query: url.search.replace(/^\?/, ''),
+    query,
     method: request.method,
     userAgent,
     ip,
+    host,
+    contentType,
+    origin,
     recentHits: counters.count,
     recentAuthHits: counters.auth,
     floodThreshold: s.floodLimit,
@@ -130,7 +171,7 @@ export function middleware(request: NextRequest, event: NextFetchEvent) {
 
   const blocked = shouldBlock(s, ip, verdict);
   const asset = classifyAsset(url.pathname, request.method);
-  const skipNoise = asset.noise && verdict.threat === 'CLEAN' && !blocked;
+  const skipNoise = !s.listenAll && asset.noise && verdict.threat === 'CLEAN' && !blocked;
 
   if (!skipNoise) {
     const geo = resolveConnectionGeo({
@@ -151,7 +192,7 @@ export function middleware(request: NextRequest, event: NextFetchEvent) {
       ip,
       method: request.method,
       path: url.pathname,
-      query: url.search.replace(/^\?/, '').slice(0, 300),
+      query,
       userAgent: userAgent.slice(0, 300),
       referer: (request.headers.get('referer') || '').slice(0, 200),
       threat: blocked && s.blocked.has(ip) ? 'BLOCKED' : verdict.threat,
@@ -171,6 +212,18 @@ export function middleware(request: NextRequest, event: NextFetchEvent) {
       noise: false,
       dataClass: asset.dataClass,
       dataLabel: asset.dataLabel,
+      scheme,
+      httpVersion,
+      host: host.slice(0, 180),
+      origin: origin.slice(0, 180),
+      contentType: contentType.slice(0, 120),
+      accept: accept.slice(0, 160),
+      requestLine: buildRequestLine({
+        method: request.method,
+        path: url.pathname,
+        query,
+        httpVersion,
+      }).slice(0, 420),
     });
   }
 

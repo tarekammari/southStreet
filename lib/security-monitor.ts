@@ -19,7 +19,7 @@ import {
  * SQLite layer encrypts TEXT columns with a random IV (which would make it both
  * slow and unsearchable). Only firewall rules and notable incidents are persisted.
  */
-const LIVE_BUFFER_SIZE = 600;
+const LIVE_BUFFER_SIZE = 1800;
 const INCIDENT_KEEP = 1500;
 const RATE_WINDOW_MS = 60_000;
 
@@ -50,6 +50,8 @@ type MonitorState = {
     scanners: number;
     auth: number;
     sensitive: number;
+    xss: number;
+    exploits: number;
   };
   bootedAt: number;
 };
@@ -72,6 +74,8 @@ function state(): MonitorState {
         scanners: 0,
         auth: 0,
         sensitive: 0,
+        xss: 0,
+        exploits: 0,
       },
       bootedAt: Date.now(),
     };
@@ -117,15 +121,37 @@ function db() {
       CREATE TABLE IF NOT EXISTS firewall_settings (
         id TEXT PRIMARY KEY,
         status TEXT NOT NULL DEFAULT 'ACTIVE',
-        block_bots INTEGER DEFAULT 0,
+        block_bots INTEGER DEFAULT 1,
         block_scanners INTEGER DEFAULT 1,
         block_injection INTEGER DEFAULT 1,
-        flood_limit INTEGER DEFAULT 60
+        flood_limit INTEGER DEFAULT 60,
+        block_xss INTEGER DEFAULT 1,
+        block_exploits INTEGER DEFAULT 1,
+        auto_ban INTEGER DEFAULT 1,
+        auto_ban_hits INTEGER DEFAULT 5,
+        listen_all INTEGER DEFAULT 1
       );
 
       CREATE INDEX IF NOT EXISTS idx_fw_rules_key ON firewall_rules(rule_key);
       CREATE INDEX IF NOT EXISTS idx_incidents_at ON security_incidents(occurred_ms);
     `);
+    const cols = new Set(
+      (database.prepare('PRAGMA table_info(firewall_settings)').all() as { name: string }[]).map((c) => c.name)
+    );
+    const addCol = (name: string, def: string) => {
+      if (cols.has(name)) return;
+      try {
+        database.exec(`ALTER TABLE firewall_settings ADD COLUMN ${name} ${def}`);
+        cols.add(name);
+      } catch {
+        /* already present */
+      }
+    };
+    addCol('block_xss', 'INTEGER DEFAULT 1');
+    addCol('block_exploits', 'INTEGER DEFAULT 1');
+    addCol('auto_ban', 'INTEGER DEFAULT 1');
+    addCol('auto_ban_hits', 'INTEGER DEFAULT 5');
+    addCol('listen_all', 'INTEGER DEFAULT 1');
     tablesReady = true;
   }
   return database;
@@ -136,6 +162,11 @@ export type FirewallSettings = {
   blockBots: boolean;
   blockScanners: boolean;
   blockInjection: boolean;
+  blockXss: boolean;
+  blockExploits: boolean;
+  autoBan: boolean;
+  autoBanHits: number;
+  listenAll: boolean;
   floodLimit: number;
 };
 
@@ -144,6 +175,11 @@ const DEFAULT_SETTINGS: FirewallSettings = {
   blockBots: true,
   blockScanners: true,
   blockInjection: true,
+  blockXss: true,
+  blockExploits: true,
+  autoBan: true,
+  autoBanHits: 5,
+  listenAll: true,
   floodLimit: 60,
 };
 
@@ -152,16 +188,21 @@ export function getFirewallSettings(): FirewallSettings {
     const row = db().prepare('SELECT * FROM firewall_settings WHERE id = ?').get('main') as any;
     if (!row) {
       db().exec(
-        `INSERT INTO firewall_settings (id, status, block_bots, block_scanners, block_injection, flood_limit)
-         VALUES ('main', 'ACTIVE', 1, 1, 1, 60)`
+        `INSERT INTO firewall_settings (id, status, block_bots, block_scanners, block_injection, flood_limit, block_xss, block_exploits, auto_ban, auto_ban_hits, listen_all)
+         VALUES ('main', 'ACTIVE', 1, 1, 1, 60, 1, 1, 1, 5, 1)`
       );
       return DEFAULT_SETTINGS;
     }
     return {
       enabled: row.status !== 'OFF',
-      blockBots: Boolean(row.block_bots),
-      blockScanners: Boolean(row.block_scanners),
-      blockInjection: Boolean(row.block_injection),
+      blockBots: row.block_bots !== 0 && row.block_bots !== false,
+      blockScanners: row.block_scanners !== 0 && row.block_scanners !== false,
+      blockInjection: row.block_injection !== 0 && row.block_injection !== false,
+      blockXss: row.block_xss !== 0 && row.block_xss !== false,
+      blockExploits: row.block_exploits !== 0 && row.block_exploits !== false,
+      autoBan: row.auto_ban !== 0 && row.auto_ban !== false,
+      autoBanHits: Number(row.auto_ban_hits) || 5,
+      listenAll: row.listen_all !== 0 && row.listen_all !== false,
       floodLimit: Number(row.flood_limit) || 60,
     };
   } catch {
@@ -178,13 +219,19 @@ export function updateFirewallSettings(patch: Partial<FirewallSettings>): Firewa
       next.blockBots ? 1 : 0,
       next.blockScanners ? 1 : 0,
       next.blockInjection ? 1 : 0,
-      Number(next.floodLimit) || 120,
+      Number(next.floodLimit) || 60,
+      next.blockXss ? 1 : 0,
+      next.blockExploits ? 1 : 0,
+      next.autoBan ? 1 : 0,
+      Math.max(2, Number(next.autoBanHits) || 5),
+      next.listenAll ? 1 : 0,
     ] as const;
 
     const updated = db()
       .prepare(
         `UPDATE firewall_settings
-         SET status = ?, block_bots = ?, block_scanners = ?, block_injection = ?, flood_limit = ?
+         SET status = ?, block_bots = ?, block_scanners = ?, block_injection = ?, flood_limit = ?,
+             block_xss = ?, block_exploits = ?, auto_ban = ?, auto_ban_hits = ?, listen_all = ?
          WHERE id = 'main'`
       )
       .run(...args);
@@ -192,8 +239,9 @@ export function updateFirewallSettings(patch: Partial<FirewallSettings>): Firewa
     if (updated.changes === 0) {
       db()
         .prepare(
-          `INSERT INTO firewall_settings (id, status, block_bots, block_scanners, block_injection, flood_limit)
-           VALUES (?, ?, ?, ?, ?, ?)`
+          `INSERT INTO firewall_settings
+           (id, status, block_bots, block_scanners, block_injection, flood_limit, block_xss, block_exploits, auto_ban, auto_ban_hits, listen_all)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run('main', ...args);
     }
@@ -276,6 +324,26 @@ export function setRuleStatus(id: string, active: boolean): FirewallRule[] {
 
 export function deleteRule(id: string): FirewallRule[] {
   db().prepare('DELETE FROM firewall_rules WHERE id = ?').run(id);
+  invalidatePolicy();
+  return listRules();
+}
+
+export function updateRule(input: {
+  id: string;
+  ip?: string;
+  type?: 'BLOCK' | 'ALLOW';
+  note?: string;
+  active?: boolean;
+}): FirewallRule[] {
+  const current = db().prepare('SELECT * FROM firewall_rules WHERE id = ?').get(input.id) as any;
+  if (!current) return listRules();
+  const ip = input.ip ? normalizeIp(input.ip) : current.rule_key;
+  const type = input.type || (current.rule_type === 'ALLOW' ? 'ALLOW' : 'BLOCK');
+  const note = input.note != null ? input.note : current.note || '';
+  const status = input.active == null ? current.status : input.active ? 'ACTIVE' : 'OFF';
+  db()
+    .prepare('UPDATE firewall_rules SET rule_key = ?, rule_type = ?, status = ?, note = ? WHERE id = ?')
+    .run(ip, type, status, note, input.id);
   invalidatePolicy();
   return listRules();
 }
@@ -415,6 +483,10 @@ export function recordEvents(events: SecurityEvent[]): void {
     if (event.threat === 'FLOOD') s.totals.flood = (s.totals.flood || 0) + 1;
     if (event.threat === 'SCANNER') s.totals.scanners = (s.totals.scanners || 0) + 1;
     if (event.threat === 'AUTH_ABUSE') s.totals.auth = (s.totals.auth || 0) + 1;
+    if (event.threat === 'XSS' || event.threat === 'SSTI') s.totals.xss = (s.totals.xss || 0) + 1;
+    if (event.threat === 'ZERO_DAY' || event.threat === 'WEBSHELL' || event.threat === 'SSRF' || event.threat === 'HEADER_ABUSE' || event.threat === 'METHOD_ABUSE') {
+      s.totals.exploits = (s.totals.exploits || 0) + 1;
+    }
     if (isSensitiveData(event.dataClass)) s.totals.sensitive += 1;
 
     const stat = s.ips.get(event.ip) || {
@@ -450,6 +522,7 @@ export function recordEvents(events: SecurityEvent[]): void {
 
   if (incidents.length) persistIncidents(incidents);
   bumpRuleHits(events);
+  maybeAutoBan(events);
 }
 
 function persistIncidents(events: SecurityEvent[]) {
@@ -503,6 +576,33 @@ function bumpRuleHits(events: SecurityEvent[]) {
   }
 }
 
+function maybeAutoBan(events: SecurityEvent[]) {
+  const settings = getFirewallSettings();
+  if (!settings.autoBan) return;
+  const threshold = Math.max(2, settings.autoBanHits || 5);
+  const s = state();
+  const already = new Set(listRules().filter((r) => r.active && r.type === 'BLOCK').map((r) => r.ip));
+  const candidates = new Set<string>();
+  for (const event of events) {
+    if (event.trusted || isTrustedIp(event.ip)) continue;
+    if (event.severity !== 'critical' && event.threat === 'CLEAN') continue;
+    if (event.threat === 'CLEAN' && !event.blocked) continue;
+    const ip = normalizeIp(event.ip);
+    if (!ip || ip === 'unknown' || already.has(ip) || candidates.has(ip)) continue;
+    const stat = s.ips.get(ip);
+    if ((stat?.threats || 0) >= threshold || (stat?.blocked || 0) >= threshold) {
+      candidates.add(ip);
+    }
+  }
+  for (const ip of candidates) {
+    try {
+      upsertRule({ ip, type: 'BLOCK', note: `حظر تلقائي بعد ${threshold} تهديدات`, createdBy: 'firewall' });
+    } catch {
+      /* auto-ban is best-effort */
+    }
+  }
+}
+
 /* ──────────────────────────────── reading ──────────────────────────────── */
 
 export type IpSummary = {
@@ -551,7 +651,22 @@ export type AttackReport = {
 };
 
 export function getAttackReports(): AttackReport[] {
-  const order: ThreatKind[] = ['INJECTION', 'FLOOD', 'AUTH_ABUSE', 'BOT', 'SCANNER', 'TRAVERSAL', 'BLOCKED'];
+  const order: ThreatKind[] = [
+    'INJECTION',
+    'XSS',
+    'SSTI',
+    'SSRF',
+    'ZERO_DAY',
+    'WEBSHELL',
+    'FLOOD',
+    'AUTH_ABUSE',
+    'HEADER_ABUSE',
+    'METHOD_ABUSE',
+    'BOT',
+    'SCANNER',
+    'TRAVERSAL',
+    'BLOCKED',
+  ];
   const buckets = new Map<ThreatKind, AttackReport>();
   const live = [...state().live].reverse();
 
@@ -660,6 +775,8 @@ export function getSecuritySummary() {
     scanners: s.totals.scanners || 0,
     authAttacks: s.totals.auth || 0,
     sensitiveHits: s.totals.sensitive || 0,
+    xss: s.totals.xss || 0,
+    exploits: s.totals.exploits || 0,
   };
 }
 

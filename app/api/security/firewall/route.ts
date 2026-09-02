@@ -10,6 +10,7 @@ import {
   listRules,
   setRuleStatus,
   updateFirewallSettings,
+  updateRule,
   upsertRule,
 } from '@/lib/security-monitor';
 
@@ -58,6 +59,17 @@ export async function POST(req: NextRequest) {
       audit(actor, role, 'اعتماد عنوان IP موثوق', `ip=${body.ip}`);
       return NextResponse.json({ ok: true, message: `تم اعتماد ${body.ip} كعنوان موثوق`, rules });
     }
+    case 'update': {
+      const rules = updateRule({
+        id: String(body.id || ''),
+        ip: body.ip,
+        type: body.type === 'ALLOW' ? 'ALLOW' : body.type === 'BLOCK' ? 'BLOCK' : undefined,
+        note: body.note,
+        active: body.active,
+      });
+      audit(actor, role, 'تعديل قاعدة جدار حماية', `id=${body.id}`);
+      return NextResponse.json({ ok: true, message: 'تم تحديث القاعدة', rules });
+    }
     case 'toggle': {
       const rules = setRuleStatus(String(body.id), Boolean(body.active));
       return NextResponse.json({ ok: true, message: 'تم تحديث القاعدة', rules });
@@ -73,6 +85,11 @@ export async function POST(req: NextRequest) {
         blockBots: body.blockBots,
         blockScanners: body.blockScanners,
         blockInjection: body.blockInjection,
+        blockXss: body.blockXss,
+        blockExploits: body.blockExploits,
+        autoBan: body.autoBan,
+        autoBanHits: body.autoBanHits,
+        listenAll: body.listenAll,
         floodLimit: body.floodLimit,
       });
       audit(actor, role, 'تعديل إعدادات جدار الحماية', JSON.stringify(settings));

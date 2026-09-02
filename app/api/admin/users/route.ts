@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/db';
-import { ensureUserAccount, updateUserAccess } from '@/lib/accounts';
+import { ensureUserAccount, updateUserAccess, updateUserProfile, deleteUserAccount } from '@/lib/accounts';
 import { getSqliteDb } from '@/lib/sqlite';
 import { normalizeLoginRole, LOGIN_ROLE_LABELS, toPortalRole, PORTAL_TABS } from '@/lib/roles';
 import { enrichUsersWithSessions, isImageSource, resolveUserPhoto } from '@/lib/user-access-view';
@@ -30,6 +30,20 @@ function loadStaffPhotos(sqlite: any): Map<string, string> {
     /* staff table unavailable — everyone falls back to the default portrait */
   }
   return photos;
+}
+
+const ADMIN_ROLES = new Set(['SUPER_ADMIN', 'AGENCY_MANAGER']);
+
+function requireAdmin(req: NextRequest) {
+  const token = getTokenFromRequest(req);
+  const payload = token ? verifyToken(token) : null;
+  if (!payload?.sub) return null;
+  const role = normalizeLoginRole(String(payload.role || ''), {
+    email: payload.email,
+    roleName: payload.roleName,
+  });
+  if (!ADMIN_ROLES.has(role)) return null;
+  return payload;
 }
 
 function publicUser(u: any, staffPhotos?: Map<string, string>) {
@@ -129,8 +143,11 @@ export async function GET(req: NextRequest) {
   }
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
+    const admin = requireAdmin(req);
+    if (!admin) return NextResponse.json({ error: 'صلاحية غير كافية' }, { status: 403 });
+
     const { name, email, password, role, status, username, phone } = await req.json();
 
     const cleanName = (name || '').trim();
@@ -176,10 +193,14 @@ export async function POST(req: Request) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const { userId, status, role, roleName, loginEnabled } = await req.json();
+    const admin = requireAdmin(req);
+    if (!admin) return NextResponse.json({ error: 'صلاحية غير كافية' }, { status: 403 });
 
-    if (!userId || (!status && !role && loginEnabled == null)) {
-      return NextResponse.json({ error: 'معرف المستخدم وتحديث الحالة أو الصلاحية مطلوبان' }, { status: 400 });
+    const body = await req.json();
+    const { userId, status, role, roleName, loginEnabled, name, email, username, phone, password } = body;
+
+    if (!userId) {
+      return NextResponse.json({ error: 'معرف المستخدم مطلوب' }, { status: 400 });
     }
 
     const sqlite = getSqliteDb();
@@ -188,49 +209,38 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'المستخدم غير موجود' }, { status: 404 });
     }
 
-    const nextRole = role ? normalizeLoginRole(role) : undefined;
-    const nextStatus = status || undefined;
-    const enabled =
-      loginEnabled != null
-        ? (loginEnabled ? 1 : 0)
-        : nextStatus === 'APPROVED'
-          ? 1
-          : nextStatus === 'REJECTED' || nextStatus === 'SUSPENDED'
-            ? 0
-            : undefined;
+    const profilePatch = { name, email, username, phone, password, role, roleName };
+    const hasProfile = Object.values(profilePatch).some((v) => v != null && String(v) !== '');
+    if (hasProfile) {
+      updateUserProfile(userId, profilePatch, { allowPersonal: admin.sub === userId });
+    }
 
-    updateUserAccess(userId, {
-      status: nextStatus,
-      role: nextRole,
-      roleName: roleName || (nextRole ? LOGIN_ROLE_LABELS[nextRole] : undefined),
-      loginEnabled: enabled,
-    });
+    if (status || loginEnabled != null) {
+      const nextRole = role ? normalizeLoginRole(role) : undefined;
+      const nextStatus = status || undefined;
+      const enabled =
+        loginEnabled != null
+          ? (loginEnabled ? 1 : 0)
+          : nextStatus === 'APPROVED'
+            ? 1
+            : nextStatus === 'REJECTED' || nextStatus === 'SUSPENDED'
+              ? 0
+              : undefined;
+
+      updateUserAccess(userId, {
+        status: nextStatus,
+        role: nextRole,
+        roleName: roleName || (nextRole ? LOGIN_ROLE_LABELS[nextRole] : undefined),
+        loginEnabled: enabled,
+      });
+    } else if (!hasProfile) {
+      return NextResponse.json({ error: 'لا يوجد تحديث' }, { status: 400 });
+    }
 
     try {
-      const token = getTokenFromRequest(req);
-      const payload = token ? verifyToken(token) : null;
-      const actor = payload?.name || 'الإدارة';
-      const actorRole = String(payload?.role || 'SUPER_ADMIN');
-      const action =
-        nextStatus === 'APPROVED'
-          ? 'موافقة على حساب'
-          : nextStatus === 'REJECTED'
-            ? 'رفض حساب'
-            : nextStatus === 'SUSPENDED'
-              ? 'إيقاف حساب'
-              : nextRole
-                ? 'تغيير دور'
-                : loginEnabled
-                  ? 'تفعيل حساب'
-                  : loginEnabled === false
-                    ? 'إيقاف حساب'
-                    : 'تحديث حساب';
-      dbLogAudit(
-        actor,
-        actorRole,
-        action,
-        `${user.name || userId} · ${nextStatus || nextRole || ''}`.trim()
-      );
+      const actor = admin.name || 'الإدارة';
+      const actorRole = String(admin.role || 'SUPER_ADMIN');
+      dbLogAudit(actor, actorRole, 'تحديث حساب', `${user.name || userId}`);
     } catch {
       /* history still updates even if audit write fails */
     }
@@ -238,12 +248,29 @@ export async function PATCH(req: NextRequest) {
     const updated = sqlite.prepare('SELECT * FROM users WHERE id = ?').get(userId);
     return NextResponse.json({
       success: true,
-      message: nextStatus === 'APPROVED'
-        ? 'تمت الموافقة وتحديد الصلاحية. يمكن للعضو الدخول الآن.'
-        : `تم تحديث حالة الحساب إلى (${nextStatus || nextRole}) بنجاح`,
+      message: 'تم حفظ بيانات الحساب',
       user: publicUser(updated, loadStaffPhotos(sqlite)),
     });
-  } catch (error) {
-    return NextResponse.json({ error: 'خطأ في تحديث صلاحية الحساب' }, { status: 500 });
+  } catch (error: any) {
+    return NextResponse.json({ error: error?.message || 'خطأ في تحديث صلاحية الحساب' }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const admin = requireAdmin(req);
+    if (!admin) return NextResponse.json({ error: 'صلاحية غير كافية' }, { status: 403 });
+    const url = new URL(req.url);
+    const userId = url.searchParams.get('userId') || '';
+    if (!userId) return NextResponse.json({ error: 'معرف المستخدم مطلوب' }, { status: 400 });
+    deleteUserAccount(userId, admin.sub);
+    try {
+      dbLogAudit(admin.name || 'الإدارة', String(admin.role || 'SUPER_ADMIN'), 'حذف حساب', userId);
+    } catch {
+      /* ignore */
+    }
+    return NextResponse.json({ success: true, message: 'تم حذف الحساب' });
+  } catch (error: any) {
+    return NextResponse.json({ error: error?.message || 'تعذّر حذف الحساب' }, { status: 500 });
   }
 }

@@ -475,10 +475,15 @@ function PendingApprovalActions({
     setBusy(true);
     setMsg('');
     try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('south_street_token') : '';
       const res = await fetch('/api/admin/users', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ userId, status, role }),
+        credentials: 'same-origin',
       });
       const data = await res.json();
       if (!res.ok) {

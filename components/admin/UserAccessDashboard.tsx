@@ -12,6 +12,7 @@ import {
   ChevronUp,
   Circle,
   Clock,
+  Cpu,
   Globe,
   KeyRound,
   Landmark,
@@ -22,6 +23,7 @@ import {
   MessageCircle,
   PanelLeftClose,
   PanelLeftOpen,
+  Plus,
   RefreshCw,
   Search,
   Settings,
@@ -49,9 +51,17 @@ import {
   normalizeLoginRole,
   type LoginRole,
 } from '@/lib/roles';
-import SecurityCenter from '@/components/admin/SecurityCenter';
+import SecurityCenter, {
+  EMPTY_FW_COUNTS,
+  EMPTY_FW_FILTERS,
+  type FirewallDateFilter,
+  type FirewallFilterCounts,
+  type FirewallFilters,
+  type FirewallScope,
+} from '@/components/admin/SecurityCenter';
 import UserProfileModal from '@/components/admin/UserProfileModal';
 import GoogleLoginSettings from '@/components/admin/GoogleLoginSettings';
+import ServerHealthPanel from '@/components/admin/ServerHealth';
 import PresenceTimeline from '@/components/admin/PresenceTimeline';
 
 type DashboardStats = {
@@ -88,6 +98,7 @@ const EMPTY_STATS: DashboardStats = {
 const HEARTBEAT_MS = 45000;
 const REFRESH_MS = 20000;
 
+type DashSection = 'users' | 'security' | 'google' | 'server';
 type FilterKey = 'all' | 'online' | 'active' | 'pending' | 'suspended';
 type RoleFilter = 'all' | LoginRole;
 type FlyoutKey = 'accounts' | 'sessions' | 'types' | null;
@@ -116,6 +127,23 @@ const ROLE_PILLS: { id: RoleFilter; label: string; tone: string }[] = [
     label: option.label,
     tone: ROLE_TONES[option.value],
   })),
+];
+
+const FW_DATE_PILLS: { id: FirewallDateFilter; label: string; tone: string }[] = [
+  { id: 'all', label: 'كل التواريخ', tone: 'blue' },
+  { id: 'hour', label: 'آخر ساعة', tone: 'cyan' },
+  { id: 'today', label: 'اليوم', tone: 'yellow' },
+  { id: 'yesterday', label: 'أمس', tone: 'purple' },
+  { id: 'day', label: '24 ساعة', tone: 'gold' },
+  { id: 'week', label: '7 أيام', tone: 'green' },
+];
+
+const FW_SCOPE_PILLS: { id: FirewallScope; label: string; tone: string }[] = [
+  { id: 'all', label: 'كل الاتصالات', tone: 'blue' },
+  { id: 'important', label: 'المهم فقط', tone: 'yellow' },
+  { id: 'blocked', label: 'محظور', tone: 'red' },
+  { id: 'threat', label: 'تهديد', tone: 'purple' },
+  { id: 'allow', label: 'مسموح', tone: 'cyan' },
 ];
 
 function userLoginRole(user: { role?: string; email?: string; roleName?: string }): LoginRole {
@@ -242,9 +270,13 @@ export default function UserAccessDashboard({
   const [detailLeaving, setDetailLeaving] = useState(false);
   const [syncedAt, setSyncedAt] = useState<string | null>(null);
   const [clock, setClock] = useState('');
-  const [section, setSection] = useState<'users' | 'security' | 'google'>('users');
+  const [section, setSection] = useState<DashSection>('users');
   const [profileId, setProfileId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [createForm, setCreateForm] = useState({ name: '', username: '', email: '', phone: '', password: '', role: 'PILGRIM_USER' });
   const [liveIps, setLiveIps] = useState<LiveIpRow[]>([]);
+  const [fwFilters, setFwFilters] = useState<FirewallFilters>(EMPTY_FW_FILTERS);
+  const [fwCounts, setFwCounts] = useState<FirewallFilterCounts>(EMPTY_FW_COUNTS);
   const [agency, setAgency] = useState<{ name: string; legal: string; logo: string }>({
     name: 'ساوث ستريت',
     legal: 'South Street',
@@ -372,7 +404,10 @@ export default function UserAccessDashboard({
   const patchUser = async (userId: string, body: Record<string, unknown>) => {
     const res = await fetch('/api/admin/users', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${localStorage.getItem('south_street_token') || ''}`,
+      },
       body: JSON.stringify({ userId, ...body }),
     });
     const data = await res.json();
@@ -381,6 +416,48 @@ export default function UserAccessDashboard({
       loadUsers(true);
     } else {
       setToast(data.error || 'فشل التحديث');
+    }
+    window.setTimeout(() => setToast(''), 3200);
+  };
+
+  const createUser = async () => {
+    if (!createForm.name.trim() || !createForm.password.trim() || (!createForm.username.trim() && !createForm.email.trim())) {
+      setToast('الاسم وكلمة المرور واسم المستخدم أو البريد مطلوبة');
+      window.setTimeout(() => setToast(''), 3200);
+      return;
+    }
+    const res = await fetch('/api/admin/users', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${localStorage.getItem('south_street_token') || ''}`,
+      },
+      body: JSON.stringify(createForm),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) {
+      setToast(data.message || 'تم إنشاء الحساب');
+      setCreating(false);
+      setCreateForm({ name: '', username: '', email: '', phone: '', password: '', role: 'PILGRIM_USER' });
+      loadUsers(true);
+    } else {
+      setToast(data.error || 'تعذّر إنشاء الحساب');
+    }
+    window.setTimeout(() => setToast(''), 3200);
+  };
+
+  const deleteUser = async (userId: string) => {
+    const res = await fetch(`/api/admin/users?userId=${encodeURIComponent(userId)}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${localStorage.getItem('south_street_token') || ''}` },
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) {
+      setToast(data.message || 'تم حذف الحساب');
+      setDetailLeaving(true);
+      loadUsers(true);
+    } else {
+      setToast(data.error || 'تعذّر حذف الحساب');
     }
     window.setTimeout(() => setToast(''), 3200);
   };
@@ -482,16 +559,26 @@ export default function UserAccessDashboard({
 
   const goUsers = (patch: { filter?: FilterKey; role?: RoleFilter } = {}) => {
     setSection('users');
+    setFlyout(null);
     if (patch.filter) setFilter(patch.filter);
     if (patch.role !== undefined) setRoleFilter(patch.role);
     if (profileId) setDetailLeaving(true);
   };
 
-  const goSection = (next: 'users' | 'security' | 'google') => {
+  const goSection = (next: DashSection) => {
     setSection(next);
+    setFlyout(null);
     setDetailLeaving(false);
     setProfileId(null);
   };
+
+  const patchFwFilters = useCallback((patch: Partial<FirewallFilters>) => {
+    setFwFilters((current) => ({ ...current, ...patch }));
+  }, []);
+
+  const onFwCounts = useCallback((counts: FirewallFilterCounts) => {
+    setFwCounts(counts);
+  }, []);
 
   const roleCounts = useMemo(() => {
     const counts: Record<RoleFilter, number> = {
@@ -524,7 +611,8 @@ export default function UserAccessDashboard({
   }, []);
 
   const todayLabel = new Date().toLocaleDateString('ar-DZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-  const workspaceLabel = section === 'security' ? 'الجدار الناري' : section === 'google' ? 'دخول جوجل' : 'إدارة الحسابات';
+  const fwMode = section === 'security';
+  const workspaceLabel = fwMode ? 'الجدار الناري' : section === 'google' ? 'دخول جوجل' : section === 'server' ? 'حالة الخادم' : 'إدارة الحسابات';
   const roleFilterLabel = roleFilter === 'all' ? '' : LOGIN_ROLE_LABELS[roleFilter];
   const filterCount = (id: FilterKey) => {
     if (id === 'online') return onlineCount;
@@ -616,12 +704,17 @@ export default function UserAccessDashboard({
           <div className="inn-stage">
           {section === 'security' ? (
             <div key="security" className="inn-stage-pane is-active inn-swap">
-              <SecurityCenter sideOpen={sideOpen} />
+              <SecurityCenter sideOpen={sideOpen} filters={fwFilters} onCounts={onFwCounts} />
             </div>
           ) : null}
           {section === 'google' ? (
             <div key="google" className="inn-stage-pane is-active inn-swap">
               <GoogleLoginSettings />
+            </div>
+          ) : null}
+          {section === 'server' ? (
+            <div key="server" className="inn-stage-pane is-active inn-swap">
+              <ServerHealthPanel />
             </div>
           ) : null}
 
@@ -642,6 +735,10 @@ export default function UserAccessDashboard({
                     {syncedAt ? ` · آخر مزامنة ${formatAdminDate(syncedAt)}` : ''}
                   </p>
                 </div>
+                <button type="button" className="fw-add-user" onClick={() => setCreating(true)}>
+                  <Plus className="w-4 h-4" />
+                  إضافة حساب
+                </button>
               </div>
 
               {viewMode === 'list' ? (
@@ -763,6 +860,7 @@ export default function UserAccessDashboard({
                       patchUser(userId, body);
                     }}
                     onBlockIp={blockIp}
+                    onDelete={isSelf(profileUser) ? undefined : () => deleteUser(profileUser.id)}
                   />
                 </div>
               ) : null}
@@ -802,7 +900,7 @@ export default function UserAccessDashboard({
                 </span>
                 <span className="inn-side-workspace-copy">
                   <strong>{workspaceLabel}</strong>
-                  <em>{stats.total} حساب · {onlineCount} متصل</em>
+                  <em>{fwMode ? `${fwCounts.all} حدث · ${fwCounts.blocked} حظر` : `${stats.total} حساب · ${onlineCount} متصل`}</em>
                 </span>
                 <span className="inn-side-workspace-chevs inn-side-label">
                   <ChevronUp className="w-3 h-3" />
@@ -843,6 +941,15 @@ export default function UserAccessDashboard({
                 </button>
                 <button
                   type="button"
+                  className={`inn-side-link${section === 'server' ? ' is-active' : ''}`}
+                  onClick={() => goSection('server')}
+                  title="حالة الخادم"
+                >
+                  <Cpu className="w-4 h-4" />
+                  <span className="inn-side-label">حالة الخادم</span>
+                </button>
+                <button
+                  type="button"
                   className={`inn-side-link${section === 'google' ? ' is-active' : ''}`}
                   onClick={() => goSection('google')}
                   title="دخول جوجل"
@@ -858,6 +965,91 @@ export default function UserAccessDashboard({
 
               <div className="inn-side-rule" />
 
+              {fwMode ? (
+                <>
+                  <div
+                    className="inn-side-section"
+                    onMouseEnter={() => { if (!sideOpen) setFlyout('accounts'); }}
+                  >
+                    <button
+                      type="button"
+                      className={`inn-side-section-toggle${accountsOpen ? ' is-open' : ''}`}
+                      onClick={() => {
+                        if (!sideOpen) {
+                          setFlyout((v) => (v === 'accounts' ? null : 'accounts'));
+                          return;
+                        }
+                        setAccountsOpen((v) => !v);
+                      }}
+                      title="الوقت"
+                    >
+                      <Clock className="w-4 h-4" />
+                      <span className="inn-side-label">الوقت</span>
+                      {accountsOpen ? <ChevronUp className="w-3.5 h-3.5 inn-side-label" /> : <ChevronDown className="w-3.5 h-3.5 inn-side-label" />}
+                    </button>
+                    <div className={`inn-side-fold${sideOpen && accountsOpen ? ' is-open' : ''}`}>
+                      <div className="inn-side-fold-inner">
+                        <ul className="inn-side-sub">
+                          {FW_DATE_PILLS.map((pill) => (
+                            <li key={pill.id}>
+                              <button
+                                type="button"
+                                className={`inn-side-sub-item is-${pill.tone}${fwFilters.date === pill.id ? ' is-active' : ''}`}
+                                onClick={() => patchFwFilters({ date: pill.id })}
+                              >
+                                <span className={`inn-side-shape is-${pill.tone}`}><FilterShape tone={pill.tone} /></span>
+                                <span className="inn-side-label">{pill.label}</span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    className="inn-side-section"
+                    onMouseEnter={() => { if (!sideOpen) setFlyout('types'); }}
+                  >
+                    <button
+                      type="button"
+                      className={`inn-side-section-toggle${typesOpen || fwFilters.scope !== 'all' ? ' is-open' : ''}`}
+                      onClick={() => {
+                        if (!sideOpen) {
+                          setFlyout((v) => (v === 'types' ? null : 'types'));
+                          return;
+                        }
+                        setTypesOpen((v) => !v);
+                      }}
+                      title="الحالة"
+                    >
+                      <ShieldCheck className="w-4 h-4" />
+                      <span className="inn-side-label">الحالة</span>
+                      {typesOpen ? <ChevronUp className="w-3.5 h-3.5 inn-side-label" /> : <ChevronDown className="w-3.5 h-3.5 inn-side-label" />}
+                    </button>
+                    <div className={`inn-side-fold${sideOpen && typesOpen ? ' is-open' : ''}`}>
+                      <div className="inn-side-fold-inner">
+                        <ul className="inn-side-sub">
+                          {FW_SCOPE_PILLS.map((pill) => (
+                            <li key={pill.id}>
+                              <button
+                                type="button"
+                                className={`inn-side-sub-item is-${pill.tone}${fwFilters.scope === pill.id ? ' is-active' : ''}`}
+                                onClick={() => patchFwFilters({ scope: pill.id })}
+                              >
+                                <span className={`inn-side-shape is-${pill.tone}`}><FilterShape tone={pill.tone} /></span>
+                                <span className="inn-side-label">{pill.label}</span>
+                                {fwCounts[pill.id] > 0 ? <span className="inn-side-count">{fwCounts[pill.id]}</span> : null}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
               <div
                 className="inn-side-section"
                 onMouseEnter={() => { if (!sideOpen) setFlyout('accounts'); }}
@@ -947,15 +1139,24 @@ export default function UserAccessDashboard({
                   </div>
                 </div>
               </div>
+                </>
+              )}
 
               <div className="inn-side-tools">
                 <div className="inn-side-search">
                   <Search className="w-4 h-4" />
                   <input
                     type="search"
-                    value={query}
-                    onChange={(e) => { goUsers(); setQuery(e.target.value); }}
-                    placeholder="بحث بالاسم، IP، البصمة..."
+                    value={fwMode ? fwFilters.query : query}
+                    onChange={(e) => {
+                      if (fwMode) {
+                        patchFwFilters({ query: e.target.value });
+                        return;
+                      }
+                      goUsers();
+                      setQuery(e.target.value);
+                    }}
+                    placeholder={fwMode ? 'بحث في المسار، IP، المستخدم...' : 'بحث بالاسم، IP، البصمة...'}
                   />
                 </div>
                 <div className="inn-side-actions">
@@ -963,6 +1164,7 @@ export default function UserAccessDashboard({
                     <RefreshCw className={`w-4 h-4${refreshing ? ' animate-spin' : ''}`} />
                     <span className="inn-side-label">تحديث البيانات</span>
                   </button>
+                  {fwMode ? null : (
                   <div className="inn-view-toggle">
                     <button type="button" className={`inn-view-btn${viewMode === 'grid' ? ' is-active' : ''}`} onClick={() => setViewMode('grid')} aria-label="شبكة">
                       <LayoutGrid className="w-4 h-4" />
@@ -971,12 +1173,35 @@ export default function UserAccessDashboard({
                       <List className="w-4 h-4" />
                     </button>
                   </div>
+                  )}
                 </div>
               </div>
 
               {!sideOpen && flyout ? (
                 <div className="inn-side-flyout" role="dialog" aria-label="تفاصيل القائمة">
                   {flyout === 'accounts' ? (
+                    fwMode ? (
+                    <>
+                      <p className="inn-side-flyout-title">تصفية الوقت</p>
+                      <ul className="inn-side-flyout-list">
+                        {FW_DATE_PILLS.map((pill) => (
+                          <li key={pill.id}>
+                            <button
+                              type="button"
+                              className={`inn-side-flyout-item${fwFilters.date === pill.id ? ' is-active' : ''}`}
+                              onClick={() => patchFwFilters({ date: pill.id })}
+                            >
+                              <span className="inn-flyout-grip" aria-hidden="true" />
+                              <span className={`inn-flyout-icon is-${pill.tone}`}><FilterShape tone={pill.tone} /></span>
+                              <span>
+                                <strong>{pill.label}</strong>
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                    ) : (
                     <>
                       <p className="inn-side-flyout-title">تصفية الحسابات</p>
                       <ul className="inn-side-flyout-list">
@@ -998,7 +1223,31 @@ export default function UserAccessDashboard({
                         ))}
                       </ul>
                     </>
+                    )
                   ) : flyout === 'types' ? (
+                    fwMode ? (
+                    <>
+                      <p className="inn-side-flyout-title">تصفية الحالة</p>
+                      <ul className="inn-side-flyout-list">
+                        {FW_SCOPE_PILLS.map((pill) => (
+                          <li key={pill.id}>
+                            <button
+                              type="button"
+                              className={`inn-side-flyout-item${fwFilters.scope === pill.id ? ' is-active' : ''}`}
+                              onClick={() => patchFwFilters({ scope: pill.id })}
+                            >
+                              <span className="inn-flyout-grip" aria-hidden="true" />
+                              <span className={`inn-flyout-icon is-${pill.tone}`}><FilterShape tone={pill.tone} /></span>
+                              <span>
+                                <strong>{pill.label}</strong>
+                                <em>{fwCounts[pill.id]} حدث</em>
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                    ) : (
                     <>
                       <p className="inn-side-flyout-title">تصفية النوع</p>
                       <ul className="inn-side-flyout-list">
@@ -1020,6 +1269,7 @@ export default function UserAccessDashboard({
                         ))}
                       </ul>
                     </>
+                    )
                   ) : (
                     <>
                       <p className="inn-side-flyout-title">متصل الآن</p>
@@ -1089,6 +1339,37 @@ export default function UserAccessDashboard({
         </div>
       </div>
 
+      {creating ? (
+        <div className="fw-modal" role="dialog" aria-modal="true" aria-label="إضافة حساب">
+          <button type="button" className="fw-modal-bg" aria-label="إغلاق" onClick={() => setCreating(false)} />
+          <form
+            className="fw-modal-card"
+            onSubmit={(e) => {
+              e.preventDefault();
+              createUser();
+            }}
+          >
+            <h3>حساب جديد</h3>
+            <label>الاسم<input value={createForm.name} onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })} required /></label>
+            <label>اسم المستخدم<input dir="ltr" value={createForm.username} onChange={(e) => setCreateForm({ ...createForm, username: e.target.value })} /></label>
+            <label>البريد<input dir="ltr" type="email" value={createForm.email} onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })} /></label>
+            <label>الهاتف<input dir="ltr" value={createForm.phone} onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })} /></label>
+            <label>كلمة المرور<input dir="ltr" type="text" value={createForm.password} onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })} required /></label>
+            <label>
+              الدور
+              <select value={createForm.role} onChange={(e) => setCreateForm({ ...createForm, role: e.target.value })}>
+                {LOGIN_ROLE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </label>
+            <div className="fw-edit-acts">
+              <button type="submit">إنشاء</button>
+              <button type="button" className="is-ghost" onClick={() => setCreating(false)}>إلغاء</button>
+            </div>
+          </form>
+        </div>
+      ) : null}
     </div>
   );
 }

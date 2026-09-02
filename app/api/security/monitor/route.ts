@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
   const onlyThreats = url.searchParams.get('threats') === '1';
   const all = url.searchParams.get('all') === '1';
   const severity = (url.searchParams.get('severity') || '') as Severity | '';
-  const limit = Math.min(Number(url.searchParams.get('limit')) || 80, 200);
+  const limit = Math.min(Number(url.searchParams.get('limit')) || 80, 400);
 
   return NextResponse.json({
     serverTime: new Date().toISOString(),

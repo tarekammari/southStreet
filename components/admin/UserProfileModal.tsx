@@ -8,6 +8,7 @@ import {
   Phone,
   Power,
   ShieldCheck,
+  Trash2,
   Video,
   X,
 } from 'lucide-react';
@@ -118,6 +119,7 @@ export default function UserProfileModal({
   onClose,
   onPatch,
   onBlockIp,
+  onDelete,
   embedded = false,
 }: {
   user: EnrichedUser;
@@ -125,12 +127,22 @@ export default function UserProfileModal({
   onClose: () => void;
   onPatch: (userId: string, body: Record<string, unknown>) => void;
   onBlockIp: (ip: string) => void;
+  onDelete?: () => void;
   embedded?: boolean;
   peers?: EnrichedUser[];
 }) {
   const [tab, setTab] = useState<TabKey>('data');
   const [closing, setClosing] = useState(false);
   const [role, setRole] = useState(user.role);
+  const [editing, setEditing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [draft, setDraft] = useState({
+    name: user.name,
+    email: user.email || '',
+    username: user.username || '',
+    phone: user.phone || '',
+    password: '',
+  });
   const [photoBroken, setPhotoBroken] = useState(false);
   const [activity, setActivity] = useState<Record<string, number>>({});
   const [devices, setDevices] = useState<UserDevice[]>([]);
@@ -160,6 +172,15 @@ export default function UserProfileModal({
   useEffect(() => {
     setRole(user.role);
     setTab('data');
+    setEditing(false);
+    setConfirmDelete(false);
+    setDraft({
+      name: user.name,
+      email: user.email || '',
+      username: user.username || '',
+      phone: user.phone || '',
+      password: '',
+    });
     setPhotoBroken(false);
     setActivity(seedActivity(user));
     setDevices([]);
@@ -305,7 +326,50 @@ export default function UserProfileModal({
 
           <div className="upm-table-wrap">
             <div key={tab} className="upm-table-swap">
-            {tab !== 'history' ? (
+            {tab === 'data' && editing ? (
+              <form
+                className="fw-edit"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  onPatch(user.id, isSelf
+                    ? {
+                        name: draft.name,
+                        email: draft.email,
+                        username: draft.username,
+                        phone: draft.phone,
+                        password: draft.password || undefined,
+                        role,
+                      }
+                    : {
+                        email: draft.email,
+                        username: draft.username,
+                        password: draft.password || undefined,
+                        role,
+                      });
+                  setEditing(false);
+                }}
+              >
+                <h3>{isSelf ? 'تعديل بياناتي' : 'تعديل صلاحيات الحساب'}</h3>
+                {!isSelf ? (
+                  <p className="fw-lock-note">الاسم والهاتف بيانات شخصية أنشأها صاحب الحساب. للإدارة صلاحية الدور، الدخول، وكلمة المرور فقط.</p>
+                ) : null}
+                <label>
+                  الاسم
+                  <input value={isSelf ? draft.name : name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} required disabled={!isSelf} />
+                </label>
+                <label>اسم المستخدم<input dir="ltr" value={draft.username} onChange={(e) => setDraft({ ...draft, username: e.target.value })} /></label>
+                <label>البريد<input dir="ltr" value={draft.email} onChange={(e) => setDraft({ ...draft, email: e.target.value })} /></label>
+                <label>
+                  الهاتف
+                  <input dir="ltr" value={isSelf ? draft.phone : phone} onChange={(e) => setDraft({ ...draft, phone: e.target.value })} disabled={!isSelf} />
+                </label>
+                <label>كلمة مرور جديدة<input dir="ltr" type="text" value={draft.password} onChange={(e) => setDraft({ ...draft, password: e.target.value })} placeholder="اتركها فارغة للإبقاء" /></label>
+                <div className="fw-edit-acts">
+                  <button type="submit">حفظ</button>
+                  <button type="button" className="is-ghost" onClick={() => setEditing(false)}>إلغاء</button>
+                </div>
+              </form>
+            ) : tab !== 'history' ? (
             <table className="upm-table">
               <tbody>
                 {rows.map((row) => (
@@ -382,6 +446,11 @@ export default function UserProfileModal({
 
             {tab !== 'history' ? (
             <div className="upm-table-actions">
+              {tab === 'data' && !editing ? (
+                <button type="button" className="upm-btn upm-btn-primary" onClick={() => setEditing(true)}>
+                  {isSelf ? 'تعديل بياناتي' : 'تعديل الصلاحيات'}
+                </button>
+              ) : null}
               {user.status === 'PENDING_APPROVAL' ? (
                 <>
                   <button
@@ -422,6 +491,24 @@ export default function UserProfileModal({
                   <Ban className="w-4 h-4" />
                   حظر IP
                 </button>
+              ) : null}
+              {onDelete && tab === 'data' ? (
+                confirmDelete ? (
+                  <>
+                    <button type="button" className="upm-btn upm-btn-danger" onClick={onDelete}>
+                      <Trash2 className="w-4 h-4" />
+                      تأكيد الحذف
+                    </button>
+                    <button type="button" className="upm-btn upm-btn-ghost" onClick={() => setConfirmDelete(false)}>
+                      إلغاء
+                    </button>
+                  </>
+                ) : (
+                  <button type="button" className="upm-btn upm-btn-danger" onClick={() => setConfirmDelete(true)}>
+                    <Trash2 className="w-4 h-4" />
+                    حذف الحساب
+                  </button>
+                )
               ) : null}
             </div>
             ) : null}
