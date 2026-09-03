@@ -260,7 +260,12 @@ function initTables(db: Database.Database) {
       paid_amount REAL DEFAULT 0,
       payment_status TEXT DEFAULT 'UNPAID',
       reservation_status TEXT DEFAULT 'CONFIRMED',
-      created_at TEXT
+      created_at TEXT,
+      updated_at TEXT,
+      extras TEXT,
+      invoice TEXT,
+      appointments TEXT,
+      program TEXT
     );
 
     CREATE TABLE IF NOT EXISTS receipts (
@@ -422,6 +427,12 @@ function initTables(db: Database.Database) {
     ensureColumn('access_requests', 'pcPrint', 'TEXT');
     ensureColumn('access_requests', 'userAgent', 'TEXT');
     ensureColumn('access_requests', 'status', "TEXT DEFAULT 'PENDING_APPROVAL'");
+
+    ensureColumn('reservations', 'updated_at', 'TEXT');
+    ensureColumn('reservations', 'extras', 'TEXT');
+    ensureColumn('reservations', 'invoice', 'TEXT');
+    ensureColumn('reservations', 'appointments', 'TEXT');
+    ensureColumn('reservations', 'program', 'TEXT');
   } catch (migErr) {
     console.warn('[SQLite Migration Notice]:', migErr);
   }

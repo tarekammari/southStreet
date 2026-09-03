@@ -10,6 +10,8 @@ import { toPortalRole, PORTAL_TABS, defaultPortalTab } from '@/lib/roles';
 import ReviewComposer from '@/components/ReviewComposer';
 import AccountSecurityPanel from '@/components/AccountSecurityPanel';
 import SessionHeartbeat from '@/components/SessionHeartbeat';
+import LoginModal from '@/components/LoginModal';
+import PilgrimProgram from '@/components/dashboards/PilgrimProgram';
 
 const TabFallback = () => (
   <div className="luxury-card p-10 flex items-center justify-center text-xs text-slate-400 gap-2">
@@ -52,17 +54,9 @@ function CustomerPortalContent() {
   const demoMode = searchParams.get('demo') === '1';
 
   const [activeTab, setActiveTab] = useState<string>(initialTab);
-  const [currentUser, setCurrentUser] = useState<User>({
-    id: 'usr_pilgrim_user',
-    code: 'PILGRIM-101',
-    name: 'عمر بن علي',
-    role: 'pilgrim',
-    roleName: 'معتمر معتمد',
-    email: 'user@southstreet.dz',
-    phone: '+213 559 88 77 66',
-    avatar: 'ع',
-    status: 'نشط'
-  });
+  const [authReady, setAuthReady] = useState(false);
+  const [loginOpen, setLoginOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [documents, setDocuments] = useState<CustomerDocument[]>([]);
@@ -71,96 +65,149 @@ function CustomerPortalContent() {
   const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
+    const applyUser = (u: any) => {
+      const role = toPortalRole(u.role, { email: u.email, roleName: u.roleName });
+      setCurrentUser({
+        id: u.id || 'usr_user',
+        code: u.code || u.username || 'CODE-2026',
+        name: u.name || 'مستخدم الوكالة',
+        role: role as any,
+        roleName: u.roleName || u.role,
+        email: u.email || '',
+        username: u.username,
+        phone: u.phone || '',
+        avatar: u.name ? u.name.charAt(0) : 'م'
+      });
+      const allowed = PORTAL_TABS[role].map((t) => t.tab);
+      if (!initialTab || !allowed.includes(initialTab)) {
+        setActiveTab(defaultPortalTab(role));
+      }
+      return role;
+    };
+
     const session = localStorage.getItem('south_street_user');
     if (session) {
       try {
-        const u = JSON.parse(session);
-        const role = toPortalRole(u.role, { email: u.email, roleName: u.roleName });
-        setCurrentUser({
-          id: u.id || 'usr_user',
-          code: u.code || u.username || 'CODE-2026',
-          name: u.name || 'مستخدم الوكالة',
-          role: role as any,
-          roleName: u.roleName || u.role,
-          email: u.email || '',
-          username: u.username,
-          phone: u.phone || '',
-          avatar: u.name ? u.name.charAt(0) : 'م'
-        });
-        const allowed = PORTAL_TABS[role].map((t) => t.tab);
-        if (!initialTab || !allowed.includes(initialTab)) {
-          setActiveTab(defaultPortalTab(role));
-        }
-      } catch {}
+        applyUser(JSON.parse(session));
+      } catch {
+        localStorage.removeItem('south_street_user');
+      }
+    } else if (demoMode) {
+      applyUser({
+        id: 'usr_pilgrim_user',
+        code: 'PILGRIM-101',
+        name: 'عمر بن علي',
+        role: 'PILGRIM_USER',
+        roleName: 'معتمر معتمد',
+        email: 'user@southstreet.dz',
+        phone: '+213 559 88 77 66',
+      });
     }
 
-    // Load pre-seeded data
-    setReservations([
-      {
-        reservation_id: 'res_1001',
-        reservation_number: 'RES-2026-8801',
-        customer_id: 'usr_pilgrim_user',
-        customer_name: 'عمر بن علي',
-        customer_email: 'user@southstreet.dz',
-        customer_phone: '+213 559 88 77 66',
-        package_id: 'pkg_august_economy_2026',
-        package_name: 'باقة أوت الاقتصادية المميزة (طيران مباشر من الجزائر)',
-        room_type: 'QUAD',
-        travelers_count: 1,
-        travelers: [
-          {
-            first_name: 'عمر',
-            last_name: 'بن علي',
-            passport_number: 'A99887766',
-            passport_expiry: '2030-05-10',
-            birth_date: '1985-04-12',
-            gender: 'MALE',
-            traveler_type: 'ADULT'
-          }
-        ],
-        total_amount: 215000,
-        paid_amount: 215000,
-        currency: 'DZD',
-        status: 'CONFIRMED',
-        payment_status: 'PAID',
-        created_at: '2026-08-11T14:30:00Z',
-        updated_at: '2026-08-11T16:00:00Z'
+    if (demoMode) {
+      setReservations([
+        {
+          reservation_id: 'res_1001',
+          reservation_number: 'RES-2026-8801',
+          customer_id: 'usr_pilgrim_user',
+          customer_name: 'عمر بن علي',
+          customer_email: 'user@southstreet.dz',
+          customer_phone: '+213 559 88 77 66',
+          package_id: 'pkg_august_economy_2026',
+          package_name: 'باقة أوت الاقتصادية المميزة (طيران مباشر من الجزائر)',
+          room_type: 'QUAD',
+          travelers_count: 1,
+          travelers: [
+            {
+              first_name: 'عمر',
+              last_name: 'بن علي',
+              passport_number: 'A99887766',
+              passport_expiry: '2030-05-10',
+              birth_date: '1985-04-12',
+              gender: 'MALE',
+              traveler_type: 'ADULT'
+            }
+          ],
+          total_amount: 215000,
+          paid_amount: 215000,
+          currency: 'DZD',
+          status: 'CONFIRMED',
+          payment_status: 'PAID',
+          created_at: '2026-08-11T14:30:00Z',
+          updated_at: '2026-08-11T16:00:00Z',
+          program: {
+            package_id: 'pkg_august_economy_2026',
+            package_name: 'باقة أوت الاقتصادية المميزة (طيران مباشر من الجزائر)',
+            start_date: '2026-08-15',
+            end_date: '2026-08-29',
+            duration_days: 15,
+            airline: 'الخطوط الجوية الجزائرية والخطوط السعودية',
+            departure_city: 'الجزائر العاصمة',
+            departure_airport: 'مطار هواري بومدين (ALG)',
+            arrival_airport: 'مطار الأمير محمد بن عبد العزيز (MED)',
+            makkah_hotel_name: 'فندق منارات غزة مكة',
+            makkah_hotel_dist: '350م فقط عن صحن الحرم المكي',
+            madinah_hotel_name: 'فندق بولمان زمزم المدينة',
+            madinah_hotel_dist: 'خطوات عن المسجد النبوي',
+            hotel_category: '4 نجوم / 5 نجوم',
+            morshid_name: 'الشيخ د. عبد الرحمن النوي',
+            morshid_phone: '+213 550 12 34 56',
+            included_services: [],
+            room_type: 'QUAD',
+            room_label: 'غرفة رباعية',
+          },
+          appointments: [
+            { id: 'gather', title: 'تجمّع المطار', when: '15 أغسطس 2026 — قبل الإقلاع بـ 4 ساعات', place: 'مطار هواري بومدين' },
+            { id: 'depart', title: 'إقلاع الرحلة', when: '15 أغسطس 2026', place: 'الجزائر ➜ المدينة' },
+          ],
+        }
+      ]);
+      setDocuments([
+        {
+          document_id: 'doc_101',
+          customer_id: 'usr_pilgrim_user',
+          document_type: 'PASSPORT',
+          file_name: 'Passport_Omar_Bin_Ali.pdf',
+          file_url: '/documents/passport_omar.pdf',
+          status: 'VERIFIED',
+          uploaded_at: '2026-08-10T10:00:00Z'
+        }
+      ]);
+      setReceipts([
+        {
+          id: 'RCP-8801',
+          pilgrimName: 'عمر بن علي',
+          pilgrimCode: 'PILGRIM-101',
+          packageName: 'باقة أوت الاقتصادية المميزة',
+          totalAmount: 215000,
+          paidAmount: 215000,
+          remainingAmount: 0,
+          paymentMethod: 'تحويل بريدي موب (BaridiMob)',
+          date: '2026-08-11',
+          accountantName: 'الأستاذ ياسين الفاسي',
+          status: 'مكتمل'
+        }
+      ]);
+    } else {
+      const token = localStorage.getItem('south_street_token');
+      if (token) {
+        fetch('/api/bookings', { headers: { Authorization: `Bearer ${token}` } })
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => {
+            if (!data) return;
+            if (Array.isArray(data.reservations)) setReservations(data.reservations);
+            if (Array.isArray(data.receipts)) setReceipts(data.receipts);
+          })
+          .catch(() => {});
       }
-    ]);
-
-    setDocuments([
-      {
-        document_id: 'doc_101',
-        customer_id: 'usr_pilgrim_user',
-        document_type: 'PASSPORT',
-        file_name: 'Passport_Omar_Bin_Ali.pdf',
-        file_url: '/documents/passport_omar.pdf',
-        status: 'VERIFIED',
-        uploaded_at: '2026-08-10T10:00:00Z'
-      }
-    ]);
-
-    setReceipts([
-      {
-        id: 'RCP-8801',
-        pilgrimName: 'عمر بن علي',
-        pilgrimCode: 'PILGRIM-101',
-        packageName: 'باقة أوت الاقتصادية المميزة',
-        totalAmount: 215000,
-        paidAmount: 215000,
-        remainingAmount: 0,
-        paymentMethod: 'تحويل بريدي موب (BaridiMob)',
-        date: '2026-08-11',
-        accountantName: 'الأستاذ ياسين الفاسي',
-        status: 'مكتمل'
-      }
-    ]);
+    }
 
     setPilgrimsList([
       { id: 'USR-005', code: 'PILGRIM-101', name: 'عمر بن علي', role: 'pilgrim', roleName: 'معتمر', phone: '+213 559 88 77 66', room: '1402 - سويس أوتيل مكة' },
       { id: 'USR-006', code: 'PILGRIM-102', name: 'فاطمة الزهراء بن دحمان', role: 'pilgrim', roleName: 'معتمرة', phone: '+213 558 11 22 33', room: '1405 - سويس أوتيل مكة' },
       { id: 'USR-007', code: 'PILGRIM-103', name: 'سليم بلحاج', role: 'pilgrim', roleName: 'معتمر', phone: '+213 555 44 99 00', room: '1408 - سويس أوتيل مكة' }
     ]);
+    setAuthReady(true);
   }, []);
 
   // Quick switch role helper for testing
@@ -236,7 +283,7 @@ function CustomerPortalContent() {
         phone: '+213 559 88 77 66',
         avatar: 'ع'
       });
-      setActiveTab('reservations');
+      setActiveTab('program');
     }
   };
 
@@ -248,7 +295,7 @@ function CustomerPortalContent() {
     setTimeout(() => {
       const newDoc: CustomerDocument = {
         document_id: `doc_${Date.now()}`,
-        customer_id: 'usr_pilgrim_user',
+        customer_id: currentUser?.id || '',
         document_type: 'PASSPORT',
         file_name: file.name,
         file_url: URL.createObjectURL(file),
@@ -260,10 +307,81 @@ function CustomerPortalContent() {
     }, 1000);
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem('south_street_user');
+    localStorage.removeItem('south_street_token');
+    setCurrentUser(null);
+    setReservations([]);
+    setReceipts([]);
+    setDocuments([]);
+  };
+
+  const adoptSession = () => {
+    const session = localStorage.getItem('south_street_user');
+    const token = localStorage.getItem('south_street_token');
+    if (!session) return;
+    try {
+      const u = JSON.parse(session);
+      const role = toPortalRole(u.role, { email: u.email, roleName: u.roleName });
+      setCurrentUser({
+        id: u.id || 'usr_user',
+        code: u.code || u.username || 'CODE-2026',
+        name: u.name || 'مستخدم الوكالة',
+        role: role as any,
+        roleName: u.roleName || u.role,
+        email: u.email || '',
+        username: u.username,
+        phone: u.phone || '',
+        avatar: u.name ? u.name.charAt(0) : 'م'
+      });
+      setActiveTab(initialTab && PORTAL_TABS[role].some((t) => t.tab === initialTab) ? initialTab : defaultPortalTab(role));
+    } catch { /* ignore */ }
+    if (token) {
+      fetch('/api/bookings', { headers: { Authorization: `Bearer ${token}` } })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (!data) return;
+          if (Array.isArray(data.reservations)) setReservations(data.reservations);
+          if (Array.isArray(data.receipts)) setReceipts(data.receipts);
+        })
+        .catch(() => {});
+    }
+  };
+
+  if (!authReady) {
+    return <div className="min-h-screen portal-shell flex items-center justify-center text-slate-500">جاري التحميل...</div>;
+  }
+
+  if (!currentUser) {
+    return (
+      <div className="portal-shell font-tajawal min-h-screen">
+        <Navbar variant="light" />
+        <main className="pt-28 pb-16 max-w-xl mx-auto px-4">
+          <div className="luxury-card p-8 text-center space-y-4">
+            <h1 className="text-xl font-black font-cairo text-slate-900">بوابة المعتمر</h1>
+            <p className="text-sm text-slate-600 leading-relaxed">
+              بعد تأكيد عمرتك يُفتح حسابك هنا لعرض البرنامج والطيران والمرشد والمواعيد ورسائل الوكالة.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <button type="button" className="btn-pro-primary text-sm py-2.5 px-5" onClick={() => setLoginOpen(true)}>
+                تسجيل الدخول
+              </button>
+              <Link href="/book" className="portal-tab portal-tab-inactive no-underline text-center">
+                ابدأ حجز العمرة
+              </Link>
+            </div>
+          </div>
+        </main>
+        {loginOpen ? <LoginModal onClose={() => setLoginOpen(false)} onSelectRole={adoptSession} /> : null}
+        <SakhrAgent />
+      </div>
+    );
+  }
+
   return (
     <div className="portal-shell font-tajawal">
       <SessionHeartbeat />
-      <Navbar currentUser={currentUser} variant="light" />
+      <Navbar currentUser={currentUser} variant="light" onLogout={handleLogout} />
 
       <main className="pt-28 pb-16 max-w-6xl mx-auto px-4 sm:px-6 space-y-6">
         {demoMode && (
@@ -380,10 +498,22 @@ function CustomerPortalContent() {
           </div>
         )}
 
+        {activeTab === 'program' && currentUser.role === 'pilgrim' && (
+          <PilgrimProgram currentUser={currentUser} reservation={reservations[0] || null} />
+        )}
+
         {activeTab === 'reservations' && currentUser.role === 'pilgrim' && (
           <div className="space-y-4 animate-fade-up">
-            <h2 className="text-lg font-bold font-cairo text-slate-900">قائمة الحجوزات</h2>
-            {reservations.map((res) => (
+            <div className="flex justify-between items-center gap-3 flex-wrap">
+              <h2 className="text-lg font-bold font-cairo text-slate-900">قائمة الحجوزات</h2>
+              <Link href="/book" className="portal-tab portal-tab-inactive no-underline text-xs">حجز جديد</Link>
+            </div>
+            {reservations.length === 0 ? (
+              <div className="luxury-card p-8 text-center space-y-3">
+                <p className="text-sm text-slate-500">لا يوجد حجز بعد. أكّد باقة العمرة لفتح برنامجك.</p>
+                <Link href="/book" className="btn-pro-primary text-sm py-2.5 px-5 inline-flex">ابدأ الحجز</Link>
+              </div>
+            ) : reservations.map((res) => (
               <div key={res.reservation_id} className="luxury-card p-6 space-y-4">
                 <div className="flex justify-between items-start gap-3">
                   <div>
@@ -397,11 +527,26 @@ function CustomerPortalContent() {
                   </span>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4 rounded-xl bg-slate-50 text-xs text-slate-600 border border-slate-100">
-                  <div>الغرفة: <strong>{res.room_type}</strong></div>
+                  <div>الغرفة: <strong>{res.program?.room_label || res.room_type}</strong></div>
                   <div>المعتمرون: <strong>{res.travelers_count}</strong></div>
-                  <div>المبلغ: <strong>{res.total_amount.toLocaleString()} دج</strong></div>
+                  <div>المبلغ: <strong>{res.total_amount.toLocaleString('ar-DZ')} دج</strong></div>
                   <div>الدفع: <strong>{res.payment_status}</strong></div>
                 </div>
+                {res.invoice?.lines?.length ? (
+                  <table className="w-full text-xs text-slate-600">
+                    <tbody>
+                      {res.invoice.lines.map((line) => (
+                        <tr key={line.id} className="border-t border-slate-100">
+                          <td className="py-2">
+                            {line.title}
+                            {line.detail ? <small className="block text-slate-400">{line.detail}</small> : null}
+                          </td>
+                          <td className="py-2 text-left font-bold">{line.amount.toLocaleString('ar-DZ')} دج</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : null}
               </div>
             ))}
           </div>
@@ -417,7 +562,9 @@ function CustomerPortalContent() {
               </label>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {documents.map((doc) => (
+              {documents.length === 0 ? (
+                <p className="text-sm text-slate-500 col-span-2">ارفع جواز السفر وباقي الوثائق بعد تأكيد الحجز. لم يُرفع شيء بعد.</p>
+              ) : documents.map((doc) => (
                 <div key={doc.document_id} className="luxury-card p-5 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-10 h-10 rounded-xl bg-emerald-soft text-emerald-main flex items-center justify-center shrink-0">
@@ -458,7 +605,9 @@ function CustomerPortalContent() {
         {activeTab === 'payments' && currentUser.role === 'pilgrim' && (
           <div className="space-y-4 animate-fade-up">
             <h2 className="text-lg font-bold font-cairo text-slate-900">وصولات الدفع</h2>
-            {receipts.map((rcp) => (
+            {receipts.length === 0 ? (
+              <div className="luxury-card p-8 text-center text-sm text-slate-500">ستظهر سندات الدفع هنا بعد تأكيد الحجز.</div>
+            ) : receipts.map((rcp) => (
               <div key={rcp.id} className="luxury-card p-5 flex justify-between items-center gap-4">
                 <div>
                   <span className="text-xs font-mono font-bold text-emerald-main">{rcp.id}</span>

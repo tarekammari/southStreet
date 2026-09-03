@@ -93,6 +93,14 @@ export const APP_PAGES: AppPage[] = [
     keywords: ['فنادق', 'فندق', 'hotels', 'مكة', 'المدينة', 'سويس', 'منارات', 'إقامة', 'صفحة الفنادق'],
   },
   {
+    id: 'book',
+    path: '/book',
+    title: 'حجز العمرة',
+    titleEn: 'Book Umrah',
+    description: 'تأكيد باقة العمرة خطوة بخطوة: اختيار الغرفة، الإضافات، الفاتورة، ثم فتح حساب المعتمر.',
+    keywords: ['حجز', 'احجز', 'ابدأ', 'تأكيد', 'فاتورة', 'باقة', 'عمرة', 'book', 'booking', 'invoice'],
+  },
+  {
     id: 'portal',
     path: '/portal',
     title: 'بوابة المعتمرين',
@@ -103,6 +111,7 @@ export const APP_PAGES: AppPage[] = [
     sections: [
       { id: 'rituals', title: 'دليل المناسك', description: 'عداد الطواف والسعي التفاعلي مع الأدعية.', keywords: ['مناسك', 'طواف', 'سعي', 'rituals', 'دليل العمرة'], anchor: '?tab=rituals' },
       { id: 'chat', title: 'المحادثة', description: 'غرفة التواصل المشفرة مع المرشد والفوج.', keywords: ['شات', 'chat', 'محادثة', 'مراسلة'], anchor: '?tab=chat' },
+      { id: 'program', title: 'برنامج العمرة', description: 'الطيران، الفنادق، المرشد، والمواعيد الخاصة بالحجز.', keywords: ['برنامجي', 'طيران', 'مرشد', 'مواعيد', 'فوج'], anchor: '?tab=program' },
       { id: 'reservations', title: 'الحجوزات', description: 'متابعة حجوزات الرحلات والوثائق.', keywords: ['حجز', 'reservations', 'وثائق'], anchor: '?tab=reservations' },
       { id: 'payments', title: 'المدفوعات', description: 'سندات القبض وجدول الأقساط.', keywords: ['دفع', 'payments', 'سند', 'أقساط'], anchor: '?tab=payments' },
     ],

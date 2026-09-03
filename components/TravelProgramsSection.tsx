@@ -154,7 +154,7 @@ export default function TravelProgramsSection({ content }: { content?: PageConte
                       {prog.departure ? <li>{prog.departure}</li> : null}
                       <li>{prog.priceTag || 'السعر عند الطلب'}</li>
                     </ul>
-                    <a href="/packages" className="travel-faq-link" tabIndex={open ? 0 : -1}>
+                    <a href={prog.state === 'available' ? `/book?package=${encodeURIComponent(prog.id)}` : '/packages'} className="travel-faq-link" tabIndex={open ? 0 : -1}>
                       {prog.state === 'available' ? 'اطلب الحجز المباشر' : 'سجّل اهتمامك'}
                     </a>
                   </div>

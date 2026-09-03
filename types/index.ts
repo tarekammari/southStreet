@@ -264,6 +264,61 @@ export type ReservationStatus =
   | 'CANCELLED'
   | 'REJECTED';
 
+export interface InvoiceLine {
+  id: string;
+  title: string;
+  detail?: string;
+  amount: number;
+}
+
+export interface BookingInvoice {
+  lines: InvoiceLine[];
+  extrasTotal: number;
+  total: number;
+  depositPercent: number;
+  depositAmount: number;
+  remainingAmount: number;
+  currency: string;
+}
+
+export interface BookingExtra {
+  id: string;
+  title: string;
+  detail: string;
+  price: number;
+}
+
+export interface ProgramAppointment {
+  id: string;
+  title: string;
+  when: string;
+  place: string;
+  note?: string;
+}
+
+export interface BookingProgram {
+  package_id: string;
+  package_name: string;
+  start_date: string;
+  end_date: string;
+  duration_days: number;
+  airline: string;
+  departure_city: string;
+  departure_airport: string;
+  arrival_airport: string;
+  makkah_hotel_name: string;
+  makkah_hotel_dist: string;
+  madinah_hotel_name: string;
+  madinah_hotel_dist: string;
+  hotel_category: string;
+  morshid_id?: string;
+  morshid_name?: string;
+  morshid_phone?: string;
+  included_services: string[];
+  room_type: string;
+  room_label: string;
+}
+
 export interface Reservation {
   reservation_id: string;
   reservation_number: string;
@@ -283,6 +338,10 @@ export interface Reservation {
   payment_status: 'UNPAID' | 'PENDING' | 'PARTIALLY_PAID' | 'PAID' | 'REFUNDED';
   created_at: string;
   updated_at: string;
+  extras?: BookingExtra[];
+  invoice?: BookingInvoice;
+  appointments?: ProgramAppointment[];
+  program?: BookingProgram;
 }
 
 export interface CustomerDocument {

@@ -131,6 +131,7 @@ export const PORTAL_TABS: Record<PortalRole, { tab: string; label: string }[]> =
     { tab: 'chat', label: 'المحادثة' },
   ],
   pilgrim: [
+    { tab: 'program', label: 'برنامجي' },
     { tab: 'reservations', label: 'حجوزاتي' },
     { tab: 'documents', label: 'وثائقي' },
     { tab: 'payments', label: 'المدفوعات' },

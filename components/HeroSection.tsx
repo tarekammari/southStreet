@@ -236,7 +236,7 @@ export default function HeroSection({ content: _content }: { content?: PageConte
               <motion.div variants={heroFadeUp} className="hero-offer-actions">
                 <button
                   type="button"
-                  onClick={() => { window.location.href = '/portal'; }}
+                  onClick={() => { window.location.href = offer.id ? `/book?package=${encodeURIComponent(offer.id)}` : '/book'; }}
                   className="hero-buy-btn hero-buy-btn-primary"
                 >
                   ابدأ

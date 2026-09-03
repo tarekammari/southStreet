@@ -8,6 +8,7 @@ import { fetchJsonList } from '@/lib/fetch-json';
 import { PageContentRow, pickPageContent } from '@/lib/page-content';
 
 const PRODUCT_LINKS = [
+  { label: 'حجز العمرة', href: '/book' },
   { label: 'الباقات', href: '/packages' },
   { label: 'الفنادق', href: '/hotels' },
   { label: 'برامج السفر', href: '/#programs-section' },

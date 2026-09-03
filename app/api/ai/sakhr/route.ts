@@ -300,7 +300,23 @@ function detectNavigationIntent(prompt: string): { action?: AiAction; actionCard
     };
   }
 
-  if (['افتح الباقات', 'صفحة الباقات', 'خذني للباقات', 'عرض الباقات', 'اريد حجز باقة', 'باقات العمرة'].some(k => lower.includes(k))) {
+  if (['احجز', 'حجز عمرة', 'ابدأ الحجز', 'تأكيد العمرة', 'فاتورة', 'اريد حجز', 'أريد أن أحجز'].some(k => lower.includes(k))) {
+    return {
+      text: '🕋 تم توجيهك إلى **مسار حجز العمرة**. أربع خطوات: الباقة، الغرفة والإضافات، بياناتك، ثم الفاتورة وتأكيد الحساب.',
+      action: { type: 'navigate', target: 'book' },
+      actionCard: {
+        type: 'action',
+        data: {
+          title: 'حجز العمرة خطوة بخطوة',
+          description: 'اختر الباقة والإضافات وراجع الفاتورة ثم افتح حساب المعتمر.',
+          buttonText: '🕋 ابدأ الحجز الآن',
+          targetUrl: '/book'
+        }
+      }
+    };
+  }
+
+  if (['افتح الباقات', 'صفحة الباقات', 'خذني للباقات', 'عرض الباقات', 'باقات العمرة'].some(k => lower.includes(k))) {
     return {
       text: '🚀 تم توجيهك إلى **صفحة باقات العمرة 2026**. يمكنك استعراض كافة البرامج والأسعار وتفاصيل الفنادق المتاحة.',
       action: { type: 'navigate', target: 'packages' },
@@ -996,8 +1012,8 @@ export async function POST(req: Request) {
           data: {
             title: rule.title_ar,
             description: 'استعراض الحجز المباشر لهذه الباقة',
-            buttonText: '🚀 الانتقال لصفحة الباقات',
-            targetUrl: '/packages'
+            buttonText: '🚀 الانتقال لمسار الحجز',
+            targetUrl: '/book'
           }
         });
       }

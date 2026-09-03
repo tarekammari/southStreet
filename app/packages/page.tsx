@@ -110,7 +110,7 @@ export default function PackagesPage() {
                       <span className="text-[10px] text-slate-400 block">تبدأ من</span>
                       <span className="text-xl font-black text-emerald-700 font-cairo">{minPrice.toLocaleString()} <span className="text-xs">دج</span></span>
                     </div>
-                    <Link href="/portal" className="btn-pro-primary text-xs py-2.5 px-4">
+                    <Link href={`/book?package=${encodeURIComponent(pkg.package_id)}`} className="btn-pro-primary text-xs py-2.5 px-4">
                       حجز <CheckCircle className="w-3.5 h-3.5" />
                     </Link>
                   </div>

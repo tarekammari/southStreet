@@ -4369,3 +4369,363 @@ body.modal-open .sakhr-panel-shell {
   flex-direction: column;
   gap: 0.65rem;
 }
+
+/* Umrah booking wizard */
+.book-wizard {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-soft);
+  padding: 1.5rem 1.25rem 1.25rem;
+}
+
+.book-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+  list-style: none;
+  margin-bottom: 1.5rem;
+}
+
+.book-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.book-step-num {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 800;
+  border: 1px solid var(--border-subtle);
+  background: #fff;
+}
+
+.book-step.is-current {
+  color: var(--primary-green);
+}
+
+.book-step.is-current .book-step-num,
+.book-step.is-done .book-step-num {
+  background: var(--primary-green);
+  border-color: var(--primary-green);
+  color: #fff;
+}
+
+.book-step-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.book-section-head {
+  margin-bottom: 1rem;
+}
+
+.book-section-head h2 {
+  font-family: var(--font-cairo), sans-serif;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.book-section-head p {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-top: 0.25rem;
+  line-height: 1.6;
+}
+
+.book-error {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  border-radius: 0.9rem;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+
+.book-pkg-grid,
+.book-room-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
+@media (min-width: 700px) {
+  .book-pkg-grid,
+  .book-room-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.book-pkg,
+.book-choice,
+.book-extra {
+  text-align: right;
+  border: 1px solid var(--border-subtle);
+  background: #fff;
+  border-radius: 1rem;
+  padding: 1rem;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.book-pkg:hover,
+.book-choice:hover,
+.book-extra:hover,
+.book-pkg.is-active,
+.book-choice.is-active,
+.book-extra.is-active {
+  border-color: var(--primary-green);
+  box-shadow: 0 8px 24px rgba(4, 120, 87, 0.08);
+}
+
+.book-pkg h3 {
+  font-family: var(--font-cairo), sans-serif;
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  margin: 0.35rem 0 0.6rem;
+}
+
+.book-pkg ul {
+  list-style: none;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.book-pkg li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.book-pkg-type {
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: var(--primary-green);
+  background: var(--primary-soft);
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+}
+
+.book-pkg-price {
+  display: block;
+  margin-top: 0.75rem;
+  color: var(--primary-green);
+  font-size: 0.95rem;
+}
+
+.book-picked {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: var(--primary-green);
+}
+
+.book-choice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.book-choice strong {
+  color: var(--primary-green);
+}
+
+.book-extra-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.book-extra {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.book-extra strong {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+
+.book-extra em {
+  display: block;
+  font-style: normal;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.book-extra b {
+  font-size: 0.8rem;
+  color: var(--primary-green);
+}
+
+.book-form {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.85rem;
+}
+
+@media (min-width: 700px) {
+  .book-form {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.book-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--text-secondary);
+}
+
+.book-form input {
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.85rem;
+  padding: 0.7rem 0.85rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: #f8fafc;
+}
+
+.book-form input:focus {
+  outline: none;
+  border-color: var(--primary-green);
+  background: #fff;
+}
+
+.book-form small {
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.book-invoice {
+  border: 1px solid var(--border-subtle);
+  border-radius: 1rem;
+  overflow: hidden;
+}
+
+.book-invoice-meta {
+  padding: 0.9rem 1rem;
+  background: var(--primary-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.book-invoice-meta p {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.book-invoice table {
+  width: 100%;
+  font-size: 0.8rem;
+}
+
+.book-invoice td {
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--border-subtle);
+  vertical-align: top;
+}
+
+.book-invoice td:last-child {
+  text-align: left;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.book-invoice small {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+  margin-top: 0.15rem;
+}
+
+.book-invoice dl {
+  background: #f8fafc;
+  padding: 0.75rem 1rem 1rem;
+}
+
+.book-invoice dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 0.25rem 0;
+}
+
+.book-invoice dd {
+  font-weight: 800;
+  color: var(--primary-green);
+}
+
+.book-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.book-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 0.9rem;
+  padding: 0.7rem 1.1rem;
+  font-size: 0.8rem;
+  font-weight: 800;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.book-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.book-btn-primary {
+  background: linear-gradient(135deg, var(--primary-green), var(--primary-light));
+  color: #fff;
+}
+
+.book-btn-ghost {
+  background: #fff;
+  color: var(--text-secondary);
+  border-color: var(--border-subtle);
+}
