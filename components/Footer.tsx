@@ -6,6 +6,7 @@ import { ArrowLeft } from 'lucide-react';
 import { motion, useInView } from 'framer-motion';
 import { fetchJsonList } from '@/lib/fetch-json';
 import { PageContentRow, pickPageContent } from '@/lib/page-content';
+import { toPortalRole } from '@/lib/roles';
 
 const PRODUCT_LINKS = [
   { label: 'حجز العمرة', href: '/book' },
@@ -49,6 +50,7 @@ export default function Footer({ content }: { content?: PageContentRow[] }) {
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const [rows, setRows] = useState<PageContentRow[]>(content || []);
+  const [pilgrim, setPilgrim] = useState(false);
   const footerRef = useRef<HTMLElement>(null);
   const footerInView = useInView(footerRef, { once: true, amount: 0.12 });
 
@@ -60,10 +62,32 @@ export default function Footer({ content }: { content?: PageContentRow[] }) {
     fetchJsonList<PageContentRow>('/api/admin/content').then(setRows);
   }, [content]);
 
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('south_street_user');
+      if (!raw) return;
+      const u = JSON.parse(raw);
+      setPilgrim(toPortalRole(u.role, { email: u.email, roleName: u.roleName }) === 'pilgrim');
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   const news = pickPageContent(rows, 'footer_newsletter', {
     title: 'لا تفوّتوا جديدنا',
     content: 'أدخلوا بريدكم الإلكتروني للأخبار وتحديثات الرحلات',
   });
+
+  const productLinks = PRODUCT_LINKS.map((link) =>
+    pilgrim && link.href.includes('tab=rituals')
+      ? { label: 'برنامجي', href: '/portal?tab=program' }
+      : link
+  );
+  const companyLinks = COMPANY_LINKS.map((link) =>
+    pilgrim && link.href === '/portal'
+      ? { label: 'برنامجي', href: '/portal?tab=program' }
+      : link
+  );
 
   return (
     <motion.footer
@@ -142,13 +166,13 @@ export default function Footer({ content }: { content?: PageContentRow[] }) {
           >
             <motion.nav aria-label="البرامج" variants={itemVariants}>
               <h3>البرامج</h3>
-              {PRODUCT_LINKS.map((link) => (
+              {productLinks.map((link) => (
                 <Link key={link.href} href={link.href}>{link.label}</Link>
               ))}
             </motion.nav>
             <motion.nav aria-label="الوكالة" variants={itemVariants}>
               <h3>الوكالة</h3>
-              {COMPANY_LINKS.map((link) => (
+              {companyLinks.map((link) => (
                 <Link key={link.href} href={link.href}>{link.label}</Link>
               ))}
             </motion.nav>

@@ -40,9 +40,9 @@ function BookPageInner() {
           <span className="badge-pro">
             <Sparkles className="w-4 h-4" /> حجز العمرة خطوة بخطوة
           </span>
-          <h1 className="text-2xl sm:text-3xl font-black font-cairo text-slate-900">أكّد طلب عمرتك ثم ادخل إلى برنامجك</h1>
+          <h1 className="text-2xl sm:text-3xl font-black font-cairo text-slate-900">أكّد طلب عمرتك أو أدر برنامجك</h1>
           <p className="text-sm text-slate-600 max-w-2xl mx-auto leading-relaxed">
-            أربع خطوات فقط: الباقة، الغرفة والإضافات، بياناتك، ثم الفاتورة. بعد التأكيد يُفتح حسابك كمعتمر لعرض الطيران والمرشد والمواعيد والمحادثة.
+            أربع خطوات للحجز الجديد. إذا كان لديك طلب قائم، يمكنك تعديله أو إلغاؤه ثم الحجز من جديد — دون فتح طلب مزدوج.
           </p>
         </div>
         <BookingWizard />

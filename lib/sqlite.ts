@@ -433,6 +433,10 @@ function initTables(db: Database.Database) {
     ensureColumn('reservations', 'invoice', 'TEXT');
     ensureColumn('reservations', 'appointments', 'TEXT');
     ensureColumn('reservations', 'program', 'TEXT');
+    ensureColumn('reservations', 'agency_confirmed_at', 'TEXT');
+    ensureColumn('reservations', 'agency_confirmed_by', 'TEXT');
+    ensureColumn('reservations', 'document_verify_code', 'TEXT');
+    ensureColumn('reservations', 'agency_note', 'TEXT');
   } catch (migErr) {
     console.warn('[SQLite Migration Notice]:', migErr);
   }

@@ -1,0 +1,138 @@
+.print-viewer {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  display: flex;
+  flex-direction: column;
+}
+
+.print-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 20px;
+  background: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  color: #e2e8f0;
+}
+
+.print-toolbar-title {
+  font-size: 14px;
+  font-weight: 800;
+  text-align: center;
+  flex: 1;
+}
+
+.print-toolbar-sub {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+.print-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #f8fafc;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.print-toolbar-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.print-toolbar-btn-primary {
+  background: #047857;
+  border-color: #059669;
+}
+
+.print-toolbar-btn-primary:hover {
+  background: #059669;
+}
+
+.print-stage {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 28px 16px 40px;
+  overflow: auto;
+}
+
+.print-sheet-wrap {
+  width: min(794px, 100%);
+  box-shadow:
+    0 25px 50px -12px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.print-sheet-frame {
+  display: block;
+  width: 100%;
+  min-height: 1123px;
+  border: 0;
+  background: #fff;
+}
+
+.print-hint {
+  text-align: center;
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 14px;
+}
+
+.print-loading,
+.print-error {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+.print-error {
+  color: #f87171;
+}
+
+@media print {
+  .print-toolbar,
+  .print-hint {
+    display: none !important;
+  }
+
+  .print-viewer {
+    background: #fff !important;
+  }
+
+  .print-stage {
+    padding: 0 !important;
+  }
+
+  .print-sheet-wrap {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    width: 100% !important;
+  }
+
+  .print-sheet-frame {
+    min-height: auto !important;
+  }
+}

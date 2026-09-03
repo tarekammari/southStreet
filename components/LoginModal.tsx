@@ -65,6 +65,7 @@ export default function LoginModal({ onClose, onSelectRole }: LoginModalProps) {
   const finishLogin = (data: any) => {
     localStorage.setItem('south_street_token', data.token);
     localStorage.setItem('south_street_user', JSON.stringify(data.user));
+    window.dispatchEvent(new CustomEvent('southstreet:bookings-updated'));
     if (onSelectRole) onSelectRole(data.user.role, data.user.name);
     router.push(data.user.redirect || (data.user.role === 'SUPER_ADMIN' || data.user.role === 'AGENCY_MANAGER' ? '/admin' : '/portal'));
     onClose();

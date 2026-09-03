@@ -48,6 +48,96 @@ export const BOOKING_EXTRAS: BookingExtra[] = [
   },
 ];
 
+export const ACTIVE_RESERVATION_STATUSES = [
+  'REQUESTED',
+  'PENDING',
+  'CONFIRMED',
+  'PAYMENT_PENDING',
+  'PARTIALLY_PAID',
+  'PAID',
+  'DOCUMENTS_PENDING',
+  'READY_FOR_TRAVEL',
+] as const;
+
+export const FREE_CANCEL_DAYS = 20;
+
+export function isActiveReservation(status?: string | null): boolean {
+  return ACTIVE_RESERVATION_STATUSES.includes(String(status || '').toUpperCase() as (typeof ACTIVE_RESERVATION_STATUSES)[number]);
+}
+
+export function daysUntilDeparture(startDate?: string | null): number | null {
+  if (!startDate) return null;
+  const start = new Date(startDate);
+  if (Number.isNaN(start.getTime())) return null;
+  start.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.round((start.getTime() - today.getTime()) / 86400000);
+}
+
+export function reservationStatusLabel(status?: string | null): string {
+  const s = String(status || '').toUpperCase();
+  switch (s) {
+    case 'REQUESTED':
+    case 'PENDING':
+      return 'بانتظار تأكيد الوكالة';
+    case 'CONFIRMED':
+      return 'مؤكد من الوكالة';
+    case 'PAYMENT_PENDING':
+      return 'بانتظار الدفع';
+    case 'PARTIALLY_PAID':
+      return 'مدفوع جزئياً';
+    case 'PAID':
+      return 'مدفوع بالكامل';
+    case 'DOCUMENTS_PENDING':
+      return 'بانتظار الوثائق';
+    case 'READY_FOR_TRAVEL':
+      return 'جاهز للسفر';
+    case 'COMPLETED':
+      return 'مكتمل';
+    case 'CANCELLED':
+      return 'ملغى';
+    case 'REJECTED':
+      return 'مرفوض من الوكالة';
+    default:
+      return status || '—';
+  }
+}
+
+export function isAgencyConfirmed(status?: string | null): boolean {
+  const s = String(status || '').toUpperCase();
+  return ['CONFIRMED', 'PARTIALLY_PAID', 'PAID', 'DOCUMENTS_PENDING', 'READY_FOR_TRAVEL', 'COMPLETED'].includes(s);
+}
+
+export function paymentStatusLabel(status?: string | null): string {
+  const s = String(status || '').toUpperCase();
+  switch (s) {
+    case 'UNPAID':
+      return 'غير مدفوع';
+    case 'PENDING':
+      return 'بانتظار الدفع';
+    case 'PARTIALLY_PAID':
+      return 'مدفوع جزئياً';
+    case 'PAID':
+      return 'مدفوع بالكامل';
+    case 'REFUNDED':
+      return 'مسترد';
+    default:
+      return status || '—';
+  }
+}
+
+export function canSelfManageReservation(status?: string | null, startDate?: string | null): { ok: boolean; reason?: string } {
+  if (!isActiveReservation(status)) {
+    return { ok: false, reason: 'هذا الطلب ملغى أو مكتمل. يمكنك بدء حجز جديد.' };
+  }
+  const days = daysUntilDeparture(startDate);
+  if (days !== null && days < 0) {
+    return { ok: false, reason: 'الرحلة بدأت. للتعديل أو الإلغاء تواصل مع الوكالة من المحادثة.' };
+  }
+  return { ok: true };
+}
+
 export function extrasByIds(ids: string[]): BookingExtra[] {
   const wanted = new Set(ids);
   return BOOKING_EXTRAS.filter((item) => wanted.has(item.id));

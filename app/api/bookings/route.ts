@@ -11,10 +11,16 @@ import { resolveRequestIp } from '@/lib/security-threats';
 import { buildDmChatId } from '@/lib/chat-utils';
 import {
   BOOKING_EXTRAS,
+  applyReservationChanges,
   buildAppointments,
   buildInvoice,
   buildProgram,
+  cancelCustomerReservation,
   extrasByIds,
+  findActiveReservation,
+  getOwnedReservation,
+  isActiveReservation,
+  listCustomerReservations,
   loadPublishedPackage,
   lookupMorshidPhone,
   mapReservationRow,
@@ -22,6 +28,7 @@ import {
   roomPriceFor,
   ROOM_LABELS,
 } from '@/lib/booking';
+import { documentVerifyCode } from '@/lib/booking-documents';
 
 export const dynamic = 'force-dynamic';
 
@@ -99,6 +106,119 @@ function splitName(fullName: string): { first_name: string; last_name: string } 
   };
 }
 
+function travelersFrom(name: string, passport: string) {
+  const { first_name, last_name } = splitName(name);
+  return [{
+    first_name,
+    last_name,
+    passport_number: passport,
+    passport_expiry: '',
+    birth_date: '',
+    gender: 'MALE' as const,
+    traveler_type: 'ADULT' as const,
+  }];
+}
+
+function parseBookingBody(body: any) {
+  return {
+    packageId: String(body.packageId || '').trim(),
+    roomType: String(body.roomType || '').toUpperCase(),
+    extraIds: Array.isArray(body.extraIds) ? body.extraIds.map(String) : [],
+    name: String(body.name || '').trim(),
+    phone: String(body.phone || '').trim(),
+    email: String(body.email || '').trim().toLowerCase(),
+    password: String(body.password || ''),
+    passport: String(body.passport || '').trim(),
+    reservationId: String(body.reservationId || '').trim(),
+  };
+}
+
+function validateDemand(input: ReturnType<typeof parseBookingBody>, { requirePassword }: { requirePassword: boolean }) {
+  if (!input.packageId) return 'اختر باقة العمرة أولاً';
+  if (!['SINGLE', 'DOUBLE', 'TRIPLE', 'QUAD'].includes(input.roomType)) return 'اختر نوع الغرفة';
+  if (!input.name || input.name.length < 4) return 'أدخل الاسم الكامل كما في الجواز';
+  if (!input.phone) return 'رقم الهاتف مطلوب للتواصل';
+  if (!input.email || !input.email.includes('@')) return 'أدخل بريداً إلكترونياً صحيحاً';
+  if (requirePassword && input.password.trim().length < 8) return 'كلمة المرور يجب أن تكون 8 أحرف على الأقل';
+  return null;
+}
+
+function quoteDemand(packageId: string, roomType: string, extraIds: string[]) {
+  const pkg = loadPublishedPackage(packageId);
+  if (!pkg || pkg.published === false) {
+    return { ok: false as const, error: 'هذه الباقة غير متاحة للحجز حالياً', status: 404 as const };
+  }
+  const roomAmount = roomPriceFor(pkg, roomType);
+  if (roomAmount == null) {
+    return { ok: false as const, error: 'سعر هذا النوع من الغرف غير متوفر', status: 400 as const };
+  }
+  const extras = extrasByIds(extraIds);
+  const invoice = buildInvoice(
+    {
+      id: `room_${roomType}`,
+      title: `${pkg.name} — ${ROOM_LABELS[roomType] || roomType}`,
+      detail: `${pkg.duration_days} يوماً · ${pkg.airline || ''}`,
+      amount: roomAmount,
+    },
+    extras
+  );
+  return { ok: true as const, pkg, extras, invoice };
+}
+
+function notifyAgency(account: any, text: string, pkgName?: string) {
+  try {
+    const db = getSqliteDb();
+    const agent = db.prepare("SELECT * FROM users WHERE id = 'usr_agent'").get() as any;
+    if (agent) {
+      dbSaveMessage({
+        id: '',
+        chatId: buildDmChatId(account.id, agent.id),
+        senderId: agent.id,
+        senderName: agent.name,
+        senderAvatar: agent.avatar || 'س',
+        senderRole: 'agent',
+        text,
+        time: '',
+      });
+    }
+    if (pkgName) {
+      const welcomeFrom = agent;
+      if (welcomeFrom) {
+        dbSaveMessage({
+          id: '',
+          chatId: 'group-campaign-makkah',
+          senderId: welcomeFrom.id,
+          senderName: welcomeFrom.name,
+          senderAvatar: welcomeFrom.avatar || 'م',
+          senderRole: 'agent',
+          text,
+          time: '',
+        });
+      }
+    }
+  } catch {
+    /* chat is optional */
+  }
+}
+
+function existingBookingResponse(account: any, req: Request, reservation: ReturnType<typeof findActiveReservation>) {
+  const session = issueSession(account, req);
+  const res = NextResponse.json({
+    error: 'لديك طلب عمرة قائم. يمكنك عرضه أو تعديله أو إلغاؤه ثم الحجز من جديد.',
+    code: 'EXISTING_BOOKING',
+    reservation,
+    token: session.token,
+    user: { ...session.user, redirect: '/book' },
+  }, { status: 409 });
+  res.cookies.set('south_street_token', session.token, {
+    httpOnly: false,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 60 * 60 * 24,
+  });
+  return res;
+}
+
 export async function GET(req: NextRequest) {
   const auth = getAuthUser(req);
   if (!auth) {
@@ -107,14 +227,8 @@ export async function GET(req: NextRequest) {
 
   const db = getSqliteDb();
   const account = db.prepare('SELECT * FROM users WHERE id = ?').get(auth.id) as any;
-
-  const rows = db.prepare(`
-    SELECT * FROM reservations WHERE customer_id = ?
-  `).all(auth.id) as any[];
-
-  const reservations = rows
-    .map(mapReservationRow)
-    .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+  const reservations = listCustomerReservations(auth.id);
+  const activeReservation = reservations.find((row) => isActiveReservation(row.status)) || null;
 
   const allReceipts = db.prepare('SELECT * FROM receipts').all() as any[];
   const receipts = allReceipts
@@ -125,7 +239,7 @@ export async function GET(req: NextRequest) {
     )
     .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
 
-  return NextResponse.json({ reservations, receipts });
+  return NextResponse.json({ reservations, receipts, activeReservation });
 }
 
 export async function POST(req: NextRequest) {
@@ -230,9 +344,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'تعذّر إنشاء حساب المعتمر' }, { status: 500 });
     }
 
+    const active = findActiveReservation(account.id);
+    if (active) {
+      return existingBookingResponse(account, req, active);
+    }
+
     const now = new Date().toISOString();
     const reservationId = `res_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const reservationNumber = nextReservationNumber();
+    const verifyCode = documentVerifyCode(reservationNumber, 'request', invoice.total);
     const { first_name, last_name } = splitName(name);
     const travelers = [{
       first_name,
@@ -251,8 +371,9 @@ export async function POST(req: NextRequest) {
         INSERT INTO reservations (
           reservation_id, reservation_number, customer_id, customer_name, customer_email, customer_phone,
           package_id, package_name, room_type, travelers_count, travelers, total_price, paid_amount,
-          payment_status, reservation_status, created_at, updated_at, extras, invoice, appointments, program
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          payment_status, reservation_status, created_at, updated_at, extras, invoice, appointments, program,
+          document_verify_code
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         reservationId,
         reservationNumber,
@@ -266,15 +387,16 @@ export async function POST(req: NextRequest) {
         1,
         JSON.stringify(travelers),
         invoice.total,
-        invoice.depositAmount,
-        'PARTIALLY_PAID',
-        'CONFIRMED',
+        0,
+        'PENDING',
+        'REQUESTED',
         now,
         now,
         JSON.stringify(extras),
         JSON.stringify(invoice),
         JSON.stringify(appointments),
-        JSON.stringify(program)
+        JSON.stringify(program),
+        verifyCode
       );
 
       db.prepare(`
@@ -283,26 +405,8 @@ export async function POST(req: NextRequest) {
       `).run(pkg.package_id);
     })();
 
-    const receipt = dbSaveReceipt({
-      id: `RCP-${reservationNumber.replace('RES-', '')}`,
-      pilgrimName: name,
-      pilgrimCode: account.code || account.username || account.id,
-      packageName: pkg.name,
-      totalAmount: invoice.total,
-      paidAmount: invoice.depositAmount,
-      remainingAmount: invoice.remainingAmount,
-      paymentMethod: 'دفعة تأكيد أولى (30%) — تحويل بريدي موب / CCP',
-      date: now.slice(0, 10),
-      accountantName: 'الأستاذ ياسين الفاسي',
-      status: 'دفعة أولى',
-    });
-
     try {
       const agent = db.prepare("SELECT * FROM users WHERE id = 'usr_agent'").get() as any;
-      const guide = pkg.morshid_id
-        ? (db.prepare('SELECT * FROM users WHERE staffId = ? OR name LIKE ?').get(pkg.morshid_id, `%${pkg.morshid_name || ''}%`) as any)
-        : (db.prepare("SELECT * FROM users WHERE id = 'usr_guide'").get() as any);
-
       if (agent) {
         dbSaveMessage({
           id: '',
@@ -311,22 +415,17 @@ export async function POST(req: NextRequest) {
           senderName: agent.name,
           senderAvatar: agent.avatar || 'س',
           senderRole: 'agent',
-          text: `مرحباً ${name}، تم تأكيد طلب عمرتك رقم ${reservationNumber}. الدفعة الأولى ${invoice.depositAmount.toLocaleString('ar-DZ')} دج، والمتبقي ${invoice.remainingAmount.toLocaleString('ar-DZ')} دج قبل السفر. فريق خدمة العملاء معك من هنا.`,
+          text: `مرحباً ${name}، استلمنا طلب عمرتك رقم ${reservationNumber}. فريق الوكالة يراجع الطلب ويؤكده خلال 24–48 ساعة. يمكنك طباعة طلب الحجز من بوابة المعتمر.`,
           time: '',
         });
-      }
-
-      const groupId = 'group-campaign-makkah';
-      const welcomeFrom = guide || agent;
-      if (welcomeFrom) {
         dbSaveMessage({
           id: '',
-          chatId: groupId,
-          senderId: welcomeFrom.id,
-          senderName: welcomeFrom.name,
-          senderAvatar: welcomeFrom.avatar || 'م',
-          senderRole: welcomeFrom.id === 'usr_guide' ? 'murshid' : 'agent',
-          text: `تم انضمام المعتمر ${name} إلى برنامج «${pkg.name}». موعد التجمع: ${appointments[0]?.when || pkg.start_date}.`,
+          chatId: buildDmChatId(account.id, agent.id),
+          senderId: account.id,
+          senderName: name,
+          senderAvatar: name.charAt(0) || 'م',
+          senderRole: 'pilgrim',
+          text: `طلب جديد: ${pkg.name} — ${ROOM_LABELS[roomType] || roomType}. المجموع ${invoice.total.toLocaleString('ar-DZ')} دج. بانتظار تأكيد الوكالة.`,
           time: '',
         });
       }
@@ -336,7 +435,7 @@ export async function POST(req: NextRequest) {
 
     const session = issueSession(account, req);
     try {
-      dbLogAudit(name, 'PILGRIM_USER', 'تأكيد حجز عمرة', `${reservationNumber} — ${pkg.name}`, session.ip);
+      dbLogAudit(name, 'PILGRIM_USER', 'تقديم طلب عمرة', `${reservationNumber} — ${pkg.name}`, session.ip);
     } catch {
       /* audit optional */
     }
@@ -346,12 +445,12 @@ export async function POST(req: NextRequest) {
     );
 
     const res = NextResponse.json({
-      status: 'SUCCESS',
+      status: 'REQUESTED',
       token: session.token,
-      user: { ...session.user, redirect: '/portal?tab=program' },
+      user: { ...session.user, redirect: '/portal?tab=reservations' },
       reservation,
-      receipt,
       extrasCatalog: BOOKING_EXTRAS,
+      message: 'تم إرسال طلبك. ستتلقى تأكيد الوكالة قبل تفعيل الدفعة الأولى.',
     });
     res.cookies.set('south_street_token', session.token, {
       httpOnly: false,
@@ -363,5 +462,106 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('[booking]', error);
     return NextResponse.json({ error: error?.message || 'تعذّر إتمام الحجز' }, { status: 500 });
+  }
+}
+
+function requirePilgrimAccount(req: NextRequest) {
+  const auth = getAuthUser(req);
+  if (!auth) return { error: NextResponse.json({ error: 'يلزم تسجيل الدخول' }, { status: 401 }) };
+  const db = getSqliteDb();
+  const account = db.prepare('SELECT * FROM users WHERE id = ?').get(auth.id) as any;
+  const role = normalizeLoginRole(account?.role, { email: account?.email, roleName: account?.roleName });
+  if (!account || role !== 'PILGRIM_USER') {
+    return { error: NextResponse.json({ error: 'هذه العملية متاحة لحساب المعتمر فقط' }, { status: 403 }) };
+  }
+  return { account };
+}
+
+export async function PUT(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const gate = requirePilgrimAccount(req);
+    if ('error' in gate) return gate.error;
+    const account = gate.account;
+
+    const input = parseBookingBody(body);
+    const invalid = validateDemand(input, { requirePassword: false });
+    if (invalid) return NextResponse.json({ error: invalid }, { status: 400 });
+    if (!input.reservationId) return NextResponse.json({ error: 'معرّف الطلب مطلوب للتعديل' }, { status: 400 });
+
+    const existing = getOwnedReservation(input.reservationId, account.id);
+    if (!existing) return NextResponse.json({ error: 'الطلب غير موجود' }, { status: 404 });
+
+    const quoted = quoteDemand(input.packageId, input.roomType, input.extraIds);
+    if (!quoted.ok) return NextResponse.json({ error: quoted.error }, { status: quoted.status });
+
+    let reservation;
+    try {
+      reservation = applyReservationChanges({
+        existing,
+        pkg: quoted.pkg,
+        roomType: input.roomType,
+        extras: quoted.extras,
+        invoice: quoted.invoice,
+        name: input.name,
+        phone: input.phone,
+        email: account.email || input.email,
+        travelers: travelersFrom(input.name, input.passport),
+      });
+    } catch (err: any) {
+      if (err?.message === 'NO_SEATS') {
+        return NextResponse.json({ error: 'لا توجد مقاعد متبقية في الباقة الجديدة' }, { status: 409 });
+      }
+      return NextResponse.json({ error: err?.message || 'تعذّر تعديل الطلب' }, { status: 409 });
+    }
+
+    const priceDelta = reservation.total_amount - existing.total_amount;
+    notifyAgency(
+      account,
+      `تم تعديل طلب العمرة رقم ${reservation.reservation_number}. المجموع الجديد ${reservation.total_amount.toLocaleString('ar-DZ')} دج. ${reservation.status === 'REQUESTED' ? 'بانتظار إعادة تأكيد الوكالة.' : ''}`
+    );
+
+    return NextResponse.json({
+      status: reservation.status === 'REQUESTED' ? 'REREQUESTED' : 'UPDATED',
+      reservation,
+      priceDelta,
+      needsAgencyConfirmation: reservation.status === 'REQUESTED',
+      user: { redirect: '/portal?tab=reservations' },
+    });
+  } catch (error: any) {
+    return NextResponse.json({ error: error?.message || 'تعذّر تعديل الطلب' }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const gate = requirePilgrimAccount(req);
+    if ('error' in gate) return gate.error;
+    const account = gate.account;
+    const id = new URL(req.url).searchParams.get('id') || '';
+    if (!id) return NextResponse.json({ error: 'معرّف الطلب مطلوب' }, { status: 400 });
+
+    const existing = getOwnedReservation(id, account.id);
+    if (!existing) return NextResponse.json({ error: 'الطلب غير موجود' }, { status: 404 });
+
+    let reservation;
+    try {
+      reservation = cancelCustomerReservation(existing);
+    } catch (err: any) {
+      return NextResponse.json({ error: err?.message || 'تعذّر إلغاء الطلب' }, { status: 409 });
+    }
+
+    notifyAgency(
+      account,
+      `تم إلغاء طلب العمرة رقم ${reservation.reservation_number} (${reservation.package_name}) بناءً على طلب المعتمر.`
+    );
+
+    return NextResponse.json({
+      status: 'CANCELLED',
+      reservation,
+      user: { redirect: '/book' },
+    });
+  } catch (error: any) {
+    return NextResponse.json({ error: error?.message || 'تعذّر إلغاء الطلب' }, { status: 500 });
   }
 }

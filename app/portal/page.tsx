@@ -7,6 +7,9 @@ import SakhrAgent from '@/components/lazy/LazySakhrAgent';
 import UmrahCounter from '@/components/UmrahCounter';
 import { User, Reservation, CustomerDocument, Receipt } from '@/types';
 import { toPortalRole, PORTAL_TABS, defaultPortalTab } from '@/lib/roles';
+import { isActiveReservation, reservationStatusLabel } from '@/lib/booking-catalog';
+import BookingPrintButton from '@/components/booking/BookingPrintButton';
+import AgencyPendingBookings from '@/components/booking/AgencyPendingBookings';
 import ReviewComposer from '@/components/ReviewComposer';
 import AccountSecurityPanel from '@/components/AccountSecurityPanel';
 import SessionHeartbeat from '@/components/SessionHeartbeat';
@@ -63,6 +66,23 @@ function CustomerPortalContent() {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [pilgrimsList, setPilgrimsList] = useState<User[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+
+  const loadBookings = () => {
+    const token = localStorage.getItem('south_street_token');
+    if (!token) {
+      setReservations([]);
+      setReceipts([]);
+      return;
+    }
+    fetch('/api/bookings', { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!data) return;
+        if (Array.isArray(data.reservations)) setReservations(data.reservations);
+        if (Array.isArray(data.receipts)) setReceipts(data.receipts);
+      })
+      .catch(() => {});
+  };
 
   useEffect(() => {
     const applyUser = (u: any) => {
@@ -189,17 +209,7 @@ function CustomerPortalContent() {
         }
       ]);
     } else {
-      const token = localStorage.getItem('south_street_token');
-      if (token) {
-        fetch('/api/bookings', { headers: { Authorization: `Bearer ${token}` } })
-          .then((res) => (res.ok ? res.json() : null))
-          .then((data) => {
-            if (!data) return;
-            if (Array.isArray(data.reservations)) setReservations(data.reservations);
-            if (Array.isArray(data.receipts)) setReceipts(data.receipts);
-          })
-          .catch(() => {});
-      }
+      loadBookings();
     }
 
     setPilgrimsList([
@@ -337,14 +347,7 @@ function CustomerPortalContent() {
       setActiveTab(initialTab && PORTAL_TABS[role].some((t) => t.tab === initialTab) ? initialTab : defaultPortalTab(role));
     } catch { /* ignore */ }
     if (token) {
-      fetch('/api/bookings', { headers: { Authorization: `Bearer ${token}` } })
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data) => {
-          if (!data) return;
-          if (Array.isArray(data.reservations)) setReservations(data.reservations);
-          if (Array.isArray(data.receipts)) setReceipts(data.receipts);
-        })
-        .catch(() => {});
+      loadBookings();
     }
   };
 
@@ -459,19 +462,32 @@ function CustomerPortalContent() {
         )}
 
         {(currentUser.role === 'manager' || currentUser.role === 'admin') && activeTab === 'manager' && (
-          <ManagerDashboard currentUser={currentUser} campaigns={[]} pilgrims={pilgrimsList} />
+          <div className="space-y-4 animate-fade-up">
+            <AgencyPendingBookings />
+            <ManagerDashboard currentUser={currentUser} campaigns={[]} pilgrims={pilgrimsList} />
+          </div>
         )}
 
         {currentUser.role === 'agent' && activeTab === 'agent' && (
-          <div className="luxury-card p-6 space-y-3 animate-fade-up">
-            <h2 className="text-lg font-bold font-cairo text-slate-900">لوحة موظف الوكالة</h2>
-            <p className="text-sm text-slate-600">
-              يمكنك متابعة استفسارات المعتمرين عبر المحادثة، والتنسيق مع المرشدين والمحاسبة حسب صلاحية دورك.
-            </p>
-            <div className="grid sm:grid-cols-2 gap-3 text-xs">
-              <button onClick={() => setActiveTab('chat')} className="portal-tab portal-tab-active">فتح المحادثة الداخلية</button>
-              <Link href="/packages" className="portal-tab portal-tab-inactive no-underline text-center">عرض الباقات</Link>
+          <div className="space-y-4 animate-fade-up">
+            <AgencyPendingBookings />
+            <div className="luxury-card p-6 space-y-3">
+              <h2 className="text-lg font-bold font-cairo text-slate-900">لوحة موظف الوكالة</h2>
+              <p className="text-sm text-slate-600">
+                يمكنك متابعة استفسارات المعتمرين عبر المحادثة، والتنسيق مع المرشدين والمحاسبة حسب صلاحية دورك.
+              </p>
+              <div className="grid sm:grid-cols-2 gap-3 text-xs">
+                <button onClick={() => setActiveTab('chat')} className="portal-tab portal-tab-active">فتح المحادثة الداخلية</button>
+                <Link href="/packages" className="portal-tab portal-tab-inactive no-underline text-center">عرض الباقات</Link>
+              </div>
             </div>
+          </div>
+        )}
+
+        {/* Admin tab in demo mode — real admins use /admin */}
+        {currentUser.role === 'admin' && activeTab === 'admin' && (
+          <div className="space-y-4 animate-fade-up">
+            <AgencyPendingBookings />
           </div>
         )}
 
@@ -499,7 +515,11 @@ function CustomerPortalContent() {
         )}
 
         {activeTab === 'program' && currentUser.role === 'pilgrim' && (
-          <PilgrimProgram currentUser={currentUser} reservation={reservations[0] || null} />
+          <PilgrimProgram
+            currentUser={currentUser}
+            reservation={reservations.find((row) => isActiveReservation(row.status)) || null}
+            onChanged={loadBookings}
+          />
         )}
 
         {activeTab === 'reservations' && currentUser.role === 'pilgrim' && (
@@ -522,8 +542,12 @@ function CustomerPortalContent() {
                     </span>
                     <h3 className="font-bold text-lg font-cairo text-slate-900 mt-2">{res.package_name}</h3>
                   </div>
-                  <span className="px-3 py-1 rounded-full bg-emerald-soft text-emerald-main text-xs font-bold border border-emerald-main/20 flex items-center gap-1 shrink-0">
-                    <CheckCircle className="w-3.5 h-3.5" /> {res.status}
+                  <span className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1 shrink-0 ${
+                    isActiveReservation(res.status)
+                      ? 'bg-emerald-soft text-emerald-main border-emerald-main/20'
+                      : 'bg-slate-100 text-slate-500 border-slate-200'
+                  }`}>
+                    <CheckCircle className="w-3.5 h-3.5" /> {reservationStatusLabel(res.status)}
                   </span>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4 rounded-xl bg-slate-50 text-xs text-slate-600 border border-slate-100">
@@ -547,6 +571,16 @@ function CustomerPortalContent() {
                     </tbody>
                   </table>
                 ) : null}
+                {isActiveReservation(res.status) ? (
+                  <div className="flex flex-wrap gap-2">
+                    <Link href={`/book?edit=${encodeURIComponent(res.reservation_id)}`} className="portal-tab portal-tab-inactive no-underline text-xs">تعديل الطلب</Link>
+                    <Link href="/portal?tab=program" className="portal-tab portal-tab-inactive no-underline text-xs">عرض البرنامج</Link>
+                    <BookingPrintButton type="request" reservationId={res.reservation_id} className="portal-tab portal-tab-inactive text-xs" />
+                    <BookingPrintButton type="invoice" reservationId={res.reservation_id} className="portal-tab portal-tab-inactive text-xs" />
+                  </div>
+                ) : (
+                  <Link href="/book" className="portal-tab portal-tab-inactive no-underline text-xs">حجز برنامج جديد</Link>
+                )}
               </div>
             ))}
           </div>
@@ -608,15 +642,23 @@ function CustomerPortalContent() {
             {receipts.length === 0 ? (
               <div className="luxury-card p-8 text-center text-sm text-slate-500">ستظهر سندات الدفع هنا بعد تأكيد الحجز.</div>
             ) : receipts.map((rcp) => (
-              <div key={rcp.id} className="luxury-card p-5 flex justify-between items-center gap-4">
+              <div key={rcp.id} className="luxury-card p-5 flex justify-between items-center gap-4 flex-wrap">
                 <div>
                   <span className="text-xs font-mono font-bold text-emerald-main">{rcp.id}</span>
                   <h4 className="font-bold text-sm text-slate-900 mt-1">{rcp.packageName}</h4>
                   <p className="text-xs text-slate-500">{rcp.paymentMethod}</p>
                 </div>
-                <div className="text-left shrink-0">
-                  <span className="text-lg font-bold text-emerald-main font-cairo block">{rcp.totalAmount.toLocaleString()} دج</span>
-                  <span className="text-[10px] text-slate-500 font-medium">{rcp.status}</span>
+                <div className="flex items-center gap-3 shrink-0">
+                  <div className="text-left">
+                    <span className="text-lg font-bold text-emerald-main font-cairo block">{rcp.totalAmount.toLocaleString()} دج</span>
+                    <span className="text-[10px] text-slate-500 font-medium">{rcp.status}</span>
+                  </div>
+                  <BookingPrintButton
+                    type="receipt"
+                    receiptId={rcp.id}
+                    reservationId={reservations.find((r) => r.package_name === rcp.packageName)?.reservation_id}
+                    className="portal-tab portal-tab-inactive text-xs"
+                  />
                 </div>
               </div>
             ))}

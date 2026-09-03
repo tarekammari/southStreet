@@ -342,6 +342,10 @@ export interface Reservation {
   invoice?: BookingInvoice;
   appointments?: ProgramAppointment[];
   program?: BookingProgram;
+  agency_confirmed_at?: string;
+  agency_confirmed_by?: string;
+  document_verify_code?: string;
+  agency_note?: string;
 }
 
 export interface CustomerDocument {
