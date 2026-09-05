@@ -122,7 +122,8 @@ export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 
   const isLight = variant === 'light';
   const headerClass = isApple ? 'top-header-apple' : isLight ? 'top-header-light' : 'top-header-clean';
   const linkClass = isApple ? 'nav-link-apple' : isLight ? 'nav-link-light' : 'nav-link-pro';
-  const logoSrc = isLight ? '/images/south_street_logo.png' : '/images/south_street_logo_white_white.png';
+  const logoWideSrc = '/images/south_street_logo_width.png';
+  const logoMarkSrc = '/images/south_street_logo_just.png';
 
   const renderLink = (link: { label: string; href: string }, mobile = false) => {
     const active = isActive(link.href);
@@ -153,12 +154,18 @@ export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 
         transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
       >
       <header className={`${headerClass} ${scrolled ? 'scrolled' : ''}`}>
-        <Link href="/" className="flex items-center shrink-0" aria-label="South Street Home">
+        <Link href="/" className="nav-logo-link flex items-center shrink-0" aria-label="South Street Home">
           <img
-            src={logoSrc}
+            src={logoWideSrc}
             alt="SOUTH STREET"
-            className={`nav-logo-img ${isApple ? 'nav-logo-apple' : ''}`}
-            onError={(e) => { (e.target as HTMLImageElement).src = '/images/south_street_logo_white_white.png'; }}
+            className={`nav-logo-img nav-logo-desktop ${isApple ? 'nav-logo-apple' : ''}`}
+            onError={(e) => { (e.target as HTMLImageElement).src = '/images/south_street_logo.png'; }}
+          />
+          <img
+            src={logoMarkSrc}
+            alt="SOUTH STREET"
+            className={`nav-logo-img nav-logo-mobile ${isApple ? 'nav-logo-apple' : ''}`}
+            onError={(e) => { (e.target as HTMLImageElement).src = '/images/south_street_logo_width.png'; }}
           />
         </Link>
 

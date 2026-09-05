@@ -6,7 +6,6 @@ import Footer from '@/components/Footer';
 import SakhrAgent from '@/components/lazy/LazySakhrAgent';
 import BookingWizard from '@/components/booking/BookingWizard';
 import { User } from '@/types';
-import { Sparkles } from 'lucide-react';
 
 function BookPageInner() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -35,16 +34,8 @@ function BookPageInner() {
         }}
         variant="light"
       />
-      <main className="page-main pb-16 max-w-5xl mx-auto px-4 sm:px-6">
-        <div className="text-center space-y-3 mb-8 pt-4">
-          <span className="badge-pro">
-            <Sparkles className="w-4 h-4" /> حجز العمرة خطوة بخطوة
-          </span>
-          <h1 className="text-2xl sm:text-3xl font-black font-cairo text-slate-900">أكّد طلب عمرتك أو أدر برنامجك</h1>
-          <p className="text-sm text-slate-600 max-w-2xl mx-auto leading-relaxed">
-            أربع خطوات للحجز الجديد. إذا كان لديك طلب قائم، يمكنك تعديله أو إلغاؤه ثم الحجز من جديد — دون فتح طلب مزدوج.
-          </p>
-        </div>
+      <main className="page-main pb-16 max-w-5xl mx-auto px-4 sm:px-6 pt-6">
+        <h1 className="sr-only">طلب العمرة</h1>
         <BookingWizard />
       </main>
       <Footer />

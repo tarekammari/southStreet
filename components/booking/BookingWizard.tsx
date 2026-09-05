@@ -5,11 +5,17 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowLeft,
   ArrowRight,
+  Car,
   Check,
   CheckCircle,
+  Droplets,
+  FileCheck,
+  Moon,
   Plane,
   MapPin,
   Calendar,
+  Accessibility,
+  Shield,
   UserRound,
   Lock,
   Receipt,
@@ -21,6 +27,7 @@ import {
   DEPOSIT_PERCENT,
   ROOM_LABELS,
   isActiveReservation,
+  roomOccupancy,
 } from '@/lib/booking-catalog';
 import ExistingBookingPanel from '@/components/booking/ExistingBookingPanel';
 import BookingPrintButton from '@/components/booking/BookingPrintButton';
@@ -31,6 +38,25 @@ const STEPS = [
   { id: 3, label: 'بياناتك' },
   { id: 4, label: 'الفاتورة' },
 ];
+
+const EXTRA_ICONS: Record<string, typeof FileCheck> = {
+  visa_fast: FileCheck,
+  private_transfer: Car,
+  zamzam: Droplets,
+  insurance: Shield,
+  extra_night: Moon,
+  wheelchair: Accessibility,
+};
+
+function RoomPeople({ count }: { count: number }) {
+  return (
+    <span className="book-people" aria-hidden>
+      {Array.from({ length: count }, (_, i) => (
+        <UserRound key={i} className="book-person" strokeWidth={2.25} />
+      ))}
+    </span>
+  );
+}
 
 function isAvailablePackage(pkg: { status?: string; published?: boolean }): boolean {
   const status = String(pkg.status || '').toUpperCase();
@@ -140,8 +166,16 @@ export default function BookingWizard() {
   }, [prefillPackage, screen, existing]);
 
   const selected = packages.find((p) => p.package_id === packageId) || null;
+  const otherPackages = packages.filter((p) => p.package_id !== packageId);
   const roomPrices = selected?.prices || [];
   const editing = Boolean(existing && screen === 'wizard' && (editId || existing));
+
+  const choosePackage = (id: string) => {
+    setPackageId(id);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('package', id);
+    router.replace(`/book?${params.toString()}`);
+  };
 
   useEffect(() => {
     if (!selected) return;
@@ -346,25 +380,60 @@ export default function BookingWizard() {
 
       {step === 1 && (
         <section className="space-y-4">
-          <header className="book-section-head">
-            <h2>{editing ? 'غيّر برنامج العمرة' : 'اختر برنامج العمرة'}</h2>
-            <p>خطوة واحدة: الباقة التي تناسب تاريخك وميزانيتك. الأسعار لكل معتمر.</p>
-          </header>
           {loading ? (
             <p className="text-sm text-slate-500 py-10 text-center">جاري تحميل البرامج...</p>
           ) : packages.length === 0 ? (
             <p className="text-sm text-slate-500 py-10 text-center">لا توجد باقات مفتوحة للحجز حالياً.</p>
+          ) : selected ? (
+            <>
+              <article className="book-pkg book-pkg-focus" aria-current="true">
+                <div className="book-pkg-focus-top">
+                  <span className="book-pkg-type">{selected.type}</span>
+                  <span className="book-picked"><CheckCircle className="w-3.5 h-3.5" /> باقتك</span>
+                </div>
+                <h2>{selected.name}</h2>
+                <ul>
+                  {selected.start_date ? <li><Calendar className="w-3.5 h-3.5" /> {formatDate(selected.start_date)}</li> : null}
+                  <li><Plane className="w-3.5 h-3.5" /> {selected.airline}</li>
+                  <li><MapPin className="w-3.5 h-3.5" /> {selected.makkah_hotel_name}</li>
+                </ul>
+                <strong className="book-pkg-price">
+                  من {money(selected.prices?.length ? Math.min(...selected.prices.map((p) => p.amount)) : 0)}
+                </strong>
+              </article>
+              {otherPackages.length > 0 ? (
+                <div className="book-alts">
+                  <p className="book-alts-label">برامج أخرى إن أردت التغيير</p>
+                  <div className="book-alts-list">
+                    {otherPackages.map((pkg) => {
+                      const from = pkg.prices?.length ? Math.min(...pkg.prices.map((p) => p.amount)) : 0;
+                      return (
+                        <button
+                          key={pkg.package_id}
+                          type="button"
+                          className="book-pkg book-pkg-alt"
+                          onClick={() => choosePackage(pkg.package_id)}
+                        >
+                          <span className="book-pkg-type">{pkg.type}</span>
+                          <h3>{pkg.name}</h3>
+                          <strong className="book-pkg-price">من {money(from)}</strong>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+            </>
           ) : (
             <div className="book-pkg-grid">
               {packages.map((pkg) => {
                 const from = pkg.prices?.length ? Math.min(...pkg.prices.map((p) => p.amount)) : 0;
-                const active = pkg.package_id === packageId;
                 return (
                   <button
                     key={pkg.package_id}
                     type="button"
-                    className={`book-pkg ${active ? 'is-active' : ''}`}
-                    onClick={() => setPackageId(pkg.package_id)}
+                    className="book-pkg"
+                    onClick={() => choosePackage(pkg.package_id)}
                   >
                     <span className="book-pkg-type">{pkg.type}</span>
                     <h3>{pkg.name}</h3>
@@ -374,7 +443,6 @@ export default function BookingWizard() {
                       <li><MapPin className="w-3.5 h-3.5" /> {pkg.makkah_hotel_name}</li>
                     </ul>
                     <strong className="book-pkg-price">من {money(from)}</strong>
-                    {active ? <span className="book-picked"><CheckCircle className="w-3.5 h-3.5" /> مختارة</span> : null}
                   </button>
                 );
               })}
@@ -384,41 +452,41 @@ export default function BookingWizard() {
       )}
 
       {step === 2 && selected && (
-        <section className="space-y-6">
-          <header className="book-section-head">
-            <h2>الغرفة والخدمات الإضافية</h2>
-            <p>السعر الأساسي حسب نوع الغرفة. أضف أو أزل ما تحتاجه — الفاتورة تتحدّث فوراً.</p>
-          </header>
+        <section className="space-y-5">
           <div className="book-room-grid">
-            {roomPrices.map((price) => (
-              <button
-                key={price.room_type}
-                type="button"
-                className={`book-choice ${roomType === price.room_type ? 'is-active' : ''}`}
-                onClick={() => setRoomType(price.room_type)}
-              >
-                <span>{ROOM_LABELS[price.room_type] || price.room_type}</span>
-                <strong>{money(price.amount)}</strong>
-              </button>
-            ))}
+            {roomPrices.map((price) => {
+              const count = roomOccupancy(price.room_type);
+              const active = roomType === price.room_type;
+              return (
+                <button
+                  key={price.room_type}
+                  type="button"
+                  className={`book-room ${active ? 'is-active' : 'is-muted'}`}
+                  onClick={() => setRoomType(price.room_type)}
+                  aria-pressed={active}
+                  aria-label={`${ROOM_LABELS[price.room_type] || price.room_type} — ${count} أشخاص — ${money(price.amount)}`}
+                >
+                  <RoomPeople count={count} />
+                  <span className="book-room-name">{ROOM_LABELS[price.room_type] || price.room_type}</span>
+                  <strong className="book-room-price">{money(price.amount)}</strong>
+                  {active ? <CheckCircle className="book-room-check" aria-hidden /> : null}
+                </button>
+              );
+            })}
           </div>
-          <div>
-            <h3 className="text-sm font-bold text-slate-800 mb-3">إضافات اختيارية</h3>
-            <div className="book-extra-list">
-              {BOOKING_EXTRAS.map((item) => {
-                const on = extraIds.includes(item.id);
-                return (
-                  <label key={item.id} className={`book-extra ${on ? 'is-active' : ''}`}>
-                    <input type="checkbox" checked={on} onChange={() => toggleExtra(item.id)} />
-                    <span>
-                      <strong>{item.title}</strong>
-                      <em>{item.detail}</em>
-                    </span>
-                    <b>{money(item.price)}</b>
-                  </label>
-                );
-              })}
-            </div>
+          <div className="book-extra-list">
+            {BOOKING_EXTRAS.map((item) => {
+              const on = extraIds.includes(item.id);
+              const Icon = EXTRA_ICONS[item.id] || Check;
+              return (
+                <label key={item.id} className={`book-extra ${on ? 'is-active' : 'is-muted'}`}>
+                  <input type="checkbox" checked={on} onChange={() => toggleExtra(item.id)} />
+                  <Icon className="book-extra-icon" aria-hidden />
+                  <strong>{item.title}</strong>
+                  <b>{money(item.price)}</b>
+                </label>
+              );
+            })}
           </div>
         </section>
       )}
@@ -520,13 +588,12 @@ export default function BookingWizard() {
 
       <div className="book-nav">
         <div className="flex flex-wrap gap-2 items-center">
-          {step >= 1 && selected ? (
+          {step >= 2 && selected ? (
             <BookingPrintButton
               type={printTypeForStep(step)}
               step={step}
               draft={printDraft}
               reservationId={existing?.reservation_id}
-              disabled={step === 1 && !selected}
             />
           ) : null}
         </div>

@@ -9,6 +9,17 @@ export const ROOM_LABELS: Record<string, string> = {
   SINGLE: 'غرفة فردية',
 };
 
+export const ROOM_OCCUPANCY: Record<string, number> = {
+  QUAD: 4,
+  TRIPLE: 3,
+  DOUBLE: 2,
+  SINGLE: 1,
+};
+
+export function roomOccupancy(type?: string | null): number {
+  return ROOM_OCCUPANCY[String(type || '').toUpperCase()] || 1;
+}
+
 export const BOOKING_EXTRAS: BookingExtra[] = [
   {
     id: 'visa_fast',

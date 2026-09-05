@@ -204,54 +204,65 @@ export default function HeroSection({ content: _content }: { content?: PageConte
       <div className="hero-apple-inner">
         <PostcardCoverFlow />
 
-        <motion.div
-          variants={heroStagger}
-          initial="hidden"
-          animate="show"
-          className="hero-apple-copy"
-          dir="rtl"
-        >
-          <motion.div variants={heroFadeUp} className="hero-branding">
-            <h1 className="hero-headline">
-              <motion.span variants={heroHeadlinePop} className="hero-headline-word">
-                عمرة
-              </motion.span>
-            </h1>
-            {offer?.date ? <p className="hero-offer-date">{offer.date}</p> : null}
+        <div className="hero-apple-copy-col">
+          <motion.div
+            variants={heroStagger}
+            initial="hidden"
+            animate="show"
+            className="hero-apple-copy"
+            dir="rtl"
+          >
+            <motion.div variants={heroFadeUp} className="hero-branding">
+              <h1 className="hero-headline">
+                <motion.span variants={heroHeadlinePop} className="hero-headline-word">
+                  عمرة
+                </motion.span>
+              </h1>
+              {offer?.date ? <p className="hero-offer-date">{offer.date}</p> : null}
+            </motion.div>
+
+            {offer ? (
+              <motion.div variants={heroFadeUp} className="hero-offer">
+                {offer.priceFrom != null ? (
+                  <motion.p variants={heroPricePop} className="hero-offer-price">
+                    <span className="hero-offer-price-from">ابتداءً من</span>
+                    <span className="hero-offer-price-amount">
+                      {offer.priceFrom.toLocaleString('ar-DZ')}
+                    </span>
+                    <span className="hero-offer-price-currency">دج</span>
+                  </motion.p>
+                ) : (
+                  <p className="hero-offer-price">السعر عند الطلب</p>
+                )}
+              </motion.div>
+            ) : null}
           </motion.div>
 
           {offer ? (
-            <motion.div variants={heroFadeUp} className="hero-offer">
-              {offer.priceFrom != null ? (
-                <motion.p variants={heroPricePop} className="hero-offer-price">
-                  <span className="hero-offer-price-from">ابتداءً من</span>
-                  <span className="hero-offer-price-amount">
-                    {offer.priceFrom.toLocaleString('ar-DZ')}
-                  </span>
-                  <span className="hero-offer-price-currency">دج</span>
-                </motion.p>
-              ) : (
-                <p className="hero-offer-price">السعر عند الطلب</p>
-              )}
-              <motion.div variants={heroFadeUp} className="hero-offer-actions">
-                <button
-                  type="button"
-                  onClick={() => { window.location.href = offer.id ? `/book?package=${encodeURIComponent(offer.id)}` : '/book'; }}
-                  className="hero-buy-btn hero-buy-btn-primary"
-                >
-                  ابدأ
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { window.location.href = '/packages'; }}
-                  className="hero-buy-btn hero-buy-btn-secondary"
-                >
-                  جميع الرحلات و العروض
-                </button>
-              </motion.div>
+            <motion.div
+              variants={heroFadeUp}
+              initial="hidden"
+              animate="show"
+              className="hero-offer-actions"
+              dir="rtl"
+            >
+              <button
+                type="button"
+                onClick={() => { window.location.href = offer.id ? `/book?package=${encodeURIComponent(offer.id)}` : '/book'; }}
+                className="hero-buy-btn hero-buy-btn-primary"
+              >
+                ابدأ
+              </button>
+              <button
+                type="button"
+                onClick={() => { window.location.href = '/packages'; }}
+                className="hero-buy-btn hero-buy-btn-secondary"
+              >
+                جميع الرحلات و العروض
+              </button>
             </motion.div>
           ) : null}
-        </motion.div>
+        </div>
       </div>
 
       <button
@@ -269,51 +280,30 @@ export default function HeroSection({ content: _content }: { content?: PageConte
 
 function PostcardCoverFlow() {
   const count = POSTCARDS.length;
-  const pauseUntil = useRef(0);
   const pointerId = useRef<number | null>(null);
   const dragX = useRef(0);
 
   const [active, setActive] = useState(0);
-  const [reduceMotion, setReduceMotion] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
-    const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
     const mobile = window.matchMedia('(max-width: 980px)');
-    const sync = () => {
-      setReduceMotion(motion.matches);
-      setIsMobile(mobile.matches);
-    };
+    const sync = () => setIsMobile(mobile.matches);
     sync();
-    motion.addEventListener('change', sync);
     mobile.addEventListener('change', sync);
-    return () => {
-      motion.removeEventListener('change', sync);
-      mobile.removeEventListener('change', sync);
-    };
+    return () => mobile.removeEventListener('change', sync);
   }, []);
 
   const flowEnabled = true;
-  const autoPlay = flowEnabled && !reduceMotion && isMobile;
   const isDragging = useRef(false);
   const didDrag = useRef(false);
-
-  useEffect(() => {
-    if (!autoPlay) return;
-    const id = window.setInterval(() => {
-      if (Date.now() < pauseUntil.current || isDragging.current) return;
-      setActive((i) => (i + 1) % count);
-    }, 3500);
-    return () => window.clearInterval(id);
-  }, [autoPlay, count]);
+  const steppedThisDrag = useRef(false);
 
   const goTo = useCallback((index: number) => {
-    pauseUntil.current = Date.now() + 2800;
     setActive(((index % count) + count) % count);
   }, [count]);
 
   const stepAlbum = useCallback((dir: -1 | 1) => {
-    pauseUntil.current = Date.now() + 2800;
     setActive((i) => (i + dir + count) % count);
   }, [count]);
 
@@ -321,15 +311,20 @@ function PostcardCoverFlow() {
     if (!flowEnabled || pointerId.current === null) return;
     const dx = e.clientX - dragX.current;
     if (Math.abs(dx) > 6) didDrag.current = true;
-    const threshold = isMobile ? 32 : 40;
+    if (steppedThisDrag.current) return;
+    const threshold = isMobile ? 28 : 40;
     if (Math.abs(dx) > threshold) {
-      stepAlbum(dx > 0 ? -1 : 1);
-      dragX.current = e.clientX;
+      steppedThisDrag.current = true;
+      stepAlbum(dx > 0 ? 1 : -1);
     }
   };
 
   const onCardActivate = (index: number, isFront: boolean) => {
-    if (isFront || didDrag.current) return;
+    if (didDrag.current) return;
+    if (isFront) {
+      if (isMobile) stepAlbum(1);
+      return;
+    }
     goTo(index);
   };
 
@@ -353,6 +348,7 @@ function PostcardCoverFlow() {
           onPointerDown={(e) => {
             isDragging.current = true;
             didDrag.current = false;
+            steppedThisDrag.current = false;
             pointerId.current = e.pointerId;
             dragX.current = e.clientX;
             (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
@@ -360,10 +356,12 @@ function PostcardCoverFlow() {
           onPointerUp={() => {
             pointerId.current = null;
             isDragging.current = false;
+            steppedThisDrag.current = false;
           }}
           onPointerCancel={() => {
             pointerId.current = null;
             isDragging.current = false;
+            steppedThisDrag.current = false;
           }}
           onKeyDown={(e) => {
             if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
@@ -389,14 +387,14 @@ function PostcardCoverFlow() {
                   zIndex: count - Math.abs(offset),
                 }}
                 aria-hidden={!isFront}
-                role={isFront ? undefined : 'button'}
-                tabIndex={isFront || !isVisible ? undefined : 0}
-                aria-label={isFront ? undefined : `عرض ${card.place}`}
+                role="button"
+                tabIndex={isVisible ? 0 : undefined}
+                aria-label={isFront ? `الصورة التالية بعد ${card.place}` : `عرض ${card.place}`}
                 onClick={() => onCardActivate(index, isFront)}
                 onKeyDown={(e) => {
-                  if (!isFront && (e.key === 'Enter' || e.key === ' ')) {
+                  if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
-                    goTo(index);
+                    onCardActivate(index, isFront);
                   }
                 }}
               >
@@ -425,10 +423,10 @@ function PostcardCoverFlow() {
           />
         ))}
         <span className="hero-postcard-hint hero-postcard-hint-idle">
-          {isMobile ? 'اسحب أو انقر على صورة للتنقل' : 'اسحب أو انقر على ألبوم جانبي'}
+          {isMobile ? 'اسحب أو انقر للتنقل' : 'اسحب أو انقر على ألبوم جانبي'}
         </span>
         <span className="hero-postcard-hint hero-postcard-hint-active">
-          انقر على الصورة أو اسحب للتنقل
+          اسحب أو انقر للتنقل
         </span>
       </div>
     </motion.div>
