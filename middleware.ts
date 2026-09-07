@@ -151,7 +151,9 @@ export function middleware(request: NextRequest, event: NextFetchEvent) {
     cfHttp: request.headers.get('cf-http-version'),
     altUsed: request.headers.get('alt-used'),
   });
-  const isAuthPath = url.pathname.startsWith('/api/admin/auth') || url.pathname.startsWith('/api/auth');
+  const isAuthPath =
+    url.pathname.startsWith('/api/admin/auth') ||
+    (url.pathname.startsWith('/api/auth') && url.pathname !== '/api/auth/config');
   const counters = countHit(s, ip, isAuthPath);
   const query = url.search.replace(/^\?/, '').slice(0, 400);
 

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSqliteDb } from '@/lib/sqlite';
 import { getAuthUser } from '@/lib/request-auth';
 import { attachGoogleId, ensureUserAccount, findUserByGoogleId, findUserForLogin } from '@/lib/accounts';
-import { verifyGoogleIdToken } from '@/lib/google-id-token';
+import { verifyGoogleCredential } from '@/lib/google-id-token';
 import { upsertUserSession } from '@/lib/presence';
 import { generateDeviceFingerprint, verifyPassword } from '@/lib/security';
 import { signToken } from '@/lib/auth';
@@ -257,11 +257,11 @@ export async function POST(req: NextRequest) {
     let email = String(body.email || '').trim().toLowerCase();
     const password = String(body.password || '');
     const passport = String(body.passport || '').trim();
-    const googleIdToken = String(body.googleIdToken || '').trim();
-    let googleProfile: Awaited<ReturnType<typeof verifyGoogleIdToken>> | null = null;
+    const googleIdToken = String(body.googleIdToken || body.accessToken || '').trim();
+    let googleProfile: Awaited<ReturnType<typeof verifyGoogleCredential>> | null = null;
     if (googleIdToken) {
       try {
-        googleProfile = await verifyGoogleIdToken(googleIdToken);
+        googleProfile = await verifyGoogleCredential(googleIdToken);
         email = googleProfile.email || email;
       } catch (err: any) {
         return NextResponse.json({ error: err?.message || 'تعذر التحقق من حساب جوجل' }, { status: 400 });

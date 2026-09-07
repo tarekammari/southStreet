@@ -1,3 +1,4 @@
+import { PUBLIC_GOOGLE_WEB_CLIENT_ID } from './google-web-client';
 import { getSqliteDb } from './sqlite';
 
 function fromEnv(): string {
@@ -19,7 +20,7 @@ export function getGoogleClientId(): string {
   } catch {
     /* fall through to env */
   }
-  return fromEnv();
+  return fromEnv() || PUBLIC_GOOGLE_WEB_CLIENT_ID;
 }
 
 export function saveGoogleClientId(clientId: string): string {

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { verifyGoogleIdToken } from '@/lib/google-id-token';
+import { verifyGoogleCredential } from '@/lib/google-id-token';
 import {
   attachGoogleId,
   findUserByGoogleId,
@@ -18,7 +18,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const profile = await verifyGoogleIdToken(String(body.idToken || ''));
+    const profile = await verifyGoogleCredential(String(body.idToken || body.accessToken || ''));
 
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0] || '127.0.0.1';
     const userAgent = req.headers.get('user-agent') || '';

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { PUBLIC_GOOGLE_WEB_CLIENT_ID } from '@/lib/google-web-client';
 
 function GoogleMark() {
   return (
@@ -13,6 +14,10 @@ function GoogleMark() {
   );
 }
 
+type TokenClient = {
+  requestAccessToken: (opts?: { prompt?: string }) => void;
+};
+
 declare global {
   interface Window {
     google?: {
@@ -22,9 +27,51 @@ declare global {
           renderButton: (el: HTMLElement, opts: Record<string, unknown>) => void;
           prompt: (callback?: (notification: unknown) => void) => void;
         };
+        oauth2?: {
+          initTokenClient: (opts: {
+            client_id: string;
+            scope: string;
+            callback: (resp: { access_token?: string; error?: string }) => void;
+            error_callback?: (err: { type?: string; message?: string }) => void;
+          }) => TokenClient;
+        };
       };
     };
   }
+}
+
+function envClientId(): string {
+  return String(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || PUBLIC_GOOGLE_WEB_CLIENT_ID || '').trim();
+}
+
+function waitForGis(timeoutMs = 10000): Promise<void> {
+  if (typeof window === 'undefined') return Promise.reject(new Error('no window'));
+  if (window.google?.accounts) return Promise.resolve();
+
+  return new Promise((resolve, reject) => {
+    if (!document.getElementById('google-gis')) {
+      const script = document.createElement('script');
+      script.id = 'google-gis';
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.onerror = () => reject(new Error('تعذر تحميل خدمة جوجل'));
+      document.head.appendChild(script);
+    }
+
+    const started = Date.now();
+    const tick = () => {
+      if (window.google?.accounts) {
+        resolve();
+        return;
+      }
+      if (Date.now() - started > timeoutMs) {
+        reject(new Error('تعذر تحميل خدمة جوجل'));
+        return;
+      }
+      window.setTimeout(tick, 80);
+    };
+    tick();
+  });
 }
 
 export default function GoogleContinueButton({
@@ -36,25 +83,44 @@ export default function GoogleContinueButton({
   onToken: (idToken: string) => void;
   disabled?: boolean;
 }) {
-  const hostRef = useRef<HTMLDivElement>(null);
-  const [clientId, setClientId] = useState('');
+  const tokenClientRef = useRef<TokenClient | null>(null);
+  const [clientId, setClientId] = useState(envClientId);
   const [ready, setReady] = useState(false);
+  const [hint, setHint] = useState('');
   const onTokenRef = useRef(onToken);
   onTokenRef.current = onToken;
 
   useEffect(() => {
+    let cancelled = false;
     fetch('/api/auth/config')
       .then((r) => r.json())
-      .then((d) => setClientId(d.googleClientId || ''))
-      .catch(() => setClientId(''));
+      .then((d) => {
+        if (cancelled) return;
+        const id = String(d.googleClientId || envClientId() || '').trim();
+        setClientId(id);
+        if (!id) setHint('تسجيل جوجل غير مُعد على الخادم');
+      })
+      .catch(() => {
+        if (cancelled) return;
+        if (!envClientId()) setHint('تعذر تحميل إعداد جوجل');
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
     if (!clientId) return;
 
-    const paint = () => {
-      if (!window.google?.accounts?.id || !hostRef.current) return false;
-      hostRef.current.innerHTML = '';
+    let cancelled = false;
+    setHint('');
+    setReady(false);
+    tokenClientRef.current = null;
+
+    const setup = async () => {
+      await waitForGis();
+      if (cancelled || !window.google?.accounts) return;
+
       window.google.accounts.id.initialize({
         client_id: clientId,
         callback: (resp: { credential?: string }) => {
@@ -62,62 +128,77 @@ export default function GoogleContinueButton({
         },
         ux_mode: 'popup',
         auto_select: false,
+        cancel_on_tap_outside: true,
       });
-      window.google.accounts.id.renderButton(hostRef.current, {
-        theme: 'outline',
-        size: 'large',
-        width: 336,
-        text: 'continue_with',
-        locale: 'ar',
-      });
-      setReady(true);
-      return true;
+
+      if (window.google.accounts.oauth2) {
+        tokenClientRef.current = window.google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          scope: 'openid email profile',
+          callback: (resp) => {
+            if (resp.access_token) {
+              setHint('');
+              onTokenRef.current(resp.access_token);
+              return;
+            }
+            if (resp.error && resp.error !== 'popup_closed_by_user') {
+              setHint('تعذر فتح نافذة جوجل. اسمح بالنوافذ المنبثقة ثم أعد المحاولة.');
+            }
+          },
+          error_callback: () => {
+            window.google?.accounts?.id?.prompt((notification) => {
+              const n = notification as { isNotDisplayed?: () => boolean; isSkippedMoment?: () => boolean };
+              if (n.isNotDisplayed?.() || n.isSkippedMoment?.()) {
+                setHint('تعذر فتح نافذة جوجل. اسمح بالنوافذ المنبثقة ثم أعد المحاولة.');
+              }
+            });
+          },
+        });
+      }
+
+      if (!cancelled) setReady(true);
     };
 
-    let tries = 0;
-    const wait = () => {
-      if (paint()) return;
-      if (tries++ > 25) return;
-      window.setTimeout(wait, 80);
-    };
+    setup().catch((err: Error) => {
+      if (!cancelled) setHint(err.message || 'تعذر تحميل خدمة جوجل');
+    });
 
-    if (window.google?.accounts?.id) {
-      wait();
-      return;
-    }
-    if (document.getElementById('google-gis')) {
-      const t = window.setInterval(() => {
-        if (window.google?.accounts?.id) {
-          window.clearInterval(t);
-          wait();
-        }
-      }, 200);
-      return () => window.clearInterval(t);
-    }
-    const script = document.createElement('script');
-    script.id = 'google-gis';
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.onload = wait;
-    document.head.appendChild(script);
+    return () => {
+      cancelled = true;
+    };
   }, [clientId]);
 
   const start = () => {
-    const nativeBtn = hostRef.current?.querySelector('div[role="button"]') as HTMLElement | null;
-    if (nativeBtn) {
-      nativeBtn.click();
+    if (disabled) return;
+    if (!clientId) {
+      setHint('تسجيل جوجل غير مُعد على الخادم');
       return;
     }
-    window.google?.accounts?.id?.prompt();
+    if (tokenClientRef.current) {
+      setHint('');
+      tokenClientRef.current.requestAccessToken({ prompt: 'select_account' });
+      return;
+    }
+    if (!window.google?.accounts) {
+      setHint('جاري تجهيز جوجل…');
+      return;
+    }
+    window.google.accounts.id.prompt();
   };
 
   return (
     <div className="google-continue">
-      <div className="google-continue-host" ref={hostRef} aria-hidden />
-      <button type="button" className="google-continue-btn" onClick={start} disabled={disabled || !ready}>
+      <button
+        type="button"
+        className="google-continue-btn"
+        onClick={start}
+        disabled={disabled}
+        aria-busy={!ready && !hint}
+      >
         <GoogleMark />
-        {label}
+        {ready || hint || !clientId ? label : 'جاري تجهيز جوجل…'}
       </button>
+      {hint ? <p className="google-continue-hint">{hint}</p> : null}
     </div>
   );
 }
