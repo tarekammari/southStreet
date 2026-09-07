@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Calendar, Plane, ShieldAlert, Loader2 } from 'lucide-react';
+import { Calendar, Clock, Plane, ShieldAlert, Loader2 } from 'lucide-react';
 import { Reservation } from '@/types';
 import {
   FREE_CANCEL_DAYS,
@@ -9,7 +9,6 @@ import {
   daysUntilDeparture,
   ROOM_LABELS,
   isAgencyConfirmed,
-  reservationStatusLabel,
 } from '@/lib/booking-catalog';
 import BookingPrintButton from '@/components/booking/BookingPrintButton';
 
@@ -50,18 +49,18 @@ export default function ExistingBookingPanel({
   return (
     <section className="book-manage" dir="rtl">
       <span className={`book-manage-badge ${confirmed ? '' : 'is-pending'}`}>
-        {confirmed ? 'طلب عمرة قائم' : 'بانتظار تأكيد الوكالة'}
+        {confirmed ? 'مؤكد' : 'بانتظار التأكيد'}
       </span>
-      <h2>{confirmed ? 'لديك برنامج عمرة مؤكد' : 'طلبك قيد مراجعة الوكالة'}</h2>
+      <h2>{confirmed ? 'حجزك جاهز' : 'طلبك وصل'}</h2>
       <p>
         {confirmed
-          ? 'مثل مواقع الحجز الكبرى: لا نفتح طلباً ثانياً فوق الطلب الحالي. يمكنك عرض برنامجك، تعديل الغرفة والإضافات، أو إلغاء الطلب ثم الحجز من جديد.'
-          : 'تم استلام طلبك. فريق الوكالة يراجعه خلال 24–48 ساعة. يمكنك طباعة طلب الحجز أو الفاتورة المؤقتة في أي وقت.'}
+          ? 'يمكنك عرض برنامجك أو تعديل الغرفة.'
+          : 'فريق الوكالة يراجعه الآن. لا يمكن فتح طلب جديد قبل التأكيد أو الإلغاء.'}
       </p>
 
       {!confirmed ? (
         <p className="book-pending-note" role="status">
-          الحالة: {reservationStatusLabel(reservation.status)} · رمز التحقق: {reservation.document_verify_code || '—'}
+          <Clock className="w-4 h-4" /> سنخبرك عند تأكيد الطلب
         </p>
       ) : null}
 
@@ -73,7 +72,6 @@ export default function ExistingBookingPanel({
           <li><Plane className="w-3.5 h-3.5" /> {reservation.program?.airline || reservation.program?.room_label || ROOM_LABELS[reservation.room_type]}</li>
         </ul>
         <strong>{money(reservation.total_amount)}</strong>
-        <small>المدفوع {money(reservation.paid_amount)} · المتبقي {money(Math.max(0, reservation.total_amount - reservation.paid_amount))}</small>
       </div>
 
       {!manage.ok ? (
@@ -82,11 +80,11 @@ export default function ExistingBookingPanel({
 
       {confirmCancel ? (
         <div className="book-cancel-box">
-          <p><ShieldAlert className="w-4 h-4" /> تأكيد إلغاء الطلب</p>
+          <p><ShieldAlert className="w-4 h-4" /> إلغاء الطلب؟</p>
           <p>
             {freeCancel
-              ? `الإلغاء مجاني الآن (أكثر من ${FREE_CANCEL_DAYS} يوماً قبل السفر). المقعد يعود للباقة ويمكنك الحجز من جديد.`
-              : `تبقّى ${days} يوماً على السفر. قد تُطبَّق شروط الإلغاء الخاصة بالوكالة. المقعد سيُحرَّر بعد التأكيد.`}
+              ? 'الإلغاء مجاني الآن. يمكنك الحجز من جديد بعد ذلك.'
+              : `تبقّى ${days} يوماً على السفر. قد تُطبَّق شروط الإلغاء.`}
           </p>
           <div className="book-nav" style={{ border: 0, margin: 0, padding: 0 }}>
             <button type="button" className="book-btn book-btn-ghost" onClick={onAbortCancel} disabled={cancelling}>تراجع</button>
@@ -100,16 +98,10 @@ export default function ExistingBookingPanel({
         <div className="book-manage-actions">
           {confirmed ? (
             <Link href="/portal?tab=program" className="book-btn book-btn-primary no-underline">عرض برنامجي</Link>
-          ) : (
-            <Link href="/portal?tab=reservations" className="book-btn book-btn-primary no-underline">متابعة الطلب</Link>
-          )}
-          <BookingPrintButton type="request" reservationId={reservation.reservation_id} />
-          <BookingPrintButton type="invoice" reservationId={reservation.reservation_id} />
-          {confirmed ? (
-            <BookingPrintButton type="confirmation" reservationId={reservation.reservation_id} />
           ) : null}
-          <button type="button" className="book-btn book-btn-ghost" onClick={onModify} disabled={!manage.ok}>تعديل الطلب</button>
-          <button type="button" className="book-btn book-btn-danger-outline" onClick={onAskCancel} disabled={!manage.ok}>إلغاء الطلب</button>
+          <BookingPrintButton type="request" reservationId={reservation.reservation_id} />
+          <button type="button" className="book-btn book-btn-ghost" onClick={onModify} disabled={!manage.ok}>تعديل</button>
+          <button type="button" className="book-btn book-btn-danger-outline" onClick={onAskCancel} disabled={!manage.ok}>إلغاء</button>
         </div>
       )}
     </section>

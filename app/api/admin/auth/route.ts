@@ -5,8 +5,9 @@ import { upsertUserSession } from '@/lib/presence';
 import { hashPassword, verifyPassword, needsPasswordRehash, generateDeviceFingerprint } from '@/lib/security';
 import { findUserForLogin, findUserByQr, queueAccessRequest, repairSuperAdminLogin } from '@/lib/accounts';
 import { signToken } from '@/lib/auth';
-import { normalizeLoginRole, postLoginPath, requiresSecurityKey, LOGIN_ROLE_LABELS } from '@/lib/roles';
+import { normalizeLoginRole, postLoginPath, requiresSecurityKey, LOGIN_ROLE_LABELS, AppRedirectPath } from '@/lib/roles';
 import { dbLogAudit } from '@/lib/db';
+import { pilgrimWaitingRedirect } from '@/lib/booking';
 import { recordLoginIncident } from '@/lib/security-monitor';
 import { resolveRequestIp } from '@/lib/security-threats';
 
@@ -64,7 +65,21 @@ function lockoutResponse(ip: string) {
   return null;
 }
 
-function publicUser(user: any, pcPrint: string, clientIp: string) {
+function publicUser(user: any, pcPrint: string, clientIp: string): {
+  id: string;
+  name: string;
+  email: string;
+  username: string;
+  role: ReturnType<typeof normalizeLoginRole>;
+  roleName: string;
+  status: string;
+  phone: string;
+  code: string;
+  staffId: string;
+  lastLoginIp: string;
+  pcFingerprint: string;
+  redirect: AppRedirectPath;
+} {
   const role = normalizeLoginRole(user.role, { email: user.email, roleName: user.roleName });
   return {
     id: user.id,
@@ -112,6 +127,8 @@ function completeLogin(user: any, reqMeta: { clientIp: string; userAgent: string
 
   failedAttemptsMap.delete(reqMeta.clientIp);
   const safeUser = publicUser(user, reqMeta.pcPrint, reqMeta.clientIp);
+  const waiting = safeUser.role === 'PILGRIM_USER' ? pilgrimWaitingRedirect(user.id) : null;
+  if (waiting) safeUser.redirect = waiting.redirect;
   const token = signToken({
     id: user.id,
     code: user.code || user.username || user.id,
@@ -133,6 +150,7 @@ function completeLogin(user: any, reqMeta: { clientIp: string; userAgent: string
     status: 'SUCCESS',
     user: safeUser,
     token,
+    waitingBooking: Boolean(waiting),
   });
   res.cookies.set('south_street_token', token, {
     httpOnly: false,
@@ -233,7 +251,7 @@ export async function POST(req: Request) {
       });
       return NextResponse.json({
         status: 'PENDING_APPROVAL',
-        message: 'حسابك في انتظار موافقة الإدارة وتحديد صلاحيتك.',
+        message: 'طلبك قيد المراجعة. سنخبرك بعد تأكيد الوكالة.',
         ip: meta.clientIp,
         pcPrint: meta.pcPrint,
       }, { status: 403 });

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSqliteDb } from '@/lib/sqlite';
 import { getAuthUser } from '@/lib/request-auth';
-import { ensureUserAccount, findUserForLogin } from '@/lib/accounts';
+import { attachGoogleId, ensureUserAccount, findUserByGoogleId, findUserForLogin } from '@/lib/accounts';
+import { verifyGoogleIdToken } from '@/lib/google-id-token';
 import { upsertUserSession } from '@/lib/presence';
 import { generateDeviceFingerprint, verifyPassword } from '@/lib/security';
 import { signToken } from '@/lib/auth';
@@ -133,13 +134,12 @@ function parseBookingBody(body: any) {
   };
 }
 
-function validateDemand(input: ReturnType<typeof parseBookingBody>, { requirePassword }: { requirePassword: boolean }) {
+function validateDemand(input: ReturnType<typeof parseBookingBody>, { requireEmail }: { requireEmail: boolean }) {
   if (!input.packageId) return 'اختر باقة العمرة أولاً';
   if (!['SINGLE', 'DOUBLE', 'TRIPLE', 'QUAD'].includes(input.roomType)) return 'اختر نوع الغرفة';
-  if (!input.name || input.name.length < 4) return 'أدخل الاسم الكامل كما في الجواز';
-  if (!input.phone) return 'رقم الهاتف مطلوب للتواصل';
-  if (!input.email || !input.email.includes('@')) return 'أدخل بريداً إلكترونياً صحيحاً';
-  if (requirePassword && input.password.trim().length < 8) return 'كلمة المرور يجب أن تكون 8 أحرف على الأقل';
+  if (!input.name || input.name.length < 4) return 'أدخل اسمك';
+  if (!input.phone) return 'رقم الهاتف مطلوب';
+  if (requireEmail && (!input.email || !input.email.includes('@'))) return 'اربط حساب جوجل للمتابعة';
   return null;
 }
 
@@ -204,7 +204,7 @@ function notifyAgency(account: any, text: string, pkgName?: string) {
 function existingBookingResponse(account: any, req: Request, reservation: ReturnType<typeof findActiveReservation>) {
   const session = issueSession(account, req);
   const res = NextResponse.json({
-    error: 'لديك طلب عمرة قائم. يمكنك عرضه أو تعديله أو إلغاؤه ثم الحجز من جديد.',
+    error: 'لديك طلب لم تؤكده الوكالة بعد. يمكنك متابعته أو تعديله أو إلغاءه ثم الحجز من جديد.',
     code: 'EXISTING_BOOKING',
     reservation,
     token: session.token,
@@ -254,17 +254,26 @@ export async function POST(req: NextRequest) {
     const extraIds = Array.isArray(body.extraIds) ? body.extraIds.map(String) : [];
     const name = String(body.name || '').trim();
     const phone = String(body.phone || '').trim();
-    const email = String(body.email || '').trim().toLowerCase();
+    let email = String(body.email || '').trim().toLowerCase();
     const password = String(body.password || '');
     const passport = String(body.passport || '').trim();
+    const googleIdToken = String(body.googleIdToken || '').trim();
+    let googleProfile: Awaited<ReturnType<typeof verifyGoogleIdToken>> | null = null;
+    if (googleIdToken) {
+      try {
+        googleProfile = await verifyGoogleIdToken(googleIdToken);
+        email = googleProfile.email || email;
+      } catch (err: any) {
+        return NextResponse.json({ error: err?.message || 'تعذر التحقق من حساب جوجل' }, { status: 400 });
+      }
+    }
 
     if (!packageId) return NextResponse.json({ error: 'اختر باقة العمرة أولاً' }, { status: 400 });
     if (!['SINGLE', 'DOUBLE', 'TRIPLE', 'QUAD'].includes(roomType)) {
       return NextResponse.json({ error: 'اختر نوع الغرفة' }, { status: 400 });
     }
-    if (!name || name.length < 4) return NextResponse.json({ error: 'أدخل الاسم الكامل كما في الجواز' }, { status: 400 });
-    if (!phone) return NextResponse.json({ error: 'رقم الهاتف مطلوب للتواصل' }, { status: 400 });
-    if (!email || !email.includes('@')) return NextResponse.json({ error: 'أدخل بريداً إلكترونياً صحيحاً' }, { status: 400 });
+    if (!name || name.length < 4) return NextResponse.json({ error: 'أدخل اسمك' }, { status: 400 });
+    if (!phone) return NextResponse.json({ error: 'رقم الهاتف مطلوب' }, { status: 400 });
 
     const pkg = loadPublishedPackage(packageId);
     if (!pkg || pkg.published === false) {
@@ -303,39 +312,49 @@ export async function POST(req: NextRequest) {
     }
 
     if (!account) {
-      const existing = findUserForLogin(email);
+      if (!email || !email.includes('@')) {
+        return NextResponse.json({ error: 'اربط حساب جوجل للمتابعة' }, { status: 400 });
+      }
+      const existing = (googleProfile && findUserByGoogleId(googleProfile.googleId)) || findUserForLogin(email);
       if (existing) {
         const existingRole = normalizeLoginRole(existing.role, { email: existing.email, roleName: existing.roleName });
         if (existingRole !== 'PILGRIM_USER') {
           return NextResponse.json({
-            error: 'هذا البريد مرتبط بحساب موظفين. استخدم بريداً آخر لحجز العمرة.',
+            error: 'هذا الحساب مرتبط بموظف. استخدم حساب جوجل آخر.',
           }, { status: 409 });
         }
-        if (!password || !verifyPassword(password, existing.passwordHash)) {
+        const googleOk = Boolean(googleProfile && (
+          existing.googleId === googleProfile.googleId
+          || existing.google_id === googleProfile.googleId
+          || String(existing.email || '').toLowerCase() === googleProfile.email
+        ));
+        if (!googleOk && password && !verifyPassword(password, existing.passwordHash)) {
           return NextResponse.json({
-            error: 'هذا البريد مسجّل مسبقاً. أدخل كلمة المرور الصحيحة أو سجّل الدخول من بوابة الوكالة.',
+            error: 'هذا الحساب مسجّل مسبقاً. سجّل الدخول ثم أعد المحاولة.',
           }, { status: 409 });
         }
-        account = existing;
+        if (!googleOk && !password) {
+          return NextResponse.json({
+            error: 'هذا الحساب مسجّل مسبقاً. سجّل الدخول ثم أعد المحاولة.',
+          }, { status: 409 });
+        }
+        if (googleProfile) attachGoogleId(existing.id, googleProfile.googleId);
         db.prepare(`
           UPDATE users SET status = 'APPROVED', loginEnabled = 1, name = ?, phone = COALESCE(NULLIF(?, ''), phone)
           WHERE id = ?
         `).run(name, phone, existing.id);
         account = db.prepare('SELECT * FROM users WHERE id = ?').get(existing.id);
       } else {
-        if (password.trim().length < 8) {
-          return NextResponse.json({ error: 'كلمة المرور يجب أن تكون 8 أحرف على الأقل' }, { status: 400 });
-        }
         const issued = ensureUserAccount({
           name,
           email,
-          password,
           phone,
           role: 'PILGRIM_USER',
           roleName: 'معتمر',
           status: 'APPROVED',
           issueSecrets: false,
         });
+        if (googleProfile) attachGoogleId(issued.userId, googleProfile.googleId);
         account = db.prepare('SELECT * FROM users WHERE id = ?').get(issued.userId);
       }
     }
@@ -447,7 +466,7 @@ export async function POST(req: NextRequest) {
     const res = NextResponse.json({
       status: 'REQUESTED',
       token: session.token,
-      user: { ...session.user, redirect: '/portal?tab=reservations' },
+      user: { ...session.user, redirect: '/book' },
       reservation,
       extrasCatalog: BOOKING_EXTRAS,
       message: 'تم إرسال طلبك. ستتلقى تأكيد الوكالة قبل تفعيل الدفعة الأولى.',
@@ -485,7 +504,7 @@ export async function PUT(req: NextRequest) {
     const account = gate.account;
 
     const input = parseBookingBody(body);
-    const invalid = validateDemand(input, { requirePassword: false });
+    const invalid = validateDemand(input, { requireEmail: true });
     if (invalid) return NextResponse.json({ error: invalid }, { status: 400 });
     if (!input.reservationId) return NextResponse.json({ error: 'معرّف الطلب مطلوب للتعديل' }, { status: 400 });
 

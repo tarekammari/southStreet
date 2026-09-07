@@ -17,8 +17,6 @@ import {
   Accessibility,
   Shield,
   UserRound,
-  Lock,
-  Receipt,
   Loader2,
 } from 'lucide-react';
 import { Package, Reservation } from '@/types';
@@ -31,13 +29,16 @@ import {
 } from '@/lib/booking-catalog';
 import ExistingBookingPanel from '@/components/booking/ExistingBookingPanel';
 import BookingPrintButton from '@/components/booking/BookingPrintButton';
+import GoogleContinueButton from '@/components/GoogleContinueButton';
 
 const STEPS = [
   { id: 1, label: 'الباقة' },
-  { id: 2, label: 'الغرفة والإضافات' },
+  { id: 2, label: 'اختيارك' },
   { id: 3, label: 'بياناتك' },
   { id: 4, label: 'الفاتورة' },
 ];
+
+type ViewId = 'offer' | 'packages' | 'room' | 'extra' | 'details' | 'invoice';
 
 const EXTRA_ICONS: Record<string, typeof FileCheck> = {
   visa_fast: FileCheck,
@@ -71,6 +72,13 @@ function formatDate(value?: string): string {
   return d.toLocaleDateString('ar-DZ', { year: 'numeric', month: 'long', day: 'numeric' });
 }
 
+function formatShortDate(value?: string): string {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleDateString('ar-DZ', { month: 'short', day: 'numeric' });
+}
+
 function money(n: number): string {
   return `${n.toLocaleString('ar-DZ')} دج`;
 }
@@ -78,6 +86,42 @@ function money(n: number): string {
 function authHeaders(): HeadersInit {
   const token = typeof window !== 'undefined' ? localStorage.getItem('south_street_token') : null;
   return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+function phaseOf(view: ViewId): number {
+  if (view === 'offer' || view === 'packages') return 1;
+  if (view === 'room' || view === 'extra') return 2;
+  if (view === 'details') return 3;
+  return 4;
+}
+
+function PriceFocus({
+  amount,
+  from,
+  extrasCount,
+}: {
+  amount: number;
+  from: boolean;
+  extrasCount: number;
+}) {
+  return (
+    <aside className="book-price-focus" aria-live="polite">
+      <span className="book-price-label">{from ? 'السعر يبدأ من' : 'سعرك الآن'}</span>
+      <strong key={amount} className="book-price-amount book-price-pop">{money(amount)}</strong>
+      <span className="book-price-hint">
+        {extrasCount > 0 ? `${extrasCount} إضافات ضمن السعر` : 'يتغيّر عند اختيار الغرفة أو إضافة'}
+      </span>
+    </aside>
+  );
+}
+
+function PriceBar({ amount }: { amount: number }) {
+  return (
+    <aside className="book-price-bar" aria-live="polite">
+      <span>سعرك الآن</span>
+      <strong key={amount} className="book-price-pop">{money(amount)}</strong>
+    </aside>
+  );
 }
 
 export default function BookingWizard() {
@@ -88,7 +132,8 @@ export default function BookingWizard() {
 
   const [packages, setPackages] = useState<Package[]>([]);
   const [loading, setLoading] = useState(true);
-  const [step, setStep] = useState(1);
+  const [view, setView] = useState<ViewId>(prefillPackage ? 'offer' : 'packages');
+  const [extraIndex, setExtraIndex] = useState(0);
   const [packageId, setPackageId] = useState(prefillPackage);
   const [roomType, setRoomType] = useState('');
   const [extraIds, setExtraIds] = useState<string[]>([]);
@@ -97,6 +142,7 @@ export default function BookingWizard() {
   const [email, setEmail] = useState('');
   const [passport, setPassport] = useState('');
   const [password, setPassword] = useState('');
+  const [googleIdToken, setGoogleIdToken] = useState('');
   const [loggedIn, setLoggedIn] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -105,6 +151,11 @@ export default function BookingWizard() {
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [booting, setBooting] = useState(true);
+
+  const resetChoicesView = () => {
+    setView(prefillPackage || packageId ? 'offer' : 'packages');
+    setExtraIndex(0);
+  };
 
   const applyReservation = (res: Reservation) => {
     setExisting(res);
@@ -144,6 +195,7 @@ export default function BookingWizard() {
       setBooting(false);
       return;
     }
+    const bootTimer = window.setTimeout(() => setBooting(false), 8000);
     fetch('/api/bookings', { headers: authHeaders() })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
@@ -152,13 +204,17 @@ export default function BookingWizard() {
         if (editId) {
           applyReservation(active);
           setScreen('wizard');
+          setView('offer');
           return;
         }
         applyReservation(active);
         setScreen('manage');
       })
       .catch(() => {})
-      .finally(() => setBooting(false));
+      .finally(() => {
+        window.clearTimeout(bootTimer);
+        setBooting(false);
+      });
   }, [editId]);
 
   useEffect(() => {
@@ -169,9 +225,13 @@ export default function BookingWizard() {
   const otherPackages = packages.filter((p) => p.package_id !== packageId);
   const roomPrices = selected?.prices || [];
   const editing = Boolean(existing && screen === 'wizard' && (editId || existing));
+  const step = phaseOf(view);
+  const currentExtra = BOOKING_EXTRAS[extraIndex] || null;
 
   const choosePackage = (id: string) => {
     setPackageId(id);
+    setView('offer');
+    setExtraIndex(0);
     const params = new URLSearchParams(searchParams.toString());
     params.set('package', id);
     router.replace(`/book?${params.toString()}`);
@@ -196,6 +256,9 @@ export default function BookingWizard() {
   const selectedExtras = BOOKING_EXTRAS.filter((item) => extraIds.includes(item.id));
   const extrasTotal = selectedExtras.reduce((sum, item) => sum + item.price, 0);
   const total = roomAmount + extrasTotal;
+  const fromPrice = selected?.prices?.length ? Math.min(...selected.prices.map((p) => p.amount)) : 0;
+  const displayPrice = roomAmount ? total : fromPrice;
+  const priceIsFrom = !roomAmount;
   const previousPaid = existing && editing ? Number(existing.paid_amount) || 0 : Math.round(total * DEPOSIT_PERCENT);
   const remaining = Math.max(0, total - (existing && editing ? previousPaid : Math.round(total * DEPOSIT_PERCENT)));
   const deposit = existing && editing ? previousPaid : Math.round(total * DEPOSIT_PERCENT);
@@ -210,45 +273,104 @@ export default function BookingWizard() {
     email: email.trim(),
   }), [packageId, roomType, extraIds, name, phone, email]);
 
-  const printTypeForStep = (s: number): 'quote' | 'request' | 'invoice' => {
+  const printTypeForPhase = (s: number): 'quote' | 'request' | 'invoice' => {
     if (s <= 2) return 'quote';
     if (s === 3) return 'request';
     return 'invoice';
   };
 
-  const toggleExtra = (id: string) => {
-    setExtraIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  const setExtraChoice = (id: string, on: boolean) => {
+    setExtraIds((prev) => {
+      const has = prev.includes(id);
+      if (on && !has) return [...prev, id];
+      if (!on && has) return prev.filter((x) => x !== id);
+      return prev;
+    });
   };
 
   const goNext = () => {
     setError('');
-    if (step === 1 && !selected) {
+    if ((view === 'offer' || view === 'packages') && !selected) {
       setError('اختر باقة العمرة للمتابعة');
       return;
     }
-    if (step === 2 && (!roomType || !roomAmount)) {
-      setError('اختر نوع الغرفة');
+    if (view === 'packages') {
+      setView('offer');
       return;
     }
-    if (step === 3) {
+    if (view === 'offer') {
+      setView('room');
+      return;
+    }
+    if (view === 'room') {
+      if (!roomType || !roomAmount) {
+        setError('اختر نوع الغرفة');
+        return;
+      }
+      if (BOOKING_EXTRAS.length) {
+        setExtraIndex(0);
+        setView('extra');
+        return;
+      }
+      setView('details');
+      return;
+    }
+    if (view === 'extra') {
+      if (extraIndex < BOOKING_EXTRAS.length - 1) {
+        setExtraIndex((i) => i + 1);
+        return;
+      }
+      setView('details');
+      return;
+    }
+    if (view === 'details') {
       if (name.trim().length < 4) {
-        setError('أدخل الاسم الكامل كما في الجواز');
+        setError('أدخل اسمك');
         return;
       }
       if (!phone.trim()) {
         setError('رقم الهاتف مطلوب');
         return;
       }
-      if (!email.includes('@')) {
-        setError('أدخل بريداً إلكترونياً صحيحاً');
+      if (!loggedIn && !editing && !googleIdToken) {
+        setError('اربط حساب جوجل للمتابعة');
         return;
       }
-      if (!loggedIn && !editing && password.trim().length < 8) {
-        setError('أنشئ كلمة مرور من 8 أحرف على الأقل لدخول حسابك بعد التأكيد');
-        return;
-      }
+      setView('invoice');
     }
-    setStep((s) => Math.min(4, s + 1));
+  };
+
+  const goBack = () => {
+    setError('');
+    if (view === 'extra' && extraIndex > 0) {
+      setExtraIndex((i) => i - 1);
+      return;
+    }
+    if (view === 'extra') {
+      setView('room');
+      return;
+    }
+    if (view === 'room' || view === 'packages') {
+      setView('offer');
+      return;
+    }
+    if (view === 'details') {
+      if (BOOKING_EXTRAS.length) {
+        setExtraIndex(BOOKING_EXTRAS.length - 1);
+        setView('extra');
+        return;
+      }
+      setView('room');
+      return;
+    }
+    if (view === 'invoice') {
+      setView('details');
+      return;
+    }
+    if (existing) {
+      setScreen('manage');
+      router.replace('/book');
+    }
   };
 
   const adoptSession = (data: any) => {
@@ -272,6 +394,7 @@ export default function BookingWizard() {
         email: email.trim(),
         password,
         passport: passport.trim(),
+        googleIdToken,
         reservationId: existing?.reservation_id,
       };
       const res = await fetch('/api/bookings', {
@@ -297,7 +420,9 @@ export default function BookingWizard() {
       adoptSession(data);
       if (data.reservation) applyReservation(data.reservation);
       window.dispatchEvent(new CustomEvent('southstreet:bookings-updated'));
-      router.push(data.user?.redirect || '/portal?tab=reservations');
+      setScreen('manage');
+      setView('offer');
+      router.replace('/book');
     } catch {
       setError('تعذّر الاتصال بالخادم. حاول مرة أخرى.');
     } finally {
@@ -322,7 +447,7 @@ export default function BookingWizard() {
       setExisting(null);
       setConfirmCancel(false);
       setScreen('wizard');
-      setStep(1);
+      resetChoicesView();
       window.dispatchEvent(new CustomEvent('southstreet:bookings-updated'));
       router.replace(prefillPackage ? `/book?package=${encodeURIComponent(prefillPackage)}` : '/book');
     } catch {
@@ -354,13 +479,20 @@ export default function BookingWizard() {
           onModify={() => {
             applyReservation(existing);
             setScreen('wizard');
-            setStep(1);
+            setView('offer');
+            setExtraIndex(0);
             router.replace(`/book?edit=${encodeURIComponent(existing.reservation_id)}`);
           }}
         />
       </div>
     );
   }
+
+  const showPriceBar = Boolean(selected) && view !== 'offer' && view !== 'packages' && view !== 'invoice';
+  const canGoBack =
+    view === 'offer' ? editing
+      : view === 'packages' ? Boolean(selected || editing)
+        : true;
 
   return (
     <div className="book-wizard" dir="rtl">
@@ -376,73 +508,74 @@ export default function BookingWizard() {
         ))}
       </ol>
 
+      {showPriceBar ? <PriceBar amount={displayPrice} /> : null}
+
       {error ? <p className="book-error" role="alert">{error}</p> : null}
 
-      {step === 1 && (
-        <section className="space-y-4">
+      {view === 'offer' && (
+        <section className="book-offer-view">
           {loading ? (
             <p className="text-sm text-slate-500 py-10 text-center">جاري تحميل البرامج...</p>
           ) : packages.length === 0 ? (
             <p className="text-sm text-slate-500 py-10 text-center">لا توجد باقات مفتوحة للحجز حالياً.</p>
           ) : selected ? (
-            <>
-              <article className="book-pkg book-pkg-focus" aria-current="true">
-                <div className="book-pkg-focus-top">
-                  <span className="book-pkg-type">{selected.type}</span>
-                  <span className="book-picked"><CheckCircle className="w-3.5 h-3.5" /> باقتك</span>
-                </div>
-                <h2>{selected.name}</h2>
-                <ul>
-                  {selected.start_date ? <li><Calendar className="w-3.5 h-3.5" /> {formatDate(selected.start_date)}</li> : null}
-                  <li><Plane className="w-3.5 h-3.5" /> {selected.airline}</li>
-                  <li><MapPin className="w-3.5 h-3.5" /> {selected.makkah_hotel_name}</li>
-                </ul>
-                <strong className="book-pkg-price">
-                  من {money(selected.prices?.length ? Math.min(...selected.prices.map((p) => p.amount)) : 0)}
-                </strong>
-              </article>
-              {otherPackages.length > 0 ? (
-                <div className="book-alts">
-                  <p className="book-alts-label">برامج أخرى إن أردت التغيير</p>
-                  <div className="book-alts-list">
-                    {otherPackages.map((pkg) => {
-                      const from = pkg.prices?.length ? Math.min(...pkg.prices.map((p) => p.amount)) : 0;
-                      return (
-                        <button
-                          key={pkg.package_id}
-                          type="button"
-                          className="book-pkg book-pkg-alt"
-                          onClick={() => choosePackage(pkg.package_id)}
-                        >
-                          <span className="book-pkg-type">{pkg.type}</span>
-                          <h3>{pkg.name}</h3>
-                          <strong className="book-pkg-price">من {money(from)}</strong>
-                        </button>
-                      );
-                    })}
-                  </div>
+            <article className="book-hero" aria-current="true">
+              <div className="book-hero-top">
+                <span className="book-pkg-type">{selected.type}</span>
+                <span className="book-picked"><CheckCircle className="w-4 h-4" /> باقتك</span>
+              </div>
+              <h2 className="book-hero-title">{selected.name}</h2>
+              <div className="book-hero-facts">
+                {selected.start_date ? (
+                  <span><Calendar className="w-5 h-5" /> {formatShortDate(selected.start_date)}</span>
+                ) : null}
+                {selected.makkah_hotel_name ? (
+                  <span><MapPin className="w-5 h-5" /> {selected.makkah_hotel_name}</span>
+                ) : null}
+              </div>
+              <PriceFocus amount={displayPrice} from={priceIsFrom} extrasCount={selectedExtras.length} />
+              {roomType || selectedExtras.length ? (
+                <div className="book-hero-picks">
+                  {roomType ? <span>{ROOM_LABELS[roomType] || roomType}</span> : null}
+                  {selectedExtras.map((item) => (
+                    <span key={item.id}>{item.title}</span>
+                  ))}
                 </div>
               ) : null}
-            </>
+              {otherPackages.length > 0 ? (
+                <button type="button" className="book-change-link" onClick={() => setView('packages')}>
+                  تغيير البرنامج
+                </button>
+              ) : null}
+            </article>
           ) : (
-            <div className="book-pkg-grid">
+            <p className="text-sm text-slate-500 py-10 text-center">اختر برنامجاً للمتابعة.</p>
+          )}
+        </section>
+      )}
+
+      {view === 'packages' && (
+        <section className="book-option-screen">
+          <h2 className="book-option-title">اختر البرنامج</h2>
+          {loading ? (
+            <p className="text-sm text-slate-500 py-10 text-center">جاري تحميل البرامج...</p>
+          ) : (
+            <div className="book-big-list">
               {packages.map((pkg) => {
                 const from = pkg.prices?.length ? Math.min(...pkg.prices.map((p) => p.amount)) : 0;
+                const active = pkg.package_id === packageId;
                 return (
                   <button
                     key={pkg.package_id}
                     type="button"
-                    className="book-pkg"
+                    className={`book-big-card ${active ? 'is-active' : ''}`}
                     onClick={() => choosePackage(pkg.package_id)}
+                    aria-pressed={active}
                   >
                     <span className="book-pkg-type">{pkg.type}</span>
-                    <h3>{pkg.name}</h3>
-                    <ul>
-                      {pkg.start_date ? <li><Calendar className="w-3.5 h-3.5" /> {formatDate(pkg.start_date)}</li> : null}
-                      <li><Plane className="w-3.5 h-3.5" /> {pkg.airline}</li>
-                      <li><MapPin className="w-3.5 h-3.5" /> {pkg.makkah_hotel_name}</li>
-                    </ul>
-                    <strong className="book-pkg-price">من {money(from)}</strong>
+                    <strong>{pkg.name}</strong>
+                    <b>{money(from)}</b>
+                    {active ? <CheckCircle className="book-big-check" aria-hidden /> : null}
                   </button>
                 );
               })}
@@ -451,9 +584,11 @@ export default function BookingWizard() {
         </section>
       )}
 
-      {step === 2 && selected && (
-        <section className="space-y-5">
-          <div className="book-room-grid">
+      {view === 'room' && selected && (
+        <section className="book-option-screen">
+          <h2 className="book-option-title">اختر الغرفة</h2>
+          <p className="book-option-sub">اضغط على نوع الغرفة</p>
+          <div className="book-big-list">
             {roomPrices.map((price) => {
               const count = roomOccupancy(price.room_type);
               const active = roomType === price.room_type;
@@ -461,84 +596,115 @@ export default function BookingWizard() {
                 <button
                   key={price.room_type}
                   type="button"
-                  className={`book-room ${active ? 'is-active' : 'is-muted'}`}
+                  className={`book-big-card book-big-card-room ${active ? 'is-active' : ''}`}
                   onClick={() => setRoomType(price.room_type)}
                   aria-pressed={active}
                   aria-label={`${ROOM_LABELS[price.room_type] || price.room_type} — ${count} أشخاص — ${money(price.amount)}`}
                 >
                   <RoomPeople count={count} />
-                  <span className="book-room-name">{ROOM_LABELS[price.room_type] || price.room_type}</span>
-                  <strong className="book-room-price">{money(price.amount)}</strong>
-                  {active ? <CheckCircle className="book-room-check" aria-hidden /> : null}
+                  <strong>{ROOM_LABELS[price.room_type] || price.room_type}</strong>
+                  <b>{money(price.amount)}</b>
+                  {active ? <CheckCircle className="book-big-check" aria-hidden /> : null}
                 </button>
-              );
-            })}
-          </div>
-          <div className="book-extra-list">
-            {BOOKING_EXTRAS.map((item) => {
-              const on = extraIds.includes(item.id);
-              const Icon = EXTRA_ICONS[item.id] || Check;
-              return (
-                <label key={item.id} className={`book-extra ${on ? 'is-active' : 'is-muted'}`}>
-                  <input type="checkbox" checked={on} onChange={() => toggleExtra(item.id)} />
-                  <Icon className="book-extra-icon" aria-hidden />
-                  <strong>{item.title}</strong>
-                  <b>{money(item.price)}</b>
-                </label>
               );
             })}
           </div>
         </section>
       )}
 
-      {step === 3 && (
-        <section className="space-y-4">
+      {view === 'extra' && currentExtra && (
+        <section className="book-option-screen">
+          <p className="book-option-kicker">إضافة {extraIndex + 1} من {BOOKING_EXTRAS.length}</p>
+          <span className="book-option-icon" aria-hidden>
+            {(() => {
+              const Icon = EXTRA_ICONS[currentExtra.id] || Check;
+              return <Icon />;
+            })()}
+          </span>
+          <h2 className="book-option-title">{currentExtra.title}</h2>
+          <p className="book-option-plus">+ {money(currentExtra.price)}</p>
+          <div className="book-yesno" role="group" aria-label={currentExtra.title}>
+            <button
+              type="button"
+              className={`book-yesno-btn is-yes ${extraIds.includes(currentExtra.id) ? 'is-active' : ''}`}
+              onClick={() => setExtraChoice(currentExtra.id, true)}
+              aria-pressed={extraIds.includes(currentExtra.id)}
+            >
+              أريدها
+            </button>
+            <button
+              type="button"
+              className={`book-yesno-btn is-no ${!extraIds.includes(currentExtra.id) ? 'is-active' : ''}`}
+              onClick={() => setExtraChoice(currentExtra.id, false)}
+              aria-pressed={!extraIds.includes(currentExtra.id)}
+            >
+              لا شكراً
+            </button>
+          </div>
+        </section>
+      )}
+
+      {view === 'details' && (
+        <section className="book-details-easy">
           <header className="book-section-head">
-            <h2>بيانات المعتمر</h2>
-            <p>
-              {editing
-                ? 'حدّث الاسم أو الهاتف أو الجواز. الحساب يبقى نفسه.'
-                : loggedIn
-                  ? 'سنربط هذا الحجز بحسابك الحالي بعد التأكيد.'
-                  : 'بعد التأكيد يُفتح لك حساب معتمر لرؤية البرنامج والطيران والمرشد والمحادثة.'}
-            </p>
+            <h2>بياناتك</h2>
+            <p>{editing ? 'حدّث الاسم أو الهاتف إن احتجت.' : 'الاسم والهاتف وحساب جوجل يكفي.'}</p>
           </header>
-          <div className="book-form">
+          <div className="book-form book-form-easy book-form-simple">
             <label>
-              الاسم الكامل (كما في الجواز)
+              الاسم
               <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
             </label>
             <label>
               الهاتف
               <input value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" dir="ltr" />
             </label>
-            <label>
-              البريد الإلكتروني
-              <input value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" dir="ltr" disabled={editing} />
-            </label>
-            <label>
-              رقم الجواز <span className="text-slate-400 font-medium">(اختياري الآن)</span>
-              <input value={passport} onChange={(e) => setPassport(e.target.value)} dir="ltr" />
-            </label>
-            {!loggedIn && !editing ? (
-              <label className="sm:col-span-2">
-                كلمة مرور حسابك
-                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
-                <small>ستستخدمها لدخول بوابة المعتمر بعد تأكيد الطلب.</small>
-              </label>
-            ) : null}
           </div>
+          {!editing ? (
+            <div className="book-google-box">
+              {loggedIn || googleIdToken ? (
+                <p className="book-google-ok"><CheckCircle className="w-5 h-5" /> {email || 'حساب جوجل مرتبط'}</p>
+              ) : (
+                <GoogleContinueButton
+                  onToken={async (idToken) => {
+                    setError('');
+                    setGoogleIdToken(idToken);
+                    try {
+                      const res = await fetch('/api/auth/google', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ idToken }),
+                      });
+                      const data = await res.json();
+                      if (data.email) setEmail(data.email);
+                      if (data.name) setName((prev) => prev || data.name);
+                      if (data.user?.email) setEmail(data.user.email);
+                      if (data.user?.name) setName((prev) => prev || data.user.name);
+                      if (data.user?.phone) setPhone((prev) => prev || data.user.phone);
+                      if (data.status === 'SUCCESS') adoptSession(data);
+                      if (data.status === 'PENDING_APPROVAL' || data.status === 'SUCCESS') return;
+                      setGoogleIdToken('');
+                      setError(data.error || 'تعذر ربط جوجل');
+                    } catch {
+                      setGoogleIdToken('');
+                      setError('تعذر ربط جوجل. حاول مرة أخرى.');
+                    }
+                  }}
+                />
+              )}
+            </div>
+          ) : null}
         </section>
       )}
 
-      {step === 4 && selected && (
+      {view === 'invoice' && selected && (
         <section className="space-y-5">
           <header className="book-section-head">
             <h2>{editing ? 'راجع الفاتورة بعد التعديل' : 'راجع الفاتورة ثم أكّد'}</h2>
             <p>
               {editing
-                ? 'المبلغ الذي دفعته سابقاً يبقى محسوباً بعد تأكيد الوكالة. يظهر فقط الفرق إن وُجد.'
-                : `بعد إرسال الطلب تراجعه الوكالة خلال 24–48 ساعة. الدفعة الأولى ${Math.round(DEPOSIT_PERCENT * 100)}٪ بعد التأكيد.`}
+                ? 'يظهر الفرق إن تغيّر السعر. الوكالة تؤكد التعديل.'
+                : 'أرسل الطلب. الوكالة تؤكده ثم نخبرك.'}
             </p>
           </header>
           <div className="book-invoice">
@@ -587,48 +753,34 @@ export default function BookingWizard() {
       )}
 
       <div className="book-nav">
-        <div className="flex flex-wrap gap-2 items-center">
+        <div className="book-nav-tools">
           {step >= 2 && selected ? (
             <BookingPrintButton
-              type={printTypeForStep(step)}
+              type={printTypeForPhase(step)}
               step={step}
               draft={printDraft}
               reservationId={existing?.reservation_id}
             />
           ) : null}
         </div>
-        <div className="flex gap-2 items-center">
-        {step > 1 || editing ? (
-          <button
-            type="button"
-            className="book-btn book-btn-ghost"
-            onClick={() => {
-              setError('');
-              if (step > 1) {
-                setStep((s) => s - 1);
-                return;
-              }
-              if (existing) {
-                setScreen('manage');
-                router.replace('/book');
-              }
-            }}
-          >
-            <ArrowRight className="w-4 h-4" /> السابق
-          </button>
-        ) : (
-          <span />
-        )}
-        {step < 4 ? (
-          <button type="button" className="book-btn book-btn-primary" onClick={goNext} disabled={loading}>
-            التالي <ArrowLeft className="w-4 h-4" />
-          </button>
-        ) : (
-          <button type="button" className="book-btn book-btn-primary" onClick={confirm} disabled={submitting}>
-            {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : editing ? <Receipt className="w-4 h-4" /> : loggedIn ? <Receipt className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
-            {submitting ? 'جاري الحفظ...' : editing ? 'حفظ التعديل' : 'إرسال الطلب للوكالة'}
-          </button>
-        )}
+        <div className="book-nav-actions">
+          {canGoBack ? (
+            <button type="button" className="book-btn book-btn-ghost" onClick={goBack}>
+              <ArrowRight className="w-5 h-5" /> السابق
+            </button>
+          ) : (
+            <span />
+          )}
+          {view !== 'invoice' ? (
+            <button type="button" className="book-btn book-btn-primary book-btn-next" onClick={goNext} disabled={loading}>
+              التالي <ArrowLeft className="w-6 h-6" />
+            </button>
+          ) : (
+            <button type="button" className="book-btn book-btn-primary book-btn-next" onClick={confirm} disabled={submitting}>
+              {submitting ? <Loader2 className="w-6 h-6 animate-spin" /> : <CheckCircle className="w-6 h-6" />}
+              {submitting ? 'جاري الإرسال...' : editing ? 'حفظ التعديل' : 'إرسال الطلب'}
+            </button>
+          )}
         </div>
       </div>
     </div>

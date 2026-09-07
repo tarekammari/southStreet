@@ -205,6 +205,12 @@ export function findActiveReservation(customerId: string): Reservation | null {
   return listCustomerReservations(customerId).find((row) => isActiveReservation(row.status)) || null;
 }
 
+export function pilgrimWaitingRedirect(userId: string): { waitingBooking: true; redirect: '/book' } | null {
+  const active = findActiveReservation(userId);
+  if (!active || isAgencyConfirmed(active.status)) return null;
+  return { waitingBooking: true, redirect: '/book' };
+}
+
 export function getOwnedReservation(reservationId: string, customerId: string): Reservation | null {
   const db = getSqliteDb();
   const row = db.prepare('SELECT * FROM reservations WHERE reservation_id = ? AND customer_id = ?').get(reservationId, customerId) as any;

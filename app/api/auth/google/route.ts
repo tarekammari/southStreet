@@ -11,6 +11,7 @@ import { generateDeviceFingerprint } from '@/lib/security';
 import { normalizeLoginRole, postLoginPath, LOGIN_ROLE_LABELS } from '@/lib/roles';
 import { signToken } from '@/lib/auth';
 import { getSqliteDb } from '@/lib/sqlite';
+import { pilgrimWaitingRedirect } from '@/lib/booking';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,8 +39,10 @@ export async function POST(req: Request) {
       });
       return NextResponse.json({
         status: 'PENDING_APPROVAL',
-        message: 'تم ربط حساب جوجل. انتظر موافقة الإدارة ثم أعد تسجيل الدخول.',
+        message: 'طلبك قيد المراجعة. سنخبرك بعد تأكيد الوكالة.',
         username: created.username,
+        email: profile.email,
+        name: profile.name,
       });
     }
 
@@ -60,7 +63,9 @@ export async function POST(req: Request) {
       });
       return NextResponse.json({
         status: 'PENDING_APPROVAL',
-        message: 'حسابك في انتظار موافقة الإدارة.',
+        message: 'طلبك قيد المراجعة. سنخبرك بعد تأكيد الوكالة.',
+        email: profile.email,
+        name: profile.name,
       });
     }
 
@@ -77,6 +82,7 @@ export async function POST(req: Request) {
     }
 
     const role = normalizeLoginRole(user.role, { email: user.email, roleName: user.roleName });
+    const waiting = role === 'PILGRIM_USER' ? pilgrimWaitingRedirect(user.id) : null;
     const token = signToken({
       id: user.id,
       code: user.code || user.username || user.id,
@@ -91,6 +97,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       status: 'SUCCESS',
       token,
+      waitingBooking: Boolean(waiting),
       user: {
         id: user.id,
         name: user.name,
@@ -101,7 +108,7 @@ export async function POST(req: Request) {
         status,
         phone: user.phone,
         staffId: user.staffId,
-        redirect: postLoginPath(role),
+        redirect: waiting?.redirect || postLoginPath(role),
       },
     });
   } catch (error: any) {

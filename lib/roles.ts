@@ -91,6 +91,8 @@ export function toPortalRole(role?: string, extra?: { email?: string; roleName?:
   }
 }
 
+export type AppRedirectPath = '/admin' | '/portal' | '/book';
+
 export function postLoginPath(role: LoginRole | string): '/admin' | '/portal' {
   const login = normalizeLoginRole(role);
   return login === 'SUPER_ADMIN' || login === 'AGENCY_MANAGER' ? '/admin' : '/portal';
