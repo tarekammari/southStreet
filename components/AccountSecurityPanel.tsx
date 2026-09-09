@@ -11,7 +11,7 @@ interface AccountInfo {
   hasQr: boolean;
 }
 
-export default function AccountSecurityPanel() {
+export default function AccountSecurityPanel({ compact = false }: { compact?: boolean }) {
   const [account, setAccount] = useState<AccountInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -134,7 +134,74 @@ export default function AccountSecurityPanel() {
   };
 
   if (loading) {
-    return <p className="text-sm text-slate-500">جاري تحميل أمان الحساب...</p>;
+    return <p className="text-sm text-slate-500">جاري التحميل...</p>;
+  }
+
+  if (!account) {
+    return (
+      <div className={compact ? 'pilgrim-card' : 'luxury-card p-6 space-y-2'}>
+        <p className="text-sm text-slate-600">{error || 'سجّل الدخول لإدارة حسابك.'}</p>
+      </div>
+    );
+  }
+
+  if (compact) {
+    return (
+      <div className="pilgrim-card space-y-5" dir="rtl">
+        {error ? <p className="text-xs text-red-600">{error}</p> : null}
+        {message ? <p className="text-xs text-emerald-700">{message}</p> : null}
+
+        <div className="pilgrim-field">
+          <span>المستخدم</span>
+          <div className="pilgrim-field-row">
+            <input dir="ltr" readOnly value={account.username} />
+            <button type="button" onClick={() => copy(account.username)} aria-label="نسخ">
+              {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+            </button>
+          </div>
+        </div>
+
+        <form onSubmit={changePassword} className="space-y-3">
+          <p className="pilgrim-card-label">كلمة المرور</p>
+          <input
+            type={showPw ? 'text' : 'password'}
+            required
+            dir="ltr"
+            placeholder="الحالية"
+            className="luxury-form-input w-full"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+          />
+          <input
+            type={showPw ? 'text' : 'password'}
+            required
+            minLength={8}
+            dir="ltr"
+            placeholder="الجديدة"
+            className="luxury-form-input w-full"
+            value={nextPassword}
+            onChange={(e) => setNextPassword(e.target.value)}
+          />
+          <input
+            type={showPw ? 'text' : 'password'}
+            required
+            dir="ltr"
+            placeholder="تأكيد"
+            className="luxury-form-input w-full"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+          />
+          <div className="flex items-center justify-between gap-3">
+            <button type="button" className="text-xs text-slate-500" onClick={() => setShowPw((v) => !v)}>
+              {showPw ? 'إخفاء' : 'إظهار'}
+            </button>
+            <button type="submit" disabled={busy === 'password'} className="btn-pro-primary text-sm py-2 px-4 disabled:opacity-50">
+              حفظ
+            </button>
+          </div>
+        </form>
+      </div>
+    );
   }
 
   if (!account) {

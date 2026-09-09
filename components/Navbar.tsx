@@ -34,7 +34,7 @@ function isPilgrimClient(user?: User | null): boolean {
 
 function navLinksFor(user?: User | null) {
   if (isPilgrimClient(user)) {
-    return [...BASE_NAV_LINKS, { label: 'برنامجي', href: '/portal?tab=program' }];
+    return [...BASE_NAV_LINKS, { label: 'رحلتي', href: '/portal?tab=program' }];
   }
   return [...BASE_NAV_LINKS, { label: 'دليل العمرة', href: '/portal?tab=rituals' }];
 }
@@ -220,9 +220,9 @@ export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 
                       <UserIcon className="w-4 h-4 text-slate-400" />
                       <span>{pilgrim ? 'برنامجي' : 'بوابة الوكالة'}</span>
                     </Link>
-                    <Link href="/portal?tab=security" onClick={() => setProfileOpen(false)} className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition ${isLight ? 'hover:bg-slate-50 text-slate-700' : 'hover:bg-slate-800 text-slate-200'}`}>
+                    <Link href={pilgrim ? '/portal?tab=account' : '/portal?tab=security'} onClick={() => setProfileOpen(false)} className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition ${isLight ? 'hover:bg-slate-50 text-slate-700' : 'hover:bg-slate-800 text-slate-200'}`}>
                       <Settings className="w-4 h-4 text-slate-400" />
-                      <span>أمان الحساب</span>
+                      <span>{pilgrim ? 'حسابي' : 'أمان الحساب'}</span>
                     </Link>
                   </div>
                   <div className={`pt-2 border-t ${isLight ? 'border-slate-100' : 'border-slate-800'}`}>

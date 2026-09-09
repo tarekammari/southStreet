@@ -65,9 +65,12 @@ export default function ReviewComposer({
   return (
     <form onSubmit={submit} className={`review-composer ${compact ? 'is-compact' : ''}`} dir="rtl">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-        <p className="text-sm font-black text-slate-800">اكتب تقييمك لـ {targetName}</p>
+        <p className="text-sm font-black text-slate-800">{compact ? 'تقييم' : `اكتب تقييمك لـ ${targetName}`}</p>
         <StarRating value={stars} onChange={setStars} />
       </div>
+      {compact ? (
+        <input type="hidden" value={name} readOnly />
+      ) : (
       <input
         required
         value={name}
@@ -75,18 +78,19 @@ export default function ReviewComposer({
         placeholder="اسمك الكريم"
         className="luxury-form-input text-sm"
       />
+      )}
       <textarea
         required
         rows={compact ? 3 : 4}
         value={body}
         onChange={(e) => setBody(e.target.value)}
-        placeholder="كيف كانت تجربتك مع الوكالة أو المرشد؟"
+        placeholder="رأيك باختصار"
         className="luxury-form-input record-big-textarea text-sm"
       />
       {error && <p className="text-xs text-red-600">{error}</p>}
       {msg && <p className="text-xs text-emerald-700 font-bold">{msg}</p>}
       <button type="submit" disabled={busy} className="btn-pro-primary text-xs py-2.5 px-4 self-start disabled:opacity-50">
-        {busy ? 'جاري الإرسال...' : 'إرسال للتقييم — يظهر بعد موافقة الإدارة'}
+        {busy ? '...' : compact ? 'إرسال' : 'إرسال للتقييم — يظهر بعد موافقة الإدارة'}
       </button>
     </form>
   );

@@ -1,5 +1,6 @@
 import { dbGetPackageById, dbGetPackages } from './db';
 import { Package, PackagePrice } from '@/types';
+import { isPackageExpired } from '@/lib/booking-catalog';
 
 export interface PriceCalculationResult {
   valid: boolean;
@@ -78,14 +79,17 @@ export class BusinessRulesService {
       };
     }
 
-    const isAvailable = pkg.available >= requestedSeats && pkg.status === 'PUBLISHED';
+    const isExpired = isPackageExpired(pkg);
+    const isAvailable = !isExpired && pkg.available >= requestedSeats && pkg.status === 'PUBLISHED';
     return {
       available: isAvailable,
       remaining_seats: pkg.available,
       total_capacity: pkg.capacity,
       reserved_seats: pkg.reserved,
-      status: pkg.status,
-      message: isAvailable
+      status: isExpired ? 'EXPIRED' : pkg.status,
+      message: isExpired
+        ? `برنامج ${pkg.name} انتهى ولا يمكن حجزه.`
+        : isAvailable
         ? `متوفر حالياً ${pkg.available} مقعد حقيقي للباقة ${pkg.name}.`
         : `عذراً، المقاعد المتبقية (${pkg.available}) غير كافية لطلبك (${requestedSeats} مقاعد).`
     };

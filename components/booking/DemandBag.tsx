@@ -155,7 +155,7 @@ export default function DemandBag({
                     ) : (
                       <>
                         <Link href="/book" onClick={() => setOpen(false)}>إدارة</Link>
-                        <Link href="/portal?tab=reservations" onClick={() => setOpen(false)}>التفاصيل</Link>
+                        <Link href="/portal?tab=program" onClick={() => setOpen(false)}>التفاصيل</Link>
                       </>
                     )}
                   </div>
@@ -166,7 +166,7 @@ export default function DemandBag({
 
           {count > 0 ? (
             <Link
-              href={isStaff ? inbox : '/portal?tab=reservations'}
+              href={isStaff ? inbox : '/portal?tab=program'}
               onClick={() => setOpen(false)}
               className="demand-bag-foot"
             >

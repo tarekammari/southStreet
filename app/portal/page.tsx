@@ -6,9 +6,8 @@ import Navbar from '@/components/Navbar';
 import SakhrAgent from '@/components/lazy/LazySakhrAgent';
 import UmrahCounter from '@/components/UmrahCounter';
 import { User, Reservation, CustomerDocument, Receipt } from '@/types';
-import { toPortalRole, PORTAL_TABS, defaultPortalTab } from '@/lib/roles';
-import { isActiveReservation, reservationStatusLabel } from '@/lib/booking-catalog';
-import BookingPrintButton from '@/components/booking/BookingPrintButton';
+import { toPortalRole, PORTAL_TABS, resolvePortalTab, pilgrimHomeSection } from '@/lib/roles';
+import { isActiveReservation } from '@/lib/booking-catalog';
 import AgencyPendingBookings from '@/components/booking/AgencyPendingBookings';
 import ReviewComposer from '@/components/ReviewComposer';
 import AccountSecurityPanel from '@/components/AccountSecurityPanel';
@@ -44,9 +43,7 @@ const AiKnowledgeManager = dynamic(() => import('@/components/AiKnowledgeManager
   loading: TabFallback,
 });
 import {
-  FileText, CheckCircle, Clock, ShieldCheck, Upload, CreditCard,
-  UserCheck, AlertCircle, Sparkles, Download, MessageCircle, Compass,
-  Layers, ArrowLeft, RefreshCw
+  ShieldCheck, RefreshCw
 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -96,12 +93,10 @@ function CustomerPortalContent() {
         email: u.email || '',
         username: u.username,
         phone: u.phone || '',
+        status: u.status,
         avatar: u.name ? u.name.charAt(0) : 'م'
       });
-      const allowed = PORTAL_TABS[role].map((t) => t.tab);
-      if (!initialTab || !allowed.includes(initialTab)) {
-        setActiveTab(defaultPortalTab(role));
-      }
+      setActiveTab(resolvePortalTab(role, initialTab));
       return role;
     };
 
@@ -342,9 +337,10 @@ function CustomerPortalContent() {
         email: u.email || '',
         username: u.username,
         phone: u.phone || '',
+        status: u.status,
         avatar: u.name ? u.name.charAt(0) : 'م'
       });
-      setActiveTab(initialTab && PORTAL_TABS[role].some((t) => t.tab === initialTab) ? initialTab : defaultPortalTab(role));
+      setActiveTab(resolvePortalTab(role, initialTab));
     } catch { /* ignore */ }
     if (token) {
       loadBookings();
@@ -355,24 +351,21 @@ function CustomerPortalContent() {
     return <div className="min-h-screen portal-shell flex items-center justify-center text-slate-500">جاري التحميل...</div>;
   }
 
+  const activeReservation = reservations.find((row) => isActiveReservation(row.status)) || null;
+  const pendingLogin = currentUser?.status === 'PENDING_APPROVAL' || currentUser?.status === 'PENDING';
+  const showPendingBanner = currentUser?.role === 'pilgrim' && pendingLogin && !activeReservation;
+
   if (!currentUser) {
     return (
       <div className="portal-shell font-tajawal min-h-screen">
         <Navbar variant="light" />
-        <main className="pt-28 pb-16 max-w-xl mx-auto px-4">
-          <div className="luxury-card p-8 text-center space-y-4">
-            <h1 className="text-xl font-black font-cairo text-slate-900">بوابة المعتمر</h1>
-            <p className="text-sm text-slate-600 leading-relaxed">
-              بعد تأكيد عمرتك يُفتح حسابك هنا لعرض البرنامج والطيران والمرشد والمواعيد ورسائل الوكالة.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <button type="button" className="btn-pro-primary text-sm py-2.5 px-5" onClick={() => setLoginOpen(true)}>
-                تسجيل الدخول
-              </button>
-              <Link href="/book" className="portal-tab portal-tab-inactive no-underline text-center">
-                ابدأ حجز العمرة
-              </Link>
-            </div>
+        <main className="pt-28 pb-16 max-w-md mx-auto px-4">
+          <div className="pilgrim-empty">
+            <h2>بوابة المعتمر</h2>
+            <button type="button" className="btn-pro-primary pilgrim-cta" onClick={() => setLoginOpen(true)}>
+              دخول
+            </button>
+            <Link href="/book" className="pilgrim-cta-ghost no-underline">حجز</Link>
           </div>
         </main>
         {loginOpen ? <LoginModal onClose={() => setLoginOpen(false)} onSelectRole={adoptSession} /> : null}
@@ -381,17 +374,21 @@ function CustomerPortalContent() {
     );
   }
 
+  const portalRole = toPortalRole(currentUser.role, { email: currentUser.email, roleName: currentUser.roleName });
+  const isPilgrim = portalRole === 'pilgrim';
+  const viewTab = resolvePortalTab(portalRole, activeTab);
+  const displayName = String(currentUser.name || '').replace(/\s*\(.*\)\s*$/, '').trim();
+
   return (
-    <div className="portal-shell font-tajawal">
+    <div className={`portal-shell font-tajawal${isPilgrim ? ' pilgrim-app' : ''}`}>
       <SessionHeartbeat />
       <Navbar currentUser={currentUser} variant="light" onLogout={handleLogout} />
 
-      <main className="pt-28 pb-16 max-w-6xl mx-auto px-4 sm:px-6 space-y-6">
+      <main className={`pt-28 pb-16 mx-auto px-4 sm:px-6 space-y-6 ${isPilgrim ? 'max-w-2xl pilgrim-main' : 'max-w-6xl'}`}>
         {demoMode && (
         <div className="luxury-card-static p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs animate-fade-up">
           <div className="flex items-center gap-2">
             <span className="px-2.5 py-1 rounded-lg bg-emerald-main text-white font-bold text-[11px]">تجربة الأدوار</span>
-            <span className="text-slate-500">التبديل بين لوحات التحكم حسب الدور</span>
           </div>
           <div className="flex flex-wrap gap-1.5">
             {(['admin', 'manager', 'murshid', 'accountant', 'agent', 'pilgrim'] as const).map((role) => (
@@ -407,7 +404,23 @@ function CustomerPortalContent() {
         </div>
         )}
 
-        {/* User header */}
+        {isPilgrim ? (
+          <div className="pilgrim-bar animate-fade-up">
+            <strong className="pilgrim-id-name">{displayName}</strong>
+            <nav className="pilgrim-tabs" aria-label="بوابة المعتمر">
+              {PORTAL_TABS.pilgrim.map((item) => (
+                <button
+                  key={item.tab}
+                  type="button"
+                  onClick={() => setActiveTab(item.tab)}
+                  className={viewTab === item.tab ? 'is-on' : ''}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </nav>
+          </div>
+        ) : (
         <div className="luxury-card p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 animate-fade-up">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-2xl bg-emerald-soft border border-emerald-main/20 text-emerald-main flex items-center justify-center font-bold text-2xl font-cairo">
@@ -425,7 +438,7 @@ function CustomerPortalContent() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {PORTAL_TABS[toPortalRole(currentUser.role, { email: currentUser.email, roleName: currentUser.roleName })].map((item) => (
+            {PORTAL_TABS[portalRole].map((item) => (
               item.tab === 'admin' ? (
                 <Link
                   key={item.tab}
@@ -438,7 +451,7 @@ function CustomerPortalContent() {
                 <button
                   key={item.tab}
                   onClick={() => setActiveTab(item.tab)}
-                  className={`portal-tab flex items-center gap-1.5 ${activeTab === item.tab ? 'portal-tab-active' : 'portal-tab-inactive'}`}
+                  className={`portal-tab flex items-center gap-1.5 ${viewTab === item.tab ? 'portal-tab-active' : 'portal-tab-inactive'}`}
                 >
                   {item.label}
                 </button>
@@ -446,6 +459,11 @@ function CustomerPortalContent() {
             ))}
           </div>
         </div>
+        )}
+
+        {showPendingBanner ? (
+          <p className="pilgrim-wait" role="status">حسابك قيد التفعيل</p>
+        ) : null}
 
         {/* Dynamic Views by Role and Tab */}
 
@@ -504,172 +522,45 @@ function CustomerPortalContent() {
           />
         )}
 
-        {activeTab === 'rituals' && (
+        {viewTab === 'rituals' && !isPilgrim && (
           <div className="luxury-card-static p-6 space-y-4 animate-fade-up">
-            <h2 className="text-lg font-bold font-cairo text-slate-900">عداد ودليل مناسك العمرة</h2>
             <UmrahCounter />
           </div>
         )}
 
-        {activeTab === 'chat' && (
+        {viewTab === 'chat' && (
           <div className="animate-fade-up">
-            <ChatModule currentUser={currentUser} />
+            <ChatModule currentUser={currentUser} compact={isPilgrim} />
           </div>
         )}
 
-        {activeTab === 'program' && currentUser.role === 'pilgrim' && (
+        {viewTab === 'program' && isPilgrim && (
           <PilgrimProgram
             currentUser={currentUser}
-            reservation={reservations.find((row) => isActiveReservation(row.status)) || null}
+            reservation={activeReservation}
+            reservations={reservations}
+            documents={documents}
+            receipts={receipts}
+            initialSection={pilgrimHomeSection(initialTab || activeTab)}
             onChanged={loadBookings}
+            onUploadDocument={handleDocumentUpload}
+            uploading={isUploading}
           />
         )}
 
-        {activeTab === 'reservations' && currentUser.role === 'pilgrim' && (
-          <div className="space-y-4 animate-fade-up">
-            <div className="flex justify-between items-center gap-3 flex-wrap">
-              <h2 className="text-lg font-bold font-cairo text-slate-900">قائمة الحجوزات</h2>
-              <Link href="/book" className="portal-tab portal-tab-inactive no-underline text-xs">حجز جديد</Link>
-            </div>
-            {reservations.length === 0 ? (
-              <div className="luxury-card p-8 text-center space-y-3">
-                <p className="text-sm text-slate-500">لا يوجد حجز بعد. أكّد باقة العمرة لفتح برنامجك.</p>
-                <Link href="/book" className="btn-pro-primary text-sm py-2.5 px-5 inline-flex">ابدأ الحجز</Link>
-              </div>
-            ) : reservations.map((res) => (
-              <div key={res.reservation_id} className="luxury-card p-6 space-y-4">
-                <div className="flex justify-between items-start gap-3">
-                  <div>
-                    <span className="text-xs font-mono font-bold text-emerald-main bg-emerald-soft px-3 py-1 rounded-lg border border-emerald-main/20">
-                      {res.reservation_number}
-                    </span>
-                    <h3 className="font-bold text-lg font-cairo text-slate-900 mt-2">{res.package_name}</h3>
-                  </div>
-                  <span className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1 shrink-0 ${
-                    isActiveReservation(res.status)
-                      ? 'bg-emerald-soft text-emerald-main border-emerald-main/20'
-                      : 'bg-slate-100 text-slate-500 border-slate-200'
-                  }`}>
-                    <CheckCircle className="w-3.5 h-3.5" /> {reservationStatusLabel(res.status)}
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4 rounded-xl bg-slate-50 text-xs text-slate-600 border border-slate-100">
-                  <div>الغرفة: <strong>{res.program?.room_label || res.room_type}</strong></div>
-                  <div>المعتمرون: <strong>{res.travelers_count}</strong></div>
-                  <div>المبلغ: <strong>{res.total_amount.toLocaleString('ar-DZ')} دج</strong></div>
-                  <div>الدفع: <strong>{res.payment_status}</strong></div>
-                </div>
-                {res.invoice?.lines?.length ? (
-                  <table className="w-full text-xs text-slate-600">
-                    <tbody>
-                      {res.invoice.lines.map((line) => (
-                        <tr key={line.id} className="border-t border-slate-100">
-                          <td className="py-2">
-                            {line.title}
-                            {line.detail ? <small className="block text-slate-400">{line.detail}</small> : null}
-                          </td>
-                          <td className="py-2 text-left font-bold">{line.amount.toLocaleString('ar-DZ')} دج</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : null}
-                {isActiveReservation(res.status) ? (
-                  <div className="flex flex-wrap gap-2">
-                    <Link href={`/book?edit=${encodeURIComponent(res.reservation_id)}`} className="portal-tab portal-tab-inactive no-underline text-xs">تعديل الطلب</Link>
-                    <Link href="/portal?tab=program" className="portal-tab portal-tab-inactive no-underline text-xs">عرض البرنامج</Link>
-                    <BookingPrintButton type="request" reservationId={res.reservation_id} className="portal-tab portal-tab-inactive text-xs" />
-                    <BookingPrintButton type="invoice" reservationId={res.reservation_id} className="portal-tab portal-tab-inactive text-xs" />
-                  </div>
-                ) : (
-                  <Link href="/book" className="portal-tab portal-tab-inactive no-underline text-xs">حجز برنامج جديد</Link>
-                )}
-              </div>
-            ))}
+        {viewTab === 'account' && isPilgrim && (
+          <div className="pilgrim-account animate-fade-up">
+            <AccountSecurityPanel compact />
+            <ReviewComposer defaultName={displayName} compact />
           </div>
         )}
 
-        {activeTab === 'documents' && currentUser.role === 'pilgrim' && (
-          <div className="space-y-6 animate-fade-up">
-            <div className="flex justify-between items-center flex-wrap gap-3">
-              <h2 className="text-lg font-bold font-cairo text-slate-900">ملف الوثائق</h2>
-              <label className="btn-pro-primary text-xs py-2.5 px-4 cursor-pointer">
-                <Upload className="w-4 h-4" /> {isUploading ? 'جاري التحميل...' : 'رفع جواز سفر'}
-                <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={handleDocumentUpload} className="hidden" />
-              </label>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {documents.length === 0 ? (
-                <p className="text-sm text-slate-500 col-span-2">ارفع جواز السفر وباقي الوثائق بعد تأكيد الحجز. لم يُرفع شيء بعد.</p>
-              ) : documents.map((doc) => (
-                <div key={doc.document_id} className="luxury-card p-5 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-soft text-emerald-main flex items-center justify-center shrink-0">
-                      <FileText className="w-5 h-5" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="font-bold text-xs text-slate-800 truncate">{doc.file_name}</p>
-                      <p className="text-[10px] text-slate-500">{doc.document_type}</p>
-                    </div>
-                  </div>
-                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border shrink-0 ${
-                    doc.status === 'VERIFIED'
-                      ? 'bg-emerald-soft text-emerald-main border-emerald-main/20'
-                      : 'bg-amber-50 text-amber-700 border-amber-200'
-                  }`}>
-                    {doc.status === 'VERIFIED' ? 'مؤكد' : 'قيد المراجعة'}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'security' && (
+        {viewTab === 'security' && !isPilgrim && (
           <AccountSecurityPanel />
-        )}
-
-        {activeTab === 'reviews' && currentUser.role === 'pilgrim' && (
-          <div className="luxury-card p-6 space-y-4 animate-fade-up">
-            <h2 className="text-lg font-bold font-cairo text-slate-900">قيّم رحلتك مع الوكالة</h2>
-            <p className="text-xs text-slate-500">
-              تقييمك يذهب أولاً إلى الإدارة. بعد الموافقة يظهر للزوار كنجوم وشهادة — مثل تطبيقات التقييم الكبيرة.
-            </p>
-            <ReviewComposer defaultName={currentUser.name} />
-          </div>
-        )}
-
-        {activeTab === 'payments' && currentUser.role === 'pilgrim' && (
-          <div className="space-y-4 animate-fade-up">
-            <h2 className="text-lg font-bold font-cairo text-slate-900">وصولات الدفع</h2>
-            {receipts.length === 0 ? (
-              <div className="luxury-card p-8 text-center text-sm text-slate-500">ستظهر سندات الدفع هنا بعد تأكيد الحجز.</div>
-            ) : receipts.map((rcp) => (
-              <div key={rcp.id} className="luxury-card p-5 flex justify-between items-center gap-4 flex-wrap">
-                <div>
-                  <span className="text-xs font-mono font-bold text-emerald-main">{rcp.id}</span>
-                  <h4 className="font-bold text-sm text-slate-900 mt-1">{rcp.packageName}</h4>
-                  <p className="text-xs text-slate-500">{rcp.paymentMethod}</p>
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <div className="text-left">
-                    <span className="text-lg font-bold text-emerald-main font-cairo block">{rcp.totalAmount.toLocaleString()} دج</span>
-                    <span className="text-[10px] text-slate-500 font-medium">{rcp.status}</span>
-                  </div>
-                  <BookingPrintButton
-                    type="receipt"
-                    receiptId={rcp.id}
-                    reservationId={reservations.find((r) => r.package_name === rcp.packageName)?.reservation_id}
-                    className="portal-tab portal-tab-inactive text-xs"
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
         )}
       </main>
 
-      <SakhrAgent />
+      {!isPilgrim ? <SakhrAgent /> : null}
     </div>
   );
 }

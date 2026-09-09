@@ -5,8 +5,45 @@ import Navbar from '@/components/Navbar';
 import SakhrAgent from '@/components/lazy/LazySakhrAgent';
 import Footer from '@/components/Footer';
 import { Package } from '@/types';
-import { Sparkles, MapPin, Calendar, CheckCircle, Plane, Filter, ArrowLeft } from 'lucide-react';
+import { MapPin, Calendar, Plane, ChevronDown, Tag, Sparkles } from 'lucide-react';
 import Link from 'next/link';
+import KaabaIcon from '@/components/icons/KaabaIcon';
+import { isPackageExpired } from '@/lib/booking-catalog';
+
+const UMRAH_IMAGES = [
+  '/images/kaaba_sharifa_home_page.png',
+  '/images/kaaba_sharifa_home_page0.jpg',
+  '/images/maka01.png',
+  '/images/maka06.png',
+  '/images/maka05.png',
+];
+
+const TYPE_LABEL: Record<string, string> = {
+  ECONOMY: 'اقتصادية',
+  STANDARD: 'عادية',
+  PREMIUM: 'مميزة',
+  VIP: 'فاخرة',
+  FAMILY: 'عائلية',
+  GROUP: 'حملة',
+  CUSTOM: 'خاصة',
+};
+
+function isStockHotelPhoto(src?: string): boolean {
+  const s = String(src || '');
+  return /unsplash\.com|photo-1566073771259|photo-1582719478250|photo-1542314831|photo-1571896349842/.test(s);
+}
+
+function packageImage(pkg: Package, index: number): string {
+  if (pkg.image_url && !isStockHotelPhoto(pkg.image_url)) return pkg.image_url;
+  return UMRAH_IMAGES[index % UMRAH_IMAGES.length];
+}
+
+function formatTripDate(value?: string): string {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleDateString('ar-DZ', { year: 'numeric', month: 'long', day: 'numeric' });
+}
 
 export default function PackagesPage() {
   const [packages, setPackages] = useState<Package[]>([]);
@@ -17,114 +54,172 @@ export default function PackagesPage() {
 
   useEffect(() => {
     fetch('/api/admin/packages')
-      .then(res => res.json())
-      .then(data => {
+      .then((res) => res.json())
+      .then((data) => {
         if (Array.isArray(data)) setPackages(data);
         setLoading(false);
       })
       .catch(() => setLoading(false));
   }, []);
 
-  const filteredPackages = packages.filter((pkg) => {
-    if (selectedSeason !== 'ALL' && !pkg.season_id?.toLowerCase().includes(selectedSeason.toLowerCase())) return false;
-    if (selectedType !== 'ALL' && pkg.type !== selectedType) return false;
-    const minPrice = pkg.prices?.length ? Math.min(...pkg.prices.map(p => p.amount)) : 0;
-    if (minPrice > maxBudget) return false;
-    return true;
-  });
+  const filteredPackages = packages
+    .filter((pkg) => {
+      if (selectedSeason !== 'ALL' && !pkg.season_id?.toLowerCase().includes(selectedSeason.toLowerCase())) return false;
+      if (selectedType !== 'ALL' && pkg.type !== selectedType) return false;
+      const minPrice = pkg.prices?.length ? Math.min(...pkg.prices.map((p) => p.amount)) : 0;
+      if (minPrice > maxBudget) return false;
+      return true;
+    })
+    .sort((a, b) => Number(isPackageExpired(a)) - Number(isPackageExpired(b)));
+
+  const emptySlots =
+    filteredPackages.length === 0 ? 0 : (3 - (filteredPackages.length % 3)) % 3;
 
   return (
-    <div className="page-shell min-h-screen bg-slate-app">
+    <div className="page-shell catalog-page min-h-screen">
       <Navbar variant="light" />
 
-      <main className="page-main pb-16 max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="text-center space-y-4 mb-10 pt-6">
-          <span className="badge-pro">
-            <Sparkles className="w-4 h-4" /> البرامج والباقات المعتمدة
-          </span>
-          <h1 className="text-3xl sm:text-4xl font-black font-cairo text-slate-900">
-            كتالوج باقات العمرة والحج 2026
-          </h1>
-          <p className="text-sm text-slate-600 max-w-2xl mx-auto leading-relaxed">
-            تصفح جميع عروض وكالة ساوث ستريت المعتمدة — أسعار شفافة، فنادق قريبة من الحرم، ومقاعد محدودة.
-          </p>
-        </div>
+      <main className="page-main pb-20 max-w-7xl mx-auto px-4 sm:px-6">
+        <header className="catalog-head">
+          <h1>العمرة والحج 2026</h1>
+          <p>فنادق قرب الحرم — أسعار واضحة — مقاعد محدودة</p>
+        </header>
 
-        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm mb-8 grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-xs font-bold text-slate-600 mb-2 flex items-center gap-1">
-              <Filter className="w-3.5 h-3.5 text-emerald-600" /> نوع الرحلة
-            </label>
-            <select value={selectedType} onChange={(e) => setSelectedType(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-emerald-500">
-              <option value="ALL">جميع الأنواع</option>
-              <option value="ECONOMY">اقتصادية</option>
-              <option value="VIP">فخمة VIP</option>
-              <option value="GROUP">حملات الحج</option>
-            </select>
+        <div className="catalog-filters">
+          <div className="catalog-field">
+            <span><Tag /> النوع</span>
+            <div className="catalog-select">
+              <select value={selectedType} onChange={(e) => setSelectedType(e.target.value)}>
+                <option value="ALL">كل الأنواع</option>
+                <option value="ECONOMY">اقتصادية</option>
+                <option value="VIP">فاخرة</option>
+                <option value="GROUP">حملات الحج</option>
+              </select>
+              <ChevronDown className="catalog-select-chev" />
+            </div>
           </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-600 mb-2">الموسم</label>
-            <select value={selectedSeason} onChange={(e) => setSelectedSeason(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-emerald-500">
-              <option value="ALL">جميع المواسم</option>
-              <option value="AUGUST">موسم أوت 2026</option>
-              <option value="RAMADAN">رمضان والمولد</option>
-              <option value="HAJJ">الحج 1447هـ</option>
-            </select>
+          <div className="catalog-field">
+            <span><Calendar /> الموسم</span>
+            <div className="catalog-select">
+              <select value={selectedSeason} onChange={(e) => setSelectedSeason(e.target.value)}>
+                <option value="ALL">كل المواسم</option>
+                <option value="AUGUST">أوت 2026</option>
+                <option value="RAMADAN">رمضان والمولد</option>
+                <option value="HAJJ">الحج</option>
+              </select>
+              <ChevronDown className="catalog-select-chev" />
+            </div>
           </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-600 mb-2">
-              الحد الأقصى: <span className="text-emerald-700 font-black">{maxBudget.toLocaleString()} دج</span>
-            </label>
-            <input type="range" min="200000" max="1200000" step="50000" value={maxBudget} onChange={(e) => setMaxBudget(Number(e.target.value))} className="w-full accent-emerald-600 cursor-pointer mt-2" />
+          <div className="catalog-field catalog-field-price">
+            <div className="catalog-price-head">
+              <span>الحد الأقصى</span>
+              <b>حتى {maxBudget.toLocaleString('ar-DZ')} دج</b>
+            </div>
+            <div
+              className="catalog-range-wrap"
+              style={{ ['--pct' as string]: `${((maxBudget - 200000) / 1000000) * 100}%` }}
+            >
+              <div className="catalog-range-rail" aria-hidden>
+                <i className="catalog-range-fill" />
+              </div>
+              <input
+                type="range"
+                min="200000"
+                max="1200000"
+                step="50000"
+                value={maxBudget}
+                onChange={(e) => setMaxBudget(Number(e.target.value))}
+                className="catalog-range"
+                aria-label="الحد الأقصى للسعر"
+              />
+              <div className="catalog-range-scale">
+                <em>200 ألف</em>
+                <em>600 ألف</em>
+                <em>1.2 مليون</em>
+              </div>
+            </div>
           </div>
         </div>
 
         {loading ? (
-          <div className="text-center py-20 text-slate-500">جاري تحميل الباقات...</div>
+          <p className="catalog-status">جاري التحميل...</p>
         ) : filteredPackages.length === 0 ? (
-          <div className="text-center py-20 text-slate-500">لا توجد باقات مطابقة للفلاتر المحددة.</div>
+          <p className="catalog-status">لا توجد باقات مطابقة.</p>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredPackages.map((pkg) => {
-              const minPrice = pkg.prices?.length ? Math.min(...pkg.prices.map(p => p.amount)) : 0;
+          <div className="catalog-grid">
+            {filteredPackages.map((pkg, index) => {
+              const minPrice = pkg.prices?.length ? Math.min(...pkg.prices.map((p) => p.amount)) : 0;
+              const img = packageImage(pkg, index);
+              const expired = isPackageExpired(pkg);
               return (
-                <article key={pkg.package_id} className="group rounded-2xl bg-white border border-slate-200 overflow-hidden hover:border-emerald-300 hover:shadow-xl transition-all flex flex-col shadow-sm">
-                  <div className="relative h-48 overflow-hidden">
-                    <img src={pkg.image_url || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800&auto=format&fit=crop'} alt={pkg.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                    <span className="absolute top-3 right-3 px-3 py-1 rounded-full bg-white/95 text-emerald-800 text-xs font-bold shadow">{pkg.type}</span>
-                    <span className="absolute bottom-3 left-3 px-3 py-1 rounded-full bg-slate-900/85 text-emerald-300 text-xs font-bold">
-                      {pkg.available} مقعد متبقٍ
-                    </span>
+                <article
+                  key={pkg.package_id}
+                  id={pkg.package_id}
+                  className={`catalog-card pkg-anchor${expired ? ' is-expired' : ''}`}
+                >
+                  <div className="catalog-card-media">
+                    <img
+                      src={img}
+                      alt={pkg.name}
+                      onError={(e) => {
+                        const el = e.currentTarget;
+                        const next = UMRAH_IMAGES[(index + 1) % UMRAH_IMAGES.length];
+                        if (el.src.includes(next)) return;
+                        el.src = next;
+                      }}
+                    />
+                    <span className="catalog-card-type">{TYPE_LABEL[pkg.type] || pkg.type}</span>
+                    {expired ? (
+                      <span className="catalog-card-expired">منتهية</span>
+                    ) : (
+                      <span className="catalog-card-seats">{pkg.available} مقعد</span>
+                    )}
                   </div>
-                  <div className="p-5 space-y-3 flex-1">
-                    <h3 className="font-black text-lg font-cairo text-slate-900 group-hover:text-emerald-700 transition-colors">{pkg.name}</h3>
-                    <p className="text-xs text-slate-600 leading-relaxed line-clamp-2">{pkg.description}</p>
-                    <div className="p-3 rounded-xl bg-slate-50 text-xs text-slate-600 space-y-2 border border-slate-100">
-                      <div className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" /><span>{pkg.makkah_hotel_name} ({pkg.makkah_hotel_dist})</span></div>
-                      <div className="flex items-center gap-1.5"><Plane className="w-3.5 h-3.5 text-indigo-500 shrink-0" /><span>{pkg.airline}</span></div>
-                      <div className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-amber-500 shrink-0" /><span>{pkg.duration_days} يوماً</span></div>
-                    </div>
+                  <div className="catalog-card-body">
+                    <h2>{pkg.name}</h2>
+                    <ul>
+                      <li><MapPin className="w-3.5 h-3.5" /> {pkg.makkah_hotel_name}</li>
+                      <li><Plane className="w-3.5 h-3.5" /> {pkg.airline}</li>
+                      <li><Calendar className="w-3.5 h-3.5" /> {pkg.duration_days} يوماً</li>
+                    </ul>
+                    {expired ? (
+                      <p className="catalog-expired-note">
+                        انتهى هذا البرنامج في {formatTripDate(pkg.end_date || pkg.start_date)} ولا يمكن حجزه
+                      </p>
+                    ) : null}
                   </div>
-                  <div className="p-5 pt-0 flex items-center justify-between border-t border-slate-100 mt-auto">
-                    <div>
-                      <span className="text-[10px] text-slate-400 block">تبدأ من</span>
-                      <span className="text-xl font-black text-emerald-700 font-cairo">{minPrice.toLocaleString()} <span className="text-xs">دج</span></span>
-                    </div>
-                    <Link href={`/book?package=${encodeURIComponent(pkg.package_id)}`} className="btn-pro-primary text-xs py-2.5 px-4">
-                      حجز <CheckCircle className="w-3.5 h-3.5" />
-                    </Link>
+                  <div className="catalog-card-foot">
+                    <strong>{minPrice.toLocaleString('ar-DZ')} <small>دج</small></strong>
+                    {expired ? (
+                      <span className="catalog-card-closed">غير متاح</span>
+                    ) : (
+                      <Link href={`/book?package=${encodeURIComponent(pkg.package_id)}`}>حجز</Link>
+                    )}
                   </div>
                 </article>
               );
             })}
+            {Array.from({ length: emptySlots }).map((_, i) => (
+              <div key={`empty-${i}`} className="catalog-card is-empty">
+                <div className="catalog-empty-media">
+                  <span className="catalog-empty-badge">قريباً</span>
+                  <div className="catalog-empty-icon">
+                    <KaabaIcon className="w-12 h-12" />
+                    <Sparkles className="catalog-empty-spark" />
+                  </div>
+                </div>
+                <div className="catalog-empty-body">
+                  <strong>باقة جديدة</strong>
+                  <span>مقعد شاغر في الكتالوج — سيُضاف برنامج هنا قريباً</span>
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
-        <div className="mt-10 text-center">
-          <Link href="/" className="inline-flex items-center gap-2 text-sm font-bold text-slate-600 hover:text-emerald-700 transition-colors">
-            <ArrowLeft className="w-4 h-4" /> العودة للرئيسية
-          </Link>
-        </div>
+        <p className="catalog-back">
+          <Link href="/">الرئيسية</Link>
+        </p>
       </main>
 
       <Footer />

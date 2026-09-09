@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import {
   ArrowLeft,
   ArrowRight,
@@ -25,9 +26,11 @@ import {
   DEPOSIT_PERCENT,
   ROOM_LABELS,
   isActiveReservation,
+  isPackageExpired,
   roomOccupancy,
 } from '@/lib/booking-catalog';
 import ExistingBookingPanel from '@/components/booking/ExistingBookingPanel';
+import BookingPrintButton from '@/components/booking/BookingPrintButton';
 import GoogleContinueButton from '@/components/GoogleContinueButton';
 
 const STEPS = [
@@ -131,7 +134,7 @@ export default function BookingWizard() {
 
   const [packages, setPackages] = useState<Package[]>([]);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<ViewId>(prefillPackage ? 'offer' : 'packages');
+  const [view, setView] = useState<ViewId>('packages');
   const [extraIndex, setExtraIndex] = useState(0);
   const [packageId, setPackageId] = useState(prefillPackage);
   const [roomType, setRoomType] = useState('');
@@ -152,7 +155,7 @@ export default function BookingWizard() {
   const [booting, setBooting] = useState(true);
 
   const resetChoicesView = () => {
-    setView(prefillPackage || packageId ? 'offer' : 'packages');
+    setView('packages');
     setExtraIndex(0);
   };
 
@@ -203,7 +206,7 @@ export default function BookingWizard() {
         if (editId) {
           applyReservation(active);
           setScreen('wizard');
-          setView('offer');
+          setView('packages');
           return;
         }
         applyReservation(active);
@@ -217,8 +220,15 @@ export default function BookingWizard() {
   }, [editId]);
 
   useEffect(() => {
-    if (prefillPackage && screen === 'wizard' && !existing) setPackageId(prefillPackage);
-  }, [prefillPackage, screen, existing]);
+    if (prefillPackage && screen === 'wizard' && !existing) {
+      const pkg = packages.find((p) => p.package_id === prefillPackage);
+      if (pkg && isPackageExpired(pkg)) {
+        setPackageId('');
+        return;
+      }
+      setPackageId(prefillPackage);
+    }
+  }, [prefillPackage, screen, existing, packages]);
 
   const selected = packages.find((p) => p.package_id === packageId) || null;
   const otherPackages = packages.filter((p) => p.package_id !== packageId);
@@ -227,13 +237,18 @@ export default function BookingWizard() {
   const step = phaseOf(view);
   const currentExtra = BOOKING_EXTRAS[extraIndex] || null;
 
-  const choosePackage = (id: string) => {
+  const selectPackage = (id: string) => {
+    const pkg = packages.find((p) => p.package_id === id);
+    if (pkg && isPackageExpired(pkg)) {
+      setError('هذا البرنامج انتهى ولا يمكن اختياره');
+      return;
+    }
+    setError('');
     setPackageId(id);
-    setView('offer');
     setExtraIndex(0);
     const params = new URLSearchParams(searchParams.toString());
     params.set('package', id);
-    router.replace(`/book?${params.toString()}`);
+    router.replace(`/book?${params.toString()}`, { scroll: false });
   };
 
   useEffect(() => {
@@ -263,6 +278,15 @@ export default function BookingWizard() {
   const deposit = existing && editing ? previousPaid : Math.round(total * DEPOSIT_PERCENT);
   const priceDelta = existing && editing ? total - Number(existing.total_amount || 0) : 0;
 
+  const printDraft = useMemo(() => ({
+    packageId,
+    roomType,
+    extraIds,
+    name: name.trim(),
+    phone: phone.trim(),
+    email: email.trim(),
+  }), [packageId, roomType, extraIds, name, phone, email]);
+
   const setExtraChoice = (id: string, on: boolean) => {
     setExtraIds((prev) => {
       const has = prev.includes(id);
@@ -278,11 +302,11 @@ export default function BookingWizard() {
       setError('اختر باقة العمرة للمتابعة');
       return;
     }
-    if (view === 'packages') {
-      setView('offer');
+    if (selected && isPackageExpired(selected)) {
+      setError('هذا البرنامج انتهى ولا يمكن حجزه');
       return;
     }
-    if (view === 'offer') {
+    if (view === 'packages' || view === 'offer') {
       setView('room');
       return;
     }
@@ -334,8 +358,15 @@ export default function BookingWizard() {
       setView('room');
       return;
     }
-    if (view === 'room' || view === 'packages') {
-      setView('offer');
+    if (view === 'room' || view === 'offer') {
+      setView('packages');
+      return;
+    }
+    if (view === 'packages') {
+      if (existing) {
+        setScreen('manage');
+        router.replace('/book');
+      }
       return;
     }
     if (view === 'details') {
@@ -405,7 +436,7 @@ export default function BookingWizard() {
       if (data.reservation) applyReservation(data.reservation);
       window.dispatchEvent(new CustomEvent('southstreet:bookings-updated'));
       setScreen('manage');
-      setView('offer');
+      setView('packages');
       router.replace('/book');
     } catch {
       setError('تعذّر الاتصال بالخادم. حاول مرة أخرى.');
@@ -463,7 +494,7 @@ export default function BookingWizard() {
           onModify={() => {
             applyReservation(existing);
             setScreen('wizard');
-            setView('offer');
+            setView('packages');
             setExtraIndex(0);
             router.replace(`/book?edit=${encodeURIComponent(existing.reservation_id)}`);
           }}
@@ -473,10 +504,7 @@ export default function BookingWizard() {
   }
 
   const showPriceBar = Boolean(selected) && view !== 'offer' && view !== 'packages' && view !== 'invoice';
-  const canGoBack =
-    view === 'offer' ? editing
-      : view === 'packages' ? Boolean(selected || editing)
-        : true;
+  const canGoBack = view !== 'packages' || editing;
 
   return (
     <div className="book-wizard book-wizard-stage" dir="rtl">
@@ -542,26 +570,39 @@ export default function BookingWizard() {
       {view === 'packages' && (
         <section className="book-option-screen">
           <h2 className="book-option-title">اختر البرنامج</h2>
+          <p className="book-option-sub">اضغط للاختيار — التفاصيل من الرابط — التالي للمتابعة</p>
           {loading ? (
             <p className="text-sm text-slate-500 py-10 text-center">جاري تحميل البرامج...</p>
           ) : (
             <div className="book-big-list">
               {packages.map((pkg) => {
                 const from = pkg.prices?.length ? Math.min(...pkg.prices.map((p) => p.amount)) : 0;
-                const active = pkg.package_id === packageId;
+                const expired = isPackageExpired(pkg);
+                const active = !expired && pkg.package_id === packageId;
                 return (
-                  <button
-                    key={pkg.package_id}
-                    type="button"
-                    className={`book-big-card ${active ? 'is-active' : ''}`}
-                    onClick={() => choosePackage(pkg.package_id)}
-                    aria-pressed={active}
-                  >
-                    <span className="book-pkg-type">{pkg.type}</span>
-                    <strong>{pkg.name}</strong>
-                    <b>{money(from)}</b>
-                    {active ? <CheckCircle className="book-big-check" aria-hidden /> : null}
-                  </button>
+                  <article key={pkg.package_id} className={`book-pkg-pick ${active ? 'is-active' : ''} ${expired ? 'is-expired' : ''}`}>
+                    <button
+                      type="button"
+                      className="book-pkg-pick-main"
+                      onClick={() => selectPackage(pkg.package_id)}
+                      aria-pressed={active}
+                      disabled={expired}
+                    >
+                      <span className={`book-choice-radio${active ? ' is-on' : ''}`} aria-hidden>
+                        {active ? <Check className="w-3 h-3" strokeWidth={3} /> : null}
+                      </span>
+                      <span className="book-pkg-type">{expired ? 'منتهية' : pkg.type}</span>
+                      <strong>{pkg.name}</strong>
+                      <span className="book-choice-price">{money(from)}</span>
+                      {expired ? <em className="book-pkg-expired">انتهى موعد هذه العمرة</em> : null}
+                    </button>
+                    <Link
+                      href={`/packages#${encodeURIComponent(pkg.package_id)}`}
+                      className="book-pkg-details"
+                    >
+                      تفاصيل البرنامج
+                    </Link>
+                  </article>
                 );
               })}
             </div>
@@ -586,10 +627,14 @@ export default function BookingWizard() {
                   aria-pressed={active}
                   aria-label={`${ROOM_LABELS[price.room_type] || price.room_type} — ${count} أشخاص — ${money(price.amount)}`}
                 >
-                  <RoomPeople count={count} />
-                  <strong>{ROOM_LABELS[price.room_type] || price.room_type}</strong>
-                  <b>{money(price.amount)}</b>
-                  {active ? <CheckCircle className="book-big-check" aria-hidden /> : null}
+                  <span className={`book-choice-radio${active ? ' is-on' : ''}`} aria-hidden>
+                    {active ? <Check className="w-3 h-3" strokeWidth={3} /> : null}
+                  </span>
+                  <span className="book-room-main">
+                    <RoomPeople count={count} />
+                    <strong>{ROOM_LABELS[price.room_type] || price.room_type}</strong>
+                  </span>
+                  <span className="book-choice-price">{money(price.amount)}</span>
                 </button>
               );
             })}
@@ -733,6 +778,16 @@ export default function BookingWizard() {
                 </>
               )}
             </dl>
+          </div>
+          <div className="book-print-final">
+            <p className="book-print-final-hint">بعد مراجعة الفاتورة يمكنك طباعة طلب الحجز قبل الإرسال</p>
+            <BookingPrintButton
+              type={existing?.reservation_id ? 'invoice' : 'request'}
+              step={4}
+              draft={printDraft}
+              reservationId={existing?.reservation_id}
+              label="معاينة / طباعة الطلب"
+            />
           </div>
         </section>
       )}

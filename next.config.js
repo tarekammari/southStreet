@@ -46,7 +46,6 @@ const nextConfig = {
   },
   experimental: {
     optimizePackageImports: ['lucide-react'],
-    webpackMemoryOptimizations: true,
   },
   // better-sqlite3 is a native Node module — must not be bundled for Vercel
   serverExternalPackages: ['better-sqlite3', 'bcryptjs'],

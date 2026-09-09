@@ -348,6 +348,14 @@ export interface Reservation {
   agency_note?: string;
 }
 
+/** Pending Umrah demand with linked customer account info (for agency review). */
+export interface AgencyDemand extends Reservation {
+  customer_status?: string;
+  customer_login_enabled?: boolean;
+  customer_code?: string;
+  passport?: string;
+}
+
 export interface CustomerDocument {
   document_id: string;
   customer_id: string;

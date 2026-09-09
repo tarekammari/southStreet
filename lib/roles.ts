@@ -133,19 +133,41 @@ export const PORTAL_TABS: Record<PortalRole, { tab: string; label: string }[]> =
     { tab: 'chat', label: 'المحادثة' },
   ],
   pilgrim: [
-    { tab: 'program', label: 'برنامجي' },
-    { tab: 'reservations', label: 'حجوزاتي' },
-    { tab: 'documents', label: 'وثائقي' },
-    { tab: 'payments', label: 'المدفوعات' },
-    { tab: 'reviews', label: 'تقييم الوكالة' },
-    { tab: 'rituals', label: 'المناسك' },
-    { tab: 'security', label: 'أمان الحساب' },
-    { tab: 'chat', label: 'المحادثة' },
+    { tab: 'program', label: 'رحلتي' },
+    { tab: 'chat', label: 'رسائل' },
+    { tab: 'account', label: 'حسابي' },
   ],
 };
 
+/** Old pilgrim URLs still work; they land on the simplified 3-step portal. */
+const PILGRIM_TAB_ALIASES: Record<string, string> = {
+  reservations: 'program',
+  documents: 'program',
+  payments: 'program',
+  rituals: 'program',
+  reviews: 'account',
+  security: 'account',
+};
+
+export type PilgrimHomeSection = 'trip' | 'docs' | 'pay' | 'rites';
+
+export function pilgrimHomeSection(tab?: string | null): PilgrimHomeSection {
+  if (tab === 'documents') return 'docs';
+  if (tab === 'payments') return 'pay';
+  if (tab === 'rituals') return 'rites';
+  return 'trip';
+}
+
+export function resolvePortalTab(role: PortalRole, tab?: string | null): string {
+  const raw = String(tab || '').trim();
+  const mapped = role === 'pilgrim' && PILGRIM_TAB_ALIASES[raw] ? PILGRIM_TAB_ALIASES[raw] : raw;
+  const allowed = PORTAL_TABS[role].map((t) => t.tab);
+  if (mapped && allowed.includes(mapped)) return mapped;
+  return defaultPortalTab(role);
+}
+
 export function defaultPortalTab(role: PortalRole): string {
-  return PORTAL_TABS[role][0]?.tab || 'reservations';
+  return PORTAL_TABS[role][0]?.tab || 'program';
 }
 
 export function roleNameForLoginRole(role: LoginRole, fallback?: string): string {

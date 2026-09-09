@@ -273,6 +273,7 @@ export default function UserAccessDashboard({
   const [syncedAt, setSyncedAt] = useState<string | null>(null);
   const [clock, setClock] = useState('');
   const [section, setSection] = useState<DashSection>('users');
+  const [demandCount, setDemandCount] = useState(0);
   const [profileId, setProfileId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [createForm, setCreateForm] = useState({ name: '', username: '', email: '', phone: '', password: '', role: 'PILGRIM_USER' });
@@ -351,6 +352,18 @@ export default function UserAccessDashboard({
       setSideOpen(window.innerWidth >= 1180);
     }
   }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem('south_street_token');
+    if (!token) return;
+    fetch('/api/bookings/confirm', { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.demands) setDemandCount(data.demands.length);
+        else if (data?.pending) setDemandCount(data.pending.length);
+      })
+      .catch(() => {});
+  }, [section]);
 
   const toggleSide = useCallback(() => {
     setSideOpen((v) => {
@@ -943,6 +956,7 @@ export default function UserAccessDashboard({
                 >
                   <ShoppingBag className="w-4 h-4" />
                   <span className="inn-side-label">طلبات العمرة</span>
+                  {demandCount > 0 ? <span className="inn-side-badge">{demandCount}</span> : null}
                 </button>
                 <button
                   type="button"

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSqliteDb } from '@/lib/sqlite';
 import { getAuthUser } from '@/lib/request-auth';
-import { attachGoogleId, ensureUserAccount, findUserByGoogleId, findUserForLogin } from '@/lib/accounts';
+import { attachGoogleId, ensureUserAccount, findUserByGoogleId, findUserForLogin, queueAccessRequest } from '@/lib/accounts';
 import { verifyGoogleCredential } from '@/lib/google-id-token';
 import { upsertUserSession } from '@/lib/presence';
 import { generateDeviceFingerprint, verifyPassword } from '@/lib/security';
@@ -29,6 +29,7 @@ import {
   roomPriceFor,
   ROOM_LABELS,
 } from '@/lib/booking';
+import { isPackageExpired } from '@/lib/booking-catalog';
 import { documentVerifyCode } from '@/lib/booking-documents';
 
 export const dynamic = 'force-dynamic';
@@ -147,6 +148,9 @@ function quoteDemand(packageId: string, roomType: string, extraIds: string[]) {
   const pkg = loadPublishedPackage(packageId);
   if (!pkg || pkg.published === false) {
     return { ok: false as const, error: 'هذه الباقة غير متاحة للحجز حالياً', status: 404 as const };
+  }
+  if (isPackageExpired(pkg)) {
+    return { ok: false as const, error: 'هذا البرنامج انتهى ولا يمكن حجزه', status: 409 as const };
   }
   const roomAmount = roomPriceFor(pkg, roomType);
   if (roomAmount == null) {
@@ -279,6 +283,9 @@ export async function POST(req: NextRequest) {
     if (!pkg || pkg.published === false) {
       return NextResponse.json({ error: 'هذه الباقة غير متاحة للحجز حالياً' }, { status: 404 });
     }
+    if (isPackageExpired(pkg)) {
+      return NextResponse.json({ error: 'هذا البرنامج انتهى ولا يمكن حجزه' }, { status: 409 });
+    }
     if (Number(pkg.available) < 1) {
       return NextResponse.json({ error: 'لا توجد مقاعد متبقية في هذه الباقة' }, { status: 409 });
     }
@@ -340,7 +347,7 @@ export async function POST(req: NextRequest) {
         }
         if (googleProfile) attachGoogleId(existing.id, googleProfile.googleId);
         db.prepare(`
-          UPDATE users SET status = 'APPROVED', loginEnabled = 1, name = ?, phone = COALESCE(NULLIF(?, ''), phone)
+          UPDATE users SET name = ?, phone = COALESCE(NULLIF(?, ''), phone)
           WHERE id = ?
         `).run(name, phone, existing.id);
         account = db.prepare('SELECT * FROM users WHERE id = ?').get(existing.id);
@@ -351,11 +358,25 @@ export async function POST(req: NextRequest) {
           phone,
           role: 'PILGRIM_USER',
           roleName: 'معتمر',
-          status: 'APPROVED',
+          status: 'PENDING_APPROVAL',
           issueSecrets: false,
         });
         if (googleProfile) attachGoogleId(issued.userId, googleProfile.googleId);
         account = db.prepare('SELECT * FROM users WHERE id = ?').get(issued.userId);
+        try {
+          const meta = clientMeta(req);
+          queueAccessRequest({
+            userId: issued.userId,
+            userName: name,
+            userEmail: email,
+            userRole: 'PILGRIM_USER',
+            ip: meta.clientIp,
+            pcPrint: meta.pcPrint,
+            userAgent: meta.userAgent,
+          });
+        } catch {
+          /* optional */
+        }
       }
     }
 
@@ -469,7 +490,7 @@ export async function POST(req: NextRequest) {
       user: { ...session.user, redirect: '/book' },
       reservation,
       extrasCatalog: BOOKING_EXTRAS,
-      message: 'تم إرسال طلبك. ستتلقى تأكيد الوكالة قبل تفعيل الدفعة الأولى.',
+      message: 'تم إرسال طلبك. ستُراجعه الوكالة وتُفعَّل حسابك للدخول بعد التأكيد.',
     });
     res.cookies.set('south_street_token', session.token, {
       httpOnly: false,
@@ -545,7 +566,7 @@ export async function PUT(req: NextRequest) {
       reservation,
       priceDelta,
       needsAgencyConfirmation: reservation.status === 'REQUESTED',
-      user: { redirect: '/portal?tab=reservations' },
+      user: { redirect: '/portal?tab=program' },
     });
   } catch (error: any) {
     return NextResponse.json({ error: error?.message || 'تعذّر تعديل الطلب' }, { status: 500 });

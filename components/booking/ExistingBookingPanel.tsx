@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Calendar, Clock, Plane, ShieldAlert, Loader2 } from 'lucide-react';
+import { Calendar, Plane, ShieldAlert, Loader2 } from 'lucide-react';
 import { Reservation } from '@/types';
 import {
   FREE_CANCEL_DAYS,
@@ -12,6 +12,7 @@ import {
 } from '@/lib/booking-catalog';
 import BookingPrintButton from '@/components/booking/BookingPrintButton';
 import UmrahCountdown from '@/components/booking/UmrahCountdown';
+import { PendingRequestStrip } from '@/components/booking/PendingRequestBanner';
 
 function money(n: number): string {
   return `${(n || 0).toLocaleString('ar-DZ')} دج`;
@@ -49,22 +50,21 @@ export default function ExistingBookingPanel({
 
   return (
     <section className="book-manage" dir="rtl">
-      <span className={`book-manage-badge ${confirmed ? '' : 'is-pending'}`}>
-        {confirmed ? 'مؤكد' : 'بانتظار التأكيد'}
-      </span>
-      <h2>{confirmed ? 'حجزك جاهز' : 'طلبك وصل'}</h2>
-      <p>
-        {confirmed
-          ? 'يمكنك عرض برنامجك أو تعديل الغرفة.'
-          : 'فريق الوكالة يراجعه الآن. لا يمكن فتح طلب جديد قبل التأكيد أو الإلغاء.'}
-      </p>
-
-      {!confirmed ? (
-        <p className="book-pending-note" role="status">
-          <Clock className="w-4 h-4" /> انتظر تأكيد الوكالة — الطلب قيد المراجعة الآن
-        </p>
+      {confirmed ? (
+        <>
+          <span className="book-manage-badge">مؤكد</span>
+          <h2>حجزك جاهز</h2>
+          <p>يمكنك عرض برنامجك أو تعديل الغرفة.</p>
+          <UmrahCountdown startDate={startDate} packageName={reservation.package_name} />
+        </>
       ) : (
-        <UmrahCountdown startDate={startDate} packageName={reservation.package_name} />
+        <>
+          <PendingRequestStrip reservation={reservation} />
+          <h2>طلبك وصل</h2>
+          <p className="book-pending-note">
+            فريق الوكالة يراجع طلبك الآن. لا يمكن فتح طلب جديد قبل التأكيد أو الإلغاء.
+          </p>
+        </>
       )}
 
       <div className="book-manage-card">

@@ -5,6 +5,7 @@ import { Plus } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { fetchJsonList } from '@/lib/fetch-json';
 import { PageContentRow, pickPageContent } from '@/lib/page-content';
+import { isPackageExpired } from '@/lib/booking-catalog';
 
 type Program = {
   id: string;
@@ -50,7 +51,9 @@ export default function TravelProgramsSection({ content }: { content?: PageConte
     fetchJsonList<any>('/api/admin/packages')
       .then((data) => {
         if (cancelled) return;
-        const mapped: Program[] = data.map((pkg: any) => {
+        const mapped: Program[] = data
+          .filter((pkg: any) => !isPackageExpired(pkg))
+          .map((pkg: any) => {
           const available = isAvailablePackage(pkg);
           return {
             id: pkg.package_id,
@@ -116,6 +119,7 @@ export default function TravelProgramsSection({ content }: { content?: PageConte
               <motion.div
                 key={prog.id}
                 className="travel-faq-item"
+                id={prog.id}
                 variants={{
                   hidden: { opacity: 0, y: 14 },
                   show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] } },

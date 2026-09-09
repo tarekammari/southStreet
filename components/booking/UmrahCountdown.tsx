@@ -50,7 +50,7 @@ export default function UmrahCountdown({
       <div className="umrah-countdown-head">
         <Timer className="w-4 h-4" />
         <div>
-          <p>{arrived ? 'حان موعد العمرة' : 'العدّ التنازلي لموعد العمرة'}</p>
+          <p>{arrived ? 'حان الموعد' : 'باقي على السفر'}</p>
           {packageName ? <span>{packageName}</span> : null}
         </div>
       </div>

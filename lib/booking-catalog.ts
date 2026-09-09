@@ -86,6 +86,17 @@ export function daysUntilDeparture(startDate?: string | null): number | null {
   return Math.round((start.getTime() - today.getTime()) / 86400000);
 }
 
+/** Departure has already passed — this Umrah program can no longer be booked. */
+export function isPackageExpired(pkg: { start_date?: string | null; end_date?: string | null }): boolean {
+  const days = daysUntilDeparture(pkg.start_date);
+  if (days !== null) return days < 0;
+  if (!pkg.end_date) return false;
+  const end = new Date(pkg.end_date);
+  if (Number.isNaN(end.getTime())) return false;
+  end.setHours(23, 59, 59, 999);
+  return end.getTime() < Date.now();
+}
+
 export function reservationStatusLabel(status?: string | null): string {
   const s = String(status || '').toUpperCase();
   switch (s) {

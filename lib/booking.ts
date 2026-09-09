@@ -8,7 +8,7 @@ import {
   Reservation,
   TravelerInfo,
 } from '@/types';
-import { ROOM_LABELS, canSelfManageReservation, isActiveReservation, isAgencyConfirmed } from '@/lib/booking-catalog';
+import { ROOM_LABELS, canSelfManageReservation, isActiveReservation, isAgencyConfirmed, isPackageExpired } from '@/lib/booking-catalog';
 import { documentVerifyCode } from '@/lib/booking-documents';
 import { dbSaveMessage, dbSaveReceipt } from '@/lib/db';
 import { buildDmChatId } from '@/lib/chat-utils';
@@ -25,6 +25,7 @@ export {
   FREE_CANCEL_DAYS,
   reservationStatusLabel,
   isAgencyConfirmed,
+  isPackageExpired,
 } from '@/lib/booking-catalog';
 
 function formatArDate(value?: string, withWeekday = false): string {
@@ -271,6 +272,9 @@ export function applyReservationChanges(input: {
 }): Reservation {
   const guard = selfManageGuard(input.existing);
   if (!guard.ok) throw new Error(guard.reason || 'LOCKED');
+  if (isPackageExpired(input.pkg)) {
+    throw new Error('هذا البرنامج انتهى ولا يمكن حجزه');
+  }
 
   const now = new Date().toISOString();
   const appointments = buildAppointments(input.pkg);
@@ -379,6 +383,28 @@ export function listRecentAgencyReservations(limit = 40): Reservation[] {
   return rows.map(mapReservationRow);
 }
 
+export type { AgencyDemand } from '@/types';
+
+export function listAgencyDemandQueue(): import('@/types').AgencyDemand[] {
+  const db = getSqliteDb();
+  return listPendingAgencyReservations().map((res) => {
+    const user = db.prepare('SELECT status, loginEnabled, code FROM users WHERE id = ?').get(res.customer_id) as any;
+    const approved = user?.status === 'APPROVED' && user?.loginEnabled !== 0;
+    return {
+      ...res,
+      customer_status: user?.status || 'UNKNOWN',
+      customer_login_enabled: approved,
+      customer_code: user?.code,
+      passport: res.travelers?.[0]?.passport_number || '',
+    };
+  });
+}
+
+function approveCustomerLogin(customerId: string) {
+  const db = getSqliteDb();
+  db.prepare(`UPDATE users SET status = 'APPROVED', loginEnabled = 1 WHERE id = ?`).run(customerId);
+}
+
 function notifyPilgrimAndAgency(input: {
   customerId: string;
   customerName: string;
@@ -477,6 +503,7 @@ export function confirmReservationByAgency(
       now,
       reservationId
     );
+    approveCustomerLogin(row.customer_id);
   })();
 
   const reservation = getReservationById(reservationId) as Reservation;
@@ -500,7 +527,7 @@ export function confirmReservationByAgency(
     customerId: row.customer_id,
     customerName: row.customer_name,
     reservationNumber: row.reservation_number,
-    pilgrimText: `مرحباً ${row.customer_name}، أكّدت الوكالة طلب عمرتك رقم ${row.reservation_number}. الدفعة الأولى ${deposit.toLocaleString('ar-DZ')} دج، والمتبقي ${Math.max(0, total - deposit).toLocaleString('ar-DZ')} دج قبل السفر. برنامجك جاهز في بوابة المعتمر.`,
+    pilgrimText: `مرحباً ${row.customer_name}، أكّدت الوكالة طلب عمرتك رقم ${row.reservation_number} وتم تفعيل دخول حسابك. الدفعة الأولى ${deposit.toLocaleString('ar-DZ')} دج، والمتبقي ${Math.max(0, total - deposit).toLocaleString('ar-DZ')} دج قبل السفر. برنامجك جاهز في بوابة المعتمر.`,
     groupText: `تم تأكيد طلب ${row.customer_name} — ${row.package_name} (${row.reservation_number}).`,
     packageName: row.package_name,
   });

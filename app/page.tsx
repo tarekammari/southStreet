@@ -11,6 +11,7 @@ import TravelProgramsSection from '@/components/TravelProgramsSection';
 import SakhrAgent from '@/components/lazy/LazySakhrAgent';
 import Footer from '@/components/Footer';
 import SessionHeartbeat from '@/components/SessionHeartbeat';
+import PendingRequestBanner from '@/components/booking/PendingRequestBanner';
 import { User } from '@/types';
 import { fetchJsonList } from '@/lib/fetch-json';
 import { PageContentRow, pickPageContent } from '@/lib/page-content';
@@ -44,6 +45,7 @@ export default function HomePage() {
   return (
     <div className="page-shell page-shell-home min-h-screen bg-slate-app">
       <Navbar currentUser={currentUser} onLogout={handleLogout} onSelectRole={restoreUser} variant="light" showPromo promoLine={navPromo.title || undefined} />
+      <PendingRequestBanner user={currentUser} variant="home" />
       <main className="page-main relative overflow-x-clip pb-6">
         <HeroSection content={pageContent} />
         <section id="agency-section" className="relative z-10 w-full px-3 py-8 sm:px-6 sm:py-12">

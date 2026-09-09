@@ -6,7 +6,7 @@ import { dbLogAudit } from '@/lib/db';
 import { resolveRequestIp } from '@/lib/security-threats';
 import {
   confirmReservationByAgency,
-  listPendingAgencyReservations,
+  listAgencyDemandQueue,
   listRecentAgencyReservations,
   rejectReservationByAgency,
 } from '@/lib/booking';
@@ -34,9 +34,9 @@ function requireAgencyStaff(req: NextRequest, acting = false) {
 export async function GET(req: NextRequest) {
   const gate = requireAgencyStaff(req);
   if ('error' in gate) return gate.error;
-  const pending = listPendingAgencyReservations();
+  const demands = listAgencyDemandQueue();
   const recent = listRecentAgencyReservations();
-  return NextResponse.json({ pending, recent, count: pending.length });
+  return NextResponse.json({ pending: demands, demands, recent, count: demands.length });
 }
 
 export async function POST(req: NextRequest) {
