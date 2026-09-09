@@ -23,6 +23,13 @@ function formatDate(value?: string): string {
   return d.toLocaleDateString('ar-DZ', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+function staffInboxHref(role: ReturnType<typeof toPortalRole>): string {
+  if (role === 'admin' || role === 'manager') return '/admin';
+  if (role === 'agent') return '/portal?tab=agent';
+  if (role === 'accountant') return '/portal?tab=accountant';
+  return '/portal';
+}
+
 export default function DemandBag({
   user,
   isLight = true,
@@ -35,23 +42,31 @@ export default function DemandBag({
   const [items, setItems] = useState<Reservation[]>([]);
   const ref = useRef<HTMLDivElement>(null);
 
-  const isPilgrim = user && toPortalRole(user.role, { email: user.email, roleName: user.roleName }) === 'pilgrim';
+  const portalRole = user ? toPortalRole(user.role, { email: user.email, roleName: user.roleName }) : null;
+  const isPilgrim = portalRole === 'pilgrim';
+  const isStaff = portalRole === 'admin' || portalRole === 'manager' || portalRole === 'agent' || portalRole === 'accountant';
 
   const load = useCallback(() => {
-    if (!isPilgrim || !localStorage.getItem('south_street_token')) {
+    if ((!isPilgrim && !isStaff) || !localStorage.getItem('south_street_token')) {
       setItems([]);
       return;
     }
     setLoading(true);
-    fetch('/api/bookings', { headers: authHeaders() })
+    const url = isStaff ? '/api/bookings/confirm' : '/api/bookings';
+    fetch(url, { headers: authHeaders() })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
+        if (isStaff) {
+          const pending = (data?.pending || []) as Reservation[];
+          setItems(pending);
+          return;
+        }
         const list = (data?.reservations || []) as Reservation[];
         setItems(list.filter((row) => isActiveReservation(row.status)));
       })
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
-  }, [isPilgrim]);
+  }, [isPilgrim, isStaff]);
 
   useEffect(() => {
     load();
@@ -75,12 +90,13 @@ export default function DemandBag({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  if (!isPilgrim) return null;
+  if (!isPilgrim && !isStaff) return null;
 
   const count = items.length;
   const btnClass = isLight
     ? 'demand-bag-btn demand-bag-btn-light'
     : 'demand-bag-btn demand-bag-btn-dark';
+  const inbox = staffInboxHref(portalRole || 'pilgrim');
 
   return (
     <div className="relative" ref={ref}>
@@ -88,8 +104,8 @@ export default function DemandBag({
         type="button"
         className={btnClass}
         onClick={() => setOpen((v) => !v)}
-        aria-label={`طلباتي (${count})`}
-        title="طلبات العمرة"
+        aria-label={isStaff ? `طلبات المعتمرين (${count})` : `طلباتي (${count})`}
+        title={isStaff ? 'طلبات المعتمرين' : 'طلبات العمرة'}
       >
         <ShoppingBag className="w-[18px] h-[18px]" />
         {count > 0 ? <span className="demand-bag-badge">{count > 9 ? '9+' : count}</span> : null}
@@ -98,8 +114,8 @@ export default function DemandBag({
       {open && (
         <div className={`demand-bag-panel ${isLight ? 'demand-bag-panel-light' : 'demand-bag-panel-dark'}`}>
           <div className="demand-bag-head">
-            <strong>طلباتي</strong>
-            <span>{count} برنامج</span>
+            <strong>{isStaff ? 'طلبات المعتمرين' : 'طلباتي'}</strong>
+            <span>{count} {isStaff ? 'بانتظار التأكيد' : 'برنامج'}</span>
           </div>
 
           {loading ? (
@@ -108,10 +124,16 @@ export default function DemandBag({
             </p>
           ) : count === 0 ? (
             <div className="demand-bag-empty">
-              <p>لا توجد طلبات عمرة حالياً</p>
-              <Link href="/book" onClick={() => setOpen(false)} className="demand-bag-cta">
-                ابدأ حجز برنامج
-              </Link>
+              <p>{isStaff ? 'لا توجد طلبات معلّقة حالياً' : 'لا توجد طلبات عمرة حالياً'}</p>
+              {!isStaff ? (
+                <Link href="/book" onClick={() => setOpen(false)} className="demand-bag-cta">
+                  ابدأ حجز برنامج
+                </Link>
+              ) : (
+                <Link href={inbox} onClick={() => setOpen(false)} className="demand-bag-cta">
+                  فتح صندوق الطلبات
+                </Link>
+              )}
             </div>
           ) : (
             <ul className="demand-bag-list">
@@ -121,15 +143,21 @@ export default function DemandBag({
                     <span className="demand-bag-status">{reservationStatusLabel(res.status)}</span>
                     <strong>{money(res.total_amount)}</strong>
                   </div>
-                  <h4>{res.package_name}</h4>
+                  <h4>{isStaff ? res.customer_name : res.package_name}</h4>
                   <p className="demand-bag-meta">
                     <Calendar className="w-3 h-3 inline opacity-60" />
                     {' '}
-                    {formatDate(res.program?.start_date)} · {res.reservation_number}
+                    {isStaff ? res.package_name : formatDate(res.program?.start_date)} · {res.reservation_number}
                   </p>
                   <div className="demand-bag-actions">
-                    <Link href="/book" onClick={() => setOpen(false)}>إدارة</Link>
-                    <Link href="/portal?tab=reservations" onClick={() => setOpen(false)}>التفاصيل</Link>
+                    {isStaff ? (
+                      <Link href={inbox} onClick={() => setOpen(false)}>مراجعة الطلب</Link>
+                    ) : (
+                      <>
+                        <Link href="/book" onClick={() => setOpen(false)}>إدارة</Link>
+                        <Link href="/portal?tab=reservations" onClick={() => setOpen(false)}>التفاصيل</Link>
+                      </>
+                    )}
                   </div>
                 </li>
               ))}
@@ -137,8 +165,12 @@ export default function DemandBag({
           )}
 
           {count > 0 ? (
-            <Link href="/portal?tab=reservations" onClick={() => setOpen(false)} className="demand-bag-foot">
-              عرض كل الطلبات
+            <Link
+              href={isStaff ? inbox : '/portal?tab=reservations'}
+              onClick={() => setOpen(false)}
+              className="demand-bag-foot"
+            >
+              {isStaff ? 'عرض كل الطلبات' : 'عرض كل الطلبات'}
               <ChevronDown className="w-3.5 h-3.5 rotate-90" />
             </Link>
           ) : null}
@@ -146,5 +178,4 @@ export default function DemandBag({
       )}
     </div>
   );
-
 }

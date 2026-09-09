@@ -96,6 +96,8 @@ export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 
   const navUser = currentUser ?? sessionUser;
   const pilgrim = isPilgrimClient(navUser);
   const links = navLinksFor(navUser);
+  const portalRole = navUser ? toPortalRole(navUser.role, { email: navUser.email, roleName: navUser.roleName }) : null;
+  const isStaff = portalRole === 'admin' || portalRole === 'manager' || portalRole === 'agent' || portalRole === 'accountant';
 
   const isAdmin = navUser && (
     navUser.role === 'SUPER_ADMIN' ||
@@ -256,9 +258,9 @@ export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 
 
       {mobileOpen && (
         <nav className={`nav-mobile-panel fixed inset-x-0 z-[199] border-b px-6 py-4 backdrop-blur-xl lg:hidden space-y-1 ${isLight ? 'border-slate-200 bg-white/98' : 'border-white/10 bg-slate-950/98'}`}>
-          {pilgrim && navUser ? (
+          {pilgrim || isStaff ? (
             <div className="py-3 border-b border-slate-200/80 flex items-center justify-between">
-              <span className="text-sm font-bold text-slate-700">طلباتي</span>
+              <span className="text-sm font-bold text-slate-700">{pilgrim ? 'طلباتي' : 'طلبات المعتمرين'}</span>
               <DemandBag user={navUser} isLight={isLight} />
             </div>
           ) : null}

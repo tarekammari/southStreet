@@ -11,7 +11,7 @@ import { generateDeviceFingerprint } from '@/lib/security';
 import { normalizeLoginRole, postLoginPath, LOGIN_ROLE_LABELS } from '@/lib/roles';
 import { signToken } from '@/lib/auth';
 import { getSqliteDb } from '@/lib/sqlite';
-import { pilgrimWaitingRedirect } from '@/lib/booking';
+import { pilgrimAppointment, pilgrimWaitingRedirect } from '@/lib/booking';
 
 export const dynamic = 'force-dynamic';
 
@@ -83,6 +83,7 @@ export async function POST(req: Request) {
 
     const role = normalizeLoginRole(user.role, { email: user.email, roleName: user.roleName });
     const waiting = role === 'PILGRIM_USER' ? pilgrimWaitingRedirect(user.id) : null;
+    const appointment = role === 'PILGRIM_USER' && !waiting ? pilgrimAppointment(user.id) : null;
     const token = signToken({
       id: user.id,
       code: user.code || user.username || user.id,
@@ -98,6 +99,7 @@ export async function POST(req: Request) {
       status: 'SUCCESS',
       token,
       waitingBooking: Boolean(waiting),
+      appointment,
       user: {
         id: user.id,
         name: user.name,
@@ -108,7 +110,7 @@ export async function POST(req: Request) {
         status,
         phone: user.phone,
         staffId: user.staffId,
-        redirect: waiting?.redirect || postLoginPath(role),
+        redirect: waiting?.redirect || (appointment ? '/portal' : postLoginPath(role)),
       },
     });
   } catch (error: any) {

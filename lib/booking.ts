@@ -205,6 +205,22 @@ export function findActiveReservation(customerId: string): Reservation | null {
   return listCustomerReservations(customerId).find((row) => isActiveReservation(row.status)) || null;
 }
 
+export function pilgrimAppointment(userId: string): {
+  startDate: string;
+  packageName: string;
+  reservationNumber: string;
+} | null {
+  const active = findActiveReservation(userId);
+  if (!active || !isAgencyConfirmed(active.status)) return null;
+  const startDate = active.program?.start_date || '';
+  if (!startDate) return null;
+  return {
+    startDate,
+    packageName: active.package_name,
+    reservationNumber: active.reservation_number,
+  };
+}
+
 export function pilgrimWaitingRedirect(userId: string): { waitingBooking: true; redirect: '/book' } | null {
   const active = findActiveReservation(userId);
   if (!active || isAgencyConfirmed(active.status)) return null;
@@ -349,6 +365,17 @@ export function listPendingAgencyReservations(): Reservation[] {
     WHERE reservation_status IN ('REQUESTED', 'PENDING')
     ORDER BY created_at DESC
   `).all() as any[];
+  return rows.map(mapReservationRow);
+}
+
+export function listRecentAgencyReservations(limit = 40): Reservation[] {
+  const db = getSqliteDb();
+  const rows = db.prepare(`
+    SELECT * FROM reservations
+    WHERE reservation_status NOT IN ('REQUESTED', 'PENDING')
+    ORDER BY COALESCE(updated_at, created_at) DESC
+    LIMIT ?
+  `).all(limit) as any[];
   return rows.map(mapReservationRow);
 }
 

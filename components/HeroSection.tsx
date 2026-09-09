@@ -278,13 +278,67 @@ export default function HeroSection({ content: _content }: { content?: PageConte
   );
 }
 
+type CoverSlot = { x: number; z: number; ry: number; s: number; o: number; bright: number };
+
+function coverSlots(mobile: boolean): CoverSlot[] {
+  return mobile
+    ? [
+        { x: 0, z: 90, ry: 0, s: 1.04, o: 1, bright: 1.04 },
+        { x: 138, z: 4, ry: -52, s: 0.88, o: 1, bright: 0.86 },
+        { x: 236, z: -50, ry: -64, s: 0.76, o: 0.72, bright: 0.72 },
+        { x: 290, z: -90, ry: -72, s: 0.68, o: 0, bright: 0.6 },
+      ]
+    : [
+        { x: 0, z: 140, ry: 0, s: 1.08, o: 1, bright: 1.04 },
+        { x: 198, z: 8, ry: -58, s: 0.9, o: 1, bright: 0.86 },
+        { x: 338, z: -70, ry: -70, s: 0.78, o: 0.72, bright: 0.72 },
+        { x: 410, z: -120, ry: -78, s: 0.7, o: 0, bright: 0.6 },
+      ];
+}
+
+function lerp(a: number, b: number, t: number) {
+  return a + (b - a) * t;
+}
+
+function coverStyle(offset: number, mobile: boolean): React.CSSProperties {
+  const slots = coverSlots(mobile);
+  const abs = Math.abs(offset);
+  const dir = offset < 0 ? -1 : 1;
+  const i = Math.min(Math.floor(abs), slots.length - 2);
+  const t = Math.min(1, abs - i);
+  const from = slots[i];
+  const to = slots[i + 1];
+  const x = lerp(from.x, to.x, t) * dir;
+  const z = lerp(from.z, to.z, t);
+  const ry = lerp(from.ry, to.ry, t) * dir;
+  const s = lerp(from.s, to.s, t);
+  const o = lerp(from.o, to.o, t);
+  const bright = lerp(from.bright, to.bright, t);
+  return {
+    transform: `translate(-50%, -50%) translateX(${x}px) translateZ(${z}px) rotateY(${ry}deg) scale(${s})`,
+    opacity: o,
+    filter: `brightness(${bright}) saturate(${0.82 + 0.22 * (1 - Math.min(abs, 2) / 2)})`,
+    zIndex: 20 - Math.round(abs * 8),
+    visibility: abs > 2.35 ? 'hidden' : 'visible',
+    pointerEvents: abs > 2.1 ? 'none' : 'auto',
+  };
+}
+
 function PostcardCoverFlow() {
   const count = POSTCARDS.length;
   const pointerId = useRef<number | null>(null);
-  const dragX = useRef(0);
+  const dragStartX = useRef(0);
+  const shiftRef = useRef(0);
+  const stageRef = useRef<HTMLDivElement>(null);
 
   const [active, setActive] = useState(0);
+  const [shift, setShift] = useState(0);
+  const [dragging, setDragging] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    shiftRef.current = shift;
+  }, [shift]);
 
   useEffect(() => {
     const mobile = window.matchMedia('(max-width: 980px)');
@@ -294,35 +348,53 @@ function PostcardCoverFlow() {
     return () => mobile.removeEventListener('change', sync);
   }, []);
 
-  const flowEnabled = true;
-  const isDragging = useRef(false);
-  const didDrag = useRef(false);
-  const steppedThisDrag = useRef(false);
-
   const goTo = useCallback((index: number) => {
+    setShift(0);
     setActive(((index % count) + count) % count);
   }, [count]);
 
   const stepAlbum = useCallback((dir: -1 | 1) => {
+    setShift(0);
     setActive((i) => (i + dir + count) % count);
   }, [count]);
 
+  const snapShift = useCallback((value: number) => {
+    const snapped = Math.round(value);
+    setActive((i) => ((i - snapped) % count + count) % count);
+    setShift(0);
+    setDragging(false);
+  }, [count]);
+
+  const unitFor = () => (isMobile ? 92 : 150);
+
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!flowEnabled || pointerId.current === null) return;
-    const dx = e.clientX - dragX.current;
-    if (Math.abs(dx) > 6) didDrag.current = true;
-    if (steppedThisDrag.current) return;
-    const threshold = isMobile ? 28 : 40;
-    if (Math.abs(dx) > threshold) {
-      steppedThisDrag.current = true;
-      stepAlbum(dx > 0 ? 1 : -1);
+    if (pointerId.current === e.pointerId) {
+      const dx = e.clientX - dragStartX.current;
+      if (Math.abs(dx) > 4) setDragging(true);
+      const next = dx / unitFor();
+      shiftRef.current = next;
+      setShift(next);
+      return;
     }
+    if (isMobile || dragging) return;
+    const rect = stageRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const nx = (e.clientX - (rect.left + rect.width / 2)) / Math.max(1, rect.width / 2);
+    const next = Math.max(-1, Math.min(1, nx)) * 0.38;
+    shiftRef.current = next;
+    setShift(next);
+  };
+
+  const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (pointerId.current !== e.pointerId) return;
+    pointerId.current = null;
+    snapShift(shiftRef.current);
   };
 
   const onCardActivate = (index: number, isFront: boolean) => {
-    if (didDrag.current) return;
+    if (dragging) return;
     if (isFront) {
-      if (isMobile) stepAlbum(1);
+      if (isMobile) stepAlbum(-1);
       return;
     }
     goTo(index);
@@ -336,9 +408,10 @@ function PostcardCoverFlow() {
       className="hero-kaaba-side"
     >
       <div
-        className={`hero-postcard-perspective is-flow${flowEnabled ? ' is-interactive' : ''}${isMobile ? ' is-mobile' : ''}`}
+        className={`hero-postcard-perspective is-flow is-live-flow is-interactive${dragging ? ' is-dragging' : ''}${isMobile ? ' is-mobile' : ''}`}
       >
         <div
+          ref={stageRef}
           className="hero-postcard-stage"
           role="region"
           aria-roledescription="معرض ألبومات"
@@ -346,46 +419,36 @@ function PostcardCoverFlow() {
           tabIndex={0}
           onPointerMove={onPointerMove}
           onPointerDown={(e) => {
-            isDragging.current = true;
-            didDrag.current = false;
-            steppedThisDrag.current = false;
             pointerId.current = e.pointerId;
-            dragX.current = e.clientX;
+            dragStartX.current = e.clientX;
+            setDragging(false);
             (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
           }}
-          onPointerUp={() => {
-            pointerId.current = null;
-            isDragging.current = false;
-            steppedThisDrag.current = false;
-          }}
-          onPointerCancel={() => {
-            pointerId.current = null;
-            isDragging.current = false;
-            steppedThisDrag.current = false;
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+          onPointerLeave={() => {
+            if (pointerId.current !== null) return;
+            setShift(0);
           }}
           onKeyDown={(e) => {
             if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
               e.preventDefault();
-              stepAlbum(e.key === 'ArrowLeft' ? -1 : 1);
+              stepAlbum(e.key === 'ArrowRight' ? -1 : 1);
             }
           }}
         >
           <div className="hero-album-reflection" aria-hidden="true" />
 
           {POSTCARDS.map((card, index) => {
-            const offset = circularOffset(index, active, count);
-            const isFront = offset === 0;
-            const isVisible = Math.abs(offset) <= 2;
+            const offset = circularOffset(index, active, count) + shift;
+            const isFront = Math.abs(offset) < 0.45;
+            const isVisible = Math.abs(offset) <= 2.2;
 
             return (
               <article
                 key={card.src}
                 className={`hero-postcard hero-album-cover${isFront ? ' is-front' : ' is-side'}${isVisible ? '' : ' is-away'}`}
-                data-offset={offset}
-                style={{
-                  ['--offset' as string]: offset,
-                  zIndex: count - Math.abs(offset),
-                }}
+                style={coverStyle(offset, isMobile)}
                 aria-hidden={!isFront}
                 role="button"
                 tabIndex={isVisible ? 0 : undefined}
@@ -423,10 +486,10 @@ function PostcardCoverFlow() {
           />
         ))}
         <span className="hero-postcard-hint hero-postcard-hint-idle">
-          {isMobile ? 'اسحب أو انقر للتنقل' : 'اسحب أو انقر على ألبوم جانبي'}
+          {isMobile ? 'اسحب مع الإصبع بنفس الاتجاه' : 'حرّك المؤشر أو اسحب بنفس الاتجاه'}
         </span>
         <span className="hero-postcard-hint hero-postcard-hint-active">
-          اسحب أو انقر للتنقل
+          حرّك المؤشر أو اسحب بنفس الاتجاه
         </span>
       </div>
     </motion.div>

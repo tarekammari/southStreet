@@ -458,7 +458,10 @@ function CustomerPortalContent() {
         )}
 
         {currentUser.role === 'accountant' && activeTab === 'accountant' && (
-          <AccountantDashboard currentUser={currentUser} />
+          <div className="space-y-4 animate-fade-up">
+            <AgencyPendingBookings />
+            <AccountantDashboard currentUser={currentUser} />
+          </div>
         )}
 
         {(currentUser.role === 'manager' || currentUser.role === 'admin') && activeTab === 'manager' && (

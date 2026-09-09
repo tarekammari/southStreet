@@ -28,7 +28,6 @@ import {
   roomOccupancy,
 } from '@/lib/booking-catalog';
 import ExistingBookingPanel from '@/components/booking/ExistingBookingPanel';
-import BookingPrintButton from '@/components/booking/BookingPrintButton';
 import GoogleContinueButton from '@/components/GoogleContinueButton';
 
 const STEPS = [
@@ -264,21 +263,6 @@ export default function BookingWizard() {
   const deposit = existing && editing ? previousPaid : Math.round(total * DEPOSIT_PERCENT);
   const priceDelta = existing && editing ? total - Number(existing.total_amount || 0) : 0;
 
-  const printDraft = useMemo(() => ({
-    packageId,
-    roomType,
-    extraIds,
-    name: name.trim(),
-    phone: phone.trim(),
-    email: email.trim(),
-  }), [packageId, roomType, extraIds, name, phone, email]);
-
-  const printTypeForPhase = (s: number): 'quote' | 'request' | 'invoice' => {
-    if (s <= 2) return 'quote';
-    if (s === 3) return 'request';
-    return 'invoice';
-  };
-
   const setExtraChoice = (id: string, on: boolean) => {
     setExtraIds((prev) => {
       const has = prev.includes(id);
@@ -495,7 +479,7 @@ export default function BookingWizard() {
         : true;
 
   return (
-    <div className="book-wizard" dir="rtl">
+    <div className="book-wizard book-wizard-stage" dir="rtl">
       {editing ? (
         <p className="book-edit-banner">تعديل الطلب {existing?.reservation_number} — راجع الخيارات ثم احفظ الفاتورة الجديدة</p>
       ) : null}
@@ -512,6 +496,7 @@ export default function BookingWizard() {
 
       {error ? <p className="book-error" role="alert">{error}</p> : null}
 
+      <div className="book-view-body">
       {view === 'offer' && (
         <section className="book-offer-view">
           {loading ? (
@@ -587,8 +572,8 @@ export default function BookingWizard() {
       {view === 'room' && selected && (
         <section className="book-option-screen">
           <h2 className="book-option-title">اختر الغرفة</h2>
-          <p className="book-option-sub">اضغط على نوع الغرفة</p>
-          <div className="book-big-list">
+          <p className="book-option-sub">اضغط على نوع الغرفة ثم التالي</p>
+          <div className="book-big-list book-big-list-rooms">
             {roomPrices.map((price) => {
               const count = roomOccupancy(price.room_type);
               const active = roomType === price.room_type;
@@ -751,18 +736,9 @@ export default function BookingWizard() {
           </div>
         </section>
       )}
+      </div>
 
-      <div className="book-nav">
-        <div className="book-nav-tools">
-          {step >= 2 && selected ? (
-            <BookingPrintButton
-              type={printTypeForPhase(step)}
-              step={step}
-              draft={printDraft}
-              reservationId={existing?.reservation_id}
-            />
-          ) : null}
-        </div>
+      <div className="book-nav book-nav-sticky">
         <div className="book-nav-actions">
           {canGoBack ? (
             <button type="button" className="book-btn book-btn-ghost" onClick={goBack}>

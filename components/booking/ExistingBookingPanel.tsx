@@ -11,6 +11,7 @@ import {
   isAgencyConfirmed,
 } from '@/lib/booking-catalog';
 import BookingPrintButton from '@/components/booking/BookingPrintButton';
+import UmrahCountdown from '@/components/booking/UmrahCountdown';
 
 function money(n: number): string {
   return `${(n || 0).toLocaleString('ar-DZ')} دج`;
@@ -60,9 +61,11 @@ export default function ExistingBookingPanel({
 
       {!confirmed ? (
         <p className="book-pending-note" role="status">
-          <Clock className="w-4 h-4" /> سنخبرك عند تأكيد الطلب
+          <Clock className="w-4 h-4" /> انتظر تأكيد الوكالة — الطلب قيد المراجعة الآن
         </p>
-      ) : null}
+      ) : (
+        <UmrahCountdown startDate={startDate} packageName={reservation.package_name} />
+      )}
 
       <div className="book-manage-card">
         <p className="book-manage-code">{reservation.reservation_number}</p>
@@ -99,7 +102,11 @@ export default function ExistingBookingPanel({
           {confirmed ? (
             <Link href="/portal?tab=program" className="book-btn book-btn-primary no-underline">عرض برنامجي</Link>
           ) : null}
-          <BookingPrintButton type="request" reservationId={reservation.reservation_id} />
+          <BookingPrintButton
+            type={confirmed ? 'confirmation' : 'request'}
+            reservationId={reservation.reservation_id}
+            label={confirmed ? 'طباعة التأكيد' : 'طباعة الطلب'}
+          />
           <button type="button" className="book-btn book-btn-ghost" onClick={onModify} disabled={!manage.ok}>تعديل</button>
           <button type="button" className="book-btn book-btn-danger-outline" onClick={onAskCancel} disabled={!manage.ok}>إلغاء</button>
         </div>

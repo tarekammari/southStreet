@@ -45,7 +45,9 @@ export default function LoginModal({ onClose, onSelectRole }: LoginModalProps) {
     if (onSelectRole) onSelectRole(data.user.role, data.user.name);
     const next = data.waitingBooking || data.user?.redirect === '/book'
       ? '/book'
-      : (data.user.redirect || (data.user.role === 'SUPER_ADMIN' || data.user.role === 'AGENCY_MANAGER' ? '/admin' : '/portal'));
+      : data.appointment
+        ? '/portal?tab=program'
+        : (data.user.redirect || (data.user.role === 'SUPER_ADMIN' || data.user.role === 'AGENCY_MANAGER' ? '/admin' : '/portal'));
     router.push(next);
     onClose();
   };

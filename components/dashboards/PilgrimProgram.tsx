@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { Calendar, MapPin, Plane, UserRound, Clock, MessageCircle, Compass, Loader2 } from 'lucide-react';
 import { canSelfManageReservation, isActiveReservation, isAgencyConfirmed, reservationStatusLabel } from '@/lib/booking-catalog';
 import BookingPrintButton from '@/components/booking/BookingPrintButton';
+import UmrahCountdown from '@/components/booking/UmrahCountdown';
 
 function formatDate(value?: string): string {
   if (!value) return '—';
@@ -66,6 +67,9 @@ export default function PilgrimProgram({
 
   return (
     <div className="space-y-5 animate-fade-up" dir="rtl">
+      {confirmed ? (
+        <UmrahCountdown startDate={program?.start_date} packageName={program?.package_name || reservation.package_name} />
+      ) : null}
       <div className="luxury-card p-6 flex flex-col md:flex-row justify-between gap-4">
         <div>
           <span className={`text-[11px] font-bold px-3 py-1 rounded-full inline-block mb-2 ${
@@ -79,7 +83,7 @@ export default function PilgrimProgram({
           </p>
           {!confirmed ? (
             <p className="text-xs text-amber-700 mt-2">
-              برنامجك معروض مسبقاً. يُفعَّل بالكامل بعد تأكيد الوكالة — يمكنك طباعة طلب الحجز الآن.
+              انتظر تأكيد الوكالة لتفعيل البرنامج بالكامل والعدّ التنازلي لموعد العمرة.
             </p>
           ) : null}
         </div>

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { CheckCircle, Loader2, XCircle } from 'lucide-react';
 import { Reservation } from '@/types';
 import { reservationStatusLabel } from '@/lib/booking-catalog';
+import { toPortalRole } from '@/lib/roles';
 import BookingPrintButton from '@/components/booking/BookingPrintButton';
 
 function authHeaders(): HeadersInit {
@@ -17,17 +18,37 @@ function money(n: number): string {
 
 export default function AgencyPendingBookings() {
   const [pending, setPending] = useState<Reservation[]>([]);
+  const [recent, setRecent] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState('');
   const [note, setNote] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
+  const [canAct, setCanAct] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('south_street_user');
+      if (!raw) return;
+      const u = JSON.parse(raw);
+      const role = toPortalRole(u.role, { email: u.email, roleName: u.roleName });
+      setCanAct(role === 'admin' || role === 'manager' || role === 'agent');
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const load = useCallback(() => {
     setLoading(true);
     fetch('/api/bookings/confirm', { headers: authHeaders() })
       .then((res) => (res.ok ? res.json() : Promise.reject()))
-      .then((data) => setPending(Array.isArray(data.pending) ? data.pending : []))
-      .catch(() => setPending([]))
+      .then((data) => {
+        setPending(Array.isArray(data.pending) ? data.pending : []);
+        setRecent(Array.isArray(data.recent) ? data.recent : []);
+      })
+      .catch(() => {
+        setPending([]);
+        setRecent([]);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -49,6 +70,7 @@ export default function AgencyPendingBookings() {
         setError(data.error || 'تعذّر معالجة الطلب');
         return;
       }
+      window.dispatchEvent(new CustomEvent('southstreet:bookings-updated'));
       load();
     } catch {
       setError('تعذّر الاتصال بالخادم');
@@ -60,19 +82,23 @@ export default function AgencyPendingBookings() {
   return (
     <div className="luxury-card p-6 space-y-4 animate-fade-up" dir="rtl">
       <div>
-        <h2 className="text-lg font-bold font-cairo text-slate-900">طلبات بانتظار تأكيد الوكالة</h2>
-        <p className="text-sm text-slate-600">راجع الطلب، اطبع الوثائق، ثم أكّد أو ارفض — مثل أنظمة الحجز الكبرى.</p>
+        <h2 className="text-lg font-bold font-cairo text-slate-900">طلبات المعتمرين</h2>
+        <p className="text-sm text-slate-600">راجع طلب كل معتمر، أكّده أو ارفضه، ثم اطبع الوثائق بعد إتمام الخطوات.</p>
       </div>
 
       {error ? <p className="book-error">{error}</p> : null}
 
       {loading ? (
         <p className="text-sm text-slate-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> جاري التحميل...</p>
-      ) : pending.length === 0 ? (
-        <p className="text-sm text-slate-500">لا توجد طلبات معلّقة حالياً.</p>
+      ) : pending.length === 0 && recent.length === 0 ? (
+        <p className="text-sm text-slate-500">لا توجد طلبات حالياً.</p>
       ) : (
-        <div className="space-y-4">
-          {pending.map((res) => (
+        <div className="space-y-6">
+          <div className="space-y-4">
+            <h3 className="text-sm font-bold text-slate-800">بانتظار التأكيد ({pending.length})</h3>
+            {pending.length === 0 ? (
+              <p className="text-sm text-slate-500">لا توجد طلبات معلّقة حالياً.</p>
+            ) : pending.map((res) => (
             <div key={res.reservation_id} className="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50/60">
               <div className="flex justify-between gap-3 flex-wrap">
                 <div>
@@ -96,6 +122,8 @@ export default function AgencyPendingBookings() {
               <div className="flex flex-wrap gap-2">
                 <BookingPrintButton type="request" reservationId={res.reservation_id} className="portal-tab portal-tab-inactive text-xs" />
                 <BookingPrintButton type="invoice" reservationId={res.reservation_id} className="portal-tab portal-tab-inactive text-xs" />
+              {canAct ? (
+                <>
                 <button
                   type="button"
                   className="portal-tab portal-tab-active text-xs"
@@ -113,9 +141,37 @@ export default function AgencyPendingBookings() {
                 >
                   <XCircle className="w-3.5 h-3.5 inline" /> رفض
                 </button>
+                </>
+              ) : null}
               </div>
             </div>
-          ))}
+            ))}
+          </div>
+
+          {recent.length > 0 ? (
+            <div className="space-y-3">
+              <h3 className="text-sm font-bold text-slate-800">آخر الطلبات المعالجة ({recent.length})</h3>
+              {recent.map((res) => (
+                <div key={res.reservation_id} className="border border-slate-200 rounded-xl p-4 space-y-2 bg-white">
+                  <div className="flex justify-between gap-3 flex-wrap">
+                    <div>
+                      <span className="text-xs font-mono font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded">{res.reservation_number}</span>
+                      <h3 className="font-bold text-slate-900 mt-2">{res.customer_name}</h3>
+                      <p className="text-xs text-slate-500">{res.package_name} · {reservationStatusLabel(res.status)}</p>
+                    </div>
+                    <strong className="text-emerald-700">{money(res.total_amount)}</strong>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <BookingPrintButton type="request" reservationId={res.reservation_id} className="portal-tab portal-tab-inactive text-xs" />
+                    <BookingPrintButton type="invoice" reservationId={res.reservation_id} className="portal-tab portal-tab-inactive text-xs" />
+                    {res.status === 'CONFIRMED' || res.status === 'PAID' || res.status === 'READY_FOR_TRAVEL' ? (
+                      <BookingPrintButton type="confirmation" reservationId={res.reservation_id} className="portal-tab portal-tab-inactive text-xs" />
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
       )}
     </div>

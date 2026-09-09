@@ -29,6 +29,7 @@ import {
   Settings,
   Shield,
   ShieldCheck,
+  ShoppingBag,
   Square,
   Star,
   Triangle,
@@ -63,6 +64,7 @@ import UserProfileModal from '@/components/admin/UserProfileModal';
 import GoogleLoginSettings from '@/components/admin/GoogleLoginSettings';
 import ServerHealthPanel from '@/components/admin/ServerHealth';
 import PresenceTimeline from '@/components/admin/PresenceTimeline';
+import AgencyPendingBookings from '@/components/booking/AgencyPendingBookings';
 
 type DashboardStats = {
   total: number;
@@ -98,7 +100,7 @@ const EMPTY_STATS: DashboardStats = {
 const HEARTBEAT_MS = 45000;
 const REFRESH_MS = 20000;
 
-type DashSection = 'users' | 'security' | 'google' | 'server';
+type DashSection = 'users' | 'security' | 'google' | 'server' | 'bookings';
 type FilterKey = 'all' | 'online' | 'active' | 'pending' | 'suspended';
 type RoleFilter = 'all' | LoginRole;
 type FlyoutKey = 'accounts' | 'sessions' | 'types' | null;
@@ -612,7 +614,15 @@ export default function UserAccessDashboard({
 
   const todayLabel = new Date().toLocaleDateString('ar-DZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const fwMode = section === 'security';
-  const workspaceLabel = fwMode ? 'الجدار الناري' : section === 'google' ? 'دخول جوجل' : section === 'server' ? 'حالة الخادم' : 'إدارة الحسابات';
+  const workspaceLabel = fwMode
+    ? 'الجدار الناري'
+    : section === 'google'
+      ? 'دخول جوجل'
+      : section === 'server'
+        ? 'حالة الخادم'
+        : section === 'bookings'
+          ? 'طلبات العمرة'
+          : 'إدارة الحسابات';
   const roleFilterLabel = roleFilter === 'all' ? '' : LOGIN_ROLE_LABELS[roleFilter];
   const filterCount = (id: FilterKey) => {
     if (id === 'online') return onlineCount;
@@ -715,6 +725,11 @@ export default function UserAccessDashboard({
           {section === 'server' ? (
             <div key="server" className="inn-stage-pane is-active inn-swap">
               <ServerHealthPanel />
+            </div>
+          ) : null}
+          {section === 'bookings' ? (
+            <div key="bookings" className="inn-stage-pane is-active inn-swap">
+              <AgencyPendingBookings />
             </div>
           ) : null}
 
@@ -919,6 +934,15 @@ export default function UserAccessDashboard({
                   <MessageCircle className="w-4 h-4" />
                   <span className="inn-side-label">الجلسات</span>
                   {onlineCount > 0 ? <span className="inn-side-badge">{onlineCount}</span> : <span className="inn-side-dot" />}
+                </button>
+                <button
+                  type="button"
+                  className={`inn-side-link${section === 'bookings' ? ' is-active' : ''}`}
+                  onClick={() => goSection('bookings')}
+                  title="طلبات العمرة"
+                >
+                  <ShoppingBag className="w-4 h-4" />
+                  <span className="inn-side-label">طلبات العمرة</span>
                 </button>
                 <button
                   type="button"

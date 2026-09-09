@@ -7,7 +7,7 @@ import { findUserForLogin, findUserByQr, queueAccessRequest, repairSuperAdminLog
 import { signToken } from '@/lib/auth';
 import { normalizeLoginRole, postLoginPath, requiresSecurityKey, LOGIN_ROLE_LABELS, AppRedirectPath } from '@/lib/roles';
 import { dbLogAudit } from '@/lib/db';
-import { pilgrimWaitingRedirect } from '@/lib/booking';
+import { pilgrimAppointment, pilgrimWaitingRedirect } from '@/lib/booking';
 import { recordLoginIncident } from '@/lib/security-monitor';
 import { resolveRequestIp } from '@/lib/security-threats';
 
@@ -129,6 +129,8 @@ function completeLogin(user: any, reqMeta: { clientIp: string; userAgent: string
   const safeUser = publicUser(user, reqMeta.pcPrint, reqMeta.clientIp);
   const waiting = safeUser.role === 'PILGRIM_USER' ? pilgrimWaitingRedirect(user.id) : null;
   if (waiting) safeUser.redirect = waiting.redirect;
+  else if (safeUser.role === 'PILGRIM_USER') safeUser.redirect = '/portal';
+  const appointment = safeUser.role === 'PILGRIM_USER' && !waiting ? pilgrimAppointment(user.id) : null;
   const token = signToken({
     id: user.id,
     code: user.code || user.username || user.id,
@@ -151,6 +153,7 @@ function completeLogin(user: any, reqMeta: { clientIp: string; userAgent: string
     user: safeUser,
     token,
     waitingBooking: Boolean(waiting),
+    appointment,
   });
   res.cookies.set('south_street_token', token, {
     httpOnly: false,

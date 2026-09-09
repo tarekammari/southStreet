@@ -34,7 +34,7 @@ function BookPageInner() {
         }}
         variant="light"
       />
-      <main className="page-main pb-16 max-w-5xl mx-auto px-4 sm:px-6 pt-6">
+      <main className="page-main book-page-main pb-8 max-w-5xl mx-auto px-4 sm:px-6 pt-6">
         <h1 className="sr-only">طلب العمرة</h1>
         <BookingWizard />
       </main>

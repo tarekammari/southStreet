@@ -7,14 +7,16 @@ import { resolveRequestIp } from '@/lib/security-threats';
 import {
   confirmReservationByAgency,
   listPendingAgencyReservations,
+  listRecentAgencyReservations,
   rejectReservationByAgency,
 } from '@/lib/booking';
 
 export const dynamic = 'force-dynamic';
 
-const AGENCY_ROLES = new Set(['SUPER_ADMIN', 'AGENCY_MANAGER', 'AGENCY_AGENT']);
+const AGENCY_VIEW_ROLES = new Set(['SUPER_ADMIN', 'AGENCY_MANAGER', 'AGENCY_AGENT', 'ACCOUNTANT']);
+const AGENCY_ACT_ROLES = new Set(['SUPER_ADMIN', 'AGENCY_MANAGER', 'AGENCY_AGENT']);
 
-function requireAgencyStaff(req: NextRequest) {
+function requireAgencyStaff(req: NextRequest, acting = false) {
   const auth = getAuthUser(req);
   if (!auth) {
     return { error: NextResponse.json({ error: 'يلزم تسجيل الدخول' }, { status: 401 }) };
@@ -22,7 +24,8 @@ function requireAgencyStaff(req: NextRequest) {
   const db = getSqliteDb();
   const account = db.prepare('SELECT * FROM users WHERE id = ?').get(auth.id) as any;
   const role = normalizeLoginRole(account?.role, { email: account?.email, roleName: account?.roleName });
-  if (!AGENCY_ROLES.has(role)) {
+  const allowed = acting ? AGENCY_ACT_ROLES : AGENCY_VIEW_ROLES;
+  if (!allowed.has(role)) {
     return { error: NextResponse.json({ error: 'صلاحية تأكيد الطلبات للموظفين فقط' }, { status: 403 }) };
   }
   return { account, role };
@@ -32,12 +35,13 @@ export async function GET(req: NextRequest) {
   const gate = requireAgencyStaff(req);
   if ('error' in gate) return gate.error;
   const pending = listPendingAgencyReservations();
-  return NextResponse.json({ pending, count: pending.length });
+  const recent = listRecentAgencyReservations();
+  return NextResponse.json({ pending, recent, count: pending.length });
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const gate = requireAgencyStaff(req);
+    const gate = requireAgencyStaff(req, true);
     if ('error' in gate) return gate.error;
     const { account } = gate;
 
