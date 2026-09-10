@@ -2,17 +2,18 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { User, Reservation, CustomerDocument, Receipt } from '@/types';
 import {
   Calendar,
+  CreditCard,
+  FileText,
+  Loader2,
   MapPin,
   Plane,
-  UserRound,
-  Loader2,
-  FileText,
-  CreditCard,
   Upload,
+  UserRound,
+  ChevronDown,
 } from 'lucide-react';
+import { User, Reservation, CustomerDocument, Receipt } from '@/types';
 import {
   canSelfManageReservation,
   isActiveReservation,
@@ -24,11 +25,21 @@ import BookingPrintButton from '@/components/booking/BookingPrintButton';
 import UmrahCountdown from '@/components/booking/UmrahCountdown';
 import UmrahCounter from '@/components/UmrahCounter';
 
-function formatDate(value?: string): string {
+function formatLongDate(value?: string): string {
   if (!value) return '—';
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleDateString('ar-DZ', { month: 'short', day: 'numeric' });
+  return d.toLocaleDateString('ar-DZ', { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+function formatShortRange(start?: string, end?: string): string {
+  const a = start ? new Date(start) : null;
+  const b = end ? new Date(end) : null;
+  if (!a || Number.isNaN(a.getTime())) return '—';
+  const left = a.toLocaleDateString('ar-DZ', { day: 'numeric', month: 'short' });
+  if (!b || Number.isNaN(b.getTime())) return left;
+  const right = b.toLocaleDateString('ar-DZ', { day: 'numeric', month: 'short' });
+  return `${left} — ${right}`;
 }
 
 function money(n: number): string {
@@ -78,6 +89,7 @@ export default function PilgrimProgram({
   const appointments = active.appointments || [];
   const manage = canSelfManageReservation(active.status, program?.start_date);
   const confirmed = isAgencyConfirmed(active.status);
+  const past = reservations.filter((r) => r.reservation_id !== active.reservation_id);
 
   const cancelBooking = async () => {
     setCancelling(true);
@@ -103,7 +115,7 @@ export default function PilgrimProgram({
 
   return (
     <div className="pilgrim-home" dir="rtl">
-      <div className="pilgrim-seg" role="tablist">
+      <div className="pilgrim-seg" role="tablist" aria-label="أقسام الرحلة">
         <button type="button" className={section === 'trip' ? 'is-on' : ''} onClick={() => setSection('trip')}>الرحلة</button>
         <button type="button" className={section === 'docs' ? 'is-on' : ''} onClick={() => setSection('docs')}>وثائق</button>
         <button type="button" className={section === 'pay' ? 'is-on' : ''} onClick={() => setSection('pay')}>دفع</button>
@@ -111,71 +123,98 @@ export default function PilgrimProgram({
       </div>
 
       {section === 'trip' ? (
-        <div className="space-y-4">
+        <div className="trip-board">
+          <header className="trip-hero">
+            <img className="trip-hero-photo" src="/images/kaaba_sharifa_home_page.png" alt="" />
+            <div className="trip-hero-veil" />
+            <div className="trip-hero-body">
+              <div className="trip-hero-top">
+                <span className={`trip-hero-badge ${confirmed ? 'is-ok' : 'is-wait'}`}>
+                  {confirmed ? 'مؤكدة' : reservationStatusLabel(active.status)}
+                </span>
+                <b className="trip-hero-ref">{active.reservation_number}</b>
+              </div>
+              <h1>{program?.package_name || active.package_name}</h1>
+              <p className="trip-hero-dates">
+                <Calendar className="w-3.5 h-3.5" aria-hidden />
+                {formatShortRange(program?.start_date, program?.end_date)}
+                {program?.duration_days ? <em>· {program.duration_days} يوماً</em> : null}
+                <em>· {program?.room_label || active.room_type}</em>
+              </p>
+            </div>
+          </header>
+
           {confirmed ? (
-            <UmrahCountdown startDate={program?.start_date} />
+            <UmrahCountdown startDate={program?.start_date} packageName={program?.package_name || active.package_name} />
           ) : (
-            <p className="pilgrim-wait">بانتظار تأكيد الوكالة</p>
+            <p className="trip-hero-wait">بانتظار تأكيد الوكالة — المقاعد والسفر لا يثبتان بعد</p>
           )}
 
-          <article className="pilgrim-trip">
-            <div className="pilgrim-trip-top">
-              <span className={`pilgrim-chip ${confirmed ? 'is-ok' : 'is-wait'}`}>
-                {confirmed ? 'مؤكد' : reservationStatusLabel(active.status)}
-              </span>
-              <b>{active.reservation_number}</b>
-            </div>
-            <h2>{program?.package_name || active.package_name}</h2>
-            <p className="pilgrim-meta">
-              <Calendar className="w-3.5 h-3.5" />
-              {formatDate(program?.start_date)} — {formatDate(program?.end_date)}
-              <span>·</span>
-              {program?.room_label || active.room_type}
-            </p>
-          </article>
-
-          <div className="pilgrim-facts">
-            <div>
-              <Plane className="w-4 h-4" />
-              <strong>{program?.airline || '—'}</strong>
-              <span>{program?.departure_city || 'الجزائر'} ➜ المدينة</span>
-            </div>
-            <div>
-              <MapPin className="w-4 h-4" />
+          <div className="trip-facts">
+            <article>
+              <UserRound className="trip-fact-icon" aria-hidden />
+              <span>المرشد</span>
+              <strong>{program?.morshid_name || 'يُحدَّد لاحقاً'}</strong>
+              <em dir="ltr">{program?.morshid_phone || '—'}</em>
+            </article>
+            <article>
+              <MapPin className="trip-fact-icon" aria-hidden />
+              <span>الإقامة</span>
               <strong>{program?.makkah_hotel_name || '—'}</strong>
-              <span>{program?.madinah_hotel_name || ''}</span>
-            </div>
-            <div>
-              <UserRound className="w-4 h-4" />
-              <strong>{program?.morshid_name || 'المرشد'}</strong>
-              <span dir="ltr">{program?.morshid_phone || ''}</span>
-            </div>
+              <em>{program?.madinah_hotel_name || 'المدينة'}</em>
+            </article>
+            <article>
+              <Plane className="trip-fact-icon" aria-hidden />
+              <span>الطيران</span>
+              <strong>{program?.airline || '—'}</strong>
+              <em>{program?.departure_city || 'الجزائر'} ➜ المدينة</em>
+            </article>
+          </div>
+
+          <div className="trip-price-bar">
+            <span>إجمالي البرنامج</span>
+            <strong>{money(active.total_amount)}</strong>
           </div>
 
           {appointments.length ? (
-            <ol className="pilgrim-times">
-              {appointments.map((item) => (
-                <li key={item.id}>
-                  <strong>{item.title}</strong>
-                  <span>{item.when}</span>
-                </li>
-              ))}
-            </ol>
+            <details className="trip-fold" open={confirmed}>
+              <summary>
+                جدول المواعيد
+                <ChevronDown className="trip-fold-chevron" aria-hidden />
+              </summary>
+              <ol className="trip-timeline">
+                {appointments.map((item, index) => (
+                  <li key={item.id}>
+                    <i aria-hidden>{index + 1}</i>
+                    <div>
+                      <strong>{item.title}</strong>
+                      <span>{item.when}</span>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </details>
           ) : null}
 
-          <div className="pilgrim-actions">
-            <BookingPrintButton type="request" reservationId={active.reservation_id} label="طلب" className="pilgrim-ghost" />
-            <BookingPrintButton type="invoice" reservationId={active.reservation_id} label="فاتورة" className="pilgrim-ghost" />
-            {confirmed ? (
-              <BookingPrintButton type="confirmation" reservationId={active.reservation_id} label="تأكيد" className="pilgrim-ghost" />
-            ) : null}
-            {manage.ok ? (
-              <>
-                <Link href={`/book?edit=${encodeURIComponent(active.reservation_id)}`} className="pilgrim-ghost no-underline">تعديل</Link>
-                <button type="button" className="pilgrim-ghost is-danger" onClick={() => setConfirmCancel(true)}>إلغاء</button>
-              </>
-            ) : null}
-          </div>
+          <details className="trip-fold">
+            <summary>
+              وثائق وإدارة الحجز
+              <ChevronDown className="trip-fold-chevron" aria-hidden />
+            </summary>
+            <div className="trip-manage">
+              <BookingPrintButton type="request" reservationId={active.reservation_id} label="طباعة الطلب" className="trip-action" />
+              <BookingPrintButton type="invoice" reservationId={active.reservation_id} label="الفاتورة" className="trip-action" />
+              {confirmed ? (
+                <BookingPrintButton type="confirmation" reservationId={active.reservation_id} label="التأكيد" className="trip-action" />
+              ) : null}
+              {manage.ok ? (
+                <>
+                  <Link href={`/book?edit=${encodeURIComponent(active.reservation_id)}`} className="trip-action no-underline">تعديل</Link>
+                  <button type="button" className="trip-action is-danger" onClick={() => setConfirmCancel(true)}>إلغاء</button>
+                </>
+              ) : null}
+            </div>
+          </details>
 
           {error ? <p className="book-error">{error}</p> : null}
           {confirmCancel ? (
@@ -191,15 +230,21 @@ export default function PilgrimProgram({
             </div>
           ) : null}
 
-          {reservations.filter((r) => r.reservation_id !== active.reservation_id).length ? (
-            <div className="pilgrim-past">
-              {reservations.filter((r) => r.reservation_id !== active.reservation_id).map((res) => (
-                <p key={res.reservation_id}>
-                  <b>{res.reservation_number}</b>
-                  <span>{reservationStatusLabel(res.status)}</span>
-                </p>
-              ))}
-            </div>
+          {past.length ? (
+            <details className="trip-fold">
+              <summary>
+                رحلات سابقة
+                <ChevronDown className="trip-fold-chevron" aria-hidden />
+              </summary>
+              <div className="trip-past">
+                {past.map((res) => (
+                  <p key={res.reservation_id}>
+                    <b>{res.reservation_number}</b>
+                    <span>{reservationStatusLabel(res.status)}</span>
+                  </p>
+                ))}
+              </div>
+            </details>
           ) : null}
         </div>
       ) : null}

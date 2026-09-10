@@ -131,6 +131,7 @@ export default function BookingWizard() {
   const searchParams = useSearchParams();
   const prefillPackage = searchParams.get('package') || '';
   const editId = searchParams.get('edit') || '';
+  const trackRef = (searchParams.get('ref') || '').trim();
 
   const [packages, setPackages] = useState<Package[]>([]);
   const [loading, setLoading] = useState(true);
@@ -201,7 +202,15 @@ export default function BookingWizard() {
     fetch('/api/bookings', { headers: authHeaders() })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        const active = data?.activeReservation || (data?.reservations || []).find((row: Reservation) => isActiveReservation(row.status));
+        const list: Reservation[] = data?.reservations || [];
+        const wanted = trackRef.toUpperCase();
+        const byRef = wanted
+          ? list.find((row) => String(row.reservation_number || '').toUpperCase() === wanted)
+            || (data?.activeReservation && String(data.activeReservation.reservation_number || '').toUpperCase() === wanted
+              ? data.activeReservation
+              : null)
+          : null;
+        const active = byRef || data?.activeReservation || list.find((row) => isActiveReservation(row.status));
         if (!active) return;
         if (editId) {
           applyReservation(active);
@@ -217,7 +226,7 @@ export default function BookingWizard() {
         window.clearTimeout(bootTimer);
         setBooting(false);
       });
-  }, [editId]);
+  }, [editId, trackRef]);
 
   useEffect(() => {
     if (prefillPackage && screen === 'wizard' && !existing) {

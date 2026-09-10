@@ -7,6 +7,7 @@ import { motion } from 'framer-motion';
 import { Reservation, User } from '@/types';
 import { isActiveReservation, isAgencyConfirmed } from '@/lib/booking-catalog';
 import { toPortalRole } from '@/lib/roles';
+import UmrahCountdown from '@/components/booking/UmrahCountdown';
 
 function authHeaders(): HeadersInit {
   const token = typeof window !== 'undefined' ? localStorage.getItem('south_street_token') : null;
@@ -18,7 +19,7 @@ function isPendingConfirmation(reservation: Reservation | null): reservation is 
   return isActiveReservation(reservation.status) && !isAgencyConfirmed(reservation.status);
 }
 
-export function usePendingReservation(user?: User | null) {
+export function useActiveTrip(user?: User | null) {
   const [reservation, setReservation] = useState<Reservation | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -36,11 +37,11 @@ export function usePendingReservation(user?: User | null) {
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (cancelled) return;
+        const list: Reservation[] = Array.isArray(data?.reservations) ? data.reservations : [];
         const active = data?.activeReservation
-          || (Array.isArray(data?.reservations)
-            ? data.reservations.find((row: Reservation) => isPendingConfirmation(row))
-            : null);
-        setReservation(isPendingConfirmation(active) ? active : null);
+          || list.find((row) => isActiveReservation(row.status))
+          || null;
+        setReservation(active);
       })
       .catch(() => {
         if (!cancelled) setReservation(null);
@@ -54,7 +55,21 @@ export function usePendingReservation(user?: User | null) {
     };
   }, [user]);
 
-  return { reservation, loading, pending: isPendingConfirmation(reservation) };
+  return {
+    reservation,
+    loading,
+    pending: isPendingConfirmation(reservation),
+    confirmed: Boolean(reservation && isAgencyConfirmed(reservation.status)),
+  };
+}
+
+export function usePendingReservation(user?: User | null) {
+  const trip = useActiveTrip(user);
+  return {
+    reservation: trip.pending ? trip.reservation : null,
+    loading: trip.loading,
+    pending: trip.pending,
+  };
 }
 
 export function PendingRequestStrip({
@@ -91,6 +106,37 @@ export function PendingRequestStrip({
   );
 }
 
+export function ConfirmedTripStrip({
+  reservation,
+  home = false,
+}: {
+  reservation: Reservation;
+  home?: boolean;
+}) {
+  const start = reservation.program?.start_date;
+  return (
+    <motion.div
+      className={`home-trip-chip${home ? ' is-home' : ' is-panel'}`}
+      initial={{ opacity: 0, y: -6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+      role="status"
+    >
+      <div className="home-trip-chip-copy">
+        <span className="home-trip-chip-label">باقي على عمرتك</span>
+        <UmrahCountdown startDate={start} variant="quiet" />
+        <em className="home-trip-chip-pkg" title={reservation.package_name}>
+          {reservation.package_name}
+        </em>
+      </div>
+      <Link href="/portal?tab=program" className="home-trip-chip-cta">
+        رحلتي
+        <ArrowLeft className="w-3.5 h-3.5" aria-hidden />
+      </Link>
+    </motion.div>
+  );
+}
+
 export default function PendingRequestBanner({
   user,
   variant = 'home',
@@ -98,11 +144,17 @@ export default function PendingRequestBanner({
   user?: User | null;
   variant?: 'home' | 'inline';
 }) {
-  const { reservation, loading, pending } = usePendingReservation(user);
+  const { reservation, loading, pending, confirmed } = useActiveTrip(user);
 
-  if (loading || !pending || !reservation) return null;
+  if (loading || !reservation) return null;
 
-  const strip = <PendingRequestStrip reservation={reservation} home={variant === 'home'} />;
+  const strip = pending
+    ? <PendingRequestStrip reservation={reservation} home={variant === 'home'} />
+    : confirmed
+      ? <ConfirmedTripStrip reservation={reservation} home={variant === 'home'} />
+      : null;
+
+  if (!strip) return null;
 
   if (variant === 'home') {
     return (

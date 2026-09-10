@@ -16,12 +16,21 @@ function pad(n: number) {
   return String(n).padStart(2, '0');
 }
 
+function formatTripDay(value?: string | null) {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('ar-DZ', { day: 'numeric', month: 'short' });
+}
+
 export default function UmrahCountdown({
   startDate,
   packageName,
+  variant = 'board',
 }: {
   startDate?: string | null;
   packageName?: string;
+  variant?: 'board' | 'quiet';
 }) {
   const target = useMemo(() => {
     if (!startDate) return null;
@@ -35,15 +44,32 @@ export default function UmrahCountdown({
 
   useEffect(() => {
     if (!target) return;
-    const tick = window.setInterval(() => setNow(Date.now()), 1000);
+    const tick = window.setInterval(() => setNow(Date.now()), variant === 'quiet' ? 60000 : 1000);
     return () => window.clearInterval(tick);
-  }, [target]);
+  }, [target, variant]);
 
   if (!target) return null;
 
   const remaining = target.getTime() - now;
   const arrived = remaining <= 0;
   const { days, hours, minutes, seconds } = partsFrom(remaining);
+  const dayLabel = formatTripDay(startDate);
+
+  if (variant === 'quiet') {
+    const headline = arrived
+      ? 'عمرتك بدأت'
+      : days > 0
+        ? `${days} يوم`
+        : hours > 0
+          ? `${hours} ساعة`
+          : 'قريب';
+    return (
+      <div className="home-trip-count" aria-live="polite">
+        <strong>{headline}</strong>
+        {dayLabel && !arrived ? <em>{dayLabel}</em> : null}
+      </div>
+    );
+  }
 
   return (
     <aside className="umrah-countdown" dir="rtl" aria-live="polite">

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Tajawal, Amiri, Cairo, Aref_Ruqaa } from 'next/font/google';
 import './globals.css';
+import SessionGuard from '@/components/SessionGuard';
 
 const tajawal = Tajawal({
   subsets: ['arabic'],
@@ -50,6 +51,7 @@ export default function RootLayout({
   return (
     <html lang="ar" dir="rtl" className={`${tajawal.variable} ${amiri.variable} ${cairo.variable} ${arefRuqaa.variable}`}>
       <body className="bg-slate-app text-slate-darkBg antialiased flex flex-col min-h-screen">
+        <SessionGuard />
         {children}
       </body>
     </html>

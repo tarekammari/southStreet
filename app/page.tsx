@@ -15,6 +15,7 @@ import PendingRequestBanner from '@/components/booking/PendingRequestBanner';
 import { User } from '@/types';
 import { fetchJsonList } from '@/lib/fetch-json';
 import { PageContentRow, pickPageContent } from '@/lib/page-content';
+import { logoutAndReload, syncSessionProfile } from '@/lib/client-session';
 
 export default function HomePage() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -26,13 +27,14 @@ export default function HomePage() {
       try { setCurrentUser(JSON.parse(session)); }
       catch { localStorage.removeItem('south_street_user'); }
     }
+    void syncSessionProfile().then((user) => {
+      if (user) setCurrentUser(user);
+    });
     fetchJsonList<PageContentRow>('/api/admin/content').then(setPageContent);
   }, []);
 
   const handleLogout = () => {
-    localStorage.removeItem('south_street_user');
-    localStorage.removeItem('south_street_token');
-    setCurrentUser(null);
+    void logoutAndReload('/');
   };
 
   const restoreUser = () => {

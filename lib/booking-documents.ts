@@ -1,5 +1,8 @@
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import jwt, { SignOptions } from 'jsonwebtoken';
+import QRCode from 'qrcode';
 import { BookingExtra, BookingInvoice, Reservation } from '@/types';
 import { ROOM_LABELS, isAgencyConfirmed, paymentStatusLabel, reservationStatusLabel } from '@/lib/booking-catalog';
 
@@ -39,6 +42,7 @@ export interface BookingDocumentPayload {
   issuedAt?: string;
   verifyCode?: string;
   watermark?: string;
+  trackUrl?: string;
 }
 
 export function documentVerifyCode(ref: string, type: string, total: number): string {
@@ -154,7 +158,361 @@ function formatShortDate(value?: string): string {
   return d.toLocaleDateString('ar-DZ', { year: 'numeric', month: '2-digit', day: '2-digit' });
 }
 
+function isPendingDemand(data: BookingDocumentPayload): boolean {
+  if (isAgencyConfirmed(data.reservationStatus) || data.type === 'confirmation' || data.type === 'receipt') {
+    return false;
+  }
+  return data.type === 'request' || data.type === 'invoice' || data.reservationStatus === 'REQUESTED' || data.reservationStatus === 'PENDING' || data.reservationStatus === 'DRAFT';
+}
+
+function extraNames(data: BookingDocumentPayload): string {
+  const names = (data.extras || []).map((item) => item.title).filter(Boolean);
+  return names.length ? names.join(' · ') : 'بدون إضافات';
+}
+
+let cachedAgencyLogo = '';
+
+function agencyLogoDataUri(): string {
+  if (cachedAgencyLogo) return cachedAgencyLogo;
+  const files = [
+    path.join(process.cwd(), 'images', 'south_street_logo_white_white.png'),
+    path.join(process.cwd(), 'public', 'images', 'south_street_logo_white_white.png'),
+  ];
+  for (const file of files) {
+    try {
+      if (!fs.existsSync(file)) continue;
+      cachedAgencyLogo = `data:image/png;base64,${fs.readFileSync(file).toString('base64')}`;
+      return cachedAgencyLogo;
+    } catch {
+      /* try next logo file */
+    }
+  }
+  return '';
+}
+
+function publicSiteBase(): string {
+  const env = (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || '').trim();
+  if (env) return env.replace(/\/$/, '');
+  return 'https://southstreet.dz';
+}
+
+export function requestTrackUrl(ref: string, origin?: string): string {
+  const base = (origin || publicSiteBase()).replace(/\/$/, '');
+  return `${base}/book?ref=${encodeURIComponent(ref)}`;
+}
+
+function resolveTrackUrl(data: BookingDocumentPayload): string {
+  if (data.trackUrl) return data.trackUrl;
+  return requestTrackUrl(data.ref);
+}
+
+type QrMatrix = { modules: { size: number; get: (x: number, y: number) => boolean } };
+
+function requestQrDataUri(payload: string, sizePx = 108): string {
+  const qr = (QRCode as unknown as {
+    create: (text: string, opts?: { errorCorrectionLevel?: string }) => QrMatrix;
+  }).create(payload, { errorCorrectionLevel: 'M' });
+  const n = qr.modules.size;
+  let d = '';
+  for (let row = 0; row < n; row += 1) {
+    for (let col = 0; col < n; col += 1) {
+      if (qr.modules.get(row, col)) d += `M${col} ${row}h1v1h-1z`;
+    }
+  }
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n} ${n}" width="${sizePx}" height="${sizePx}" shape-rendering="crispEdges"><rect width="${n}" height="${n}" fill="#ffffff"/><path fill="#0f172a" d="${d}"/></svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+function displayTrackUrl(url: string): string {
+  return url.replace(/^https?:\/\//, '');
+}
+
+function renderPendingRequestFormHtml(data: BookingDocumentPayload): string {
+  const lines = data.invoice?.lines || [];
+  const total = data.invoice?.total ?? lines.reduce((s, l) => s + l.amount, 0);
+  const extrasTotal = data.invoice?.extrasTotal
+    ?? (data.extras || []).reduce((s, item) => s + Number(item.price || 0), 0);
+  const year = new Date().getFullYear();
+  const logoSrc = agencyLogoDataUri();
+  const trackUrl = resolveTrackUrl(data);
+  const qrPayload = [
+    trackUrl,
+    `REF:${data.ref}`,
+    'SOUTH STREET',
+  ].join('\n');
+  const qrSrc = requestQrDataUri(qrPayload);
+  const optionRows = [
+    ['البرنامج', data.packageName || '—'],
+    ['الغرفة', data.roomLabel || data.roomType || '—'],
+    ['السفر / العودة', `${formatShortDate(data.startDate)} — ${formatShortDate(data.endDate)}`],
+    ['المدة', data.durationDays ? `${data.durationDays} يوماً` : '—'],
+    ['الطيران', data.airline || '—'],
+    ['الإضافات', extraNames(data)],
+  ].map(([label, value]) => `
+    <tr>
+      <th>${escapeHtml(label)}</th>
+      <td>${escapeHtml(value)}</td>
+    </tr>
+  `).join('');
+
+  const priceRows = lines.map((line) => `
+    <tr>
+      <td>${escapeHtml(line.title)}</td>
+      <td class="amt">${money(line.amount)}</td>
+    </tr>
+  `).join('');
+
+  return `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>طلب غير مؤكد — ${escapeHtml(data.ref)}</title>
+  <style>
+    @page { size: A4 portrait; margin: 12mm; }
+    * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    html, body { margin: 0; padding: 0; background: #fff; color: #0f172a; }
+    body { font-family: 'Segoe UI', 'Tahoma', 'Arial', sans-serif; font-size: 12px; line-height: 1.5; }
+    .form {
+      width: 100%;
+      max-width: 186mm;
+      margin: 0 auto;
+      min-height: 273mm;
+      display: flex;
+      flex-direction: column;
+      border: 1px solid #e2e8f0;
+    }
+    .alert {
+      background: #b45309;
+      color: #fff;
+      text-align: center;
+      padding: 14px 16px;
+    }
+    .alert strong {
+      display: block;
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: 0.04em;
+    }
+    .alert span {
+      display: block;
+      margin-top: 4px;
+      font-size: 12px;
+      font-weight: 700;
+      opacity: 0.95;
+    }
+    .head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 28px;
+      padding: 16px 20px 14px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .brand {
+      flex: 0 0 auto;
+    }
+    .brand img {
+      display: block;
+      height: 76px;
+      width: auto;
+      max-width: 168px;
+      object-fit: contain;
+    }
+    .qr-card {
+      flex: 0 0 auto;
+      text-align: center;
+    }
+    .qr-card img {
+      width: 80px;
+      height: 80px;
+      display: block;
+      background: #fff;
+      padding: 3px;
+      border: 1px solid #e2e8f0;
+    }
+    .qr-card span {
+      display: block;
+      margin-top: 5px;
+      font-size: 8px;
+      font-weight: 800;
+      color: #64748b;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+    .idline {
+      display: grid;
+      grid-template-columns: 1.15fr 0.95fr 1.5fr;
+      border-bottom: 1px solid #e2e8f0;
+      background: #f8fafc;
+    }
+    .idline > div {
+      padding: 9px 14px;
+      border-left: 1px solid #e2e8f0;
+      min-width: 0;
+    }
+    .idline > div:last-child { border-left: 0; }
+    .idline span {
+      display: block;
+      font-size: 8px;
+      font-weight: 800;
+      color: #64748b;
+      white-space: nowrap;
+    }
+    .idline b {
+      display: block;
+      margin-top: 3px;
+      color: #0f172a;
+      font-size: 12px;
+      font-family: ui-monospace, Consolas, monospace;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .idline-url { direction: ltr; text-align: left; }
+    .idline-url b { font-size: 9px; color: #047857; }
+    .notice {
+      margin: 14px 16px 0;
+      padding: 12px 14px;
+      border: 2px solid #b45309;
+      background: #fffbeb;
+      color: #7c2d12;
+      font-weight: 700;
+      text-align: center;
+    }
+    .notice em { display: block; margin-top: 4px; font-style: normal; font-size: 11px; font-weight: 800; }
+    .section { padding: 14px 16px 0; }
+    .section h3 {
+      margin: 0 0 8px;
+      font-size: 11px;
+      font-weight: 800;
+      color: #64748b;
+      letter-spacing: 0.04em;
+    }
+    table.form-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    table.form-table th, table.form-table td {
+      border: 1px solid #e2e8f0;
+      padding: 8px 10px;
+      text-align: right;
+    }
+    table.form-table th {
+      width: 28%;
+      background: #f8fafc;
+      color: #64748b;
+      font-size: 10px;
+      font-weight: 800;
+    }
+    table.form-table td { font-weight: 700; color: #0f172a; }
+    .amt { text-align: left; white-space: nowrap; font-weight: 800; }
+    .total-row td { background: #fff7ed; color: #9a3412; font-size: 13px; font-weight: 900; }
+    .hint {
+      margin: 12px 16px 0;
+      font-size: 10px;
+      color: #92400e;
+      font-weight: 700;
+      line-height: 1.6;
+    }
+    .signs {
+      margin-top: auto;
+      padding: 28px 16px 16px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    .sign {
+      border-top: 1px solid #cbd5e1;
+      padding-top: 8px;
+      font-size: 10px;
+      color: #64748b;
+      font-weight: 700;
+    }
+    .foot {
+      padding: 8px 16px;
+      border-top: 1px solid #e2e8f0;
+      display: flex;
+      justify-content: space-between;
+      font-size: 8px;
+      color: #94a3b8;
+    }
+    @media print { .form { max-width: none; min-height: auto; border: 0; } }
+  </style>
+</head>
+<body>
+  <article class="form">
+    <div class="alert">
+      <strong>الطلب غير مؤكد</strong>
+      <span>هذه استمارة طلب فقط — ليست فاتورة وليست تأكيداً من الوكالة</span>
+    </div>
+    <header class="head">
+      <div class="brand">
+        ${logoSrc ? `<img src="${logoSrc}" alt="South Street" />` : '<strong>ساوث ستريت للأسفار</strong>'}
+      </div>
+      <div class="qr-card">
+        <img src="${qrSrc}" alt="QR ${escapeHtml(data.ref)}" />
+        <span>امسح للمتابعة</span>
+      </div>
+    </header>
+    <div class="idline">
+      <div>
+        <span>رقم الطلب</span>
+        <b>${escapeHtml(data.ref)}</b>
+      </div>
+      <div>
+        <span>تاريخ الاستمارة</span>
+        <b>${escapeHtml(formatShortDate(data.issuedAt))}</b>
+      </div>
+      <div class="idline-url">
+        <span dir="rtl">رابط المتابعة</span>
+        <b title="${escapeHtml(trackUrl)}">${escapeHtml(displayTrackUrl(trackUrl))}</b>
+      </div>
+    </div>
+    <div class="notice">
+      لم يتم تأكيد هذا الطلب بعد
+      <em>الحجز والمقاعد والسعر النهائي لا تثبت إلا بعد موافقة الوكالة — امسح الرمز لمتابعة الطلب</em>
+    </div>
+    <section class="section">
+      <h3>بيانات أولية</h3>
+      <table class="form-table">
+        <tr><th>الاسم</th><td>${escapeHtml(data.customerName || '—')}</td></tr>
+        <tr><th>الهاتف</th><td dir="ltr">${escapeHtml(data.customerPhone || '—')}</td></tr>
+      </table>
+    </section>
+    <section class="section">
+      <h3>خيارات الرحلة</h3>
+      <table class="form-table">${optionRows}</table>
+    </section>
+    <section class="section">
+      <h3>الأسعار التقديرية</h3>
+      <table class="form-table">
+        ${priceRows || `<tr><td>سعر البرنامج</td><td class="amt">${money(total)}</td></tr>`}
+        ${extrasTotal && !priceRows ? `<tr><td>الإضافات</td><td class="amt">${money(extrasTotal)}</td></tr>` : ''}
+        <tr class="total-row"><td>المجموع التقديري</td><td class="amt">${money(total)}</td></tr>
+      </table>
+    </section>
+    <p class="hint">
+      هذه الوثيقة لا تلزم الوكالة ولا تُعتمد للدفع أو للسفر. بعد التأكيد تصدر وثيقة رسمية بالأسعار النهائية.
+    </p>
+    <div class="signs">
+      <div class="sign">توقيع طالب الحجز</div>
+      <div class="sign">ختم / توقيع الوكالة بعد التأكيد</div>
+    </div>
+    <footer class="foot">
+      <span>© ${year} ساوث ستريت للأسفار — وثيقة غير مؤكدة</span>
+      <span>${escapeHtml(data.ref)}</span>
+    </footer>
+  </article>
+</body>
+</html>`;
+}
+
 export function renderBookingDocumentHtml(data: BookingDocumentPayload): string {
+  if (isPendingDemand(data)) {
+    return renderPendingRequestFormHtml(data);
+  }
   const lines = data.invoice?.lines || [];
   const total = data.invoice?.total ?? lines.reduce((s, l) => s + l.amount, 0);
   const deposit = data.invoice?.depositAmount ?? Math.round(total * 0.3);

@@ -6,6 +6,7 @@ import Footer from '@/components/Footer';
 import SakhrAgent from '@/components/lazy/LazySakhrAgent';
 import BookingWizard from '@/components/booking/BookingWizard';
 import { User } from '@/types';
+import { logoutAndReload, syncSessionProfile } from '@/lib/client-session';
 
 function BookPageInner() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -15,12 +16,13 @@ function BookPageInner() {
     if (session) {
       try { setCurrentUser(JSON.parse(session)); } catch { /* ignore */ }
     }
+    void syncSessionProfile().then((user) => {
+      if (user) setCurrentUser(user);
+    });
   }, []);
 
   const handleLogout = () => {
-    localStorage.removeItem('south_street_user');
-    localStorage.removeItem('south_street_token');
-    setCurrentUser(null);
+    void logoutAndReload('/book');
   };
 
   return (

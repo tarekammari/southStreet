@@ -5,6 +5,13 @@ export interface GoogleProfile {
   email: string;
   name: string;
   emailVerified: boolean;
+  picture?: string;
+}
+
+function googlePicture(data: any): string | undefined {
+  const src = String(data?.picture || '').trim();
+  if (src.startsWith('http://') || src.startsWith('https://')) return src;
+  return undefined;
 }
 
 export async function verifyGoogleIdToken(idToken: string): Promise<GoogleProfile> {
@@ -25,6 +32,7 @@ export async function verifyGoogleIdToken(idToken: string): Promise<GoogleProfil
     email: String(data.email || '').toLowerCase(),
     name: String(data.name || data.email || 'مستخدم جوجل'),
     emailVerified: true,
+    picture: googlePicture(data),
   };
 }
 
@@ -45,6 +53,7 @@ export async function verifyGoogleAccessToken(accessToken: string): Promise<Goog
     email: String(data.email || '').toLowerCase(),
     name: String(data.name || data.email || 'مستخدم جوجل'),
     emailVerified: true,
+    picture: googlePicture(data),
   };
 }
 

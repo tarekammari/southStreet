@@ -586,10 +586,20 @@ export function findUserByGoogleId(googleId: string): any | null {
 }
 
 export function attachGoogleId(userId: string, googleId: string) {
+  if (!userId || !googleId) return;
   const db = getSqliteDb();
   const cols = new Set(usersTableInfo(db).map((c) => c.name));
   if (cols.has('googleId')) db.prepare('UPDATE users SET googleId = ? WHERE id = ?').run(googleId, userId);
   if (cols.has('google_id')) db.prepare('UPDATE users SET google_id = ? WHERE id = ?').run(googleId, userId);
+}
+
+export function saveUserPhoto(userId: string, photoUrl?: string | null) {
+  if (!userId || !photoUrl) return;
+  const src = String(photoUrl).trim();
+  if (!src.startsWith('http://') && !src.startsWith('https://') && !src.startsWith('/')) return;
+  const db = getSqliteDb();
+  if (!usersTableInfo(db).some((c) => c.name === 'avatar')) return;
+  db.prepare('UPDATE users SET avatar = ? WHERE id = ?').run(src, userId);
 }
 
 export function updateUserAccess(userId: string, patch: {

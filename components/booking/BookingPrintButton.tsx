@@ -32,6 +32,10 @@ export default function BookingPrintButton({
   const [error, setError] = useState('');
 
   const print = async () => {
+    if (reservationId && !localStorage.getItem('south_street_token')) {
+      setError('يلزم تسجيل الدخول لطباعة الطلب');
+      return;
+    }
     setLoading(true);
     setError('');
     try {

@@ -14,6 +14,8 @@ import AccountSecurityPanel from '@/components/AccountSecurityPanel';
 import SessionHeartbeat from '@/components/SessionHeartbeat';
 import LoginModal from '@/components/LoginModal';
 import PilgrimProgram from '@/components/dashboards/PilgrimProgram';
+import { logoutAndReload, syncSessionProfile } from '@/lib/client-session';
+import { isImageSource } from '@/lib/user-access-view';
 
 const TabFallback = () => (
   <div className="luxury-card p-10 flex items-center justify-center text-xs text-slate-400 gap-2">
@@ -47,6 +49,23 @@ import {
 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+
+function mapClientUser(u: any): User {
+  const role = toPortalRole(u.role, { email: u.email, roleName: u.roleName });
+  return {
+    id: u.id || 'usr_user',
+    code: u.code || u.username || 'CODE-2026',
+    name: u.name || 'مستخدم الوكالة',
+    role: role as any,
+    roleName: u.roleName || u.role,
+    email: u.email || '',
+    username: u.username,
+    phone: u.phone || '',
+    status: u.status,
+    avatar: u.avatar,
+    ...(u.photoUrl ? { photoUrl: u.photoUrl } as any : {}),
+  };
+}
 
 function CustomerPortalContent() {
   const searchParams = useSearchParams();
@@ -83,21 +102,11 @@ function CustomerPortalContent() {
 
   useEffect(() => {
     const applyUser = (u: any) => {
-      const role = toPortalRole(u.role, { email: u.email, roleName: u.roleName });
-      setCurrentUser({
-        id: u.id || 'usr_user',
-        code: u.code || u.username || 'CODE-2026',
-        name: u.name || 'مستخدم الوكالة',
-        role: role as any,
-        roleName: u.roleName || u.role,
-        email: u.email || '',
-        username: u.username,
-        phone: u.phone || '',
-        status: u.status,
-        avatar: u.name ? u.name.charAt(0) : 'م'
-      });
-      setActiveTab(resolvePortalTab(role, initialTab));
-      return role;
+      const mapped = mapClientUser(u);
+      const portalRole = toPortalRole(mapped.role, { email: mapped.email, roleName: mapped.roleName });
+      setCurrentUser(mapped);
+      setActiveTab(resolvePortalTab(portalRole, initialTab));
+      return portalRole;
     };
 
     const session = localStorage.getItem('south_street_user');
@@ -118,6 +127,10 @@ function CustomerPortalContent() {
         phone: '+213 559 88 77 66',
       });
     }
+
+    void syncSessionProfile().then((user) => {
+      if (user) applyUser(user);
+    });
 
     if (demoMode) {
       setReservations([
@@ -313,12 +326,7 @@ function CustomerPortalContent() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('south_street_user');
-    localStorage.removeItem('south_street_token');
-    setCurrentUser(null);
-    setReservations([]);
-    setReceipts([]);
-    setDocuments([]);
+    void logoutAndReload('/portal');
   };
 
   const adoptSession = () => {
@@ -326,21 +334,10 @@ function CustomerPortalContent() {
     const token = localStorage.getItem('south_street_token');
     if (!session) return;
     try {
-      const u = JSON.parse(session);
-      const role = toPortalRole(u.role, { email: u.email, roleName: u.roleName });
-      setCurrentUser({
-        id: u.id || 'usr_user',
-        code: u.code || u.username || 'CODE-2026',
-        name: u.name || 'مستخدم الوكالة',
-        role: role as any,
-        roleName: u.roleName || u.role,
-        email: u.email || '',
-        username: u.username,
-        phone: u.phone || '',
-        status: u.status,
-        avatar: u.name ? u.name.charAt(0) : 'م'
-      });
-      setActiveTab(resolvePortalTab(role, initialTab));
+      const mapped = mapClientUser(JSON.parse(session));
+      const portalRole = toPortalRole(mapped.role, { email: mapped.email, roleName: mapped.roleName });
+      setCurrentUser(mapped);
+      setActiveTab(resolvePortalTab(portalRole, initialTab));
     } catch { /* ignore */ }
     if (token) {
       loadBookings();
@@ -384,7 +381,7 @@ function CustomerPortalContent() {
       <SessionHeartbeat />
       <Navbar currentUser={currentUser} variant="light" onLogout={handleLogout} />
 
-      <main className={`pt-28 pb-16 mx-auto px-4 sm:px-6 space-y-6 ${isPilgrim ? 'max-w-2xl pilgrim-main' : 'max-w-6xl'}`}>
+        <main className={`pt-28 pb-16 mx-auto px-4 sm:px-6 space-y-6 ${isPilgrim ? 'max-w-3xl pilgrim-main' : 'max-w-6xl'}`}>
         {demoMode && (
         <div className="luxury-card-static p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs animate-fade-up">
           <div className="flex items-center gap-2">
@@ -423,8 +420,12 @@ function CustomerPortalContent() {
         ) : (
         <div className="luxury-card p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 animate-fade-up">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-emerald-soft border border-emerald-main/20 text-emerald-main flex items-center justify-center font-bold text-2xl font-cairo">
-              {currentUser.avatar || currentUser.name.charAt(0)}
+            <div className="w-14 h-14 rounded-2xl overflow-hidden bg-emerald-soft border border-emerald-main/20 text-emerald-main flex items-center justify-center font-bold text-2xl font-cairo">
+              {isImageSource(currentUser.avatar) ? (
+                <img src={String(currentUser.avatar)} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              ) : (
+                currentUser.name.charAt(0)
+              )}
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">

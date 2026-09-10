@@ -2,8 +2,8 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Lock, FileCheck, X, Upload, AlertTriangle, Clock } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import GoogleContinueButton from '@/components/GoogleContinueButton';
+import { enterSessionAndReload } from '@/lib/client-session';
 
 interface LoginModalProps {
   onClose: () => void;
@@ -36,20 +36,13 @@ export default function LoginModal({ onClose, onSelectRole }: LoginModalProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  const router = useRouter();
-
   const finishLogin = (data: any) => {
-    localStorage.setItem('south_street_token', data.token);
-    localStorage.setItem('south_street_user', JSON.stringify(data.user));
-    window.dispatchEvent(new CustomEvent('southstreet:bookings-updated'));
-    if (onSelectRole) onSelectRole(data.user.role, data.user.name);
     const next = data.waitingBooking || data.user?.redirect === '/book'
       ? '/book'
       : data.appointment
         ? '/portal?tab=program'
         : (data.user.redirect || (data.user.role === 'SUPER_ADMIN' || data.user.role === 'AGENCY_MANAGER' ? '/admin' : '/portal'));
-    router.push(next);
-    onClose();
+    enterSessionAndReload(data.token, data.user, next);
   };
 
   const handlePending = () => {

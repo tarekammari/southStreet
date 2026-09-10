@@ -18,6 +18,7 @@ import {
   BookingDocumentPayload,
   documentVerifyCode,
   renderBookingDocumentHtml,
+  requestTrackUrl,
   reservationDocumentPayload,
   signPrintToken,
   verifyPrintToken,
@@ -120,6 +121,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    payload.trackUrl = requestTrackUrl(payload.ref, req.nextUrl.origin);
+
     const token = signPrintToken(payload, expiresIn);
     const ip = resolveRequestIp({
       forwarded: req.headers.get('x-forwarded-for'),
@@ -146,6 +149,7 @@ export async function POST(req: NextRequest) {
       printUrl: `/book/print?t=${encodeURIComponent(token)}`,
       ref: payload.ref,
       verifyCode: payload.verifyCode,
+      trackUrl: payload.trackUrl,
     });
   } catch (error: any) {
     return NextResponse.json({ error: error?.message || 'تعذّر إصدار الوثيقة' }, { status: 500 });
@@ -160,6 +164,9 @@ export async function GET(req: NextRequest) {
   const payload = verifyPrintToken(token);
   if (!payload) {
     return NextResponse.json({ error: 'انتهت صلاحية الوثيقة أو الرمز غير صالح' }, { status: 403 });
+  }
+  if (!payload.trackUrl && payload.ref) {
+    payload.trackUrl = requestTrackUrl(payload.ref, req.nextUrl.origin);
   }
   const html = renderBookingDocumentHtml(payload);
   return new NextResponse(html, {

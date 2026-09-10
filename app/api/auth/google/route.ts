@@ -6,6 +6,7 @@ import {
   findUserForLogin,
   queueAccessRequest,
   registerSelfAccount,
+  saveUserPhoto,
 } from '@/lib/accounts';
 import { generateDeviceFingerprint } from '@/lib/security';
 import { normalizeLoginRole, postLoginPath, LOGIN_ROLE_LABELS } from '@/lib/roles';
@@ -37,6 +38,7 @@ export async function POST(req: Request) {
         pcPrint,
         userAgent,
       });
+      saveUserPhoto(created.userId, profile.picture);
       return NextResponse.json({
         status: 'PENDING_APPROVAL',
         message: 'طلبك قيد المراجعة. سنخبرك بعد تأكيد الوكالة.',
@@ -48,6 +50,14 @@ export async function POST(req: Request) {
 
     if (!user.googleId && !user.google_id) {
       attachGoogleId(user.id, profile.googleId);
+    }
+    saveUserPhoto(user.id, profile.picture);
+    try {
+      const fresh = getSqliteDb().prepare('SELECT avatar FROM users WHERE id = ?').get(user.id) as any;
+      if (fresh?.avatar) user.avatar = fresh.avatar;
+      else if (profile.picture) user.avatar = profile.picture;
+    } catch {
+      if (profile.picture) user.avatar = profile.picture;
     }
 
     const status = user.status || 'APPROVED';
@@ -95,7 +105,7 @@ export async function POST(req: Request) {
       phone: user.phone,
     });
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       status: 'SUCCESS',
       token,
       waitingBooking: Boolean(waiting),
@@ -109,10 +119,19 @@ export async function POST(req: Request) {
         roleName: user.roleName || LOGIN_ROLE_LABELS[role],
         status,
         phone: user.phone,
+        avatar: user.avatar,
+        photoUrl: String(user.avatar || '').startsWith('http') ? '/api/account/avatar' : '',
         staffId: user.staffId,
         redirect: waiting?.redirect || (appointment ? '/portal' : postLoginPath(role)),
       },
     });
+    res.cookies.set('south_street_token', token, {
+      httpOnly: false,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24,
+    });
+    return res;
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'تعذر الدخول عبر جوجل' }, { status: 400 });
   }

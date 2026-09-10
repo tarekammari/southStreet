@@ -76,6 +76,7 @@ function publicUser(user: any, pcPrint: string, clientIp: string): {
   phone: string;
   code: string;
   staffId: string;
+  avatar?: string;
   lastLoginIp: string;
   pcFingerprint: string;
   redirect: AppRedirectPath;
@@ -92,6 +93,7 @@ function publicUser(user: any, pcPrint: string, clientIp: string): {
     phone: user.phone,
     code: user.code,
     staffId: user.staffId,
+    avatar: user.avatar,
     lastLoginIp: clientIp,
     pcFingerprint: pcPrint,
     redirect: postLoginPath(role),

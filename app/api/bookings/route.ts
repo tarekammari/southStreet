@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSqliteDb } from '@/lib/sqlite';
 import { getAuthUser } from '@/lib/request-auth';
-import { attachGoogleId, ensureUserAccount, findUserByGoogleId, findUserForLogin, queueAccessRequest } from '@/lib/accounts';
+import { attachGoogleId, ensureUserAccount, findUserByGoogleId, findUserForLogin, queueAccessRequest, saveUserPhoto } from '@/lib/accounts';
 import { verifyGoogleCredential } from '@/lib/google-id-token';
 import { upsertUserSession } from '@/lib/presence';
 import { generateDeviceFingerprint, verifyPassword } from '@/lib/security';
@@ -59,6 +59,7 @@ function publicUser(user: any, pcPrint: string, clientIp: string) {
     status: user.status,
     phone: user.phone,
     code: user.code,
+    avatar: user.avatar,
     redirect: postLoginPath(role),
     lastLoginIp: clientIp,
     pcFingerprint: pcPrint,
@@ -346,6 +347,7 @@ export async function POST(req: NextRequest) {
           }, { status: 409 });
         }
         if (googleProfile) attachGoogleId(existing.id, googleProfile.googleId);
+        if (googleProfile?.picture) saveUserPhoto(existing.id, googleProfile.picture);
         db.prepare(`
           UPDATE users SET name = ?, phone = COALESCE(NULLIF(?, ''), phone)
           WHERE id = ?
@@ -362,6 +364,7 @@ export async function POST(req: NextRequest) {
           issueSecrets: false,
         });
         if (googleProfile) attachGoogleId(issued.userId, googleProfile.googleId);
+        if (googleProfile?.picture) saveUserPhoto(issued.userId, googleProfile.picture);
         account = db.prepare('SELECT * FROM users WHERE id = ?').get(issued.userId);
         try {
           const meta = clientMeta(req);

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import UserAccessDashboard from '@/components/admin/UserAccessDashboard';
+import { logoutAndReload } from '@/lib/client-session';
 import '@/app/admin-dashboard.css';
 
 export default function AdminDashboardPage() {
@@ -104,11 +105,7 @@ export default function AdminDashboardPage() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('south_street_token');
-    localStorage.removeItem('south_street_user');
-    setIsLoggedIn(false);
-    setCurrentUser(null);
-    setLoginStep(1);
+    void logoutAndReload('/admin');
   };
 
   if (!isLoggedIn) {
