@@ -116,10 +116,22 @@ export default function PilgrimProgram({
   return (
     <div className="pilgrim-home" dir="rtl">
       <div className="pilgrim-seg" role="tablist" aria-label="أقسام الرحلة">
-        <button type="button" className={section === 'trip' ? 'is-on' : ''} onClick={() => setSection('trip')}>الرحلة</button>
-        <button type="button" className={section === 'docs' ? 'is-on' : ''} onClick={() => setSection('docs')}>وثائق</button>
-        <button type="button" className={section === 'pay' ? 'is-on' : ''} onClick={() => setSection('pay')}>دفع</button>
-        <button type="button" className={section === 'rites' ? 'is-on' : ''} onClick={() => setSection('rites')}>مناسك</button>
+        <button type="button" className={section === 'trip' ? 'is-on' : ''} onClick={() => setSection('trip')}>
+          <span aria-hidden>✈️</span>
+          الرحلة
+        </button>
+        <button type="button" className={section === 'docs' ? 'is-on' : ''} onClick={() => setSection('docs')}>
+          <span aria-hidden>📄</span>
+          وثائق
+        </button>
+        <button type="button" className={section === 'pay' ? 'is-on' : ''} onClick={() => setSection('pay')}>
+          <span aria-hidden>💳</span>
+          دفع
+        </button>
+        <button type="button" className={section === 'rites' ? 'is-on' : ''} onClick={() => setSection('rites')}>
+          <span aria-hidden>🕌</span>
+          مناسك
+        </button>
       </div>
 
       {section === 'trip' ? (
@@ -152,19 +164,25 @@ export default function PilgrimProgram({
 
           <div className="trip-facts">
             <article>
-              <UserRound className="trip-fact-icon" aria-hidden />
+              <div className="trip-fact-icon-wrap">
+                <UserRound className="trip-fact-icon" aria-hidden />
+              </div>
               <span>المرشد</span>
               <strong>{program?.morshid_name || 'يُحدَّد لاحقاً'}</strong>
               <em dir="ltr">{program?.morshid_phone || '—'}</em>
             </article>
             <article>
-              <MapPin className="trip-fact-icon" aria-hidden />
+              <div className="trip-fact-icon-wrap">
+                <MapPin className="trip-fact-icon" aria-hidden />
+              </div>
               <span>الإقامة</span>
               <strong>{program?.makkah_hotel_name || '—'}</strong>
               <em>{program?.madinah_hotel_name || 'المدينة'}</em>
             </article>
             <article>
-              <Plane className="trip-fact-icon" aria-hidden />
+              <div className="trip-fact-icon-wrap">
+                <Plane className="trip-fact-icon" aria-hidden />
+              </div>
               <span>الطيران</span>
               <strong>{program?.airline || '—'}</strong>
               <em>{program?.departure_city || 'الجزائر'} ➜ المدينة</em>
