@@ -10,6 +10,12 @@ import {
   requiresSecurityKey,
   toPortalRole,
 } from './roles';
+import {
+  devMultiAccountEmailHash,
+  findDevMultiAccountPersona,
+  isDevMultiAccountEmail,
+} from './dev-multi-account';
+import { pilgrimSignupStatus } from './feature-flags';
 
 export interface IssuedCredentials {
   userId: string;
@@ -115,9 +121,10 @@ function usersTableSql(db: ReturnType<typeof getSqliteDb>): string {
 }
 
 function roleForLegacyCheck(role: string, tableSql: string): string {
+  // When a legacy CHECK constraint exists, persist portal tokens (incl. agent).
+  // Never collapse AGENCY_AGENT → manager (that caused admin/firewall escalation).
   if (!/CHECK\s*\(\s*role\s+IN/i.test(tableSql)) return normalizeLoginRole(role);
-  const portal = toPortalRole(role);
-  return portal === 'agent' ? 'manager' : portal;
+  return toPortalRole(role);
 }
 
 /** Writes camelCase fields and their snake_case twins (code_hash, role_name, …). */
@@ -219,6 +226,8 @@ function persistHashes(db: ReturnType<typeof getSqliteDb>, userId: string, field
   code?: string;
   qrSecret?: string;
   password?: string;
+  /** Backfill mode: leave a conflicting lookup column to its existing owner instead of failing. */
+  skipConflicts?: boolean;
 }) {
   const current = db.prepare('SELECT * FROM users WHERE id = ?').get(userId) as any;
   if (!current) return;
@@ -256,13 +265,44 @@ function persistHashes(db: ReturnType<typeof getSqliteDb>, userId: string, field
     sets.push(`${col} = ?`);
     vals.push(val);
   };
-  add('username', username || '');
-  add('usernameHash', username ? lookupHash(username) : current.usernameHash || '');
-  add('email', email || '');
-  add('emailHash', email ? lookupHash(email) : current.emailHash || '');
-  add('code', code || '');
-  add('codeHash', code ? lookupHash(code) : current.codeHash || current.code_hash || '');
-  add('code_hash', code ? lookupHash(code) : current.code_hash || current.codeHash || '');
+
+  /**
+   * `code`, `usernameHash` and `emailHash` are uniquely indexed. Claiming a value another
+   * account already holds would fail the whole UPDATE, so detect it up front: callers that
+   * are registering an account get a readable error, while the boot backfill just moves on.
+   */
+  const claimable = (col: string, label: string, val: unknown) => {
+    if (!val || !existingCols.has(col)) return true;
+    const owner = db
+      .prepare(`SELECT id FROM users WHERE ${col} = ? AND id != ? LIMIT 1`)
+      .get(val, userId) as { id: string } | undefined;
+    if (!owner) return true;
+    if (!fields.skipConflicts) throw new Error(`${label} مستخدم بحساب آخر`);
+    console.warn(`[Accounts] ${col} already owned by ${owner.id}; left ${userId} unchanged`);
+    return false;
+  };
+
+  const usernameHash = username ? lookupHash(username) : current.usernameHash || '';
+  const emailHash = email
+    ? (isDevMultiAccountEmail(email)
+      ? devMultiAccountEmailHash(email, current.name, current.phone)
+      : lookupHash(email))
+    : current.emailHash || '';
+  const codeHash = code ? lookupHash(code) : current.codeHash || current.code_hash || '';
+
+  if (claimable('usernameHash', 'اسم المستخدم', usernameHash)) {
+    add('username', username || '');
+    add('usernameHash', usernameHash);
+  }
+  if (claimable('emailHash', 'البريد الإلكتروني', emailHash)) {
+    add('email', email || '');
+    add('emailHash', emailHash);
+  }
+  if (claimable('code', 'الرمز', code)) {
+    add('code', code || '');
+    add('codeHash', codeHash);
+    add('code_hash', code ? lookupHash(code) : current.code_hash || current.codeHash || '');
+  }
   add('qrSecretHash', qrSecretHash || '');
   add('qr_secret_hash', qrSecretHash || '');
   add('passwordHash', passwordHash);
@@ -331,6 +371,13 @@ export function ensureUserAccount(input: {
   phone?: string;
   status?: string;
   issueSecrets?: boolean;
+  /**
+   * Admin (AGENCY_MANAGER) accounts may only be created or changed by callers
+   * that already enforced Super Admin permission + security-key step-up.
+   */
+  allowPrivileged?: boolean;
+  /** Only the server-side setup command may create the single Super Admin. */
+  allowSuperAdmin?: boolean;
 }): IssuedCredentials {
   const db = getSqliteDb();
   const role = normalizeLoginRole(input.role, {
@@ -342,7 +389,25 @@ export function ensureUserAccount(input: {
   let existing: any = null;
   if (input.id) existing = db.prepare('SELECT * FROM users WHERE id = ?').get(input.id);
   if (!existing && input.staffId) existing = db.prepare('SELECT * FROM users WHERE staffId = ?').get(input.staffId);
-  if (!existing && input.email) existing = db.prepare('SELECT * FROM users WHERE emailHash = ?').get(lookupHash(input.email));
+  if (!existing && input.email && isDevMultiAccountEmail(input.email)) {
+    existing = findDevMultiAccountPersona({
+      email: input.email,
+      name: input.name,
+      phone: input.phone,
+    });
+  } else if (!existing && input.email) {
+    existing = db.prepare('SELECT * FROM users WHERE emailHash = ?').get(lookupHash(input.email));
+  }
+
+  // Privileged accounts are off-limits to every generic account path
+  // (staff backfill, bookings, credentials, table editor).
+  const existingRole = existing ? normalizeLoginRole(existing.role) : null;
+  if ((role === 'SUPER_ADMIN' || existingRole === 'SUPER_ADMIN') && !input.allowSuperAdmin) {
+    throw new Error('SUPER_ADMIN_PROTECTED');
+  }
+  if ((role === 'AGENCY_MANAGER' || existingRole === 'AGENCY_MANAGER') && !input.allowPrivileged && !input.allowSuperAdmin) {
+    throw new Error('PRIVILEGED_PROTECTED');
+  }
 
   const id = existing?.id || input.id || `usr_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
   const username = uniqueUsername(
@@ -356,6 +421,9 @@ export function ensureUserAccount(input: {
   const issueQr = input.issueSecrets !== false && (!existing || !existing.qrSecretHash);
   const qrSecret = issueQr ? generateSecret(24) : undefined;
   const created = !existing;
+  const emailHashValue = isDevMultiAccountEmail(email)
+    ? devMultiAccountEmailHash(email, input.name || existing?.name, input.phone || existing?.phone)
+    : lookupHash(email);
 
   if (!existing) {
     insertUserRow(db, {
@@ -364,7 +432,7 @@ export function ensureUserAccount(input: {
       codeHash: lookupHash(code),
       name: input.name,
       email,
-      emailHash: lookupHash(email),
+      emailHash: emailHashValue,
       username,
       usernameHash: lookupHash(username),
       passwordHash: hashPassword(password || generatePassword()),
@@ -462,11 +530,17 @@ export function backfillUserLookupHashes(): void {
   const users = db.prepare('SELECT * FROM users').all() as any[];
   for (const user of users) {
     const username = user.username || suggestUsername(user.name || 'user', user.id, user.email);
-    persistHashes(db, user.id, {
-      username,
-      email: user.email,
-      code: user.code,
-    });
+    // One unfixable row must not stop the remaining users from getting their hashes.
+    try {
+      persistHashes(db, user.id, {
+        username,
+        email: user.email,
+        code: user.code,
+        skipConflicts: true,
+      });
+    } catch (err) {
+      console.warn(`[Account backfill] skipped ${user.id}:`, (err as Error)?.message || err);
+    }
     if (!user.qrSecretHash) {
       try {
         issueQrSecret(user.id);
@@ -533,11 +607,18 @@ export function registerSelfAccount(input: {
   if (username.length < 3) username = `member${Date.now().toString().slice(-6)}`;
 
   if (name.length < 2) throw new Error('الاسم مطلوب');
-  if (username.length < 3) throw new Error('اسم المستخدم يجب ألا يقل عن 3 أحرف');
-  if (!input.googleId && password.length < 8) throw new Error('كلمة المرور يجب ألا تقل عن 8 أحرف');
+  if (username.length < 3) throw new Error('اسم المستخدم يجب أن يكون 3 أحرف على الأقل');
+  if (!input.googleId && password.length < 8) throw new Error('كلمة المرور يجب أن تكون 8 أحرف على الأقل');
   if (findUserForLogin(username)) throw new Error('اسم المستخدم مستخدم مسبقاً');
-  if (email && findUserForLogin(email)) throw new Error('البريد الإلكتروني مسجّل مسبقاً');
+  if (email && !isDevMultiAccountEmail(email) && findUserForLogin(email)) {
+    throw new Error('البريد الإلكتروني مستخدم مسبقاً');
+  }
+  if (email && isDevMultiAccountEmail(email)) {
+    const persona = findDevMultiAccountPersona({ email, name, phone: input.phone });
+    if (persona) throw new Error('حساب تجريبي بهذه البيانات موجود مسبقاً');
+  }
 
+  const signupStatus = pilgrimSignupStatus();
   const issued = ensureUserAccount({
     name,
     username,
@@ -546,7 +627,7 @@ export function registerSelfAccount(input: {
     phone: input.phone,
     role: 'PILGRIM_USER',
     roleName: LOGIN_ROLE_LABELS.PILGRIM_USER,
-    status: 'PENDING_APPROVAL',
+    status: signupStatus,
     issueSecrets: false,
   });
 
@@ -557,17 +638,19 @@ export function registerSelfAccount(input: {
     if (cols.has('google_id')) db.prepare('UPDATE users SET google_id = ? WHERE id = ?').run(input.googleId, issued.userId);
   }
 
-  queueAccessRequest({
-    userId: issued.userId,
-    userName: name,
-    userEmail: email || issued.email,
-    userRole: 'PILGRIM_USER',
-    ip: input.ip,
-    pcPrint: input.pcPrint,
-    userAgent: input.userAgent,
-  });
+  if (signupStatus === 'PENDING_APPROVAL') {
+    queueAccessRequest({
+      userId: issued.userId,
+      userName: name,
+      userEmail: email || issued.email,
+      userRole: 'PILGRIM_USER',
+      ip: input.ip,
+      pcPrint: input.pcPrint,
+      userAgent: input.userAgent,
+    });
+  }
 
-  return { userId: issued.userId, username: issued.username, status: 'PENDING_APPROVAL' };
+  return { userId: issued.userId, username: issued.username, status: signupStatus };
 }
 
 export function findUserByGoogleId(googleId: string): any | null {
@@ -704,7 +787,7 @@ export function deleteUserAccount(userId: string, actorId?: string) {
   if (role === 'SUPER_ADMIN') {
     const admins = (db.prepare('SELECT id, role, roleName, email FROM users').all() as any[])
       .filter((row) => normalizeLoginRole(row.role, { email: row.email, roleName: row.roleName }) === 'SUPER_ADMIN');
-    if (admins.length <= 1) throw new Error('لا يمكن حذف مدير النظام الوحيد');
+    if (admins.length <= 1) throw new Error('لا يمكن حذف المشرف العام');
   }
   db.prepare('DELETE FROM users WHERE id = ?').run(userId);
   try {
@@ -719,22 +802,3 @@ export function deleteUserAccount(userId: string, actorId?: string) {
   }
 }
 
-export function repairSuperAdminLogin(): void {
-  ensureUserAccount({
-    id: 'usr_super_admin',
-    name: 'طارق العماري (المدير العام)',
-    email: 'admin@southstreet.dz',
-    username: 'admin',
-    password: 'Admin@2026!',
-    role: 'SUPER_ADMIN',
-    roleName: 'مدير النظام العام',
-    status: 'APPROVED',
-    issueSecrets: false,
-  });
-  updateUserAccess('usr_super_admin', {
-    status: 'APPROVED',
-    role: 'SUPER_ADMIN',
-    roleName: 'مدير النظام العام',
-    loginEnabled: 1,
-  });
-}

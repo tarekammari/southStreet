@@ -10,6 +10,8 @@
 
 require('dotenv').config();
 
+const path         = require('path');
+
 const express      = require('express');
 const { createServer } = require('http');
 const { Server: IOServer } = require('socket.io');
@@ -45,67 +47,89 @@ const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id          TEXT PRIMARY KEY,
-    code_hash   TEXT NOT NULL,
-    name        TEXT NOT NULL,
-    role        TEXT NOT NULL CHECK(role IN ('admin','manager','murshid','accountant','pilgrim')),
-    role_name   TEXT NOT NULL,
-    phone       TEXT DEFAULT '',
-    avatar      TEXT DEFAULT '',
-    room        TEXT DEFAULT '',
-    public_key  TEXT DEFAULT '',
-    status      TEXT DEFAULT 'نشط',
-    created_at  INTEGER DEFAULT (unixepoch())
-  );
+// ── MIMO: Safe schema migration ──────────────────────────────────────────────
+// The DB may already exist with camelCase columns (chatId, senderId…) from an
+// older server version. We detect and migrate gracefully instead of crashing.
+(function migrateSchema() {
+  const tableExists = (t) => !!db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`).get(t);
+  const colNames    = (t) => db.prepare(`PRAGMA table_info(${t})`).all().map(r => r.name);
+  const indexExists = (i) => !!db.prepare(`SELECT name FROM sqlite_master WHERE type='index' AND name=?`).get(i);
+  const addCol = (t, col, def) => { if (!colNames(t).includes(col)) db.exec(`ALTER TABLE ${t} ADD COLUMN ${col} ${def}`); };
 
-  CREATE TABLE IF NOT EXISTS messages (
-    id            TEXT PRIMARY KEY,
-    chat_id       TEXT NOT NULL,
-    sender_id     TEXT NOT NULL,
-    sender_name   TEXT NOT NULL,
-    sender_role   TEXT NOT NULL,
-    iv            TEXT NOT NULL,
-    ciphertext    TEXT NOT NULL,
-    enc_keys      TEXT DEFAULT '[]',
-    msg_type      TEXT DEFAULT 'text',
-    call_type     TEXT DEFAULT '',
-    call_duration TEXT DEFAULT '',
-    missed        INTEGER DEFAULT 0,
-    timestamp     INTEGER DEFAULT (unixepoch()),
-    FOREIGN KEY(sender_id) REFERENCES users(id) ON DELETE SET NULL
-  );
+  // ── users ──
+  db.exec(`CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY, code_hash TEXT NOT NULL DEFAULT '',
+    name TEXT NOT NULL DEFAULT '', role TEXT NOT NULL DEFAULT 'pilgrim',
+    role_name TEXT NOT NULL DEFAULT '', phone TEXT DEFAULT '',
+    avatar TEXT DEFAULT '', room TEXT DEFAULT '',
+    public_key TEXT DEFAULT '', status TEXT DEFAULT 'نشط',
+    created_at INTEGER DEFAULT (unixepoch())
+  )`);
+  addCol('users', 'public_key', "TEXT DEFAULT ''");
+  addCol('users', 'room',       "TEXT DEFAULT ''");
+  addCol('users', 'status',     "TEXT DEFAULT 'نشط'");
 
-  CREATE TABLE IF NOT EXISTS receipts (
-    id            TEXT PRIMARY KEY,
-    encrypted_data TEXT NOT NULL,
-    iv            TEXT NOT NULL,
-    created_by    TEXT NOT NULL,
-    created_at    INTEGER DEFAULT (unixepoch())
-  );
+  // ── messages — handle camelCase legacy schema ──
+  if (!tableExists('messages')) {
+    db.exec(`CREATE TABLE messages (
+      id TEXT PRIMARY KEY,
+      chat_id TEXT NOT NULL DEFAULT '',
+      sender_id TEXT NOT NULL DEFAULT '',
+      sender_name TEXT NOT NULL DEFAULT '',
+      sender_role TEXT NOT NULL DEFAULT '',
+      iv TEXT NOT NULL DEFAULT '',
+      ciphertext TEXT NOT NULL DEFAULT '',
+      enc_keys TEXT DEFAULT '[]',
+      msg_type TEXT DEFAULT 'text',
+      call_type TEXT DEFAULT '',
+      call_duration TEXT DEFAULT '',
+      missed INTEGER DEFAULT 0,
+      timestamp INTEGER DEFAULT (unixepoch())
+    )`);
+  } else {
+    const mc = colNames('messages');
+    if (mc.includes('chatId')     && !mc.includes('chat_id'))     db.exec(`ALTER TABLE messages ADD COLUMN chat_id TEXT NOT NULL DEFAULT ''`);
+    if (mc.includes('senderId')   && !mc.includes('sender_id'))   db.exec(`ALTER TABLE messages ADD COLUMN sender_id TEXT NOT NULL DEFAULT ''`);
+    if (mc.includes('senderName') && !mc.includes('sender_name')) db.exec(`ALTER TABLE messages ADD COLUMN sender_name TEXT NOT NULL DEFAULT ''`);
+    if (mc.includes('senderRole') && !mc.includes('sender_role')) db.exec(`ALTER TABLE messages ADD COLUMN sender_role TEXT NOT NULL DEFAULT ''`);
+    if (!mc.includes('iv'))            db.exec(`ALTER TABLE messages ADD COLUMN iv TEXT NOT NULL DEFAULT ''`);
+    if (!mc.includes('ciphertext'))    db.exec(`ALTER TABLE messages ADD COLUMN ciphertext TEXT NOT NULL DEFAULT ''`);
+    if (!mc.includes('enc_keys'))      db.exec(`ALTER TABLE messages ADD COLUMN enc_keys TEXT DEFAULT '[]'`);
+    if (!mc.includes('msg_type'))      db.exec(`ALTER TABLE messages ADD COLUMN msg_type TEXT DEFAULT 'text'`);
+    if (!mc.includes('call_type'))     db.exec(`ALTER TABLE messages ADD COLUMN call_type TEXT DEFAULT ''`);
+    if (!mc.includes('call_duration')) db.exec(`ALTER TABLE messages ADD COLUMN call_duration TEXT DEFAULT ''`);
+    if (!mc.includes('missed'))        db.exec(`ALTER TABLE messages ADD COLUMN missed INTEGER DEFAULT 0`);
+    if (!mc.includes('timestamp'))     db.exec(`ALTER TABLE messages ADD COLUMN timestamp INTEGER DEFAULT 0`);
+  }
+  if (colNames('messages').includes('chat_id') && !indexExists('idx_messages_chat'))
+    db.exec(`CREATE INDEX idx_messages_chat ON messages(chat_id)`);
 
-  CREATE TABLE IF NOT EXISTS audit_logs (
-    id          TEXT PRIMARY KEY,
-    actor_id    TEXT,
-    actor_name  TEXT,
-    actor_role  TEXT,
-    action      TEXT,
-    details     TEXT,
-    ip          TEXT,
-    timestamp   INTEGER DEFAULT (unixepoch())
-  );
+  // ── receipts ──
+  db.exec(`CREATE TABLE IF NOT EXISTS receipts (
+    id TEXT PRIMARY KEY, encrypted_data TEXT NOT NULL DEFAULT '',
+    iv TEXT NOT NULL DEFAULT '', created_by TEXT NOT NULL DEFAULT '',
+    created_at INTEGER DEFAULT (unixepoch())
+  )`);
+  addCol('receipts', 'iv',             "TEXT NOT NULL DEFAULT ''");
+  addCol('receipts', 'created_by',     "TEXT NOT NULL DEFAULT ''");
+  addCol('receipts', 'encrypted_data', "TEXT NOT NULL DEFAULT ''");
 
-  CREATE TABLE IF NOT EXISTS public_keys (
-    user_id     TEXT PRIMARY KEY,
-    public_key  TEXT NOT NULL,
-    updated_at  INTEGER DEFAULT (unixepoch()),
-    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-  );
+  // ── audit_logs ──
+  db.exec(`CREATE TABLE IF NOT EXISTS audit_logs (
+    id TEXT PRIMARY KEY, actor_id TEXT, actor_name TEXT,
+    actor_role TEXT, action TEXT, details TEXT, ip TEXT,
+    timestamp INTEGER DEFAULT (unixepoch())
+  )`);
+  if (!indexExists('idx_audit_ts')) db.exec(`CREATE INDEX idx_audit_ts ON audit_logs(timestamp)`);
 
-  CREATE INDEX IF NOT EXISTS idx_messages_chat ON messages(chat_id);
-  CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_logs(timestamp);
-`);
+  // ── public_keys ──
+  db.exec(`CREATE TABLE IF NOT EXISTS public_keys (
+    user_id TEXT PRIMARY KEY, public_key TEXT NOT NULL,
+    updated_at INTEGER DEFAULT (unixepoch())
+  )`);
+
+  console.log('[MIMO] DB schema migration complete ✅');
+})();
 
 // ─────────────────────────────────────────────
 // SEED DEFAULT USERS

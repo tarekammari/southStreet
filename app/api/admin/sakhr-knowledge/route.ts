@@ -1,7 +1,32 @@
+import { getSqliteDb } from '@/lib/sqlite';
 import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { getDatabase, saveDatabase, AiKnowledgeRule } from '@/lib/db';
+import { verifyToken } from '@/lib/auth';
+import { getTokenFromRequest } from '@/lib/request-auth';
+import { normalizeLoginRole } from '@/lib/roles';
+import { requireRole, ADMINS, SUPER_ONLY } from '@/lib/staff-gate';
 
-export async function GET() {
+const READ_ROLES = new Set(['SUPER_ADMIN', 'AGENCY_MANAGER']);
+const WRITE_ROLES = new Set(['SUPER_ADMIN', 'AGENCY_MANAGER']);
+
+function requireSakhrAccess(req: NextRequest, _mutating: boolean) {
+  return requireRole(req, ADMINS);
+}
+
+
+const __ADMIN_API_ROLES = new Set(['SUPER_ADMIN', 'AGENCY_MANAGER']);
+
+function requireAdminApi(req: any) {
+  return requireRole(req, ADMINS);
+}
+
+export async function GET(req: NextRequest) {
+  const __gate = requireAdminApi(req);
+  if ('error' in __gate) return __gate.error;
+
+  const gate = requireSakhrAccess(req, false);
+  if ('error' in gate) return gate.error;
   try {
     const db = getDatabase();
     return NextResponse.json({ rules: db.aiKnowledge || [] });
@@ -10,7 +35,12 @@ export async function GET() {
   }
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  const __gate = requireAdminApi(req);
+  if ('error' in __gate) return __gate.error;
+
+  const gate = requireSakhrAccess(req, true);
+  if ('error' in gate) return gate.error;
   try {
     const { category, title_ar, keywords, response_ar, answerMode, matchStrategy, updatedBy } = await req.json();
 
@@ -28,7 +58,7 @@ export async function POST(req: Request) {
       is_active: true,
       answerMode: answerMode || 'official_exact',
       matchStrategy: matchStrategy || 'keywords_or_title',
-      updatedBy: updatedBy || 'admin@southstreet.dz',
+      updatedBy: updatedBy || gate.payload.email || gate.payload.name || 'admin@southstreet.dz',
       updatedAt: new Date().toISOString()
     };
 
@@ -41,7 +71,12 @@ export async function POST(req: Request) {
   }
 }
 
-export async function PUT(req: Request) {
+export async function PUT(req: NextRequest) {
+  const __gate = requireAdminApi(req);
+  if ('error' in __gate) return __gate.error;
+
+  const gate = requireSakhrAccess(req, true);
+  if ('error' in gate) return gate.error;
   try {
     const { id, category, title_ar, keywords, response_ar, is_active, qualityRating, modelAnswer, answerMode, matchStrategy, updatedBy } = await req.json();
 
@@ -75,7 +110,12 @@ export async function PUT(req: Request) {
   }
 }
 
-export async function DELETE(req: Request) {
+export async function DELETE(req: NextRequest) {
+  const __gate = requireAdminApi(req);
+  if ('error' in __gate) return __gate.error;
+
+  const gate = requireSakhrAccess(req, true);
+  if ('error' in gate) return gate.error;
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');

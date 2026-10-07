@@ -21,6 +21,7 @@ import {
   ChevronLeft,
   MessageCircle,
 } from 'lucide-react';
+import { authHeaders, getAuthToken, apiFetch, jsonAuthHeaders } from '@/lib/api-client';
 
 interface ChatChannel {
   id: string;
@@ -40,10 +41,6 @@ interface ChatModuleProps {
 
 type ChannelKind = 'group' | 'guide' | 'agent' | 'accountant' | 'manager' | 'person';
 
-function authHeaders(): HeadersInit {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('south_street_token') : null;
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
 
 function personBits(name: string, subtitle?: string) {
   const m = String(name || '').match(/^(.*?)\s*[（(](.+?)[）)]\s*$/);

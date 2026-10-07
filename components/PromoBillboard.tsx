@@ -4,10 +4,17 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { PageContentRow, pickPageContent } from '@/lib/page-content';
 
+function resolvePromoImage(url?: string) {
+  const fallback = '/images/AIR_ALGERIA.webp';
+  const src = (url || '').trim() || fallback;
+  if (/AIR_ALGERIA\.jpe?g$/i.test(src)) return '/images/AIR_ALGERIA.webp';
+  return src;
+}
+
 export default function PromoBillboard({ content }: { content?: PageContentRow[] }) {
   const promo = pickPageContent(content, 'promo_billboard', {
     title: 'رحلة طيران مباشرة إلى البقاع المقدسة',
-    image: '/images/AIR_ALGERIA.jpg',
+    image: '/images/AIR_ALGERIA.webp',
   });
   return (
     <motion.section

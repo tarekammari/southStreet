@@ -1,7 +1,14 @@
+/**
+ * SQLite connection bootstrap (better-sqlite3), schema init, and seeds.
+ * Domain helpers live in `lib/db.ts` and call `getSqliteDb()` from here.
+ */
 import Database from 'better-sqlite3';
 import { hashPassword } from './security';
 import { wrapDatabaseWithEncryption, migratePlaintextToEncrypted } from './encrypted-sqlite';
+import { initSecuritySchema } from './security-schema';
 import { ensureDbFile, isServerlessHost, resolveDbPath } from './db-path';
+import { bootstrapFiscalPeriodsForYear } from './finance-periods';
+import { seedScfChartAccounts } from './scf-chart-seed';
 
 let dbInstance: Database.Database | null = null;
 let dbPathUsed: string | null = null;
@@ -22,6 +29,7 @@ export function getSqliteDb(): Database.Database {
   dbInstance = wrapDatabaseWithEncryption(raw);
   dbPathUsed = DB_PATH;
   initTables(dbInstance);
+  initSecuritySchema(dbInstance);
   try {
     seedDefaults(dbInstance);
   } catch (err) {
@@ -38,11 +46,7 @@ export function getSqliteDb(): Database.Database {
     const accounts = require('./accounts') as typeof import('./accounts');
     accounts.backfillUserLookupHashes();
     accounts.backfillStaffAccounts();
-    try {
-      accounts.repairSuperAdminLogin();
-    } catch (repairErr) {
-      console.warn('[Super admin repair]:', repairErr);
-    }
+    // The Super Admin is created once by `npm run admin:setup`, never re-seeded here.
   } catch (err) {
     console.warn('[Account backfill]:', err);
   }
@@ -401,6 +405,76 @@ function initTables(db: Database.Database) {
       console.warn('[SQLite Legacy Users]:', legacyErr);
     }
 
+    // Expand legacy users.role CHECK to include agent; repair agent→manager collapses.
+    try {
+      const tableSqlRow = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='users'`).get() as { sql?: string } | undefined;
+      const tableSql = tableSqlRow?.sql || '';
+      const hasRoleCheck = /CHECK\s*\(\s*role\s+IN/i.test(tableSql);
+      const checkAllowsAgent = /['"]agent['"]/i.test(tableSql) || /['"]AGENCY_AGENT['"]/i.test(tableSql);
+      const checkAllowsLoginRoles = /['"]AGENCY_AGENT['"]/.test(tableSql) && /['"]SUPER_ADMIN['"]/.test(tableSql);
+      // Rebuild when legacy portal CHECK lacks LOGIN_ROLES even if 'agent' is already present.
+      if (hasRoleCheck && (!checkAllowsAgent || !checkAllowsLoginRoles)) {
+        const colsInfo = db.prepare('PRAGMA table_info(users)').all() as {
+          cid: number; name: string; type: string; notnull: number; dflt_value: unknown; pk: number;
+        }[];
+        const colDefs = colsInfo.map((c) => {
+          if (c.name === 'role') {
+            return `"role" ${c.type || 'TEXT'} NOT NULL CHECK(role IN (
+              'admin','manager','agent','murshid','accountant','pilgrim',
+              'SUPER_ADMIN','AGENCY_MANAGER','AGENCY_AGENT','ACCOUNTANT','GUIDE_MURSHID','PILGRIM_USER'
+            ))`;
+          }
+          const parts = [`"${c.name}" ${c.type || 'TEXT'}`];
+          if (c.pk) parts.push('PRIMARY KEY');
+          if (c.notnull && !c.pk) parts.push('NOT NULL');
+          if (c.dflt_value !== null && c.dflt_value !== undefined) parts.push(`DEFAULT ${c.dflt_value}`);
+          return parts.join(' ');
+        });
+        const colNames = colsInfo.map((c) => `"${c.name}"`).join(', ');
+        db.exec('PRAGMA foreign_keys = OFF');
+        db.exec('BEGIN');
+        try {
+          db.exec(`CREATE TABLE users__rbac_mig (${colDefs.join(', ')})`);
+          db.exec(`INSERT INTO users__rbac_mig (${colNames}) SELECT ${colNames} FROM users`);
+          db.exec('DROP TABLE users');
+          db.exec('ALTER TABLE users__rbac_mig RENAME TO users');
+          db.exec('COMMIT');
+          console.log('[SQLite RBAC]: users.role CHECK extended to include agent');
+        } catch (migInner) {
+          db.exec('ROLLBACK');
+          throw migInner;
+        } finally {
+          db.exec('PRAGMA foreign_keys = ON');
+        }
+      }
+
+      // Repair rows collapsed by old agent→manager mapping
+      try {
+        const names = new Set((db.prepare('PRAGMA table_info(users)').all() as { name: string }[]).map((c) => c.name));
+        const roleNameCol = names.has('roleName') ? 'roleName' : names.has('role_name') ? 'role_name' : null;
+        const emailCol = names.has('email') ? 'email' : null;
+        const userCol = names.has('username') ? 'username' : null;
+        const reqKeyCol = names.has('requiresFileKey') ? 'requiresFileKey' : names.has('requires_file_key') ? 'requires_file_key' : null;
+        const identity: string[] = [];
+        if (roleNameCol) {
+          identity.push(`${roleNameCol} LIKE '%موظف%'`);
+          identity.push(`${roleNameCol} LIKE '%خدمة العملاء%'`);
+        }
+        if (emailCol) identity.push(`lower(IFNULL(${emailCol},'')) LIKE '%agent%'`);
+        if (userCol) identity.push(`lower(IFNULL(${userCol},'')) IN ('agent','ss.agent')`);
+        identity.push(`id = 'usr_agent'`);
+        identity.push(`id LIKE '%a563a2%'`);
+        if (identity.length) {
+          const updateSql = `UPDATE users SET role = 'agent'${reqKeyCol ? `, ${reqKeyCol} = 0` : ''} WHERE (` + identity.join(' OR ') + `) AND role IN ('manager','AGENCY_MANAGER')`;
+          db.prepare(updateSql).run();
+        }
+      } catch (repairErr) {
+        console.warn('[SQLite RBAC agent repair]:', repairErr);
+      }
+    } catch (rbacErr) {
+      console.warn('[SQLite RBAC Migration]:', rbacErr);
+    }
+
     try {
       db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_hash ON users(usernameHash) WHERE usernameHash IS NOT NULL AND usernameHash != ''");
       db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_hash ON users(emailHash) WHERE emailHash IS NOT NULL AND emailHash != ''");
@@ -437,10 +511,533 @@ function initTables(db: Database.Database) {
     ensureColumn('reservations', 'agency_confirmed_by', 'TEXT');
     ensureColumn('reservations', 'document_verify_code', 'TEXT');
     ensureColumn('reservations', 'agency_note', 'TEXT');
+
+    // receipts: legacy server.js used encrypted_data/iv; Next app needs flat columns
+    migrateReceiptsTable(db);
+    initFinanceTables(db);
+    initScfPhase1Tables(db);
+    migrateFinanceCategories(db);
   } catch (migErr) {
     console.warn('[SQLite Migration Notice]:', migErr);
   }
 }
+
+function initScfPhase1Tables(db: Database.Database) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS finance_scf_accounts (
+      code TEXT PRIMARY KEY,
+      label_ar TEXT NOT NULL,
+      label_fr TEXT,
+      class INTEGER NOT NULL,
+      parent_code TEXT,
+      active INTEGER NOT NULL DEFAULT 1
+    );
+
+    CREATE TABLE IF NOT EXISTS finance_fiscal_periods (
+      year INTEGER NOT NULL,
+      month INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'open',
+      closed_by TEXT,
+      closed_at TEXT,
+      reopened_by TEXT,
+      reopened_at TEXT,
+      PRIMARY KEY (year, month)
+    );
+
+    CREATE TABLE IF NOT EXISTS finance_audit_log (
+      id TEXT PRIMARY KEY,
+      user_id TEXT,
+      user_name TEXT,
+      role TEXT,
+      action TEXT NOT NULL,
+      entity TEXT NOT NULL,
+      entity_id TEXT NOT NULL,
+      before_json TEXT,
+      after_json TEXT,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_finance_audit_created ON finance_audit_log(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_finance_audit_entity ON finance_audit_log(entity, entity_id);
+  `);
+  try {
+    seedScfChartAccounts(db);
+    bootstrapFiscalPeriodsForYear(new Date().getFullYear());
+  } catch (err) {
+    console.warn('[SCF Phase 1 seed]:', err);
+  }
+}
+
+function initFinanceTables(db: Database.Database) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS finance_ledger (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,
+      direction TEXT NOT NULL,
+      amount REAL NOT NULL,
+      description TEXT,
+      entry_date TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'POSTED',
+      receipt_id TEXT,
+      counterparty TEXT,
+      method TEXT,
+      category TEXT DEFAULT 'other',
+      ref_table TEXT,
+      ref_id TEXT,
+      running_balance REAL DEFAULT 0,
+      created_by TEXT,
+      created_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS finance_suppliers (
+      id TEXT PRIMARY KEY,
+      code TEXT UNIQUE,
+      name_ar TEXT NOT NULL,
+      contact TEXT,
+      payment_terms_days INTEGER DEFAULT 30,
+      status TEXT DEFAULT 'ACTIVE',
+      category TEXT DEFAULT 'other',
+      created_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS finance_supplier_invoices (
+      id TEXT PRIMARY KEY,
+      supplier_id TEXT NOT NULL,
+      invoice_no TEXT,
+      invoice_date TEXT,
+      due_date TEXT,
+      amount REAL NOT NULL,
+      paid_amount REAL DEFAULT 0,
+      remaining REAL NOT NULL,
+      status TEXT DEFAULT 'OPEN',
+      note TEXT,
+      created_at TEXT,
+      FOREIGN KEY (supplier_id) REFERENCES finance_suppliers(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS finance_supplier_payments (
+      id TEXT PRIMARY KEY,
+      supplier_id TEXT NOT NULL,
+      invoice_id TEXT,
+      amount REAL NOT NULL,
+      method TEXT NOT NULL,
+      payment_date TEXT,
+      note TEXT,
+      ledger_id TEXT,
+      created_by TEXT,
+      created_at TEXT,
+      FOREIGN KEY (supplier_id) REFERENCES finance_suppliers(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS finance_staff_salaries (
+      id TEXT PRIMARY KEY,
+      morshid_id TEXT,
+      staff_name TEXT NOT NULL,
+      period_year INTEGER NOT NULL,
+      period_month INTEGER NOT NULL,
+      amount REAL NOT NULL,
+      status TEXT DEFAULT 'PENDING',
+      paid_at TEXT,
+      note TEXT,
+      ledger_id TEXT,
+      kind TEXT DEFAULT 'salary',
+      created_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS finance_service_costs (
+      id TEXT PRIMARY KEY,
+      name_ar TEXT NOT NULL,
+      frequency TEXT NOT NULL,
+      amount REAL NOT NULL,
+      next_due_date TEXT,
+      provider TEXT,
+      status TEXT DEFAULT 'ACTIVE',
+      note TEXT,
+      created_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS finance_service_payments (
+      id TEXT PRIMARY KEY,
+      service_id TEXT NOT NULL,
+      amount REAL NOT NULL,
+      method TEXT NOT NULL,
+      payment_date TEXT,
+      note TEXT,
+      ledger_id TEXT,
+      created_by TEXT,
+      created_at TEXT,
+      FOREIGN KEY (service_id) REFERENCES finance_service_costs(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS finance_client_payments (
+      id TEXT PRIMARY KEY,
+      reservation_id TEXT,
+      customer_name TEXT NOT NULL,
+      customer_code TEXT,
+      package_name TEXT,
+      amount REAL NOT NULL,
+      source_type TEXT DEFAULT 'INCOME',
+      method TEXT,
+      account_id TEXT,
+      entry_date TEXT,
+      note TEXT,
+      ledger_id TEXT,
+      receipt_id TEXT,
+      created_by TEXT,
+      created_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS finance_treasury_accounts (
+      id TEXT PRIMARY KEY,
+      name_ar TEXT NOT NULL,
+      kind TEXT DEFAULT 'CASH',
+      bank_name TEXT,
+      account_no TEXT,
+      opening_balance REAL DEFAULT 0,
+      currency TEXT DEFAULT 'DZD',
+      status TEXT DEFAULT 'ACTIVE',
+      note TEXT,
+      created_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS finance_assets (
+      id TEXT PRIMARY KEY,
+      name_ar TEXT NOT NULL,
+      category TEXT DEFAULT 'other',
+      quantity INTEGER DEFAULT 1,
+      unit_cost REAL NOT NULL,
+      total_cost REAL NOT NULL,
+      purchase_date TEXT,
+      supplier TEXT,
+      useful_life_years INTEGER DEFAULT 5,
+      status TEXT DEFAULT 'ACTIVE',
+      note TEXT,
+      ledger_id TEXT,
+      created_by TEXT,
+      created_at TEXT
+    );
+  `);
+}
+
+
+function migrateFinanceCategories(db: Database.Database) {
+  const ensureColumn = (tbl: string, col: string, def: string) => {
+    try {
+      const tableCols = (db.prepare(`PRAGMA table_info(${tbl})`).all() as { name: string }[]).map((c) => c.name);
+      if (tableCols.length > 0 && !tableCols.includes(col)) {
+        db.exec(`ALTER TABLE ${tbl} ADD COLUMN ${col} ${def};`);
+      }
+    } catch (err) {
+      console.warn(`[SQLite Migration]: Error adding column ${col} to ${tbl}:`, err);
+    }
+  };
+  ensureColumn('finance_suppliers', 'category', "TEXT DEFAULT 'other'");
+  ensureColumn('finance_ledger', 'category', "TEXT DEFAULT 'other'");
+  // Treasury: which cash box or bank account a movement went through.
+  ensureColumn('finance_ledger', 'account_id', 'TEXT');
+  /** treasury = cash movement; accrual = Dr/Cr without treasury balance (e.g. supplier invoice). */
+  ensureColumn('finance_ledger', 'entry_kind', "TEXT DEFAULT 'treasury'");
+  ensureColumn('finance_service_costs', 'supplier_id', 'TEXT');
+  ensureColumn('finance_service_costs', 'scf_code', "TEXT DEFAULT '613'");
+  ensureColumn('finance_suppliers', 'scf_code', 'TEXT');
+  ensureColumn('finance_suppliers', 'image_url', 'TEXT');
+  ensureColumn('finance_supplier_invoices', 'amount_ht', 'REAL');
+  ensureColumn('finance_supplier_invoices', 'discount', 'REAL DEFAULT 0');
+  ensureColumn('finance_supplier_invoices', 'tax_rate', 'REAL DEFAULT 0');
+  ensureColumn('finance_supplier_invoices', 'tax_amount', 'REAL DEFAULT 0');
+  ensureColumn('finance_supplier_invoices', 'detail_json', 'TEXT');
+  ensureColumn('finance_supplier_payments', 'status', "TEXT DEFAULT 'POSTED'");
+  ensureColumn('finance_client_payments', 'status', "TEXT DEFAULT 'POSTED'");
+  ensureColumn('packages', 'annex_options', 'TEXT');
+  ensureColumn('finance_staff_salaries', 'kind', "TEXT DEFAULT 'salary'");
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS finance_hidden_clients (
+        client_key TEXT PRIMARY KEY,
+        name TEXT,
+        code TEXT,
+        hidden_at TEXT,
+        hidden_by TEXT,
+        status TEXT DEFAULT 'hidden'
+      );
+    `);
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS finance_purged_clients (
+        client_key TEXT PRIMARY KEY,
+        name TEXT,
+        code TEXT,
+        purged_at TEXT,
+        purged_by TEXT
+      );
+    `);
+  } catch (err) {
+    console.warn('[SQLite Migration]: finance_hidden_clients', err);
+  }
+
+  try {
+    db.exec(`UPDATE finance_suppliers SET category = 'other' WHERE category IS NULL OR TRIM(category) = ''`);
+    db.exec(`UPDATE finance_ledger SET category = 'other' WHERE category IS NULL OR TRIM(category) = ''`);
+
+    const demos: [string, string][] = [
+      ['sup_demo_1', 'hotels'],
+      ['sup_demo_2', 'airlines'],
+      ['sup_demo_3', 'transport'],
+      ['sup_demo_4', 'visa'],
+      ['sup_demo_5', 'insurance'],
+    ];
+    const upd = db.prepare(`UPDATE finance_suppliers SET category = ? WHERE id = ? AND (category IS NULL OR category = 'other')`);
+    for (const [id, cat] of demos) upd.run(cat, id);
+
+    db.exec(`UPDATE finance_ledger SET category = 'cash_in' WHERE type = 'CASH_IN' AND (category IS NULL OR category = 'other')`);
+    db.exec(`UPDATE finance_ledger SET category = 'cash_out' WHERE type = 'CASH_OUT' AND (category IS NULL OR category = 'other')`);
+    db.exec(`UPDATE finance_ledger SET category = 'supplier_purchase' WHERE type = 'PURCHASE' AND (category IS NULL OR category = 'other')`);
+    db.exec(`UPDATE finance_ledger SET category = 'services' WHERE type = 'SERVICE_SPEND' AND (category IS NULL OR category = 'other')`);
+    db.exec(`UPDATE finance_ledger SET category = 'ops' WHERE type = 'EXPENSE' AND (category IS NULL OR category = 'other')`);
+
+    db.exec(`UPDATE finance_suppliers SET scf_code = '604' WHERE (scf_code IS NULL OR TRIM(scf_code) = '') AND category IN ('hotels','airlines','transport','visa','catering','ground')`);
+    db.exec(`UPDATE finance_suppliers SET scf_code = '616' WHERE (scf_code IS NULL OR TRIM(scf_code) = '') AND category = 'insurance'`);
+    db.exec(`UPDATE finance_suppliers SET scf_code = '626' WHERE (scf_code IS NULL OR TRIM(scf_code) = '') AND category = 'telecom_it'`);
+    db.exec(`UPDATE finance_suppliers SET scf_code = '625' WHERE (scf_code IS NULL OR TRIM(scf_code) = '') AND (category IS NULL OR category = 'other')`);
+    db.exec(`UPDATE finance_service_costs SET scf_code = '613' WHERE scf_code IS NULL OR TRIM(scf_code) = ''`);
+    db.exec(`UPDATE finance_staff_salaries SET kind = 'salary' WHERE kind IS NULL OR TRIM(kind) = ''`);
+    if (seedDemoData()) seedTreasuryAccountsIfEmpty(db);
+    const manarat = db
+      .prepare(`SELECT images FROM hotels WHERE hotel_id = 'htl_manarat_gaza'`)
+      .get() as { images?: string } | undefined;
+    if (manarat?.images) {
+      try {
+        const url = (JSON.parse(manarat.images) as string[])[0];
+        if (url) {
+          db.prepare(
+            `UPDATE finance_suppliers SET image_url = ? WHERE id = 'sup_demo_1' AND (image_url IS NULL OR TRIM(image_url) = '')`
+          ).run(url);
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+  } catch (err) {
+    console.warn('[Finance category backfill]:', err);
+  }
+}
+
+function seedTreasuryAccountsIfEmpty(db: Database.Database) {
+  const cnt = (db.prepare('SELECT COUNT(*) as cnt FROM finance_treasury_accounts').get() as { cnt: number }).cnt;
+  if (cnt > 0) return;
+  const now = new Date().toISOString();
+  const insert = db.prepare(`
+    INSERT INTO finance_treasury_accounts (
+      id, name_ar, kind, bank_name, account_no, opening_balance, currency, status, note, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, 'DZD', 'ACTIVE', ?, ?)
+  `);
+  const rows: [string, string, string, string, string, number, string][] = [
+    ['trz_cash_main', 'صندوق الوكالة — المقر', 'CASH', '', '', 500_000, 'نقد يومي — مقر الجزائر'],
+    ['trz_bank_cpa', 'حساب بنك CPA — العمليات', 'BANK', 'CPA Banque', '0123456789012345', 1_200_000, 'تحويلات موردين ورواتب'],
+    ['trz_ccp_collect', 'حساب بريدي CCP — التحصيل', 'CCP', 'Algérie Poste', '0012345678 89', 350_000, 'تحصيلات العملاء'],
+    ['trz_cash_makkah', 'صندوق مكة — الموسم', 'CASH', '', '', 80_000, 'مصروف ميداني بالحرم'],
+    ['trz_cash_oran', 'صندوق فرع وهران', 'CASH', '', '', 120_000, ''],
+  ];
+  for (const [id, name, kind, bank, accNo, open, note] of rows) {
+    insert.run(id, name, kind, bank, accNo, open, note, now);
+  }
+}
+
+function seedFinanceDefaults(db: Database.Database) {
+  seedTreasuryAccountsIfEmpty(db);
+  const ledgerCount = (db.prepare('SELECT COUNT(*) as cnt FROM finance_ledger').get() as any).cnt;
+  if (ledgerCount > 0) return;
+
+  const now = new Date().toISOString();
+  const d = (offsetDays: number) => {
+    const x = new Date();
+    x.setDate(x.getDate() + offsetDays);
+    return x.toISOString().slice(0, 10);
+  };
+
+  const insertSupplier = db.prepare(`
+    INSERT INTO finance_suppliers (id, code, name_ar, contact, payment_terms_days, status, created_at)
+    VALUES (?, ?, ?, ?, ?, 'ACTIVE', ?)
+  `);
+  const suppliers = [
+    ['sup_demo_1', 'SUP-101', 'فندق منارات غزة — مكة', '+966 12 555 0101', 30],
+    ['sup_demo_2', 'SUP-102', 'خطوط الجوية الجزائرية', '+213 21 500 200', 15],
+    ['sup_demo_3', 'SUP-103', 'نقل الحافلات VIP الجزائر', '+213 550 44 33 22', 7],
+    ['sup_demo_4', 'SUP-104', 'مكتب التأشيرات المعتمد', '+213 21 66 77 88', 10],
+    ['sup_demo_5', 'SUP-105', 'تأمين السفر سوناطراك', '+213 23 11 22 33', 30],
+  ];
+  for (const s of suppliers) insertSupplier.run(...s, now);
+
+  const insertInv = db.prepare(`
+    INSERT INTO finance_supplier_invoices (
+      id, supplier_id, invoice_no, invoice_date, due_date, amount, paid_amount, remaining, status, note, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const invoices = [
+    ['sinv_demo_1', 'sup_demo_1', 'INV-HTL-901', d(-40), d(-10), 850000, 300000, 550000, 'PARTIAL', 'إقامة مجموعة أوت'],
+    ['sinv_demo_2', 'sup_demo_2', 'INV-AIR-441', d(-25), d(5), 1200000, 0, 1200000, 'OPEN', 'تذاكر ذهاب وإياب'],
+    ['sinv_demo_3', 'sup_demo_3', 'INV-BUS-112', d(-12), d(2), 180000, 180000, 0, 'PAID', 'نقل المطار'],
+    ['sinv_demo_4', 'sup_demo_4', 'INV-VIS-77', d(-8), d(22), 95000, 0, 95000, 'OPEN', 'تأشيرات نسك'],
+    ['sinv_demo_5', 'sup_demo_5', 'INV-INS-55', d(-5), d(25), 64000, 20000, 44000, 'PARTIAL', 'تأمين المجموعة'],
+  ];
+  for (const i of invoices) insertInv.run(...i, now);
+
+  const insertPay = db.prepare(`
+    INSERT INTO finance_supplier_payments (
+      id, supplier_id, invoice_id, amount, method, payment_date, note, ledger_id, created_by, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 'seed', ?)
+  `);
+  insertPay.run('spay_demo_1', 'sup_demo_1', 'sinv_demo_1', 300000, 'BANK_TRANSFER', d(-20), 'دفعة أولى فندق', now);
+  insertPay.run('spay_demo_2', 'sup_demo_3', 'sinv_demo_3', 180000, 'CASH', d(-10), 'سداد كامل نقل', now);
+  insertPay.run('spay_demo_3', 'sup_demo_5', 'sinv_demo_5', 20000, 'CCP', d(-3), 'عربون تأمين', now);
+  insertPay.run('spay_demo_4', 'sup_demo_2', null, 150000, 'CHECK', d(-15), 'دفعة جزئية طيران بدون فاتورة', now);
+
+  let morshidId: string | null = null;
+  let morshidName = 'الشيخ د. عبد الرحمن النوي';
+  try {
+    const m = db.prepare('SELECT morshid_id, name FROM morshids LIMIT 1').get() as any;
+    if (m) { morshidId = m.morshid_id; morshidName = m.name; }
+  } catch { /* morshids optional */ }
+
+  const insertSal = db.prepare(`
+    INSERT INTO finance_staff_salaries (
+      id, morshid_id, staff_name, period_year, period_month, amount, status, paid_at, note, ledger_id, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)
+  `);
+  const year = new Date().getFullYear();
+  const month = new Date().getMonth() + 1;
+  insertSal.run('sal_demo_1', morshidId, morshidName, year, month, 120000, 'PENDING', null, 'راتب مرشد', now);
+  insertSal.run('sal_demo_2', null, 'الأستاذة سارة بن علي', year, month, 95000, 'PENDING', null, 'تأشيرات', now);
+  insertSal.run('sal_demo_3', null, 'السيد توفيق بوجمعة', year, month, 110000, 'PAID', d(-2), 'عمليات', now);
+  insertSal.run('sal_demo_4', null, 'الأستاذ ياسين الفاسي', year, month, 130000, 'PENDING', null, 'محاسبة', now);
+  insertSal.run('sal_demo_5', null, 'السيد كريم يوسفي', year, month > 1 ? month - 1 : 12, 90000, 'PAID', d(-28), 'إقامة', now);
+
+  const insertSvc = db.prepare(`
+    INSERT INTO finance_service_costs (
+      id, name_ar, frequency, amount, next_due_date, provider, status, note, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?)
+  `);
+  insertSvc.run('svc_demo_1', 'إيجار المقر الرئيسي', 'MONTHLY', 85000, d(12), 'مالك العقار — أودان', 'إيجار شهري', now);
+  insertSvc.run('svc_demo_2', 'اشتراك الإنترنت والألياف', 'MONTHLY', 12000, d(5), 'اتصالات الجزائر', 'أعمال', now);
+  insertSvc.run('svc_demo_3', 'صيانة المكيفات', 'QUARTERLY', 35000, d(20), 'شركة التبريد', 'صيانة دورية', now);
+  insertSvc.run('svc_demo_4', 'رخصة السياحة السنوية', 'YEARLY', 150000, d(60), 'وزارة السياحة', 'تجديد', now);
+  insertSvc.run('svc_demo_5', 'حملة إعلانات فيسبوك', 'ONE_OFF', 45000, d(3), 'وكالة إعلان', 'موسم أوت', now);
+  insertSvc.run('svc_demo_6', 'كهرباء وماء المقر', 'MONTHLY', 18000, d(-2), 'سونلغاز / SEAAL', 'مستحق', now);
+
+  const insertSvcPay = db.prepare(`
+    INSERT INTO finance_service_payments (
+      id, service_id, amount, method, payment_date, note, ledger_id, created_by, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, NULL, 'seed', ?)
+  `);
+  insertSvcPay.run('svcp_demo_1', 'svc_demo_1', 85000, 'BANK_TRANSFER', d(-18), 'إيجار الشهر الماضي', now);
+  insertSvcPay.run('svcp_demo_2', 'svc_demo_2', 12000, 'CCP', d(-8), 'إنترنت', now);
+  insertSvcPay.run('svcp_demo_3', 'svc_demo_6', 18000, 'CASH', d(-25), 'فواتير مرافق', now);
+  insertSvcPay.run('svcp_demo_4', 'svc_demo_5', 45000, 'OTHER', d(-4), 'إعلان', now);
+
+  const insertLed = db.prepare(`
+    INSERT INTO finance_ledger (
+      id, type, direction, amount, description, entry_date, status, receipt_id,
+      counterparty, method, ref_table, ref_id, running_balance, created_by, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, 'POSTED', ?, ?, ?, ?, ?, 0, 'seed', ?)
+  `);
+  const ledgerRows: any[] = [
+    ['led_demo_1', 'CASH_IN', 'in', 215000, 'تحصيل سند قبض — باقة أوت', d(-30), null, 'معتمر', 'CCP', 'receipts', null],
+    ['led_demo_2', 'CASH_IN', 'in', 295000, 'تحصيل سند قبض — باقة VIP', d(-22), null, 'معتمر', 'BANK_TRANSFER', 'receipts', null],
+    ['led_demo_3', 'PURCHASE', 'out', 300000, 'دفعة مورد: فندق منارات غزة', d(-20), null, 'فندق منارات غزة — مكة', 'BANK_TRANSFER', 'finance_supplier_payments', 'spay_demo_1'],
+    ['led_demo_4', 'PURCHASE', 'out', 180000, 'دفعة مورد: نقل الحافلات VIP', d(-10), null, 'نقل الحافلات VIP الجزائر', 'CASH', 'finance_supplier_payments', 'spay_demo_2'],
+    ['led_demo_5', 'SERVICE_SPEND', 'out', 85000, 'خدمة: إيجار المقر الرئيسي', d(-18), null, 'مالك العقار — أودان', 'BANK_TRANSFER', 'finance_service_payments', 'svcp_demo_1'],
+    ['led_demo_6', 'EXPENSE', 'out', 25000, 'مصاريف مكتبية وقرطاسية', d(-14), null, 'مكتبة النور', 'CASH', null, null],
+    ['led_demo_7', 'CASH_OUT', 'out', 110000, 'راتب: السيد توفيق بوجمعة', d(-2), null, 'السيد توفيق بوجمعة', 'CASH', 'finance_staff_salaries', 'sal_demo_3'],
+    ['led_demo_8', 'CASH_IN', 'in', 150000, 'عربون مجموعة جديدة', d(-6), null, 'معتمر', 'CCP', null, null],
+  ];
+  for (const r of ledgerRows) insertLed.run(...r, now);
+
+  // running balances
+  const rows = db.prepare(`
+    SELECT id, direction, amount FROM finance_ledger WHERE status='POSTED'
+    ORDER BY entry_date ASC, created_at ASC, id ASC
+  `).all() as { id: string; direction: string; amount: number }[];
+  let bal = 0;
+  const upd = db.prepare('UPDATE finance_ledger SET running_balance = ? WHERE id = ?');
+  for (const r of rows) {
+    bal += r.direction === 'in' ? Math.abs(r.amount) : -Math.abs(r.amount);
+    upd.run(bal, r.id);
+  }
+}
+
+function migrateReceiptsTable(db: Database.Database) {
+  const ensureColumn = (tbl: string, col: string, def: string) => {
+    try {
+      const tableCols = (db.prepare(`PRAGMA table_info(${tbl})`).all() as { name: string }[]).map((c) => c.name);
+      if (tableCols.length > 0 && !tableCols.includes(col)) {
+        db.exec(`ALTER TABLE ${tbl} ADD COLUMN ${col} ${def};`);
+      }
+    } catch (err) {
+      console.warn(`[SQLite Migration]: Error adding column ${col} to ${tbl}:`, err);
+    }
+  };
+
+  const cols = (db.prepare('PRAGMA table_info(receipts)').all() as { name: string }[]).map((c) => c.name);
+  if (!cols.length) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS receipts (
+        id TEXT PRIMARY KEY,
+        pilgrimName TEXT NOT NULL,
+        pilgrimCode TEXT,
+        packageName TEXT NOT NULL,
+        totalAmount REAL NOT NULL,
+        paidAmount REAL NOT NULL,
+        remainingAmount REAL NOT NULL,
+        paymentMethod TEXT,
+        date TEXT,
+        accountantName TEXT,
+        status TEXT DEFAULT 'مكتمل'
+      );
+    `);
+    return;
+  }
+
+  const hasFlat = cols.includes('pilgrimName') && cols.includes('packageName');
+  const isLegacyEnc = cols.includes('encrypted_data') && !hasFlat;
+
+  if (isLegacyEnc) {
+    db.exec(`ALTER TABLE receipts RENAME TO receipts_legacy_enc`);
+    db.exec(`
+      CREATE TABLE receipts (
+        id TEXT PRIMARY KEY,
+        pilgrimName TEXT NOT NULL,
+        pilgrimCode TEXT,
+        packageName TEXT NOT NULL,
+        totalAmount REAL NOT NULL,
+        paidAmount REAL NOT NULL,
+        remainingAmount REAL NOT NULL,
+        paymentMethod TEXT,
+        date TEXT,
+        accountantName TEXT,
+        status TEXT DEFAULT 'مكتمل'
+      );
+    `);
+    return;
+  }
+
+  ensureColumn('receipts', 'pilgrimName', 'TEXT');
+  ensureColumn('receipts', 'pilgrimCode', 'TEXT');
+  ensureColumn('receipts', 'packageName', 'TEXT');
+  ensureColumn('receipts', 'totalAmount', 'REAL');
+  ensureColumn('receipts', 'paidAmount', 'REAL');
+  ensureColumn('receipts', 'remainingAmount', 'REAL');
+  ensureColumn('receipts', 'paymentMethod', 'TEXT');
+  ensureColumn('receipts', 'date', 'TEXT');
+  ensureColumn('receipts', 'accountantName', 'TEXT');
+  ensureColumn('receipts', 'status', "TEXT DEFAULT 'مكتمل'");
+}
+
+/**
+ * Demo content (sample users with known passwords, staff, reviews, seasons,
+ * programs, fake accounting balances) is only seeded when SEED_DEMO_DATA=1.
+ * System setup (agency settings, page texts, chart of accounts, Sakhr's
+ * knowledge base, firewall defaults) always initializes.
+ */
+const seedDemoData = () => process.env.SEED_DEMO_DATA === '1';
 
 function seedDefaults(db: Database.Database) {
   const insertUser = db.prepare(`
@@ -452,8 +1049,6 @@ function seedDefaults(db: Database.Database) {
   const missing = (id: string) => !db.prepare('SELECT id FROM users WHERE id = ?').get(id);
 
   const defaultUsers = [
-    () => missing('usr_super_admin') && ['usr_super_admin', 'ADMIN-2026', 'طارق العماري (المدير العام)', 'admin@southstreet.dz', 'admin', hashPassword('Admin@2026!'), 'SUPER_ADMIN', 'مدير النظام', 'APPROVED', '+213 21 55 44 33', 'ع', '', '2026-08-01T10:00:00Z', 1],
-    () => missing('usr_manager') && ['usr_manager', 'MANAGER-99', 'أحمد محمود (مدير البرامج)', 'manager@southstreet.dz', 'manager', hashPassword('Manager@2026!'), 'AGENCY_MANAGER', 'مسير الحملات', 'APPROVED', '+213 559 87 65 43', 'ط', '', '2026-08-05T12:00:00Z', 1],
     () => missing('usr_guide') && ['usr_guide', 'GUIDE-777', 'الشيخ أحمد بن علي (المرشد الديني)', 'guide@southstreet.dz', 'guide', hashPassword('Guide@2026!'), 'GUIDE_MURSHID', 'مرشد ديني', 'APPROVED', '+213 544 44 33 22', 'أ', '', '2026-08-06T10:00:00Z', 0],
     () => missing('usr_accountant') && ['usr_accountant', 'ACC-404', 'الأستاذ ياسين الفاسي (محاسب الوكالة)', 'accountant@southstreet.dz', 'accountant', hashPassword('Accountant@2026!'), 'ACCOUNTANT', 'محاسب الوكالة', 'APPROVED', '+213 561 11 88 99', 'ي', '', '2026-08-07T11:00:00Z', 0],
     () => missing('usr_agent') && ['usr_agent', 'AGENT-101', 'سارة خالد (خدمة العملاء)', 'agent@southstreet.dz', 'agent', hashPassword('Agent@2026!'), 'AGENCY_AGENT', 'خدمة العملاء', 'APPROVED', '+213 557 00 11 22', 'س', '', '2026-08-08T09:30:00Z', 0],
@@ -461,6 +1056,7 @@ function seedDefaults(db: Database.Database) {
   ];
 
   db.transaction(() => {
+    if (!seedDemoData()) return;
     for (const make of defaultUsers) {
       const u = make();
       if (u) insertUser.run(...u);
@@ -472,10 +1068,14 @@ function seedDefaults(db: Database.Database) {
   db.prepare(`UPDATE users SET role = 'ACCOUNTANT' WHERE id = 'usr_accountant' AND role = 'AGENCY_AGENT'`).run();
   db.prepare(`
     UPDATE users
-    SET status = 'APPROVED', loginEnabled = 1, requiresFileKey = 1,
-        roleName = 'مدير النظام العام'
-    WHERE id = 'usr_super_admin'
+    SET role = 'AGENCY_AGENT', requiresFileKey = 0, roleName = COALESCE(NULLIF(roleName,''), 'خدمة العملاء')
+    WHERE (id = 'usr_agent' OR lower(IFNULL(email,'')) = 'agent@southstreet.dz' OR lower(IFNULL(username,'')) = 'agent')
+      AND role IN ('manager', 'AGENCY_MANAGER', 'agent')
   `).run();
+  db.prepare(`UPDATE users SET role = 'AGENCY_AGENT', requiresFileKey = 0 WHERE role = 'agent'`).run();
+
+  // Super Admin and Admin accounts are never seeded: the Super Admin comes from
+  // `npm run admin:setup`, Admins are invited by the Super Admin.
 
   // Seed Agency Settings
   const agencyCount = (db.prepare('SELECT COUNT(*) as cnt FROM agency_settings').get() as any).cnt;
@@ -517,7 +1117,7 @@ function seedDefaults(db: Database.Database) {
 
   // Seed Morshids / Team
   const morshidCount = (db.prepare('SELECT COUNT(*) as cnt FROM morshids').get() as any).cnt;
-  if (morshidCount === 0) {
+  if (morshidCount === 0 && seedDemoData()) {
     const insertMorshid = db.prepare(`
       INSERT INTO morshids (morshid_id, name, roleName, specialization, experience_years, languages, phone, avatar, rating, status, category, image)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -544,7 +1144,7 @@ function seedDefaults(db: Database.Database) {
   }
 
   const reviewCount = (db.prepare('SELECT COUNT(*) as cnt FROM reviews').get() as any).cnt;
-  if (reviewCount === 0) {
+  if (reviewCount === 0 && seedDemoData()) {
     const insertReview = db.prepare(`
       INSERT INTO reviews (
         id, target_type, target_id, target_name, reviewer_name, reviewer_user_id,
@@ -593,7 +1193,7 @@ function seedDefaults(db: Database.Database) {
 
   // Seed Seasons
   const seasonCount = (db.prepare('SELECT COUNT(*) as cnt FROM seasons').get() as any).cnt;
-  if (seasonCount === 0) {
+  if (seasonCount === 0 && seedDemoData()) {
     const insertSeason = db.prepare(`
       INSERT INTO seasons (season_id, type, islamic_year, gregorian_year, name, start_date, end_date, status, description, official_information, agency_information)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -614,7 +1214,7 @@ function seedDefaults(db: Database.Database) {
 
   // Seed Packages & Prices
   const pkgCount = (db.prepare('SELECT COUNT(*) as cnt FROM packages').get() as any).cnt;
-  if (pkgCount === 0) {
+  if (pkgCount === 0 && seedDemoData()) {
     const insertPkg = db.prepare(`
       INSERT INTO packages (
         package_id, name, type, season_id, season_name, description, start_date, end_date, duration_days,
@@ -695,6 +1295,11 @@ function seedDefaults(db: Database.Database) {
   })();
 
   seedPageContent(db);
+  try {
+    if (seedDemoData()) seedFinanceDefaults(db);
+  } catch (err) {
+    console.warn('[Finance seed]:', err);
+  }
 }
 
 type PageContentSeed = [string, string, string, string, string, string, string, string, string];
@@ -722,18 +1327,18 @@ const PAGE_CONTENT_SEEDS: PageContentSeed[] = [
     'A dedicated team of administrators and scholars to accompany you throughout the journey.',
     ''],
   ['programs_section', 'homepage',
-    'اختر رحلتك القادمة',
-    'Choisissez votre prochain voyage',
-    'Choose your next journey',
-    'برامج العمرة والحج المتاحة للحجز، والرحلات القادمة للتسجيل المسبق.',
-    'Programmes d\'Omra et de Hajj ouverts à la réservation, et voyages à venir pour préinscription.',
-    'Umrah and Hajj programs open for booking, plus upcoming trips for pre-registration.',
+    'مواعيد الانطلاق',
+    'Dates de départ',
+    'Departure dates',
+    'هذه تواريخ البرامج نفسها. افتح أي تاريخ لترى الفندق والسعر وتحجز.',
+    'Ce sont les dates des mêmes programmes. Ouvrez une date pour l\'hôtel, le prix et la réservation.',
+    'These are the dates of the same programs. Open a date for the hotel, price, and booking.',
     ''],
   ['promo_billboard', 'homepage',
     'رحلة طيران مباشرة إلى البقاع المقدسة',
     'Vol direct vers les Lieux Saints',
     'Direct flight to the Holy Land',
-    '', '', '', '/images/AIR_ALGERIA.jpg'],
+    '', '', '', '/images/AIR_ALGERIA.webp'],
   ['footer_newsletter', 'footer',
     'لا تفوّتوا جديدنا',
     'Ne manquez pas nos actualités',
@@ -747,6 +1352,7 @@ const PAGE_CONTENT_SEEDS: PageContentSeed[] = [
 const LEGACY_PAGE_TITLES: Record<string, string> = {
   hero_banner: 'رحلتك إلى بيت الله الحرام بشعور ملؤه السكينة والإيمان',
   about_section: 'لماذا تختار وكالة ساوث ستريت للعمرة والحج؟',
+  programs_section: 'اختر رحلتك القادمة',
 };
 
 function seedPageContent(db: Database.Database) {

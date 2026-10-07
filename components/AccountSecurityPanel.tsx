@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { KeyRound, QrCode, ShieldCheck, Copy, Check, Eye, EyeOff } from 'lucide-react';
+import { authHeaders, getAuthToken, apiFetch, jsonAuthHeaders } from '@/lib/api-client';
 
 interface AccountInfo {
   username: string;
@@ -28,15 +29,9 @@ export default function AccountSecurityPanel({ compact = false }: { compact?: bo
   const [qrImage, setQrImage] = useState('');
   const [qrPayload, setQrPayload] = useState('');
 
-  const headers = () => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('south_street_token') || '' : '';
-    return {
-      'Content-Type': 'application/json',
-      Authorization: token ? `Bearer ${token}` : '',
-    };
-  };
+  const headers = () => jsonAuthHeaders();
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -53,11 +48,11 @@ export default function AccountSecurityPanel({ compact = false }: { compact?: bo
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    load();
-  }, []);
+    void load();
+  }, [load]);
 
   const copy = async (value: string) => {
     try {

@@ -3,7 +3,20 @@
 import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Menu, X, ShieldCheck, LogOut, User as UserIcon, Settings, ChevronDown, Sparkles, Plane } from 'lucide-react';
+import BrandLogo from '@/components/BrandLogo';
+import {
+  Menu,
+  X,
+  ShieldCheck,
+  LogOut,
+  User as UserIcon,
+  Settings,
+  ChevronDown,
+  Sparkles,
+  Plane,
+  LayoutDashboard,
+  MessageSquare,
+} from 'lucide-react';
 import { User } from '@/types';
 import LoginModal from './LoginModal';
 import DemandBag from '@/components/booking/DemandBag';
@@ -21,13 +34,18 @@ interface NavbarProps {
   promoLine?: string;
 }
 
-type NavLink = { label: string; href: string; featured?: boolean };
+type NavLink = {
+  label: string;
+  href: string;
+  featured?: boolean;
+  /** Renders the entry as a slide-down list instead of a single link. */
+  children?: { label: string; href: string; icon?: 'dashboard' | 'security' | 'chat' }[];
+};
 
 const BASE_NAV_LINKS: NavLink[] = [
   { label: 'الرئيسية', href: '/' },
   { label: 'عن الوكالة', href: '/#about-section' },
-  { label: 'البرامج', href: '/#programs-section' },
-  { label: 'الباقات', href: '/packages' },
+  { label: 'البرامج', href: '/packages' },
   { label: 'الفنادق', href: '/hotels' },
 ];
 
@@ -39,6 +57,25 @@ function isPilgrimClient(user?: User | null): boolean {
 function navLinksFor(user?: User | null): NavLink[] {
   if (isPilgrimClient(user)) {
     return [...BASE_NAV_LINKS, { label: 'رحلتي', href: '/portal?tab=program', featured: true }];
+  }
+  const portalRole = user
+    ? toPortalRole(user.role, { email: user.email, roleName: user.roleName })
+    : null;
+  // Accountant gets a featured slide-down list covering all three accountant tabs
+  if (portalRole === 'accountant') {
+    return [
+      ...BASE_NAV_LINKS,
+      {
+        label: 'لوحة المحاسب',
+        href: '/portal?tab=accountant',
+        featured: true,
+        children: [
+          { label: 'لوحة المحاسب', href: '/portal?tab=accountant', icon: 'dashboard' },
+          { label: 'أمان الحساب', href: '/portal?tab=security', icon: 'security' },
+          { label: 'المراسلة', href: '/portal?tab=chat', icon: 'chat' },
+        ],
+      },
+    ];
   }
   return [...BASE_NAV_LINKS, { label: 'دليل العمرة', href: '/portal?tab=rituals' }];
 }
@@ -94,7 +131,10 @@ export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 
   const [profileOpen, setProfileOpen] = useState(false);
   const [sessionUser, setSessionUser] = useState<User | null>(currentUser ?? null);
   const [portalTab, setPortalTab] = useState('');
+  const [navGroupOpen, setNavGroupOpen] = useState(false);
+  const [mobileGroupOpen, setMobileGroupOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const navGroupRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
 
   useEffect(() => {
@@ -138,10 +178,25 @@ export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setProfileOpen(false);
       }
+      if (navGroupRef.current && !navGroupRef.current.contains(event.target as Node)) {
+        setNavGroupOpen(false);
+      }
+    };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setNavGroupOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
   }, []);
+
+  // Close the slide-down list after navigating to one of its entries.
+  useEffect(() => {
+    setNavGroupOpen(false);
+  }, [pathname, portalTab]);
 
   const closeMenu = () => setMobileOpen(false);
   const navUser = currentUser ?? sessionUser;
@@ -175,9 +230,101 @@ export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 
   const isLight = variant === 'light';
   const headerClass = isApple ? 'top-header-apple' : isLight ? 'top-header-light' : 'top-header-clean';
   const linkClass = isApple ? 'nav-link-apple' : isLight ? 'nav-link-light' : 'nav-link-pro';
-  const logoSrc = '/images/south_street_logo_white_white.png';
+
+  const childIcon = (kind?: 'dashboard' | 'security' | 'chat') => {
+    if (kind === 'security') return <Settings className="w-4 h-4 text-slate-400" />;
+    if (kind === 'chat') return <MessageSquare className="w-4 h-4 text-slate-400" />;
+    return <LayoutDashboard className="w-4 h-4 text-slate-400" />;
+  };
+
+  const renderNavGroup = (link: NavLink, mobile = false) => {
+    const children = link.children || [];
+    const groupActive = children.some((c) => isActive(c.href));
+    const open = mobile ? mobileGroupOpen : navGroupOpen;
+
+    if (mobile) {
+      return (
+        <div key={link.href} className="border-b border-slate-200/80">
+          <button
+            type="button"
+            onClick={() => setMobileGroupOpen((v) => !v)}
+            aria-expanded={open}
+            className={`w-full flex items-center justify-between gap-2 py-3 text-sm font-bold cursor-pointer ${
+              groupActive ? 'text-emerald-main' : isLight ? 'text-slate-700' : 'text-white/85'
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <Plane className="w-4 h-4" aria-hidden /> {link.label}
+            </span>
+            <ChevronDown className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`} />
+          </button>
+          {open && (
+            <div className="pb-2 space-y-1">
+              {children.map((c) => (
+                <Link
+                  key={c.href}
+                  href={c.href}
+                  onClick={closeMenu}
+                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold no-underline ${
+                    isActive(c.href)
+                      ? 'bg-emerald-soft text-emerald-main'
+                      : isLight ? 'text-slate-700 hover:bg-slate-50' : 'text-slate-200 hover:bg-slate-800'
+                  }`}
+                >
+                  {childIcon(c.icon)}
+                  <span>{c.label}</span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div key={link.href} className="relative" ref={navGroupRef}>
+        <button
+          type="button"
+          onClick={() => setNavGroupOpen((v) => !v)}
+          aria-expanded={open}
+          aria-haspopup="true"
+          className={`nav-link-trip cursor-pointer ${groupActive ? 'is-active' : ''}`}
+        >
+          <Plane className="nav-link-trip-icon" aria-hidden />
+          <span>{link.label}</span>
+          <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden />
+        </button>
+        {open && (
+          <div
+            className={`absolute right-0 mt-2 w-56 border rounded-2xl p-2 z-[9999] text-right font-cairo animate-fade-in space-y-1 shadow-2xl ${
+              isLight ? 'bg-white border-slate-200' : 'bg-slate-950 border-slate-700'
+            }`}
+            role="menu"
+          >
+            {children.map((c) => (
+              <Link
+                key={c.href}
+                href={c.href}
+                onClick={() => setNavGroupOpen(false)}
+                role="menuitem"
+                className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold no-underline transition ${
+                  isActive(c.href)
+                    ? 'bg-emerald-soft text-emerald-main'
+                    : isLight ? 'text-slate-700 hover:bg-slate-50' : 'text-slate-200 hover:bg-slate-800'
+                }`}
+              >
+                {childIcon(c.icon)}
+                <span>{c.label}</span>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const renderLink = (link: NavLink, mobile = false) => {
+    if (link.children?.length) return renderNavGroup(link, mobile);
     const active = isActive(link.href);
     const featured = Boolean(link.featured);
     const cls = mobile
@@ -220,19 +367,8 @@ export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 
         transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
       >
       <header className={`${headerClass} ${scrolled ? 'scrolled' : ''}`}>
-        <Link href="/" className="nav-logo-link flex items-center shrink-0" aria-label="South Street Home">
-          <img
-            src={logoSrc}
-            alt="SOUTH STREET"
-            className={`nav-logo-img nav-logo-desktop ${isApple ? 'nav-logo-apple' : ''}`}
-            onError={(e) => { (e.target as HTMLImageElement).src = '/images/south_street_logo_width.png'; }}
-          />
-          <img
-            src={logoSrc}
-            alt="SOUTH STREET"
-            className={`nav-logo-img nav-logo-mobile ${isApple ? 'nav-logo-apple' : ''}`}
-            onError={(e) => { (e.target as HTMLImageElement).src = '/images/south_street_logo_just.png'; }}
-          />
+        <Link href="/" className="nav-logo-link flex items-center shrink-0">
+          <BrandLogo tone={isLight ? 'dark' : 'light'} />
         </Link>
 
         <nav className="hidden lg:flex items-center gap-0.5" aria-label="Primary navigation">

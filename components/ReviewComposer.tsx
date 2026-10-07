@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { StarRating } from '@/components/StarRating';
+import { authHeaders, getAuthToken, apiFetch, jsonAuthHeaders } from '@/lib/api-client';
 
 export default function ReviewComposer({
   targetType = 'agency',
@@ -31,7 +32,7 @@ export default function ReviewComposer({
     setError('');
     setMsg('');
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('south_street_token') : '';
+      const token = typeof window !== 'undefined' ? getAuthToken() : '';
       const res = await fetch('/api/reviews', {
         method: 'POST',
         headers: {

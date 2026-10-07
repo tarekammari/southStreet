@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Check, EyeOff, Star, MessageSquareReply, Pin } from 'lucide-react';
 import { StarRating } from '@/components/StarRating';
+import { authHeaders, getAuthToken, apiFetch, jsonAuthHeaders } from '@/lib/api-client';
 
 interface ReviewRow {
   id: string;
@@ -40,7 +41,7 @@ export default function ReviewsModerator({
   const [reply, setReply] = useState('');
   const [error, setError] = useState('');
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const res = await fetch(`/api/admin/reviews${filter ? `?status=${filter}` : ''}`);
       const data = await res.json();
@@ -51,18 +52,18 @@ export default function ReviewsModerator({
     } catch {
       setError('تعذر تحميل التقييمات');
     }
-  };
+  }, [filter, staffId]);
 
   useEffect(() => {
-    load();
-  }, [filter, staffId]);
+    void load();
+  }, [load]);
 
   const patch = async (id: string, body: Record<string, unknown>) => {
     setError('');
-    const token = localStorage.getItem('south_street_token') || '';
+    const token = getAuthToken() || '';
     const res = await fetch('/api/admin/reviews', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      headers: jsonAuthHeaders(),
       body: JSON.stringify({ id, ...body }),
     });
     const data = await res.json();

@@ -4,7 +4,6 @@ import { useState } from 'react';
 import Link from 'next/link';
 import {
   Calendar,
-  CreditCard,
   FileText,
   Loader2,
   MapPin,
@@ -22,8 +21,11 @@ import {
 } from '@/lib/booking-catalog';
 import { PilgrimHomeSection } from '@/lib/roles';
 import BookingPrintButton from '@/components/booking/BookingPrintButton';
+import TripStatusTimeline from '@/components/booking/TripStatusTimeline';
+import PayActions from '@/components/booking/PayActions';
 import UmrahCountdown from '@/components/booking/UmrahCountdown';
 import UmrahCounter from '@/components/UmrahCounter';
+import { authHeaders, getAuthToken, apiFetch, jsonAuthHeaders } from '@/lib/api-client';
 
 function formatLongDate(value?: string): string {
   if (!value) return '—';
@@ -73,14 +75,23 @@ export default function PilgrimProgram({
   const [error, setError] = useState('');
 
   const active = reservation && isActiveReservation(reservation.status) ? reservation : null;
+  const completedPast = reservations.filter((r) => String(r.status || '').toUpperCase() === 'COMPLETED');
 
   if (!active) {
     return (
       <div className="pilgrim-empty" dir="rtl">
         <Plane className="pilgrim-empty-icon" />
-        <h2>ابدأ عمرتك</h2>
-        <p>اختر البرنامج والغرفة، ثم أرسل الطلب. الوكالة تؤكده هنا.</p>
-        <Link href="/book" className="btn-pro-primary pilgrim-cta">حجز</Link>
+        <h2>{completedPast.length ? 'رحلتك اكتملت' : 'ابدأ عمرتك'}</h2>
+        <p>
+          {completedPast.length
+            ? 'يمكنك ترك تقييم لتجربتك ومساعدة المعتمرين القادمين.'
+            : 'اختر البرنامج والغرفة، ثم أرسل الطلب. الوكالة تؤكده هنا.'}
+        </p>
+        {completedPast.length ? (
+          <Link href="/portal?tab=account" className="btn-pro-primary pilgrim-cta leave-review">اترك تقييماً</Link>
+        ) : (
+          <Link href="/book" className="btn-pro-primary pilgrim-cta">حجز</Link>
+        )}
       </div>
     );
   }
@@ -95,7 +106,7 @@ export default function PilgrimProgram({
     setCancelling(true);
     setError('');
     try {
-      const token = localStorage.getItem('south_street_token');
+      const token = getAuthToken();
       const res = await fetch(`/api/bookings?id=${encodeURIComponent(active.reservation_id)}`, {
         method: 'DELETE',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -137,7 +148,7 @@ export default function PilgrimProgram({
       {section === 'trip' ? (
         <div className="trip-board">
           <header className="trip-hero">
-            <img className="trip-hero-photo" src="/images/kaaba_sharifa_home_page.png" alt="" />
+            <img className="trip-hero-photo" src="/images/kaaba_sharifa_home_page.webp" alt="" />
             <div className="trip-hero-veil" />
             <div className="trip-hero-body">
               <div className="trip-hero-top">
@@ -156,8 +167,15 @@ export default function PilgrimProgram({
             </div>
           </header>
 
+          <TripStatusTimeline status={active.status} paymentStatus={active.payment_status} />
+
           {confirmed ? (
-            <UmrahCountdown startDate={program?.start_date} packageName={program?.package_name || active.package_name} />
+            <>
+              <UmrahCountdown startDate={program?.start_date} packageName={program?.package_name || active.package_name} />
+              <div className="trip-docs-confirm">
+                <BookingPrintButton type="confirmation" reservationId={active.reservation_id} label="وثيقة التأكيد / طباعة" className="trip-action" />
+              </div>
+            </>
           ) : (
             <p className="trip-hero-wait">بانتظار تأكيد الوكالة — المقاعد والسفر لا يثبتان بعد</p>
           )}
@@ -259,6 +277,9 @@ export default function PilgrimProgram({
                   <p key={res.reservation_id}>
                     <b>{res.reservation_number}</b>
                     <span>{reservationStatusLabel(res.status)}</span>
+                    {String(res.status).toUpperCase() === 'COMPLETED' ? (
+                      <Link href="/portal?tab=account" className="leave-review no-underline">اترك تقييماً</Link>
+                    ) : null}
                   </p>
                 ))}
               </div>
@@ -288,17 +309,9 @@ export default function PilgrimProgram({
 
       {section === 'pay' ? (
         <div className="pilgrim-panel">
-          <div className="pilgrim-row">
-            <CreditCard className="w-4 h-4" />
-            <span>المجموع</span>
-            <b>{money(active.total_amount)}</b>
-          </div>
-          <div className="pilgrim-row">
-            <span>المدفوع</span>
-            <b>{money(active.paid_amount)}</b>
-          </div>
+          <PayActions reservation={active} />
           {receipts.length === 0 ? (
-            <p className="pilgrim-muted">لا سندات بعد</p>
+            <p className="pilgrim-muted">لا سندات بعد — استخدم مسار الوكالة أعلاه</p>
           ) : receipts.map((rcp) => (
             <div key={rcp.id} className="pilgrim-row">
               <span>{rcp.id}</span>

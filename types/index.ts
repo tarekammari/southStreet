@@ -12,6 +12,12 @@ export type UserRole =
   | 'ACCOUNTANT'
   | 'PILGRIM_USER';
 
+/** Canonical login / portal roles live in `@/lib/roles`; re-exported here for convenience. */
+export type { LoginRole, PortalRole } from '@/lib/roles';
+export { LOGIN_ROLES, toPortalRole, normalizeLoginRole, isLoginRole } from '@/lib/roles';
+
+
+
 export interface User {
   id: string;
   code: string;
@@ -229,6 +235,7 @@ export interface Package {
   morshid_id?: string;
   morshid_name?: string;
   prices: PackagePrice[];
+  annex_options?: (BookingExtra & { enabled?: boolean })[];
   included_services: string[];
   excluded_services: string[];
   booking_conditions: string[];

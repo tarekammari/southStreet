@@ -5,21 +5,28 @@ import { saveGoogleClientId } from '@/lib/google-auth-config';
 import { verifyToken } from '@/lib/auth';
 import { getTokenFromRequest } from '@/lib/request-auth';
 import { normalizeLoginRole } from '@/lib/roles';
+import { requireRole, ADMINS, SUPER_ONLY } from '@/lib/staff-gate';
 
-const ADMIN_ROLES = new Set(['SUPER_ADMIN', 'AGENCY_MANAGER']);
+const READ_ROLES = new Set(['SUPER_ADMIN', 'AGENCY_MANAGER']);
+const WRITE_ROLES = new Set(['SUPER_ADMIN', 'AGENCY_MANAGER']);
 
-function requireAdmin(req: NextRequest) {
-  const token = getTokenFromRequest(req);
-  const payload = token ? verifyToken(token) : null;
-  if (!payload?.sub) return false;
-  const role = normalizeLoginRole(String(payload.role || ''), {
-    email: payload.email,
-    roleName: payload.roleName,
-  });
-  return ADMIN_ROLES.has(role);
+function requireAgencyAccess(req: NextRequest, _mutating: boolean) {
+  return requireRole(req, ADMINS);
 }
 
-export async function GET() {
+
+const __ADMIN_API_ROLES = new Set(['SUPER_ADMIN', 'AGENCY_MANAGER']);
+
+function requireAdminApi(req: any) {
+  return requireRole(req, ADMINS);
+}
+
+export async function GET(req: NextRequest) {
+  const __gate = requireAdminApi(req);
+  if ('error' in __gate) return __gate.error;
+
+  const gate = requireAgencyAccess(req, false);
+  if ('error' in gate) return gate.error;
   try {
     const db = getSqliteDb();
     const row = db.prepare("SELECT * FROM agency_settings WHERE id = 'main'").get() as any;
@@ -37,15 +44,20 @@ export async function GET() {
 }
 
 export async function PUT(req: NextRequest) {
-  try {
-    if (!requireAdmin(req)) {
-      return NextResponse.json({ error: 'صلاحية غير كافية' }, { status: 403 });
-    }
+  const __gate = requireAdminApi(req);
+  if ('error' in __gate) return __gate.error;
 
+  const gate = requireAgencyAccess(req, true);
+  if ('error' in gate) return gate.error;
+  try {
     const body = await req.json();
     const db = getSqliteDb();
 
     if (body.google_client_id != null && body.agency_name == null) {
+      // Google client id is a sensitive admin setting — SUPER_ADMIN only
+      if (gate.role !== 'SUPER_ADMIN') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
       saveGoogleClientId(String(body.google_client_id || ''));
       return NextResponse.json({ success: true, message: 'تم حفظ معرف عميل جوجل. يمكن للأعضاء الإنشاء والدخول بجوجل الآن.' });
     }

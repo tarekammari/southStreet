@@ -2,7 +2,7 @@ import type { ActiveSession } from '@/lib/db';
 
 export const ONLINE_WINDOW_MS = 15 * 60 * 1000;
 
-export const DEFAULT_USER_PHOTO = '/images/persona.png';
+export const DEFAULT_USER_PHOTO = '/images/persona.webp';
 
 /** Accepts only values that a browser can load directly as an <img> source. */
 export function isImageSource(value?: string | null): boolean {

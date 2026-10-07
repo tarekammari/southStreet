@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, AuditLog } from '@/types';
 import { ShieldCheck, Plus, Key, Users, Activity, Lock, RefreshCw, X, CheckCircle } from 'lucide-react';
+import { authHeaders, getAuthToken, apiFetch, jsonAuthHeaders } from '@/lib/api-client';
 
 interface AdminDashboardProps {
   currentUser: User;
@@ -32,7 +33,7 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    const token = localStorage.getItem('south_street_token') || '';
+    const token = getAuthToken() || '';
     const roleNames: Record<string, string> = {
       pilgrim: 'معتمر', murshid: 'مرشد ديني', accountant: 'محاسب الوكالة',
       manager: 'مسير الحملات', admin: 'مدير النظام'
@@ -153,12 +154,18 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
 
       {/* ── Audit Logs ── */}
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-slate-100">
-          <h3 className="text-sm font-bold text-slate-900">سجل الأنشطة الأمنية</h3>
+        <div className="px-5 py-3.5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="text-sm font-bold text-slate-900">سجل الأنشطة الأمنية</h3>
+            <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
+              يشمل إخفاء/إظهار عملاء المداخيل، إلغاء السندات والدفعات، والحذف النهائي — للأرشيف والمراجعة.
+            </p>
+          </div>
+          <span className="text-[11px] font-bold text-slate-500">{auditLogs.length} حدث</span>
         </div>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-h-[28rem] overflow-y-auto">
           <table className="w-full text-right text-xs">
-            <thead>
+            <thead className="sticky top-0 z-[1]">
               <tr className="border-b border-slate-100 bg-slate-50">
                 {['التاريخ والوقت', 'المستخدم', 'الدور', 'الحدث', 'التفاصيل', 'IP'].map(h => (
                   <th key={h} className="px-4 py-3 text-[11px] font-bold text-slate-500">{h}</th>
@@ -166,18 +173,25 @@ export default function AdminDashboard({ currentUser }: AdminDashboardProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {auditLogs.slice(0, 10).map(l => (
-                <tr key={l.id} className="hover:bg-slate-50/50 transition">
-                  <td className="px-4 py-3 text-[11px] text-slate-400 font-mono">{l.timestamp}</td>
-                  <td className="px-4 py-3 font-bold text-slate-900">{l.actorName}</td>
-                  <td className="px-4 py-3">
-                    <span className="text-[11px] text-slate-600 font-bold bg-slate-100 px-2 py-0.5 rounded-md">{l.actorRole}</span>
-                  </td>
-                  <td className="px-4 py-3 text-emerald-700 font-bold text-[11px]">{l.action}</td>
-                  <td className="px-4 py-3 text-slate-500 text-[11px]">{l.details}</td>
-                  <td className="px-4 py-3 font-mono text-[11px] text-slate-400">{l.ip}</td>
-                </tr>
-              ))}
+              {auditLogs.slice(0, 80).map(l => {
+                const incomeOp = /مداخيل|سند|دفعة|عميل/.test(String(l.action || '') + String(l.details || ''));
+                return (
+                  <tr key={l.id} className={`hover:bg-slate-50/50 transition ${incomeOp ? 'bg-amber-50/40' : ''}`}>
+                    <td className="px-4 py-3 text-[11px] text-slate-400 font-mono whitespace-nowrap">
+                      {String(l.timestamp || '').slice(0, 19).replace('T', ' ')}
+                    </td>
+                    <td className="px-4 py-3 font-bold text-slate-900">{l.actorName}</td>
+                    <td className="px-4 py-3">
+                      <span className="text-[11px] text-slate-600 font-bold bg-slate-100 px-2 py-0.5 rounded-md">{l.actorRole}</span>
+                    </td>
+                    <td className={`px-4 py-3 font-bold text-[11px] ${incomeOp ? 'text-amber-800' : 'text-emerald-700'}`}>
+                      {l.action}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600 text-[11px] max-w-[18rem]">{l.details}</td>
+                    <td className="px-4 py-3 font-mono text-[11px] text-slate-400">{l.ip}</td>
+                  </tr>
+                );
+              })}
               {auditLogs.length === 0 && (
                 <tr><td colSpan={6} className="px-4 py-8 text-center text-xs text-slate-400">لا توجد سجلات</td></tr>
               )}

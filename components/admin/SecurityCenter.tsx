@@ -26,6 +26,7 @@ import {
   type Severity,
 } from '@/lib/security-threats';
 import { LOGIN_ROLE_LABELS, normalizeLoginRole, type LoginRole } from '@/lib/roles';
+import { authHeaders, getAuthToken, apiFetch, jsonAuthHeaders } from '@/lib/api-client';
 
 type FirewallRule = {
   id: string;
@@ -110,7 +111,7 @@ export type FirewallFilters = {
 export type FirewallFilterCounts = Record<FirewallScope, number>;
 export const EMPTY_FW_FILTERS: FirewallFilters = {
   date: 'all',
-  scope: 'all',
+  scope: 'important',
   query: '',
   role: '',
 };
@@ -137,7 +138,7 @@ function actorNameOf(event: SecurityEvent): string {
 
 function token(): string {
   if (typeof window === 'undefined') return '';
-  return localStorage.getItem('south_street_token') || '';
+  return getAuthToken() || '';
 }
 
 function hhmmss(value: string): string {
@@ -238,6 +239,7 @@ export default function SecurityCenter({
   const [tab, setTab] = useState<FwTab>('live');
   const [visible, setVisible] = useState(FEED_PAGE);
   const [editing, setEditing] = useState<FirewallRule | null>(null);
+  const [sevFilter, setSevFilter] = useState<'all' | 'high' | 'critical'>('high');
   const dateFilter = filters.date;
   const roleFilter = filters.role;
   const scope = filters.scope;
@@ -359,12 +361,18 @@ export default function SecurityCenter({
     const dated = feed.filter((event) => inDate(event) && inRole(event) && inQuery(event));
     const rows = dated
       .filter(inScope)
+      .filter((event) => {
+        if (sevFilter === 'all') return true;
+        const sev = String(event.severity || '').toLowerCase();
+        if (sevFilter === 'critical') return sev === 'critical';
+        return sev === 'high' || sev === 'critical' || Boolean(event.blocked) || event.threat !== 'CLEAN';
+      })
       .map((event) => ({ event, fresh: !seenIds.current.has(event.id) }));
 
     for (const { event } of rows) seenIds.current.add(event.id);
     if (seenIds.current.size > 2400) seenIds.current = new Set(feed.map((e) => e.id));
     return rows;
-  }, [feed, dateFilter, roleFilter, scope, search]);
+  }, [feed, dateFilter, roleFilter, scope, search, sevFilter]);
 
   useEffect(() => {
     if (!onCounts) return;
@@ -431,7 +439,7 @@ export default function SecurityCenter({
         <div className="inn-view-list" aria-hidden={Boolean(selected)}>
           <div className="inn-panel-head">
             <div>
-              <h2 className="inn-panel-title">الجدار الناري</h2>
+              <h2 className="inn-panel-title">مركز الأمن · الجدار الناري</h2>
               <p className="inn-panel-sub">
                 {settings.enabled ? 'يعمل' : 'متوقف'}
                 {' · '}
@@ -472,6 +480,14 @@ export default function SecurityCenter({
             <span><b>{summary.flood}</b> إغراق</span>
             <span><b>{summary.authAttacks}</b> دخول</span>
             <span><b>{summary.uniqueIps}</b> IP</span>
+          </div>
+
+          
+          <div className="fw-severity-chips" aria-label="تصفية الخطورة">
+            <button type="button" className={`fw-sev-chip${sevFilter === 'all' ? ' is-active' : ''}`} onClick={() => setSevFilter('all')}>الكل</button>
+            <button type="button" className={`fw-sev-chip is-high${sevFilter === 'high' ? ' is-active' : ''}`} onClick={() => setSevFilter('high')}>مفتوح / عالي</button>
+            <button type="button" className={`fw-sev-chip is-critical${sevFilter === 'critical' ? ' is-active' : ''}`} onClick={() => setSevFilter('critical')}>حرج</button>
+            <span className="fw-unresolved" title="أحداث غير نظيفة أو محظورة في الخلاصة">{(summary.totalThreats || 0) + (summary.totalBlocked || 0)} غير محلولة</span>
           </div>
 
           <nav className="fw-tabs" aria-label="أقسام الجدار الناري">

@@ -33,6 +33,18 @@ export function resolveMediaUrl(raw: string): string {
   return trimmed;
 }
 
+/** JSON array stored in SQLite `images` (and similar) columns. */
+export function serializeImageList(urls: string[]): string {
+  const clean = urls.map((u) => u.trim()).filter(Boolean);
+  return JSON.stringify(clean);
+}
+
+export function mergeImageAsMain(existing: string[], url: string): string[] {
+  const u = url.trim();
+  if (!u) return existing;
+  return [u, ...existing.filter((x) => x !== u)];
+}
+
 export function extractImageUrls(value: unknown, columnName: string): string[] {
   if (value === null || value === undefined) return [];
 

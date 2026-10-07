@@ -1,9 +1,12 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
-import { Lock, FileCheck, X, Upload, AlertTriangle, Clock } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { FileCheck, X, Upload, AlertTriangle, Clock, Eye, EyeOff } from 'lucide-react';
 import GoogleContinueButton from '@/components/GoogleContinueButton';
+import { markWelcomePending } from '@/components/WelcomeBanner';
 import { enterSessionAndReload } from '@/lib/client-session';
+import Image from 'next/image';
+import SecurityKeyPrompt from '@/components/auth/SecurityKeyPrompt';
 
 interface LoginModalProps {
   onClose: () => void;
@@ -16,6 +19,7 @@ type Screen = 'login' | 'register';
 export default function LoginModal({ onClose, onSelectRole }: LoginModalProps) {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [fileKey, setFileKey] = useState('');
   const [fileName, setFileName] = useState('');
   const [isDragging, setIsDragging] = useState(false);
@@ -28,6 +32,7 @@ export default function LoginModal({ onClose, onSelectRole }: LoginModalProps) {
   const [qrHint, setQrHint] = useState('وجّه الكاميرا نحو رمز QR الخاص بالحساب');
   const [waiting, setWaiting] = useState(false);
   const [moreOptions, setMoreOptions] = useState(false);
+  const [keyFlow, setKeyFlow] = useState<{ flowToken: string; options: any; name?: string } | null>(null);
   const [regName, setRegName] = useState('');
   const [regUsername, setRegUsername] = useState('');
   const [regEmail, setRegEmail] = useState('');
@@ -36,23 +41,23 @@ export default function LoginModal({ onClose, onSelectRole }: LoginModalProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  const finishLogin = (data: any) => {
+  const finishLogin = useCallback((data: any) => {
     const next = data.waitingBooking || data.user?.redirect === '/book'
       ? '/book'
       : data.appointment
         ? '/portal?tab=program'
         : (data.user.redirect || (data.user.role === 'SUPER_ADMIN' || data.user.role === 'AGENCY_MANAGER' ? '/admin' : '/portal'));
     enterSessionAndReload(data.token, data.user, next);
-  };
+  }, []);
 
-  const handlePending = () => {
+  const handlePending = useCallback(() => {
     setWaiting(true);
     setError('');
     setInfo('');
     setScreen('login');
-  };
+  }, []);
 
-  const processLogin = async (payload: {
+  const processLogin = useCallback(async (payload: {
     username?: string;
     password?: string;
     fileKey?: string;
@@ -76,9 +81,20 @@ export default function LoginModal({ onClose, onSelectRole }: LoginModalProps) {
         return;
       }
 
+      if (data.status === 'REQUIRES_SECURITY_KEY') {
+        setKeyFlow({ flowToken: data.flowToken, options: data.options, name: data.name });
+        return;
+      }
+
+      if (data.status === 'ENROLLMENT_REQUIRED' && data.enrollUrl) {
+        window.location.href = data.enrollUrl;
+        return;
+      }
+
       if (data.status === 'REQUIRES_FILE_KEY') {
         setStep(2);
         setMode('password');
+        setInfo(data.message || 'ارفع ملف المفتاح الحالي لتفعيل مفتاح الأمان.');
         return;
       }
 
@@ -93,7 +109,7 @@ export default function LoginModal({ onClose, onSelectRole }: LoginModalProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [finishLogin, handlePending]);
 
   const processGoogle = async (idToken: string) => {
     setLoading(true);
@@ -143,6 +159,15 @@ export default function LoginModal({ onClose, onSelectRole }: LoginModalProps) {
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || 'تعذر إنشاء الحساب');
+        return;
+      }
+      if (data.status === 'PENDING_APPROVAL') {
+        handlePending();
+        return;
+      }
+      if (data.status === 'SUCCESS' && data.token) {
+        markWelcomePending();
+        finishLogin(data);
         return;
       }
       handlePending();
@@ -220,7 +245,7 @@ export default function LoginModal({ onClose, onSelectRole }: LoginModalProps) {
       cancelled = true;
       stopCamera();
     };
-  }, [mode, screen]);
+  }, [mode, screen, processLogin]);
 
   const handleFileRead = async (file: File) => {
     if (!file) return;
@@ -248,10 +273,21 @@ export default function LoginModal({ onClose, onSelectRole }: LoginModalProps) {
           <X className="w-5 h-5" />
         </button>
 
-        <img src="/images/south_street_logo_trans.png" alt="South Street" className="login-simple-logo" />
-        <h3>{waiting ? 'طلبك قيد المراجعة' : screen === 'register' ? 'إنشاء حساب' : 'تسجيل الدخول'}</h3>
+        <Image src="/images/south_street_logo_trans.png" alt="South Street" width={180} height={72} className="login-simple-logo" />
+        <h3>{waiting ? 'طلبك قيد المراجعة' : keyFlow ? 'دخول الإدارة' : screen === 'register' ? 'إنشاء حساب' : 'تسجيل الدخول'}</h3>
 
-        {waiting ? (
+        {keyFlow ? (
+          <SecurityKeyPrompt
+            flowToken={keyFlow.flowToken}
+            options={keyFlow.options}
+            name={keyFlow.name}
+            onSuccess={(data) => finishLogin(data)}
+            onCancel={() => {
+              setKeyFlow(null);
+              setPassword('');
+            }}
+          />
+        ) : waiting ? (
           <div className="login-wait">
             <Clock className="w-10 h-10" />
             <p>فريق الوكالة يؤكد الطلب. سنخبرك عند الجاهزية.</p>
@@ -271,7 +307,7 @@ export default function LoginModal({ onClose, onSelectRole }: LoginModalProps) {
                 <label>الاسم<input required value={regName} onChange={(e) => setRegName(e.target.value)} /></label>
                 <label>الهاتف<input value={regPhone} onChange={(e) => setRegPhone(e.target.value)} dir="ltr" /></label>
                 <label>البريد<input type="email" value={regEmail} onChange={(e) => setRegEmail(e.target.value)} dir="ltr" /></label>
-                <label>كلمة المرور<input type="password" required minLength={8} value={regPassword} onChange={(e) => setRegPassword(e.target.value)} /></label>
+                <label>كلمة المرور<input type="password" required minLength={8} maxLength={128} autoComplete="new-password" dir="ltr" value={regPassword} onChange={(e) => setRegPassword(e.target.value)} /></label>
                 <button type="submit" disabled={loading} className="login-simple-submit">{loading ? 'جاري الإنشاء...' : 'إنشاء الحساب'}</button>
                 <button type="button" className="login-simple-switch" onClick={() => { setScreen('login'); setError(''); }}>لديك حساب؟ دخول</button>
               </form>
@@ -294,13 +330,38 @@ export default function LoginModal({ onClose, onSelectRole }: LoginModalProps) {
                 {googleBlock()}
                 <label>
                   البريد أو اسم المستخدم
-                  <input required value={identifier} onChange={(e) => setIdentifier(e.target.value)} dir="ltr" />
+                  <input
+                    required
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    dir="ltr"
+                    autoComplete="username"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    maxLength={120}
+                  />
                 </label>
                 <label>
                   كلمة المرور
                   <span className="login-simple-field">
-                    <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
-                    <Lock className="w-4 h-4" />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      dir="ltr"
+                      autoComplete="current-password"
+                      maxLength={128}
+                    />
+                    <button
+                      type="button"
+                      className="login-simple-eye"
+                      onClick={() => setShowPassword((v) => !v)}
+                      aria-label={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
+                      aria-pressed={showPassword}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
                   </span>
                 </label>
                 {step === 2 ? (

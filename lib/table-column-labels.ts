@@ -48,7 +48,7 @@ export const COLUMN_LABELS_AR: Record<string, string> = {
   morshid_name: 'اسم المرشد',
   included_services: 'الخدمات المشمولة',
   excluded_services: 'الخدمات غير المشمولة',
-  booking_conditions: 'شروط الحجز',
+  booking_conditions: 'شروط تأكيد الحجز',
   cancellation_policy: 'سياسة الإلغاء',
   capacity: 'السعة',
   reserved: 'المحجوز',

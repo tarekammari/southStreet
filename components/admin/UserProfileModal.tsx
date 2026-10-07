@@ -12,7 +12,7 @@ import {
   Video,
   X,
 } from 'lucide-react';
-import { LOGIN_ROLE_OPTIONS } from '@/lib/roles';
+import { LOGIN_ROLE_LABELS, normalizeLoginRole, type LoginRole } from '@/lib/roles';
 import {
   accountStatusOf,
   DEFAULT_USER_PHOTO,
@@ -22,6 +22,8 @@ import {
   type EnrichedUser,
 } from '@/lib/user-access-view';
 import UserActivityMap from '@/components/admin/UserActivityMap';
+import { authHeaders, getAuthToken, apiFetch, jsonAuthHeaders } from '@/lib/api-client';
+import AdminConfirmDialog from '@/components/admin/AdminConfirmDialog';
 
 type TabKey = 'data' | 'session' | 'access' | 'history';
 
@@ -121,6 +123,8 @@ export default function UserProfileModal({
   onBlockIp,
   onDelete,
   embedded = false,
+  viewerRole = 'AGENCY_MANAGER',
+  assignableRoles = [],
 }: {
   user: EnrichedUser;
   isSelf: boolean;
@@ -130,12 +134,16 @@ export default function UserProfileModal({
   onDelete?: () => void;
   embedded?: boolean;
   peers?: EnrichedUser[];
+  /** Who is looking: decides which actions are offered (the API enforces the same rules). */
+  viewerRole?: LoginRole;
+  assignableRoles?: LoginRole[];
 }) {
   const [tab, setTab] = useState<TabKey>('data');
   const [closing, setClosing] = useState(false);
   const [role, setRole] = useState(user.role);
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<null | 'reject' | 'revoke' | 'reset-keys'>(null);
   const [draft, setDraft] = useState({
     name: user.name,
     email: user.email || '',
@@ -150,6 +158,21 @@ export default function UserProfileModal({
 
   const { name, note } = splitName(user.name);
   const isActive = user.status === 'APPROVED' && user.loginEnabled !== false;
+  const targetRole = normalizeLoginRole(user.role);
+  const targetIsAdmin = targetRole === 'AGENCY_MANAGER';
+  const targetPrivileged = targetRole === 'SUPER_ADMIN' || targetIsAdmin;
+  const securityKeyCount = Number((user as { securityKeys?: number }).securityKeys) || 0;
+  // Mirrors lib/permissions: the Super Admin is untouchable; Admins are managed by the Super Admin only.
+  const lockedReason = isSelf
+    ? ''
+    : targetRole === 'SUPER_ADMIN'
+      ? 'حساب المشرف العام محمي ولا يُعدَّل من التطبيق.'
+      : targetIsAdmin && viewerRole !== 'SUPER_ADMIN'
+        ? 'حسابات المشرفين يديرها المشرف العام فقط.'
+        : '';
+  const canEdit = !lockedReason;
+  const canManageAccess = canEdit && !isSelf;
+  const roleChoices = assignableRoles.includes(targetRole) ? assignableRoles : [targetRole, ...assignableRoles];
   const canBlockIp = Boolean(user.displayIp && user.displayIp !== '—' && user.displayIp !== 'N/A');
   const presence = presenceOf(user);
   const status = accountStatusOf(user);
@@ -185,7 +208,7 @@ export default function UserProfileModal({
     setActivity(seedActivity(user));
     setDevices([]);
     setHistory([]);
-    const token = typeof window !== 'undefined' ? localStorage.getItem('south_street_token') : null;
+    const token = typeof window !== 'undefined' ? getAuthToken() : null;
     fetch(`/api/admin/users?activityFor=${encodeURIComponent(user.id)}`, {
       cache: 'no-store',
       headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -199,7 +222,7 @@ export default function UserProfileModal({
         if (Array.isArray(data?.events)) setHistory(data.events);
       })
       .catch(() => { /* heatmap stays on known dates */ });
-  }, [user.id, user.role]);
+  }, [user]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -234,7 +257,10 @@ export default function UserProfileModal({
       return [
         { label: 'الدور', value: roleLabel },
         { label: 'الحالة', value: isActive ? 'مفعّل' : 'موقوف' },
-        { label: 'جوجل', value: user.googleLinked ? 'مرتبط' : 'غير مرتبط' },
+        { label: 'جوجل', value: targetPrivileged ? 'غير مسموح لحسابات الإدارة' : user.googleLinked ? 'مرتبط' : 'غير مرتبط' },
+        ...(targetPrivileged
+          ? [{ label: 'مفاتيح الأمان', value: securityKeyCount ? `${securityKeyCount} مفتاح مسجّل` : 'لم يُفعَّل بعد — يلزم رابط تفعيل' }]
+          : []),
         { label: 'الأقسام', value: (user.options || []).join(' · ') || '—' },
       ];
     }
@@ -247,7 +273,7 @@ export default function UserProfileModal({
       { label: 'الحالة', value: status.label },
       { label: 'تاريخ الإنشاء', value: formatAdminDate(user.createdAt) },
     ];
-  }, [tab, status.label, user, roleLabel, isActive, name, mail, phone]);
+  }, [tab, status.label, user, roleLabel, isActive, name, mail, phone, targetPrivileged, securityKeyCount]);
 
   const panel = (
     <div className={`upm-panel upm-studio-wrap${closing ? ' is-closing' : ''}${embedded ? ' is-embedded' : ''}`}>
@@ -337,14 +363,11 @@ export default function UserProfileModal({
                         email: draft.email,
                         username: draft.username,
                         phone: draft.phone,
-                        password: draft.password || undefined,
-                        role,
                       }
                     : {
                         email: draft.email,
                         username: draft.username,
-                        password: draft.password || undefined,
-                        role,
+                        password: targetPrivileged ? undefined : draft.password || undefined,
                       });
                   setEditing(false);
                 }}
@@ -363,7 +386,15 @@ export default function UserProfileModal({
                   الهاتف
                   <input dir="ltr" value={isSelf ? draft.phone : phone} onChange={(e) => setDraft({ ...draft, phone: e.target.value })} disabled={!isSelf} />
                 </label>
-                <label>كلمة مرور جديدة<input dir="ltr" type="text" value={draft.password} onChange={(e) => setDraft({ ...draft, password: e.target.value })} placeholder="اتركها فارغة للإبقاء" /></label>
+                {!targetPrivileged && !isSelf ? (
+                  <label>كلمة مرور جديدة<input dir="ltr" type="text" value={draft.password} onChange={(e) => setDraft({ ...draft, password: e.target.value })} placeholder="اتركها فارغة للإبقاء" minLength={8} autoComplete="new-password" /></label>
+                ) : (
+                  <p className="fw-lock-note">
+                    {isSelf
+                      ? 'لتغيير كلمة مرورك استعمل «أمان الحساب».'
+                      : 'كلمة مرور المشرف تُعيَّن عبر رابط التفعيل فقط.'}
+                  </p>
+                )}
                 <div className="fw-edit-acts">
                   <button type="submit">حفظ</button>
                   <button type="button" className="is-ghost" onClick={() => setEditing(false)}>إلغاء</button>
@@ -423,20 +454,26 @@ export default function UserProfileModal({
               </div>
             )}
 
-            {tab === 'access' ? (
+            {tab === 'access' && lockedReason ? (
+              <p className="upm-lock"><ShieldCheck className="w-4 h-4" aria-hidden /> {lockedReason}</p>
+            ) : null}
+
+            {tab === 'access' && canManageAccess ? (
               <div className="upm-table-actions">
                 <label>
                   تغيير الدور
                   <select value={role} onChange={(e) => setRole(e.target.value)}>
-                    {LOGIN_ROLE_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>{option.label}</option>
+                    {roleChoices.map((value) => (
+                      <option key={value} value={value} disabled={!assignableRoles.includes(value)}>
+                        {LOGIN_ROLE_LABELS[value]}
+                      </option>
                     ))}
                   </select>
                 </label>
                 <button
                   type="button"
                   className="upm-btn upm-btn-primary"
-                  disabled={role === user.role}
+                  disabled={normalizeLoginRole(role) === targetRole}
                   onClick={() => onPatch(user.id, { role })}
                 >
                   حفظ الدور
@@ -444,14 +481,31 @@ export default function UserProfileModal({
               </div>
             ) : null}
 
+            {tab === 'access' && canManageAccess && targetIsAdmin ? (
+              <div className="upm-table-actions">
+                <button type="button" className="upm-btn upm-btn-primary" onClick={() => onPatch(user.id, { action: 'invite-link' })}>
+                  <ShieldCheck className="w-4 h-4" />
+                  {securityKeyCount ? 'إصدار رابط مفتاح إضافي' : 'إصدار رابط التفعيل'}
+                </button>
+                {securityKeyCount ? (
+                  <button type="button" className="upm-btn upm-btn-danger" onClick={() => setConfirmAction('reset-keys')}>
+                    إعادة ضبط المفاتيح
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+
             {tab !== 'history' ? (
             <div className="upm-table-actions">
-              {tab === 'data' && !editing ? (
+              {tab === 'data' && !editing && lockedReason ? (
+                <p className="upm-lock"><ShieldCheck className="w-4 h-4" aria-hidden /> {lockedReason}</p>
+              ) : null}
+              {tab === 'data' && !editing && canEdit ? (
                 <button type="button" className="upm-btn upm-btn-primary" onClick={() => setEditing(true)}>
                   {isSelf ? 'تعديل بياناتي' : 'تعديل الصلاحيات'}
                 </button>
               ) : null}
-              {user.status === 'PENDING_APPROVAL' ? (
+              {!canManageAccess ? null : user.status === 'PENDING_APPROVAL' ? (
                 <>
                   <button
                     type="button"
@@ -464,7 +518,7 @@ export default function UserProfileModal({
                   <button
                     type="button"
                     className="upm-btn upm-btn-danger"
-                    onClick={() => onPatch(user.id, { status: 'REJECTED', loginEnabled: false })}
+                    onClick={() => setConfirmAction('reject')}
                   >
                     رفض
                   </button>
@@ -473,14 +527,10 @@ export default function UserProfileModal({
                 <button
                   type="button"
                   className={`upm-btn ${isActive ? 'upm-btn-danger' : 'upm-btn-ok'}`}
-                  onClick={() =>
-                    onPatch(
-                      user.id,
-                      isActive
-                        ? { status: 'SUSPENDED', loginEnabled: false }
-                        : { status: 'APPROVED', loginEnabled: true }
-                    )
-                  }
+                  onClick={() => {
+                    if (isActive) setConfirmAction('revoke');
+                    else onPatch(user.id, { status: 'APPROVED', loginEnabled: true });
+                  }}
                 >
                   <Power className="w-4 h-4" />
                   {isActive ? 'إيقاف' : 'تفعيل'}
@@ -492,7 +542,7 @@ export default function UserProfileModal({
                   حظر IP
                 </button>
               ) : null}
-              {onDelete && tab === 'data' ? (
+              {onDelete && canManageAccess && tab === 'data' ? (
                 confirmDelete ? (
                   <>
                     <button type="button" className="upm-btn upm-btn-danger" onClick={onDelete}>
@@ -521,18 +571,57 @@ export default function UserProfileModal({
     </div>
   );
 
+  const confirmDialog = (
+    <AdminConfirmDialog
+      open={Boolean(confirmAction)}
+      title={
+        confirmAction === 'reject'
+          ? 'رفض طلب الوصول؟'
+          : confirmAction === 'reset-keys'
+            ? 'إعادة ضبط مفاتيح المشرف؟'
+            : 'إيقاف / سحب صلاحية الدخول؟'
+      }
+      message={
+        confirmAction === 'reject'
+          ? 'سيتم رفض حساب المستخدم وتعطيل تسجيل الدخول.'
+          : confirmAction === 'reset-keys'
+            ? 'ستُحذف كل مفاتيح الأمان ورموز الاسترداد لهذا المشرف، وتُغلق جلساته. سيصدر رابط تفعيل جديد.'
+            : 'سيتم تعليق الحساب وتعطيل الدخول إلى أن تتم إعادة التفعيل.'
+      }
+      confirmLabel={confirmAction === 'reject' ? 'رفض' : confirmAction === 'reset-keys' ? 'إعادة الضبط' : 'إيقاف'}
+      danger
+      onCancel={() => setConfirmAction(null)}
+      onConfirm={() => {
+        if (confirmAction === 'reject') {
+          onPatch(user.id, { status: 'REJECTED', loginEnabled: false });
+        } else if (confirmAction === 'revoke') {
+          onPatch(user.id, { status: 'SUSPENDED', loginEnabled: false });
+        } else if (confirmAction === 'reset-keys') {
+          onPatch(user.id, { action: 'reset-security' });
+        }
+        setConfirmAction(null);
+      }}
+    />
+  );
+
   if (embedded) {
     return (
-      <div className="upm-embedded" role="region" aria-label={`ملف ${name}`}>
-        {panel}
-      </div>
+      <>
+        <div className="upm-embedded" role="region" aria-label={`ملف ${name}`}>
+          {panel}
+        </div>
+        {confirmDialog}
+      </>
     );
   }
 
   return (
-    <div className={`upm-overlay${closing ? ' is-closing' : ''}`} role="dialog" aria-modal="true" aria-label={`ملف ${name}`}>
-      <button type="button" className="upm-backdrop" aria-label="إغلاق" onClick={dismiss} />
-      {panel}
-    </div>
+    <>
+      <div className={`upm-overlay${closing ? ' is-closing' : ''}`} role="dialog" aria-modal="true" aria-label={`ملف ${name}`}>
+        <button type="button" className="upm-backdrop" aria-label="إغلاق" onClick={dismiss} />
+        {panel}
+      </div>
+      {confirmDialog}
+    </>
   );
 }

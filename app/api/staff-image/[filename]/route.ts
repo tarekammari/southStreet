@@ -31,6 +31,8 @@ const CONTENT_TYPES: Record<string, string> = {
   '.svg': 'image/svg+xml',
   '.webp': 'image/webp',
   '.gif': 'image/gif',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
 };
 
 const resolvedPaths = new Map<string, string>();
@@ -61,12 +63,39 @@ export async function GET(
     resolvedPaths.set(filename, targetPath);
   }
 
+  const contentType = CONTENT_TYPES[path.extname(filename).toLowerCase()] || 'application/octet-stream';
+  const stat = await fs.promises.stat(targetPath);
+  const range = request.headers.get('range');
+  if (range) {
+    const match = /bytes=(\d+)-(\d*)/.exec(range);
+    const start = match ? Number(match[1]) : 0;
+    const end = match && match[2] ? Number(match[2]) : stat.size - 1;
+    const stream = fs.createReadStream(targetPath, { start, end });
+    const buf = await new Promise<Buffer>((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      stream.on('data', (c) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
+      stream.on('end', () => resolve(Buffer.concat(chunks)));
+      stream.on('error', reject);
+    });
+    return new NextResponse(new Uint8Array(buf), {
+      status: 206,
+      headers: {
+        'Content-Type': contentType,
+        'Content-Range': `bytes ${start}-${end}/${stat.size}`,
+        'Accept-Ranges': 'bytes',
+        'Content-Length': String(buf.length),
+        'Cache-Control': 'public, max-age=31536000, immutable',
+      },
+    });
+  }
+
   const fileBuffer = await fs.promises.readFile(targetPath);
-  const contentType = CONTENT_TYPES[path.extname(filename).toLowerCase()] || 'image/png';
 
   return new NextResponse(new Uint8Array(fileBuffer), {
     headers: {
       'Content-Type': contentType,
+      'Accept-Ranges': 'bytes',
+      'Content-Length': String(stat.size),
       'Cache-Control': 'public, max-age=31536000, immutable',
     },
   });

@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { listAdminReviews, moderateReview, ReviewStatus } from '@/lib/reviews';
 import { getAuthUser } from '@/lib/request-auth';
+import { requireRole, ADMINS } from '@/lib/staff-gate';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
+  const gate = requireRole(req, ADMINS);
+  if ('error' in gate) return gate.error;
   try {
     const status = (new URL(req.url).searchParams.get('status') || '') as ReviewStatus | '';
     const reviews = listAdminReviews(status || undefined);
@@ -16,8 +19,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const gate = requireRole(req, ADMINS);
+  if ('error' in gate) return gate.error;
   try {
-    const auth = getAuthUser(req);
     const body = await req.json();
     if (!body.id) return NextResponse.json({ error: 'معرّف التقييم مطلوب' }, { status: 400 });
     const review = moderateReview({
@@ -25,7 +29,7 @@ export async function PATCH(req: NextRequest) {
       status: body.status,
       featured: body.featured,
       adminReply: body.adminReply,
-      actorName: auth?.name || 'الإدارة',
+      actorName: gate.account.name || 'الإدارة',
     });
     return NextResponse.json({ success: true, review });
   } catch (error: any) {

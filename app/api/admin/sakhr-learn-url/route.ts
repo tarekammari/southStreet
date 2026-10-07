@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getDatabase, saveDatabase, dbLogAiConversation, dbGetAgencySettings } from '@/lib/db';
 import { AiKnowledgeRule } from '@/lib/db';
+import { requireRole, ADMINS } from '@/lib/staff-gate';
 
 // Extract clean text from HTML
 function extractCleanText(html: string): { title: string; text: string; keywords: string[] } {
@@ -34,6 +35,9 @@ function extractCleanText(html: string): { title: string; text: string; keywords
 }
 
 export async function POST(req: Request) {
+  // Writes are Admin-only (reads stay public for the catalog pages).
+  const gate = requireRole(req, ADMINS);
+  if ('error' in gate) return gate.error;
   try {
     const { url, category = 'faq' } = await req.json();
     const cleanUrl = (url || '').trim();

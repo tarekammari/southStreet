@@ -76,10 +76,33 @@ export function isActiveReservation(status?: string | null): boolean {
   return ACTIVE_RESERVATION_STATUSES.includes(String(status || '').toUpperCase() as (typeof ACTIVE_RESERVATION_STATUSES)[number]);
 }
 
+/**
+ * Program dates are entered by staff, so both ISO (2026-10-10) and the local
+ * day-first form (10-10-2026, 10/10/2026) exist in the data. `new Date()` reads
+ * the latter as month-first or rejects it, so parse it explicitly.
+ */
+export function parseTripDate(value?: string | null): Date | null {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const dayFirst = raw.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+  if (dayFirst) {
+    const [, d, m, y] = dayFirst;
+    const date = new Date(Number(y), Number(m) - 1, Number(d));
+    return Number.isNaN(date.getTime()) || date.getDate() !== Number(d) ? null : date;
+  }
+  const isoDay = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoDay) {
+    // Local midnight, not UTC, so the calendar day never shifts.
+    const [, y, m, d] = isoDay;
+    return new Date(Number(y), Number(m) - 1, Number(d));
+  }
+  const date = new Date(raw);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 export function daysUntilDeparture(startDate?: string | null): number | null {
-  if (!startDate) return null;
-  const start = new Date(startDate);
-  if (Number.isNaN(start.getTime())) return null;
+  const start = parseTripDate(startDate);
+  if (!start) return null;
   start.setHours(0, 0, 0, 0);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -90,9 +113,8 @@ export function daysUntilDeparture(startDate?: string | null): number | null {
 export function isPackageExpired(pkg: { start_date?: string | null; end_date?: string | null }): boolean {
   const days = daysUntilDeparture(pkg.start_date);
   if (days !== null) return days < 0;
-  if (!pkg.end_date) return false;
-  const end = new Date(pkg.end_date);
-  if (Number.isNaN(end.getTime())) return false;
+  const end = parseTripDate(pkg.end_date);
+  if (!end) return false;
   end.setHours(23, 59, 59, 999);
   return end.getTime() < Date.now();
 }
@@ -106,7 +128,7 @@ export function reservationStatusLabel(status?: string | null): string {
     case 'CONFIRMED':
       return 'مؤكد من الوكالة';
     case 'PAYMENT_PENDING':
-      return 'بانتظار الدفع';
+      return 'مقبول — بانتظار العربون';
     case 'PARTIALLY_PAID':
       return 'مدفوع جزئياً';
     case 'PAID':
@@ -126,6 +148,23 @@ export function reservationStatusLabel(status?: string | null): string {
   }
 }
 
+/** Agency accepted the demand; confirmation is finished only after the deposit. */
+export function isDemandAccepted(status?: string | null): boolean {
+  const s = String(status || '').toUpperCase();
+  return ['PAYMENT_PENDING', 'CONFIRMED', 'PARTIALLY_PAID', 'PAID', 'DOCUMENTS_PENDING', 'READY_FOR_TRAVEL', 'COMPLETED'].includes(s);
+}
+
+/** Accepted by agency and waiting for the first payment (30%) before final confirmation. */
+export function isAwaitingDepositConfirmation(status?: string | null, paymentStatus?: string | null, paidAmount?: number): boolean {
+  const s = String(status || '').toUpperCase();
+  if (s === 'PAYMENT_PENDING') return true;
+  if (s !== 'CONFIRMED') return false;
+  const pay = String(paymentStatus || '').toUpperCase();
+  const paid = Number(paidAmount) || 0;
+  return paid <= 0 || pay === 'UNPAID' || pay === 'PENDING';
+}
+
+/** Final confirmation after the accountant records the deposit (or later travel stages). */
 export function isAgencyConfirmed(status?: string | null): boolean {
   const s = String(status || '').toUpperCase();
   return ['CONFIRMED', 'PARTIALLY_PAID', 'PAID', 'DOCUMENTS_PENDING', 'READY_FOR_TRAVEL', 'COMPLETED'].includes(s);

@@ -9,10 +9,12 @@ import {
   saveUserPhoto,
 } from '@/lib/accounts';
 import { generateDeviceFingerprint } from '@/lib/security';
-import { normalizeLoginRole, postLoginPath, LOGIN_ROLE_LABELS } from '@/lib/roles';
+import { normalizeLoginRole, postLoginPath, LOGIN_ROLE_LABELS, isPrivilegedRole } from '@/lib/roles';
 import { signToken } from '@/lib/auth';
 import { getSqliteDb } from '@/lib/sqlite';
 import { pilgrimAppointment, pilgrimWaitingRedirect } from '@/lib/booking';
+import { notifySignup } from '@/lib/notifications';
+import { tokenVersionOf } from '@/lib/webauthn';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,13 +41,27 @@ export async function POST(req: Request) {
         userAgent,
       });
       saveUserPhoto(created.userId, profile.picture);
-      return NextResponse.json({
-        status: 'PENDING_APPROVAL',
-        message: 'طلبك قيد المراجعة. سنخبرك بعد تأكيد الوكالة.',
-        username: created.username,
-        email: profile.email,
+      notifySignup({
+        userId: created.userId,
         name: profile.name,
+        email: profile.email,
+        status: created.status,
       });
+
+      if (created.status === 'PENDING_APPROVAL') {
+        return NextResponse.json({
+          status: 'PENDING_APPROVAL',
+          message: 'حسابك قيد المراجعة. سنخبرك بعد موافقة الإدارة.',
+          username: created.username,
+          email: profile.email,
+          name: profile.name,
+        });
+      }
+
+      user = findUserByGoogleId(profile.googleId) || findUserForLogin(profile.email);
+      if (!user) {
+        return NextResponse.json({ error: 'تعذر إكمال إنشاء الحساب' }, { status: 500 });
+      }
     }
 
     if (!user.googleId && !user.google_id) {
@@ -91,7 +107,14 @@ export async function POST(req: Request) {
       /* legacy column names */
     }
 
-    const role = normalizeLoginRole(user.role, { email: user.email, roleName: user.roleName });
+    const role = normalizeLoginRole(user.role);
+    // Super Admin / Admin must sign in with password + security key, never Google.
+    if (isPrivilegedRole(role)) {
+      return NextResponse.json(
+        { error: 'حسابات الإدارة تدخل بكلمة المرور ومفتاح الأمان فقط' },
+        { status: 403 }
+      );
+    }
     const waiting = role === 'PILGRIM_USER' ? pilgrimWaitingRedirect(user.id) : null;
     const appointment = role === 'PILGRIM_USER' && !waiting ? pilgrimAppointment(user.id) : null;
     const token = signToken({
@@ -103,7 +126,7 @@ export async function POST(req: Request) {
       email: user.email,
       username: user.username,
       phone: user.phone,
-    });
+    }, { tokenVersion: tokenVersionOf(user.id) });
 
     const res = NextResponse.json({
       status: 'SUCCESS',

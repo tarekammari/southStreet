@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { syncSessionProfile } from '@/lib/client-session';
+import { authHeaders, getAuthToken, apiFetch, jsonAuthHeaders } from '@/lib/api-client';
 
 export default function SessionGuard() {
   useEffect(() => {
@@ -9,7 +10,7 @@ export default function SessionGuard() {
 
     const onStorage = (event: StorageEvent) => {
       if (event.key !== 'south_street_token' && event.key !== 'south_street_user') return;
-      if (!localStorage.getItem('south_street_token')) {
+      if (!getAuthToken()) {
         window.location.reload();
       }
     };

@@ -6,11 +6,8 @@ import { ShoppingBag, Loader2, Calendar, ChevronDown } from 'lucide-react';
 import { Reservation, User } from '@/types';
 import { isActiveReservation, reservationStatusLabel } from '@/lib/booking-catalog';
 import { toPortalRole } from '@/lib/roles';
+import { authHeaders, getAuthToken, apiFetch, jsonAuthHeaders } from '@/lib/api-client';
 
-function authHeaders(): HeadersInit {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('south_street_token') : null;
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
 
 function money(n: number): string {
   return `${(n || 0).toLocaleString('ar-DZ')} دج`;
@@ -47,7 +44,7 @@ export default function DemandBag({
   const isStaff = portalRole === 'admin' || portalRole === 'manager' || portalRole === 'agent' || portalRole === 'accountant';
 
   const load = useCallback(() => {
-    if ((!isPilgrim && !isStaff) || !localStorage.getItem('south_street_token')) {
+    if ((!isPilgrim && !isStaff) || !getAuthToken()) {
       setItems([]);
       return;
     }

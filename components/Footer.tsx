@@ -10,9 +10,8 @@ import { toPortalRole } from '@/lib/roles';
 
 const PRODUCT_LINKS = [
   { label: 'حجز العمرة', href: '/book' },
-  { label: 'الباقات', href: '/packages' },
+  { label: 'البرامج', href: '/packages' },
   { label: 'الفنادق', href: '/hotels' },
-  { label: 'برامج السفر', href: '/#programs-section' },
   { label: 'دليل العمرة', href: '/portal?tab=rituals' },
 ];
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { authHeaders, getAuthToken, apiFetch, jsonAuthHeaders } from '@/lib/api-client';
 
 /**
  * Reports presence for the signed-in user so the admin dashboard can tell who is
@@ -9,11 +10,10 @@ import { useEffect } from 'react';
 export default function SessionHeartbeat({ intervalMs = 45000 }: { intervalMs?: number }) {
   useEffect(() => {
     const beat = () => {
-      const token = localStorage.getItem('south_street_token');
+      const token = getAuthToken();
       if (!token) return;
-      fetch('/api/session/heartbeat', {
+      apiFetch('/api/session/heartbeat', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
         keepalive: true,
       }).catch(() => {});
     };

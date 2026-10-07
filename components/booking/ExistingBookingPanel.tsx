@@ -4,15 +4,19 @@ import Link from 'next/link';
 import { Calendar, Plane, ShieldAlert, Loader2 } from 'lucide-react';
 import { Reservation } from '@/types';
 import {
+  DEPOSIT_PERCENT,
   FREE_CANCEL_DAYS,
   canSelfManageReservation,
   daysUntilDeparture,
   ROOM_LABELS,
   isAgencyConfirmed,
+  isAwaitingDepositConfirmation,
 } from '@/lib/booking-catalog';
 import BookingPrintButton from '@/components/booking/BookingPrintButton';
 import UmrahCountdown from '@/components/booking/UmrahCountdown';
 import { PendingRequestStrip } from '@/components/booking/PendingRequestBanner';
+import TripStatusTimeline from '@/components/booking/TripStatusTimeline';
+import PayActions from '@/components/booking/PayActions';
 
 function money(n: number): string {
   return `${(n || 0).toLocaleString('ar-DZ')} دج`;
@@ -46,7 +50,15 @@ export default function ExistingBookingPanel({
   const manage = canSelfManageReservation(reservation.status, startDate);
   const days = daysUntilDeparture(startDate);
   const freeCancel = days === null || days >= FREE_CANCEL_DAYS;
-  const confirmed = isAgencyConfirmed(reservation.status);
+  const awaitingDeposit = isAwaitingDepositConfirmation(
+    reservation.status,
+    reservation.payment_status,
+    reservation.paid_amount
+  );
+  const confirmed = isAgencyConfirmed(reservation.status) && !awaitingDeposit;
+  const deposit =
+    Number(reservation.invoice?.depositAmount)
+    || Math.round((Number(reservation.total_amount) || 0) * DEPOSIT_PERCENT);
 
   return (
     <section className="book-manage" dir="rtl">
@@ -57,6 +69,16 @@ export default function ExistingBookingPanel({
           <p>يمكنك عرض برنامجك أو تعديل الغرفة.</p>
           <UmrahCountdown startDate={startDate} packageName={reservation.package_name} />
         </>
+      ) : awaitingDeposit ? (
+        <>
+          <span className="book-manage-badge is-warn">مقبول — بانتظار العربون</span>
+          <h2>طلبك مقبول من الوكالة</h2>
+          <p className="book-deposit-observe" role="status">
+            ملاحظة: لم تُدفَع بعد الدفعة الأولى ({money(deposit)} — {Math.round(DEPOSIT_PERCENT * 100)}٪).
+            يكتمل التأكيد النهائي عند المحاسب بعد تحصيل هذه الدفعة.
+          </p>
+          <PayActions reservation={reservation} />
+        </>
       ) : (
         <>
           <PendingRequestStrip reservation={reservation} />
@@ -66,6 +88,8 @@ export default function ExistingBookingPanel({
           </p>
         </>
       )}
+
+      <TripStatusTimeline status={reservation.status} paymentStatus={reservation.payment_status} />
 
       <div className="book-manage-card">
         <p className="book-manage-code">{reservation.reservation_number}</p>

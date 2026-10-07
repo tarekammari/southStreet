@@ -14,6 +14,13 @@ import {
   toolGetSeasonsInfo,
   toolSearchAppContent,
 } from './ai-tools';
+import {
+  formatPackagesAnswer,
+  formatHotelsAnswer,
+  sanitizeSakhrReply,
+  looksLikePriceQuestion,
+  buildUnknownPriceResponse,
+} from './sakhr-smart';
 
 export type TrustedToolName =
   | 'ai_knowledge'
@@ -141,7 +148,7 @@ function toolHitFromKnowledge(query: string): TrustedToolHit | null {
       data: {
         title: rule.title_ar,
         description: 'استعراض الحجز المباشر',
-        buttonText: '🚀 صفحة الباقات',
+        buttonText: '🚀 صفحة البرامج',
         targetUrl: '/packages',
       },
     });
@@ -166,61 +173,70 @@ function toolHitFromPackages(query: string): TrustedToolHit | null {
   const packages = toolSearchPackages({ query: query.length > 15 ? query : undefined });
   if (!packages.length) return null;
 
-  let text = `📦 **باقات العمرة المعتمدة**\n\n`;
-  const cards: AiCard[] = packages.slice(0, 4).map(pkg => {
-    const minPrice = pkg.prices?.length ? Math.min(...pkg.prices.map(p => p.amount)) : 0;
-    text += `• **${pkg.name}** — من ${minPrice.toLocaleString()} دج | ${pkg.duration_days} يوم\n`;
+  const anyPriced = packages.some(pkg => (pkg.prices || []).some(p => p && typeof p.amount === 'number' && p.amount > 0));
+  if (!anyPriced && looksLikePriceQuestion(query)) {
+    const agency = toolGetAgencySettings();
+    const unk = buildUnknownPriceResponse(agency.phone);
     return {
-      type: 'package' as const,
-      data: {
-        id: pkg.package_id,
-        name: pkg.name,
-        type: pkg.type,
-        makkah_hotel_name: pkg.makkah_hotel_name,
-        makkah_hotel_dist: pkg.makkah_hotel_dist,
-        airline: pkg.airline,
-        duration_days: pkg.duration_days,
-        available: pkg.available,
-        description: pkg.description,
-        prices: pkg.prices.map(p => ({ room_type: p.room_type, amount: p.amount, currency: p.currency || 'دج' })),
-      },
+      tool: 'packages',
+      table: 'packages',
+      confidence: 0.7,
+      title: 'باقات العمرة',
+      text: sanitizeSakhrReply(unk.text),
+      cards: [],
     };
-  });
+  }
+
+  const cards: AiCard[] = packages.slice(0, 4).map(pkg => ({
+    type: 'package' as const,
+    data: {
+      id: pkg.package_id,
+      name: pkg.name,
+      type: pkg.type,
+      makkah_hotel_name: pkg.makkah_hotel_name,
+      makkah_hotel_dist: pkg.makkah_hotel_dist,
+      airline: pkg.airline,
+      duration_days: pkg.duration_days,
+      available: pkg.available,
+      description: pkg.description,
+      prices: (pkg.prices || []).map(p => ({ room_type: p.room_type, amount: p.amount, currency: p.currency || 'دج' })),
+    },
+  }));
 
   return {
     tool: 'packages',
     table: 'packages',
     confidence: 0.85,
     title: 'باقات العمرة',
-    text: text.trim() + '\n\n✅ *مصدر موثوق: جدول packages*',
+    text: sanitizeSakhrReply(formatPackagesAnswer(packages.slice(0, 4))),
     cards,
   };
 }
 
-/** TOOL: Hotels */
 function toolHitFromHotels(query: string): TrustedToolHit | null {
   if (!hasArabicKeyword(query, ['فندق', 'فنادق', 'hotel', 'hotels', 'إقامة', 'مكة', 'مكه', 'المدينة', 'الحرم', 'سويس', 'منارات'])) {
     return null;
   }
 
   let city: string | undefined;
-  const n = normalizeArabic(query);
   if (hasArabicKeyword(query, ['مكة', 'مكه'])) city = 'MAKKAH';
   if (hasArabicKeyword(query, ['المدينة', 'مدينة'])) city = 'MADINAH';
 
   const hotels = toolGetHotelsInfo(city);
   if (!hotels.length) return null;
 
-  let text = `🏨 **فنادقنا المعتمدة**\n\n`;
-  const cards: AiCard[] = hotels.map(h => {
-    text += `• **${h.name}** — ${h.distance_from_haram}\n`;
-    return { type: 'hotel' as const, data: h };
-  });
+  const cards: AiCard[] = hotels.map(h => ({ type: 'hotel' as const, data: h }));
 
-  return { tool: 'hotels', table: 'hotels', confidence: 0.85, title: 'الفنادق', text: text.trim() + '\n\n✅ *مصدر موثوق: جدول hotels*', cards };
+  return {
+    tool: 'hotels',
+    table: 'hotels',
+    confidence: 0.85,
+    title: 'الفنادق',
+    text: sanitizeSakhrReply(formatHotelsAnswer(hotels)),
+    cards,
+  };
 }
 
-/** TOOL: Team */
 function toolHitFromTeam(query: string): TrustedToolHit | null {
   if (!hasArabicKeyword(query, ['مرشد', 'مرشدين', 'مرشدة', 'شيخ', 'طاقم', 'فريق', 'guide', 'staff', 'team', 'من نحن'])) {
     return null;

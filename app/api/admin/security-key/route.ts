@@ -4,22 +4,16 @@ import { getTokenFromRequest } from '@/lib/request-auth';
 import { normalizeLoginRole } from '@/lib/roles';
 import { getAdminKeyMeta, rotateAdminSecurityKey } from '@/lib/admin-key';
 import { resolveRequestIp } from '@/lib/security-threats';
+import { requireRole, ADMINS, SUPER_ONLY } from '@/lib/staff-gate';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const ADMIN_ROLES = new Set(['SUPER_ADMIN', 'AGENCY_MANAGER']);
+const ADMIN_ROLES = new Set(['SUPER_ADMIN']);
 
 function requireAdmin(req: NextRequest) {
-  const token = getTokenFromRequest(req);
-  const payload = token ? verifyToken(token) : null;
-  if (!payload?.sub) return null;
-  const role = normalizeLoginRole(String(payload.role || ''), {
-    email: payload.email,
-    roleName: payload.roleName,
-  });
-  if (!ADMIN_ROLES.has(role)) return null;
-  return payload;
+  const gate = requireRole(req, SUPER_ONLY);
+  return 'error' in gate ? null : gate.payload;
 }
 
 export async function GET(req: NextRequest) {

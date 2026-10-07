@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSqliteDb } from '@/lib/sqlite';
 import { getAuthUser } from '@/lib/request-auth';
 import { attachGoogleId, ensureUserAccount, findUserByGoogleId, findUserForLogin, queueAccessRequest, saveUserPhoto } from '@/lib/accounts';
+import { findDevMultiAccountPersona, isDevMultiAccountEmail, normalizeDevPhone } from '@/lib/dev-multi-account';
 import { verifyGoogleCredential } from '@/lib/google-id-token';
 import { upsertUserSession } from '@/lib/presence';
 import { generateDeviceFingerprint, verifyPassword } from '@/lib/security';
@@ -29,8 +30,11 @@ import {
   roomPriceFor,
   ROOM_LABELS,
 } from '@/lib/booking';
+import { pilgrimSignupStatus } from '@/lib/feature-flags';
+import { notifyBookingSubmitted, notifySignup } from '@/lib/notifications';
 import { isPackageExpired } from '@/lib/booking-catalog';
 import { documentVerifyCode } from '@/lib/booking-documents';
+import { tokenVersionOf } from '@/lib/webauthn';
 
 export const dynamic = 'force-dynamic';
 
@@ -96,7 +100,7 @@ function issueSession(user: any, req: Request) {
     email: user.email,
     username: user.username,
     phone: user.phone,
-  });
+  }, { tokenVersion: tokenVersionOf(user.id) });
 
   return { token, user: safeUser, ip: meta.clientIp };
 }
@@ -206,7 +210,34 @@ function notifyAgency(account: any, text: string, pkgName?: string) {
   }
 }
 
-function existingBookingResponse(account: any, req: Request, reservation: ReturnType<typeof findActiveReservation>) {
+const STAFF_ON_BEHALF_ROLES = new Set(['SUPER_ADMIN', 'AGENCY_MANAGER', 'ACCOUNTANT', 'AGENCY_AGENT']);
+
+function resolveStaffOnBehalf(req: NextRequest, body: { onBehalf?: unknown }) {
+  if (!(body.onBehalf === true || body.onBehalf === 1 || body.onBehalf === '1')) return null;
+  const auth = getAuthUser(req);
+  if (!auth) return null;
+  const db = getSqliteDb();
+  const staff = db.prepare('SELECT * FROM users WHERE id = ?').get(auth.id) as any;
+  if (!staff) return null;
+  const role = normalizeLoginRole(staff.role, { email: staff.email, roleName: staff.roleName });
+  if (!STAFF_ON_BEHALF_ROLES.has(role)) return null;
+  return { staff, role };
+}
+
+function existingBookingResponse(
+  account: any,
+  req: Request,
+  reservation: ReturnType<typeof findActiveReservation>,
+  opts?: { onBehalf?: boolean }
+) {
+  if (opts?.onBehalf) {
+    return NextResponse.json({
+      error: 'لهذا العميل طلب نشط بالفعل. يمكن متابعته من التحصيل أو إلغاؤه ثم الحجز من جديد.',
+      code: 'EXISTING_BOOKING',
+      reservation,
+      onBehalf: true,
+    }, { status: 409 });
+  }
   const session = issueSession(account, req);
   const res = NextResponse.json({
     error: 'لديك طلب لم تؤكده الوكالة بعد. يمكنك متابعته أو تعديله أو إلغاءه ثم الحجز من جديد.',
@@ -263,6 +294,10 @@ export async function POST(req: NextRequest) {
     const password = String(body.password || '');
     const passport = String(body.passport || '').trim();
     const googleIdToken = String(body.googleIdToken || body.accessToken || '').trim();
+    const staffOnBehalf = resolveStaffOnBehalf(req, body);
+    if ((body.onBehalf === true || body.onBehalf === 1 || body.onBehalf === '1') && !staffOnBehalf) {
+      return NextResponse.json({ error: 'حجز نيابة عن العميل متاح لموظف الوكالة فقط' }, { status: 403 });
+    }
     let googleProfile: Awaited<ReturnType<typeof verifyGoogleCredential>> | null = null;
     if (googleIdToken) {
       try {
@@ -277,7 +312,9 @@ export async function POST(req: NextRequest) {
     if (!['SINGLE', 'DOUBLE', 'TRIPLE', 'QUAD'].includes(roomType)) {
       return NextResponse.json({ error: 'اختر نوع الغرفة' }, { status: 400 });
     }
-    if (!name || name.length < 4) return NextResponse.json({ error: 'أدخل اسمك' }, { status: 400 });
+    if (!name || name.length < 4) {
+      return NextResponse.json({ error: staffOnBehalf ? 'أدخل اسم العميل' : 'أدخل اسمك' }, { status: 400 });
+    }
     if (!phone) return NextResponse.json({ error: 'رقم الهاتف مطلوب' }, { status: 400 });
 
     const pkg = loadPublishedPackage(packageId);
@@ -310,75 +347,123 @@ export async function POST(req: NextRequest) {
     const auth = getAuthUser(req);
     const db = getSqliteDb();
     let account: any = null;
+    const multiTest = isDevMultiAccountEmail(email);
 
-    if (auth) {
-      account = db.prepare('SELECT * FROM users WHERE id = ?').get(auth.id);
-      const loginRole = normalizeLoginRole(account?.role, { email: account?.email, roleName: account?.roleName });
-      if (account && loginRole !== 'PILGRIM_USER') {
-        account = null;
+    if (staffOnBehalf) {
+      // Desk booking: name + phone are enough. Email optional; Google never required.
+      if (email && email.includes('@')) {
+        const existing = findUserForLogin(email);
+        if (existing) {
+          const existingRole = normalizeLoginRole(existing.role, { email: existing.email, roleName: existing.roleName });
+          if (existingRole !== 'PILGRIM_USER') {
+            return NextResponse.json({
+              error: 'هذا البريد مرتبط بموظف. استخدم بريداً آخر للعميل.',
+            }, { status: 409 });
+          }
+          db.prepare(`
+            UPDATE users SET name = ?, phone = COALESCE(NULLIF(?, ''), phone), status = 'APPROVED', loginEnabled = 1
+            WHERE id = ?
+          `).run(name, phone, existing.id);
+          account = db.prepare('SELECT * FROM users WHERE id = ?').get(existing.id);
+        }
       }
-    }
-
-    if (!account) {
-      if (!email || !email.includes('@')) {
-        return NextResponse.json({ error: 'اربط حساب جوجل للمتابعة' }, { status: 400 });
-      }
-      const existing = (googleProfile && findUserByGoogleId(googleProfile.googleId)) || findUserForLogin(email);
-      if (existing) {
-        const existingRole = normalizeLoginRole(existing.role, { email: existing.email, roleName: existing.roleName });
-        if (existingRole !== 'PILGRIM_USER') {
-          return NextResponse.json({
-            error: 'هذا الحساب مرتبط بموظف. استخدم حساب جوجل آخر.',
-          }, { status: 409 });
-        }
-        const googleOk = Boolean(googleProfile && (
-          existing.googleId === googleProfile.googleId
-          || existing.google_id === googleProfile.googleId
-          || String(existing.email || '').toLowerCase() === googleProfile.email
-        ));
-        if (!googleOk && password && !verifyPassword(password, existing.passwordHash)) {
-          return NextResponse.json({
-            error: 'هذا الحساب مسجّل مسبقاً. سجّل الدخول ثم أعد المحاولة.',
-          }, { status: 409 });
-        }
-        if (!googleOk && !password) {
-          return NextResponse.json({
-            error: 'هذا الحساب مسجّل مسبقاً. سجّل الدخول ثم أعد المحاولة.',
-          }, { status: 409 });
-        }
-        if (googleProfile) attachGoogleId(existing.id, googleProfile.googleId);
-        if (googleProfile?.picture) saveUserPhoto(existing.id, googleProfile.picture);
-        db.prepare(`
-          UPDATE users SET name = ?, phone = COALESCE(NULLIF(?, ''), phone)
-          WHERE id = ?
-        `).run(name, phone, existing.id);
-        account = db.prepare('SELECT * FROM users WHERE id = ?').get(existing.id);
-      } else {
+      if (!account) {
         const issued = ensureUserAccount({
           name,
-          email,
+          email: email && email.includes('@') ? email : undefined,
           phone,
           role: 'PILGRIM_USER',
           roleName: 'معتمر',
-          status: 'PENDING_APPROVAL',
+          status: 'APPROVED',
           issueSecrets: false,
         });
-        if (googleProfile) attachGoogleId(issued.userId, googleProfile.googleId);
-        if (googleProfile?.picture) saveUserPhoto(issued.userId, googleProfile.picture);
+        notifySignup({ userId: issued.userId, name, email: email || issued.username || '', status: 'APPROVED' });
         account = db.prepare('SELECT * FROM users WHERE id = ?').get(issued.userId);
-        try {
-          const meta = clientMeta(req);
-          queueAccessRequest({
-            userId: issued.userId,
-            userName: name,
-            userEmail: email,
-            userRole: 'PILGRIM_USER',
-            ip: meta.clientIp,
-            pcPrint: meta.pcPrint,
-            userAgent: meta.userAgent,
+      }
+    } else {
+      if (auth) {
+        account = db.prepare('SELECT * FROM users WHERE id = ?').get(auth.id);
+        const loginRole = normalizeLoginRole(account?.role, { email: account?.email, roleName: account?.roleName });
+        if (account && loginRole !== 'PILGRIM_USER') {
+          account = null;
+        }
+        // TEMP: same Google email can book as a new persona when name+phone differ
+        if (account && multiTest) {
+          const samePhone = normalizeDevPhone(account.phone) === normalizeDevPhone(phone);
+          const sameName = String(account.name || '').trim() === String(name || '').trim();
+          if (!samePhone || !sameName) {
+            account = null;
+          }
+        }
+      }
+
+      if (!account) {
+        if (!email || !email.includes('@')) {
+          return NextResponse.json({ error: 'اربط حساب جوجل للمتابعة' }, { status: 400 });
+        }
+        const existing = multiTest
+          ? findDevMultiAccountPersona({ email, name, phone })
+          : ((googleProfile && findUserByGoogleId(googleProfile.googleId)) || findUserForLogin(email));
+        if (existing) {
+          const existingRole = normalizeLoginRole(existing.role, { email: existing.email, roleName: existing.roleName });
+          if (existingRole !== 'PILGRIM_USER') {
+            return NextResponse.json({
+              error: 'هذا الحساب مرتبط بموظف. استخدم حساب جوجل آخر.',
+            }, { status: 409 });
+          }
+          const googleOk = Boolean(googleProfile && (
+            existing.googleId === googleProfile.googleId
+            || existing.google_id === googleProfile.googleId
+            || String(existing.email || '').toLowerCase() === googleProfile.email
+          ));
+          if (!googleOk && password && !verifyPassword(password, existing.passwordHash)) {
+            return NextResponse.json({
+              error: 'هذا الحساب مسجّل مسبقاً. سجّل الدخول ثم أعد المحاولة.',
+            }, { status: 409 });
+          }
+          if (!googleOk && !password) {
+            return NextResponse.json({
+              error: 'هذا الحساب مسجّل مسبقاً. سجّل الدخول ثم أعد المحاولة.',
+            }, { status: 409 });
+          }
+          if (googleProfile) attachGoogleId(existing.id, googleProfile.googleId);
+          if (googleProfile?.picture) saveUserPhoto(existing.id, googleProfile.picture);
+          db.prepare(`
+            UPDATE users SET name = ?, phone = COALESCE(NULLIF(?, ''), phone)
+            WHERE id = ?
+          `).run(name, phone, existing.id);
+          account = db.prepare('SELECT * FROM users WHERE id = ?').get(existing.id);
+        } else {
+          const signupStatus = pilgrimSignupStatus();
+          const issued = ensureUserAccount({
+            name,
+            email,
+            phone,
+            role: 'PILGRIM_USER',
+            roleName: 'معتمر',
+            status: signupStatus,
+            issueSecrets: false,
           });
-        } catch {
-          /* optional */
+          notifySignup({ userId: issued.userId, name, email, status: signupStatus });
+          if (googleProfile) attachGoogleId(issued.userId, googleProfile.googleId);
+          if (googleProfile?.picture) saveUserPhoto(issued.userId, googleProfile.picture);
+          account = db.prepare('SELECT * FROM users WHERE id = ?').get(issued.userId);
+          try {
+            if (signupStatus === 'PENDING_APPROVAL') {
+              const meta = clientMeta(req);
+              queueAccessRequest({
+                userId: issued.userId,
+                userName: name,
+                userEmail: email,
+                userRole: 'PILGRIM_USER',
+                ip: meta.clientIp,
+                pcPrint: meta.pcPrint,
+                userAgent: meta.userAgent,
+              });
+            }
+          } catch {
+            /* optional */
+          }
         }
       }
     }
@@ -389,7 +474,7 @@ export async function POST(req: NextRequest) {
 
     const active = findActiveReservation(account.id);
     if (active) {
-      return existingBookingResponse(account, req, active);
+      return existingBookingResponse(account, req, active, { onBehalf: Boolean(staffOnBehalf) });
     }
 
     const now = new Date().toISOString();
@@ -476,16 +561,44 @@ export async function POST(req: NextRequest) {
       /* chat welcome is optional */
     }
 
+    const reservation = mapReservationRow(
+      db.prepare('SELECT * FROM reservations WHERE reservation_id = ?').get(reservationId)
+    );
+    notifyBookingSubmitted({
+      reservationId: reservation?.reservation_id,
+      reservationNumber: reservation?.reservation_number,
+      customerName: name,
+      packageName: pkg.name,
+    });
+
+    if (staffOnBehalf) {
+      try {
+        const meta = clientMeta(req);
+        dbLogAudit(
+          String(staffOnBehalf.staff.name || 'موظف'),
+          staffOnBehalf.role,
+          'حجز نيابة عن عميل',
+          `${reservationNumber} — ${pkg.name} — ${name}`,
+          meta.clientIp
+        );
+      } catch {
+        /* audit optional */
+      }
+      return NextResponse.json({
+        status: 'REQUESTED',
+        onBehalf: true,
+        reservation,
+        extrasCatalog: BOOKING_EXTRAS,
+        message: 'تم تسجيل العميل وإرسال الطلب. جلسة المحاسب لم تتغير.',
+      });
+    }
+
     const session = issueSession(account, req);
     try {
       dbLogAudit(name, 'PILGRIM_USER', 'تقديم طلب عمرة', `${reservationNumber} — ${pkg.name}`, session.ip);
     } catch {
       /* audit optional */
     }
-
-    const reservation = mapReservationRow(
-      db.prepare('SELECT * FROM reservations WHERE reservation_id = ?').get(reservationId)
-    );
 
     const res = NextResponse.json({
       status: 'REQUESTED',

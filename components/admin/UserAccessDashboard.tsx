@@ -61,6 +61,9 @@ import SecurityCenter, {
   type FirewallScope,
 } from '@/components/admin/SecurityCenter';
 import UserProfileModal from '@/components/admin/UserProfileModal';
+import AccountCreateDialog, { InviteLinkDialog } from '@/components/admin/AccountCreateDialog';
+import SecurityKeysPanel from '@/components/auth/SecurityKeysPanel';
+import { adminFetch, keyErrorMessage } from '@/lib/webauthn-client';
 import GoogleLoginSettings from '@/components/admin/GoogleLoginSettings';
 import ServerHealthPanel from '@/components/admin/ServerHealth';
 import PresenceTimeline from '@/components/admin/PresenceTimeline';
@@ -100,7 +103,7 @@ const EMPTY_STATS: DashboardStats = {
 const HEARTBEAT_MS = 45000;
 const REFRESH_MS = 20000;
 
-type DashSection = 'users' | 'security' | 'google' | 'server' | 'bookings';
+type DashSection = 'users' | 'security' | 'google' | 'server' | 'bookings' | 'keys';
 type FilterKey = 'all' | 'online' | 'active' | 'pending' | 'suspended';
 type RoleFilter = 'all' | LoginRole;
 type FlyoutKey = 'accounts' | 'sessions' | 'types' | null;
@@ -272,11 +275,14 @@ export default function UserAccessDashboard({
   const [detailLeaving, setDetailLeaving] = useState(false);
   const [syncedAt, setSyncedAt] = useState<string | null>(null);
   const [clock, setClock] = useState('');
-  const [section, setSection] = useState<DashSection>('users');
+  // Firewall and server health are SUPER_ADMIN-only on the server; the director starts on the request queue.
+  const isSuperAdmin = String(currentUser?.role || '').toUpperCase() === 'SUPER_ADMIN';
+  const [section, setSection] = useState<DashSection>(isSuperAdmin ? 'security' : 'bookings');
   const [demandCount, setDemandCount] = useState(0);
   const [profileId, setProfileId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const [createForm, setCreateForm] = useState({ name: '', username: '', email: '', phone: '', password: '', role: 'PILGRIM_USER' });
+  const [viewer, setViewer] = useState<{ role: LoginRole; assignableRoles: LoginRole[] }>({ role: 'AGENCY_MANAGER', assignableRoles: [] });
+  const [invite, setInvite] = useState<{ url: string; minutes: number; title: string } | null>(null);
   const [liveIps, setLiveIps] = useState<LiveIpRow[]>([]);
   const [fwFilters, setFwFilters] = useState<FirewallFilters>(EMPTY_FW_FILTERS);
   const [fwCounts, setFwCounts] = useState<FirewallFilterCounts>(EMPTY_FW_COUNTS);
@@ -299,6 +305,7 @@ export default function UserAccessDashboard({
       if (!res.ok) return;
       const data = await res.json();
       setUsers(data.users || []);
+      if (data.viewer) setViewer({ role: data.viewer.role, assignableRoles: data.viewer.assignableRoles || [] });
       setStats({ ...EMPTY_STATS, ...(data.stats || {}) });
       setLiveIps(Array.isArray(data.liveIps) ? data.liveIps : []);
       setSyncedAt(data.serverTime || new Date().toISOString());
@@ -354,15 +361,20 @@ export default function UserAccessDashboard({
   }, []);
 
   useEffect(() => {
-    const token = localStorage.getItem('south_street_token');
-    if (!token) return;
-    fetch('/api/bookings/confirm', { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data?.demands) setDemandCount(data.demands.length);
-        else if (data?.pending) setDemandCount(data.pending.length);
-      })
-      .catch(() => {});
+    const refreshDemands = () => {
+      const token = localStorage.getItem('south_street_token');
+      if (!token) return;
+      fetch('/api/bookings/confirm', { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (data?.demands) setDemandCount(data.demands.length);
+          else if (data?.pending) setDemandCount(data.pending.length);
+        })
+        .catch(() => {});
+    };
+    refreshDemands();
+    window.addEventListener('southstreet:bookings-updated', refreshDemands);
+    return () => window.removeEventListener('southstreet:bookings-updated', refreshDemands);
   }, [section]);
 
   const toggleSide = useCallback(() => {
@@ -416,65 +428,52 @@ export default function UserAccessDashboard({
     onLogout();
   }, [onLogout]);
 
-  const patchUser = async (userId: string, body: Record<string, unknown>) => {
-    const res = await fetch('/api/admin/users', {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('south_street_token') || ''}`,
-      },
-      body: JSON.stringify({ userId, ...body }),
-    });
-    const data = await res.json();
-    if (res.ok) {
-      setToast(data.message || 'تم التحديث');
-      loadUsers(true);
-    } else {
-      setToast(data.error || 'فشل التحديث');
-    }
+  const flashToast = (text: string) => {
+    setToast(text);
     window.setTimeout(() => setToast(''), 3200);
   };
 
-  const createUser = async () => {
-    if (!createForm.name.trim() || !createForm.password.trim() || (!createForm.username.trim() && !createForm.email.trim())) {
-      setToast('الاسم وكلمة المرور واسم المستخدم أو البريد مطلوبة');
-      window.setTimeout(() => setToast(''), 3200);
-      return;
-    }
-    const res = await fetch('/api/admin/users', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('south_street_token') || ''}`,
-      },
-      body: JSON.stringify(createForm),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (res.ok) {
-      setToast(data.message || 'تم إنشاء الحساب');
-      setCreating(false);
-      setCreateForm({ name: '', username: '', email: '', phone: '', password: '', role: 'PILGRIM_USER' });
+  /** Admin actions go through adminFetch: a 428 answer triggers a security-key tap and one retry. */
+  const patchUser = async (userId: string, body: Record<string, unknown>) => {
+    try {
+      const res = await adminFetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, ...body }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        flashToast(data.error || 'فشل التحديث');
+        return;
+      }
+      if (data.invite?.url) {
+        setInvite({
+          url: data.invite.url,
+          minutes: data.invite.expiresInMinutes,
+          title: body.action === 'reset-security' ? 'أُعيد ضبط المفاتيح — رابط تفعيل جديد' : 'رابط تفعيل المشرف',
+        });
+      }
+      flashToast(data.message || 'تم التحديث');
       loadUsers(true);
-    } else {
-      setToast(data.error || 'تعذّر إنشاء الحساب');
+    } catch (err) {
+      flashToast(keyErrorMessage(err));
     }
-    window.setTimeout(() => setToast(''), 3200);
   };
 
   const deleteUser = async (userId: string) => {
-    const res = await fetch(`/api/admin/users?userId=${encodeURIComponent(userId)}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${localStorage.getItem('south_street_token') || ''}` },
-    });
-    const data = await res.json().catch(() => ({}));
-    if (res.ok) {
-      setToast(data.message || 'تم حذف الحساب');
+    try {
+      const res = await adminFetch(`/api/admin/users?userId=${encodeURIComponent(userId)}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        flashToast(data.error || 'تعذّر حذف الحساب');
+        return;
+      }
+      flashToast(data.message || 'تم حذف الحساب');
       setDetailLeaving(true);
       loadUsers(true);
-    } else {
-      setToast(data.error || 'تعذّر حذف الحساب');
+    } catch (err) {
+      flashToast(keyErrorMessage(err));
     }
-    window.setTimeout(() => setToast(''), 3200);
   };
 
   const isSelf = useCallback(
@@ -725,19 +724,24 @@ export default function UserAccessDashboard({
           <div className={`inn-layout${sideOpen ? '' : ' is-collapsed'}`}>
             <div className="inn-main">
           <div className="inn-stage">
-          {section === 'security' ? (
+          {section === 'security' && isSuperAdmin ? (
             <div key="security" className="inn-stage-pane is-active inn-swap">
               <SecurityCenter sideOpen={sideOpen} filters={fwFilters} onCounts={onFwCounts} />
             </div>
           ) : null}
-          {section === 'google' ? (
+          {section === 'google' && isSuperAdmin ? (
             <div key="google" className="inn-stage-pane is-active inn-swap">
               <GoogleLoginSettings />
             </div>
           ) : null}
-          {section === 'server' ? (
+          {section === 'server' && isSuperAdmin ? (
             <div key="server" className="inn-stage-pane is-active inn-swap">
               <ServerHealthPanel />
+            </div>
+          ) : null}
+          {section === 'keys' ? (
+            <div key="keys" className="inn-stage-pane is-active inn-swap">
+              <SecurityKeysPanel />
             </div>
           ) : null}
           {section === 'bookings' ? (
@@ -887,6 +891,8 @@ export default function UserAccessDashboard({
                     onPatch={(userId, body) => {
                       patchUser(userId, body);
                     }}
+                    viewerRole={viewer.role}
+                    assignableRoles={viewer.assignableRoles}
                     onBlockIp={blockIp}
                     onDelete={isSelf(profileUser) ? undefined : () => deleteUser(profileUser.id)}
                   />
@@ -968,33 +974,48 @@ export default function UserAccessDashboard({
                   <span className="inn-side-label">الموافقات</span>
                   {stats.pending > 0 ? <span className="inn-side-badge">{stats.pending}</span> : null}
                 </button>
+                {isSuperAdmin ? (
+                  <>
+                    <button
+                      type="button"
+                      className={`inn-side-link${section === 'security' ? ' is-active' : ''}`}
+                      onClick={() => goSection('security')}
+                      title="الجدار الناري"
+                    >
+                      <ShieldCheck className="w-4 h-4" />
+                      <span className="inn-side-label">الجدار الناري</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`inn-side-link${section === 'server' ? ' is-active' : ''}`}
+                      onClick={() => goSection('server')}
+                      title="حالة الخادم"
+                    >
+                      <Cpu className="w-4 h-4" />
+                      <span className="inn-side-label">حالة الخادم</span>
+                    </button>
+                  </>
+                ) : null}
                 <button
                   type="button"
-                  className={`inn-side-link${section === 'security' ? ' is-active' : ''}`}
-                  onClick={() => goSection('security')}
-                  title="الجدار الناري"
+                  className={`inn-side-link${section === 'keys' ? ' is-active' : ''}`}
+                  onClick={() => goSection('keys')}
+                  title="مفاتيح الأمان"
                 >
                   <ShieldCheck className="w-4 h-4" />
-                  <span className="inn-side-label">الجدار الناري</span>
+                  <span className="inn-side-label">مفاتيح الأمان</span>
                 </button>
-                <button
-                  type="button"
-                  className={`inn-side-link${section === 'server' ? ' is-active' : ''}`}
-                  onClick={() => goSection('server')}
-                  title="حالة الخادم"
-                >
-                  <Cpu className="w-4 h-4" />
-                  <span className="inn-side-label">حالة الخادم</span>
-                </button>
-                <button
-                  type="button"
-                  className={`inn-side-link${section === 'google' ? ' is-active' : ''}`}
-                  onClick={() => goSection('google')}
-                  title="دخول جوجل"
-                >
-                  <KeyRound className="w-4 h-4" />
-                  <span className="inn-side-label">دخول جوجل</span>
-                </button>
+                {isSuperAdmin ? (
+                  <button
+                    type="button"
+                    className={`inn-side-link${section === 'google' ? ' is-active' : ''}`}
+                    onClick={() => goSection('google')}
+                    title="دخول جوجل"
+                  >
+                    <KeyRound className="w-4 h-4" />
+                    <span className="inn-side-label">دخول جوجل</span>
+                  </button>
+                ) : null}
                 <Link href="/" className="inn-side-link" title="الموقع">
                   <Globe className="w-4 h-4" />
                   <span className="inn-side-label">الموقع</span>
@@ -1378,35 +1399,14 @@ export default function UserAccessDashboard({
       </div>
 
       {creating ? (
-        <div className="fw-modal" role="dialog" aria-modal="true" aria-label="إضافة حساب">
-          <button type="button" className="fw-modal-bg" aria-label="إغلاق" onClick={() => setCreating(false)} />
-          <form
-            className="fw-modal-card"
-            onSubmit={(e) => {
-              e.preventDefault();
-              createUser();
-            }}
-          >
-            <h3>حساب جديد</h3>
-            <label>الاسم<input value={createForm.name} onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })} required /></label>
-            <label>اسم المستخدم<input dir="ltr" value={createForm.username} onChange={(e) => setCreateForm({ ...createForm, username: e.target.value })} /></label>
-            <label>البريد<input dir="ltr" type="email" value={createForm.email} onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })} /></label>
-            <label>الهاتف<input dir="ltr" value={createForm.phone} onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })} /></label>
-            <label>كلمة المرور<input dir="ltr" type="text" value={createForm.password} onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })} required /></label>
-            <label>
-              الدور
-              <select value={createForm.role} onChange={(e) => setCreateForm({ ...createForm, role: e.target.value })}>
-                {LOGIN_ROLE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </label>
-            <div className="fw-edit-acts">
-              <button type="submit">إنشاء</button>
-              <button type="button" className="is-ghost" onClick={() => setCreating(false)}>إلغاء</button>
-            </div>
-          </form>
-        </div>
+        <AccountCreateDialog
+          assignableRoles={viewer.assignableRoles}
+          onClose={() => setCreating(false)}
+          onCreated={() => loadUsers(true)}
+        />
+      ) : null}
+      {invite ? (
+        <InviteLinkDialog url={invite.url} minutes={invite.minutes} title={invite.title} onClose={() => setInvite(null)} />
       ) : null}
     </div>
   );

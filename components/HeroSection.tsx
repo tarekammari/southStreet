@@ -5,6 +5,7 @@ import { ChevronDown } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { fetchJsonList } from '@/lib/fetch-json';
 import { PageContentRow } from '@/lib/page-content';
+import { useIntroDone } from '@/lib/intro';
 
 type HeroOffer = {
   id: string;
@@ -86,7 +87,7 @@ function pickNearestOffer(packages: any[]): HeroOffer | null {
 
 const POSTCARDS = [
   {
-    src: '/images/kaaba_sharifa_home_page.png',
+    src: '/images/kaaba_sharifa_home_page.webp',
     alt: 'الكعبة المشرفة عن قرب',
     place: 'مكة المكرمة',
     line: 'الكعبة المشرفة',
@@ -100,21 +101,21 @@ const POSTCARDS = [
     year: '١٤٤٨',
   },
   {
-    src: '/images/maka01.png',
+    src: '/images/maka01.webp',
     alt: 'صحن المطاف من بين الحجاج',
     place: 'صحن المطاف',
     line: 'بين جموع الطائفين',
     year: '١٤٤٨',
   },
   {
-    src: '/images/maka06.png',
+    src: '/images/maka06.webp',
     alt: 'الكعبة من أروقة الحرم',
     place: 'أروقة الحرم',
     line: 'من بين الأعمدة',
     year: '١٤٤٨',
   },
   {
-    src: '/images/maka05.png',
+    src: '/images/maka05.webp',
     alt: 'منظر علوي للمسجد الحرام',
     place: 'مكة من الأعلى',
     line: 'الحرم الشريف',
@@ -169,6 +170,7 @@ const heroPricePop = {
 };
 
 export default function HeroSection({ content: _content }: { content?: PageContentRow[] }) {
+  const introDone = useIntroDone();
   const [offer, setOffer] = useState<HeroOffer | null>(null);
 
   useEffect(() => {
@@ -208,7 +210,7 @@ export default function HeroSection({ content: _content }: { content?: PageConte
           <motion.div
             variants={heroStagger}
             initial="hidden"
-            animate="show"
+            animate={introDone ? 'show' : 'hidden'}
             className="hero-apple-copy"
             dir="rtl"
           >
@@ -242,7 +244,7 @@ export default function HeroSection({ content: _content }: { content?: PageConte
             <motion.div
               variants={heroFadeUp}
               initial="hidden"
-              animate="show"
+              animate={introDone ? 'show' : 'hidden'}
               className="hero-offer-actions"
               dir="rtl"
             >
@@ -325,6 +327,8 @@ function coverStyle(offset: number, mobile: boolean): React.CSSProperties {
 }
 
 function PostcardCoverFlow() {
+  // Each card's distance from the centre on first render sets its entrance delay.
+  const introOrder = useRef<Map<string, number> | null>(null);
   const count = POSTCARDS.length;
   const pointerId = useRef<number | null>(null);
   const dragStartX = useRef(0);
@@ -443,12 +447,15 @@ function PostcardCoverFlow() {
             const offset = circularOffset(index, active, count) + shift;
             const isFront = Math.abs(offset) < 0.45;
             const isVisible = Math.abs(offset) <= 2.2;
+            if (!introOrder.current) introOrder.current = new Map();
+            if (!introOrder.current.has(card.src)) introOrder.current.set(card.src, Math.min(3, Math.round(Math.abs(offset))));
+            const introStep = introOrder.current.get(card.src) || 0;
 
             return (
               <article
                 key={card.src}
-                className={`hero-postcard hero-album-cover${isFront ? ' is-front' : ' is-side'}${isVisible ? '' : ' is-away'}`}
-                style={coverStyle(offset, isMobile)}
+                className={`hero-postcard hero-album-cover hero-intro-card${isFront ? ' is-front' : ' is-side'}${isVisible ? '' : ' is-away'}`}
+                style={{ ...coverStyle(offset, isMobile), ['--intro-step' as string]: introStep }}
                 aria-hidden={!isFront}
                 role="button"
                 tabIndex={isVisible ? 0 : undefined}

@@ -1,0 +1,235 @@
+/* ------------------------------------------------------------------ *
+ * Brand lockup (navbar) + home-page effects.
+ * Tokens come from :root in globals.css.
+ * ------------------------------------------------------------------ */
+
+/* Brand lockup */
+.brand {
+  --brand-ink: #10004f;
+  --brand-ink-deep: #080030;
+  --brand-sky: #6ac0ff;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  direction: ltr;
+  line-height: 1;
+}
+.brand.is-light {
+  --brand-ink: #ffffff;
+  --brand-ink-deep: #c7d2fe;
+}
+.brand-mark {
+  width: 3.5rem;
+  height: auto;
+  overflow: visible;
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), width 0.3s ease;
+}
+.brand-s1 { fill: var(--brand-sky); }
+.brand-s2 { fill: var(--brand-ink); }
+.brand-s3 { fill: var(--brand-ink-deep); }
+.brand-text { display: flex; flex-direction: column; gap: 0.2rem; }
+.brand-name {
+  font-family: var(--font-roboto, 'Segoe UI'), system-ui, sans-serif;
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--brand-ink);
+  white-space: nowrap;
+}
+.brand-tag {
+  direction: rtl;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.brand.is-light .brand-tag { color: rgba(255, 255, 255, 0.65); }
+
+/* Strokes sweep in once on load. */
+.brand.is-animated .brand-s1,
+.brand.is-animated .brand-s2,
+.brand.is-animated .brand-s3 {
+  transform-box: fill-box;
+  animation: brand-sweep 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.brand.is-animated .brand-s2 { transform-origin: left center; animation-name: brand-grow; animation-delay: 0.05s; }
+.brand.is-animated .brand-s3 { transform-origin: left top; animation-delay: 0.2s; }
+.brand.is-animated .brand-s1 { transform-origin: left center; animation-delay: 0.32s; }
+.brand.is-animated .brand-text { animation: brand-fade 0.7s 0.4s ease both; }
+@keyframes brand-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes brand-sweep { from { opacity: 0; transform: translateX(-18%) scaleX(0.6); } to { opacity: 1; transform: none; } }
+@keyframes brand-fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+/* Hover: the sky stroke lifts like a departing plane. */
+.nav-logo-link:hover .brand-mark { transform: translateY(-1px); }
+.nav-logo-link:hover .brand-s1 { transform: translate(2%, -6%); transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+.brand-s1 { transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+.nav-logo-link { border-radius: 0.75rem; }
+.nav-logo-link:focus-visible { outline: 2px solid var(--primary-green); outline-offset: 4px; }
+
+/* Condense a little once the page scrolls. */
+.scrolled .brand-mark { width: 3.1rem; }
+
+@media (max-width: 640px) {
+  .brand-mark { width: 2.9rem; }
+  .scrolled .brand-mark { width: 2.6rem; }
+  .brand-name { font-size: 1rem; }
+  .brand-tag { display: none; }
+}
+
+/* Scroll progress */
+.home-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 260;
+  height: 3px;
+  transform-origin: right center; /* RTL: fills from the reading start */
+  background: linear-gradient(270deg, var(--primary-light), var(--gold-main));
+  pointer-events: none;
+}
+
+/* Back to top */
+.home-top {
+  position: fixed;
+  left: 1.25rem;
+  bottom: 1.5rem;
+  z-index: 150;
+  display: grid;
+  place-items: center;
+  width: 2.9rem;
+  height: 2.9rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--border-subtle);
+  color: var(--primary-deep);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+.home-top:hover { background: var(--primary-green); color: #fff; }
+.home-top:focus-visible { outline: 2px solid var(--primary-green); outline-offset: 3px; }
+@media (max-width: 640px) { .home-top { left: 1rem; bottom: 5.5rem; } }
+
+/* Program cards: staggered cell + soft shine on hover */
+.prog-cell { display: flex; }
+.prog-cell > .prog-card { flex: 1; }
+.prog-card .prog-media::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.35) 50%, transparent 65%);
+  transform: translateX(-120%);
+  pointer-events: none;
+}
+.prog-card:hover .prog-media::before { transform: translateX(120%); transition: transform 0.9s ease; }
+
+/* Closing call to action */
+.home-cta-wrap { max-width: 72rem; margin: 0 auto; padding: 2rem 1rem 4rem; }
+@media (min-width: 640px) { .home-cta-wrap { padding: 3rem 1.5rem 5rem; } }
+.home-cta {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 3rem 1.5rem;
+  border-radius: 1.75rem;
+  text-align: center;
+  color: #ecfdf5;
+  background:
+    radial-gradient(120% 140% at 100% 0%, rgba(201, 169, 98, 0.28), transparent 55%),
+    linear-gradient(135deg, #022c22 0%, var(--primary-deep) 45%, var(--primary-green) 100%);
+  box-shadow: 0 30px 60px -20px rgba(2, 44, 34, 0.45);
+}
+/* Faint geometric pattern, drawn with gradients so no image request. */
+.home-cta::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: 0.08;
+  background-image:
+    repeating-linear-gradient(45deg, #fff 0 1px, transparent 1px 22px),
+    repeating-linear-gradient(-45deg, #fff 0 1px, transparent 1px 22px);
+  mask-image: radial-gradient(70% 90% at 50% 50%, #000, transparent);
+  -webkit-mask-image: radial-gradient(70% 90% at 50% 50%, #000, transparent);
+}
+.home-cta-glow {
+  position: absolute;
+  z-index: -1;
+  width: 28rem;
+  height: 28rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.45), transparent 60%);
+  top: -12rem;
+  left: -8rem;
+  animation: home-glow 12s ease-in-out infinite alternate;
+}
+@keyframes home-glow {
+  from { transform: translate(0, 0); }
+  to { transform: translate(18rem, 8rem); }
+}
+.home-cta-icon {
+  display: grid;
+  place-items: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--gold-main);
+}
+.home-cta h2 {
+  margin: 0.25rem 0 0;
+  font-size: clamp(1.5rem, 3.4vw, 2.25rem);
+  font-weight: 900;
+  color: #fff;
+  text-wrap: balance;
+}
+.home-cta p {
+  margin: 0;
+  max-width: 30rem;
+  font-size: 0.95rem;
+  line-height: 1.7;
+  color: rgba(236, 253, 245, 0.8);
+}
+.home-cta-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.75rem; margin-top: 0.75rem; }
+.home-cta-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  height: 3rem;
+  padding: 0 1.4rem;
+  border-radius: 999px;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.06);
+  transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+}
+.home-cta-btn:hover { background: rgba(255, 255, 255, 0.14); transform: translateY(-2px); }
+.home-cta-btn.is-primary { background: #fff; color: var(--primary-deep); border-color: #fff; }
+.home-cta-btn.is-primary:hover { background: #f0fdf4; box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2); }
+.home-cta-btn svg { transition: transform 0.2s; }
+.home-cta-btn.is-primary:hover svg { transform: translateX(-3px); }
+.home-cta-btn:focus-visible { outline: 2px solid var(--gold-main); outline-offset: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .brand.is-animated .brand-s1,
+  .brand.is-animated .brand-s2,
+  .brand.is-animated .brand-s3,
+  .brand.is-animated .brand-text,
+  .home-cta-glow { animation: none; }
+  .prog-card:hover .prog-media::before { transition: none; transform: translateX(-120%); }
+  .nav-logo-link:hover .brand-s1,
+  .home-cta-btn:hover { transform: none; }
+}

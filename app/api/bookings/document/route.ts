@@ -25,6 +25,8 @@ import {
 } from '@/lib/booking-documents';
 import type { SignOptions } from 'jsonwebtoken';
 
+import { requireSession } from '@/lib/staff-gate';
+
 export const dynamic = 'force-dynamic';
 
 const AGENCY_ROLES = new Set(['SUPER_ADMIN', 'AGENCY_MANAGER', 'AGENCY_AGENT', 'ACCOUNTANT']);
@@ -102,9 +104,10 @@ export async function POST(req: NextRequest) {
       }
       const db = getSqliteDb();
       const account = db.prepare('SELECT * FROM users WHERE id = ?').get(auth.id) as any;
-      const role = normalizeLoginRole(account?.role, { email: account?.email, roleName: account?.roleName });
       const owned = getOwnedReservation(reservationId, auth.id);
-      const staff = AGENCY_ROLES.has(role);
+      // Staff access goes through the shared gate (DB role, key-verified admin sessions).
+      const session = requireSession(req);
+      const staff = !('error' in session) && AGENCY_ROLES.has(session.role);
       const reservation = owned || (staff ? getReservationById(reservationId) : null);
       if (!reservation) {
         return NextResponse.json({ error: 'الطلب غير موجود أو غير مصرّح' }, { status: 404 });

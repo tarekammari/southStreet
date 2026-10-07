@@ -1,4 +1,5 @@
 import { getSqliteDb } from './sqlite';
+import { parsePackageList } from './package-lists';
 import { Package, Hotel, Morshid, Season, AgencySettings } from '@/types';
 import {
   searchAppContent,
@@ -68,7 +69,7 @@ export function toolSearchPackages(filters?: {
       available: p.available,
       capacity: p.capacity,
       prices,
-      included_services: JSON.parse(p.included_services || '[]')
+      included_services: parsePackageList(p.included_services)
     };
   });
 

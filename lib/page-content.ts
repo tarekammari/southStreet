@@ -15,7 +15,7 @@ export const PAGE_CONTENT_LABELS: Record<string, string> = {
   hero_banner: 'بانر الصفحة الرئيسية',
   nav_promo: 'شريط العرض في الأعلى',
   about_section: 'قسم الطاقم والوكالة',
-  programs_section: 'قسم برامج السفر',
+  programs_section: 'مواعيد البرامج',
   promo_billboard: 'لوحة الطيران المباشر',
   footer_newsletter: 'نشرة تذييل الصفحة',
 };
@@ -23,7 +23,7 @@ export const PAGE_CONTENT_LABELS: Record<string, string> = {
 export const PAGE_CONTENT_SECTIONS: { id: string; label: string }[] = [
   { id: 'homepage', label: 'الصفحة الرئيسية' },
   { id: 'footer', label: 'تذييل الموقع' },
-  { id: 'packages', label: 'صفحة الباقات' },
+  { id: 'packages', label: 'صفحة البرامج' },
   { id: 'hotels', label: 'صفحة الفنادق' },
   { id: 'general', label: 'عام' },
 ];

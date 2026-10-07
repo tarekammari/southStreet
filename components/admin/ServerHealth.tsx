@@ -4,13 +4,14 @@ import React, { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { Activity, Database, HardDrive, KeyRound, Power, Radio, Server } from 'lucide-react';
 import type { DatabaseUsage, ServerHealth } from '@/lib/server-health';
 import type { TopUserUsage } from '@/lib/top-users';
+import { authHeaders, getAuthToken, apiFetch, jsonAuthHeaders } from '@/lib/api-client';
 
 const LIME = '#c6f250';
 const DONUT = ['#f4f4f5', '#a78bfa', '#2ee6a6', '#c6f250', '#fb8a3c', '#38bdf8', '#f472b6', '#facc15'];
 
 function token(): string {
   if (typeof window === 'undefined') return '';
-  return localStorage.getItem('south_street_token') || '';
+  return getAuthToken() || '';
 }
 
 function bytes(value: number): string {

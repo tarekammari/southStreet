@@ -4,7 +4,7 @@
  * so the card reads like a profile instead of a raw table row.
  */
 
-import { formatSelectDisplay, getFieldSelectOptions, isMultiSelectField } from './record-field-options';
+import { formatSelectDisplay, getFieldSelectOptions, isMultiSelectField, isListTagField } from './record-field-options';
 import { getColumnLabelAr } from './table-column-labels';
 import {
   isAvatarInitial,
@@ -62,6 +62,7 @@ const TECHNICAL_FIELDS = new Set([
 /** Staff profiles use التصنيف instead of a free-text الحالة badge. */
 const OMITTED_BY_TABLE: Record<string, Set<string>> = {
   morshids: new Set(['status']),
+  hotels: new Set(['latitude', 'longitude', 'hotel_id']),
 };
 
 function isOmitted(column: RecordColumn, tableName?: string): boolean {
@@ -124,6 +125,20 @@ function buildField(
   const empty = raw === null || raw === undefined || String(raw).trim() === '';
 
   const asString = empty ? '' : typeof raw === 'object' ? JSON.stringify(raw) : String(raw).trim();
+
+  if (column.name.toLowerCase() === 'images' || column.name.toLowerCase() === 'videos') {
+    return {
+      name: column.name,
+      label,
+      kind: 'media',
+      text: asString,
+      chips: [],
+      empty,
+      isKey,
+      full: true,
+    };
+  }
+
   const chips = empty ? null : parseChips(raw);
 
   if (chips) {
@@ -166,7 +181,7 @@ function buildField(
     chips: [],
     empty,
     isKey,
-    full: kind === 'longtext' || kind === 'media',
+    full: kind === 'longtext' || kind === 'media' || isListTagField(column.name),
   };
 }
 
@@ -195,7 +210,7 @@ export function buildDetailLayout(
     const field = buildField(column, row[column.name], keyColumn, tableName);
 
     // Photos live in the hero slider, so they'd be duplicated noise when reading
-    if (field.kind === 'media' && mode === 'view') continue;
+    if (field.kind === 'media' && mode === 'view' && column.name.toLowerCase() !== 'videos') continue;
 
     // While editing, empty fields are the ones you came to fill in
     const hidden = isTechnical(column, keyColumn) || (mode === 'view' && field.empty);

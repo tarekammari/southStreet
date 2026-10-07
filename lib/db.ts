@@ -1,4 +1,11 @@
+/**
+ * Domain data-access layer built on better-sqlite3.
+ * Connection/bootstrap live in `lib/sqlite.ts` (`getSqliteDb`); this module adds typed helpers
+ * and business queries. Prefer importing from here for app features; use sqlite.ts only when
+ * you need the raw Database handle. Do not merge these files aggressively.
+ */
 import { getSqliteDb } from './sqlite';
+import { parsePackageList } from './package-lists';
 import {
   User, Message, Receipt, AuditLog, UserRole,
   AgencySettings, Season, Hotel, Flight, Morshid, Package, Reservation,
@@ -249,9 +256,9 @@ export function getDatabase(): DatabaseSchema {
       currency: pr.currency,
       amount: pr.amount
     })),
-    included_services: JSON.parse(p.included_services || '[]'),
-    excluded_services: JSON.parse(p.excluded_services || '[]'),
-    booking_conditions: JSON.parse(p.booking_conditions || '[]'),
+    included_services: parsePackageList(p.included_services),
+    excluded_services: parsePackageList(p.excluded_services),
+    booking_conditions: parsePackageList(p.booking_conditions),
     cancellation_policy: p.cancellation_policy,
     capacity: p.capacity,
     reserved: p.reserved,
@@ -593,7 +600,7 @@ export function dbSaveReceipt(receipt: Receipt): Receipt {
   };
 
   db.prepare(`
-    INSERT INTO receipts (id, pilgrimName, pilgrimCode, packageName, totalAmount, paidAmount, remainingAmount, paymentMethod, date, accountantName, status)
+    INSERT OR REPLACE INTO receipts (id, pilgrimName, pilgrimCode, packageName, totalAmount, paidAmount, remainingAmount, paymentMethod, date, accountantName, status)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     savedReceipt.id,
@@ -622,3 +629,6 @@ export function dbGetPackageById(packageId: string): Package | null {
   return packages.find(p => p.package_id === packageId) || null;
 }
 
+
+/** Re-export connection getter for callers that only need the handle via the db module. */
+export { getSqliteDb } from './sqlite';

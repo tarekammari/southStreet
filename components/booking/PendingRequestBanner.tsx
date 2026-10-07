@@ -5,18 +5,31 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Reservation, User } from '@/types';
-import { isActiveReservation, isAgencyConfirmed } from '@/lib/booking-catalog';
+import {
+  isActiveReservation,
+  isAgencyConfirmed,
+  isAwaitingDepositConfirmation,
+} from '@/lib/booking-catalog';
 import { toPortalRole } from '@/lib/roles';
 import UmrahCountdown from '@/components/booking/UmrahCountdown';
+import { authHeaders, getAuthToken, apiFetch, jsonAuthHeaders } from '@/lib/api-client';
 
-function authHeaders(): HeadersInit {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('south_street_token') : null;
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
 
 function isPendingConfirmation(reservation: Reservation | null): reservation is Reservation {
   if (!reservation) return false;
+  if (isAwaitingDepositConfirmation(reservation.status, reservation.payment_status, reservation.paid_amount)) {
+    return false;
+  }
   return isActiveReservation(reservation.status) && !isAgencyConfirmed(reservation.status);
+}
+
+function isAwaitingDeposit(reservation: Reservation | null): reservation is Reservation {
+  if (!reservation) return false;
+  return isAwaitingDepositConfirmation(
+    reservation.status,
+    reservation.payment_status,
+    reservation.paid_amount
+  );
 }
 
 export function useActiveTrip(user?: User | null) {
@@ -25,7 +38,7 @@ export function useActiveTrip(user?: User | null) {
 
   useEffect(() => {
     const pilgrim = user && toPortalRole(user.role, { email: user.email, roleName: user.roleName }) === 'pilgrim';
-    const token = localStorage.getItem('south_street_token');
+    const token = getAuthToken();
     if (!pilgrim || !token) {
       setReservation(null);
       setLoading(false);
@@ -55,11 +68,17 @@ export function useActiveTrip(user?: User | null) {
     };
   }, [user]);
 
+  const awaitingDeposit = isAwaitingDeposit(reservation);
   return {
     reservation,
     loading,
     pending: isPendingConfirmation(reservation),
-    confirmed: Boolean(reservation && isAgencyConfirmed(reservation.status)),
+    awaitingDeposit,
+    confirmed: Boolean(
+      reservation
+      && isAgencyConfirmed(reservation.status)
+      && !awaitingDeposit
+    ),
   };
 }
 
@@ -97,6 +116,38 @@ export function PendingRequestStrip({
         {reservation.reservation_number ? (
           <em>{reservation.reservation_number}</em>
         ) : null}
+      </span>
+      <Link href="/book" className="request-status-cta">
+        عرض الطلب
+        <ArrowLeft className="w-3.5 h-3.5" aria-hidden />
+      </Link>
+    </motion.div>
+  );
+}
+
+export function AwaitingDepositStrip({
+  reservation,
+  home = false,
+}: {
+  reservation: Reservation;
+  home?: boolean;
+}) {
+  return (
+    <motion.div
+      className={`request-status is-deposit${home ? ' is-home' : ' is-panel'}`}
+      initial={{ opacity: 0, y: -6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+      role="status"
+      aria-live="polite"
+    >
+      <span className="request-status-badge is-warn">
+        <span className="request-status-dot" aria-hidden />
+        بانتظار العربون
+      </span>
+      <span className="request-status-copy">
+        <strong title={reservation.package_name}>{reservation.package_name}</strong>
+        <em>ملاحظة: الدفعة الأولى غير مسجّلة — التأكيد النهائي عند المحاسب</em>
       </span>
       <Link href="/book" className="request-status-cta">
         عرض الطلب
@@ -144,15 +195,17 @@ export default function PendingRequestBanner({
   user?: User | null;
   variant?: 'home' | 'inline';
 }) {
-  const { reservation, loading, pending, confirmed } = useActiveTrip(user);
+  const { reservation, loading, pending, confirmed, awaitingDeposit } = useActiveTrip(user);
 
   if (loading || !reservation) return null;
 
   const strip = pending
     ? <PendingRequestStrip reservation={reservation} home={variant === 'home'} />
-    : confirmed
-      ? <ConfirmedTripStrip reservation={reservation} home={variant === 'home'} />
-      : null;
+    : awaitingDeposit
+      ? <AwaitingDepositStrip reservation={reservation} home={variant === 'home'} />
+      : confirmed
+        ? <ConfirmedTripStrip reservation={reservation} home={variant === 'home'} />
+        : null;
 
   if (!strip) return null;
 

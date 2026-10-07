@@ -1,5 +1,6 @@
 /**
  * Canonical login roles and the portal options each role is allowed to use.
+ * `types/index.ts` re-exports LoginRole/PortalRole for app-wide convenience; keep runtime role strings stable for DB/API.
  */
 
 export const LOGIN_ROLES = [
@@ -16,8 +17,8 @@ export type LoginRole = (typeof LOGIN_ROLES)[number];
 export type PortalRole = 'admin' | 'manager' | 'murshid' | 'accountant' | 'agent' | 'pilgrim';
 
 export const LOGIN_ROLE_LABELS: Record<LoginRole, string> = {
-  SUPER_ADMIN: 'مدير النظام العام',
-  AGENCY_MANAGER: 'مدير الوكالة',
+  SUPER_ADMIN: 'المشرف العام (Super Admin)',
+  AGENCY_MANAGER: 'المشرف (Admin)',
   ACCOUNTANT: 'محاسب الوكالة',
   GUIDE_MURSHID: 'مرشد ديني',
   AGENCY_AGENT: 'موظف الوكالة',
@@ -51,7 +52,8 @@ export function normalizeLoginRole(
   const category = extra?.category || '';
   const status = extra?.status || '';
 
-  if (name.includes('المدير العام') || status === 'إدارة الوكالة') return 'AGENCY_MANAGER';
+  // Privileged roles are never inferred from a name, title or email — only an
+  // explicit SUPER_ADMIN / AGENCY_MANAGER value grants them.
   if (name.includes('محاسب') || category === 'accountant' || email.includes('accountant')) return 'ACCOUNTANT';
   if (
     name.includes('مرشد') ||
@@ -62,9 +64,7 @@ export function normalizeLoginRole(
   ) {
     return 'GUIDE_MURSHID';
   }
-  if (email.includes('admin')) return 'SUPER_ADMIN';
-  if (email.includes('manager')) return 'AGENCY_MANAGER';
-  if (category === 'staff') return 'AGENCY_AGENT';
+  if (category === 'staff' || status === 'إدارة الوكالة') return 'AGENCY_AGENT';
   if (r === 'AGENCY_AGENT') return 'AGENCY_AGENT';
   return 'PILGRIM_USER';
 }
@@ -98,9 +98,22 @@ export function postLoginPath(role: LoginRole | string): '/admin' | '/portal' {
   return login === 'SUPER_ADMIN' || login === 'AGENCY_MANAGER' ? '/admin' : '/portal';
 }
 
+/** Super Admin and Admin: sign in with password + hardware security key. */
+export const PRIVILEGED_ROLES: readonly LoginRole[] = ['SUPER_ADMIN', 'AGENCY_MANAGER'];
+
+export function isPrivilegedRole(role: LoginRole | string | undefined | null): boolean {
+  return PRIVILEGED_ROLES.includes(normalizeLoginRole(role || ''));
+}
+
+export function isSuperAdminRole(role: LoginRole | string | undefined | null): boolean {
+  return normalizeLoginRole(role || '') === 'SUPER_ADMIN';
+}
+
+/** Raw `users.role` spellings that mean Super Admin (legacy rows use lowercase). */
+export const SUPER_ADMIN_ROLE_VALUES = ['super_admin', 'admin', 'superadmin'] as const;
+
 export function requiresSecurityKey(role: LoginRole | string): boolean {
-  const login = normalizeLoginRole(role);
-  return login === 'SUPER_ADMIN' || login === 'AGENCY_MANAGER';
+  return isPrivilegedRole(role);
 }
 
 export const PORTAL_TABS: Record<PortalRole, { tab: string; label: string }[]> = {

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { KeyRound, QrCode, RefreshCw, Copy, Check, Download } from 'lucide-react';
 import { LOGIN_ROLE_OPTIONS, LOGIN_ROLE_LABELS, LoginRole } from '@/lib/roles';
 
@@ -37,7 +37,7 @@ export default function LoginCredentialsPanel({
 
   const query = tableName === 'morshids' ? `staffId=${encodeURIComponent(recordId)}` : `userId=${encodeURIComponent(recordId)}`;
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -54,14 +54,14 @@ export default function LoginCredentialsPanel({
     } finally {
       setLoading(false);
     }
-  };
+  }, [query]);
 
   useEffect(() => {
-    load();
+    void load();
     setPassword('');
     setQrPayload('');
     setQrImage('');
-  }, [recordId, tableName]);
+  }, [load]);
 
   const post = async (action: string, extra?: Record<string, string>) => {
     setBusy(action);

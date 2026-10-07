@@ -13,22 +13,15 @@ import {
   updateRule,
   upsertRule,
 } from '@/lib/security-monitor';
+import { requireRole, ADMINS, SUPER_ONLY } from '@/lib/staff-gate';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const ADMIN_ROLES = new Set(['SUPER_ADMIN', 'AGENCY_MANAGER']);
+const ADMIN_ROLES = new Set(['SUPER_ADMIN']);
 
 function requireAdmin(req: NextRequest) {
-  const token = getTokenFromRequest(req);
-  const payload = token ? verifyToken(token) : null;
-  if (!payload?.sub) return null;
-  const role = normalizeLoginRole(String(payload.role || ''), {
-    email: payload.email,
-    roleName: payload.roleName,
-  });
-  if (!ADMIN_ROLES.has(role)) return null;
-  return payload;
+  return requireRole(req, SUPER_ONLY);
 }
 
 function audit(actor: string, role: string, action: string, details: string) {
@@ -40,8 +33,9 @@ function audit(actor: string, role: string, action: string, details: string) {
 }
 
 export async function POST(req: NextRequest) {
-  const admin = requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: 'صلاحية غير كافية' }, { status: 403 });
+  const gate = requireAdmin(req);
+  if ('error' in gate) return gate.error;
+  const admin = gate.payload;
 
   const body = await req.json().catch(() => ({}));
   const action = String(body?.action || '');
@@ -101,7 +95,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  const admin = requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: 'صلاحية غير كافية' }, { status: 403 });
+  const gate = requireAdmin(req);
+  if ('error' in gate) return gate.error;
   return NextResponse.json({ rules: listRules(), settings: getFirewallSettings() });
 }

@@ -5,52 +5,52 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const SECTION2_IMAGES = [
   {
-    src: '/images/section2_01.png',
+    src: '/images/section2_01.webp',
     title: 'فندق منارات غزة وميسان المقام — مكة المكرمة',
     info: '📍 350م إلى 600م فقط عن صحن الحرم المكي الشريف • إعاشة كاملة',
   },
   {
-    src: '/images/section2_02.png',
+    src: '/images/section2_02.webp',
     title: 'مرافقة وإرشاد في مناسك العمرة خطوة بخطوة',
     info: '🤲 طاقم متخصص للتوجيه الفقهي والميداني في الطواف والسعي',
   },
   {
-    src: '/images/section2_03.png',
+    src: '/images/section2_03.webp',
     title: 'بوفيه مفتوح ووجبات يومية فاخرة',
     info: '🍽️ إفطار وعشاء يومي متنوع بأعلى معايير النظافة والجودة',
   },
   {
-    src: '/images/section2_04.png',
+    src: '/images/section2_04.webp',
     title: 'زيارة الروضة الشريفة والمسجد النبوي',
     info: '🕌 استخراج تصاريح تطبيق نسك ودخول الروضة بكل سهولة',
   },
   {
-    src: '/images/section2_05.png',
+    src: '/images/section2_05.webp',
     title: 'رحلات جوية مباشرة بدون توقف',
     info: '✈️ من الجزائر، وهران، وعنابة عبر الخطوط الجوية الجزائرية والسعودية',
   },
   {
-    src: '/images/section2_06.png',
+    src: '/images/section2_06.webp',
     title: 'غرف مجهزة بأرقى الأثاث والتجهيزات الفندقية',
     info: '🛏️ تكييف مركزي، شاشات ذكية، وخدمة الغرف على مدار 24 ساعة',
   },
   {
-    src: '/images/section2_07.png',
+    src: '/images/section2_07.webp',
     title: 'حافلات حديثة ومكيفة لنقل المعتمرين',
     info: '🚌 التنقل بين مكة والمدينة والمطار في حافلات VIP فاخرة',
   },
   {
-    src: '/images/section2_08.png',
+    src: '/images/section2_08.webp',
     title: 'محادثات ودعم مباشر عبر البوابة المشفرة',
     info: '📱 قناة تواصل E2E خاصة بمجموعات المعتمرين لحل أي استفسار',
   },
   {
-    src: '/images/section2_09.png',
+    src: '/images/section2_09.webp',
     title: 'أكثر من 12 عاماً في خدمة ضيوف الرحمن',
     info: '🏆 وكالة معتمدة رسمياً ومصنفة ضمن أفضل وكالات العمرة بالجزائر',
   },
   {
-    src: '/images/section2_10.png',
+    src: '/images/section2_10.webp',
     title: 'استخراج التأشيرات والوثائق في أسرع وقت',
     info: '📄 نتكفل بجميع المعاملات والإجراءات الرسمية بدون عناء',
   },

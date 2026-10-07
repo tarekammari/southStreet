@@ -1,11 +1,18 @@
 import type { Metadata, Viewport } from 'next';
-import { Tajawal, Amiri, Cairo, Aref_Ruqaa } from 'next/font/google';
+import { Tajawal, Amiri, Cairo, Aref_Ruqaa, Roboto } from 'next/font/google';
 import './globals.css';
+import './programs.css';
+import './home.css';
+import './security.css';
+import '../components/dashboards/accountant-theme.css';
 import SessionGuard from '@/components/SessionGuard';
+import IntroSplash from '@/components/IntroSplash';
+import { INTRO_BOOT_SCRIPT } from '@/lib/intro-boot';
+import './motion.css';
 
 const tajawal = Tajawal({
   subsets: ['arabic'],
-  weight: ['400', '700', '800'],
+  weight: ['400', '500', '700', '800'],
   display: 'swap',
   variable: '--font-tajawal',
 });
@@ -23,6 +30,13 @@ const cairo = Cairo({
   weight: ['400', '700', '800'],
   display: 'swap',
   variable: '--font-cairo',
+});
+
+const roboto = Roboto({
+  weight: ['400', '500', '700'],
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-roboto',
 });
 
 const arefRuqaa = Aref_Ruqaa({
@@ -49,8 +63,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ar" dir="rtl" className={`${tajawal.variable} ${amiri.variable} ${cairo.variable} ${arefRuqaa.variable}`}>
+    <html
+      lang="ar"
+      dir="rtl"
+      className={`${tajawal.variable} ${roboto.variable} ${amiri.variable} ${cairo.variable} ${arefRuqaa.variable}`}
+    >
+      <head>
+        {/* Decides before first paint whether the intro splash plays (see lib/intro.ts). */}
+        <script dangerouslySetInnerHTML={{ __html: INTRO_BOOT_SCRIPT }} />
+      </head>
       <body className="bg-slate-app text-slate-darkBg antialiased flex flex-col min-h-screen">
+        <IntroSplash />
         <SessionGuard />
         {children}
       </body>

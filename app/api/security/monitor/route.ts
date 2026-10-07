@@ -15,29 +15,17 @@ import {
   listRules,
 } from '@/lib/security-monitor';
 import type { Severity } from '@/lib/security-threats';
+import { requireRole, ADMINS, SUPER_ONLY } from '@/lib/staff-gate';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const ADMIN_ROLES = new Set(['SUPER_ADMIN', 'AGENCY_MANAGER']);
+const ADMIN_ROLES = new Set(['SUPER_ADMIN']);
 
 function requireAdmin(req: NextRequest): { ok: true; name: string } | { ok: false; res: NextResponse } {
-  const token = getTokenFromRequest(req);
-  const payload = token ? verifyToken(token) : null;
-  if (!payload?.sub) {
-    return { ok: false, res: NextResponse.json({ error: 'مطلوب تسجيل دخول الإدارة' }, { status: 401 }) };
-  }
-  const role = normalizeLoginRole(String(payload.role || ''), {
-    email: payload.email,
-    roleName: payload.roleName,
-  });
-  if (!ADMIN_ROLES.has(role) && role !== 'SUPER_ADMIN') {
-    const portal = String(payload.role || '').toLowerCase();
-    if (portal !== 'admin' && portal !== 'manager') {
-      return { ok: false, res: NextResponse.json({ error: 'صلاحية غير كافية' }, { status: 403 }) };
-    }
-  }
-  return { ok: true, name: payload.name || 'admin' };
+  const gate = requireRole(req, SUPER_ONLY);
+  if ('error' in gate) return { ok: false, res: gate.error };
+  return { ok: true, name: gate.account.name || 'admin' };
 }
 
 export async function GET(req: NextRequest) {

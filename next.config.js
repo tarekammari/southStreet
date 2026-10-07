@@ -46,6 +46,12 @@ const nextConfig = {
   },
   experimental: {
     optimizePackageImports: ['lucide-react'],
+    // Hotel videos are multipart uploads. The default 10MB clone limit
+    // truncates the body and the parser reports "Failed to parse body as FormData".
+    middlewareClientMaxBodySize: '90mb',
+    serverActions: {
+      bodySizeLimit: '90mb',
+    },
   },
   // better-sqlite3 is a native Node module — must not be bundled for Vercel
   serverExternalPackages: ['better-sqlite3', 'bcryptjs'],

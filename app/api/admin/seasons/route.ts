@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSqliteDb } from '@/lib/sqlite';
+import { requireRole, ADMINS } from '@/lib/staff-gate';
 
 export async function GET() {
   try {
@@ -12,6 +13,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  // Writes are Admin-only (reads stay public for the catalog pages).
+  const gate = requireRole(req, ADMINS);
+  if ('error' in gate) return gate.error;
   try {
     const body = await req.json();
     const db = getSqliteDb();
@@ -55,6 +59,9 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  // Writes are Admin-only (reads stay public for the catalog pages).
+  const gate = requireRole(req, ADMINS);
+  if ('error' in gate) return gate.error;
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');

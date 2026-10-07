@@ -1,0 +1,85 @@
+{
+  "metadata": {
+    "title": "SCF Algérie — Règles applicatives",
+    "source": "JORADP",
+    "official_document": "Journal officiel n°19 du 25 mars 2009",
+    "order": "Arrêté du 23 Rajab 1429 correspondant au 26 juillet 2008",
+    "system": "Système Comptable Financier (SCF)",
+    "official_url": "https://www.joradp.dz/ftp/jo-francais/2009/f2009019.pdf",
+    "version": "2009-reference",
+    "warning": "Vérifier les textes modificatifs et complémentaires ultérieurs avant usage comme règle juridique actuelle."
+  },
+  "application_directives": [
+    "Identifier la nature économique réelle de l'opération.",
+    "Identifier actif, passif, capitaux propres, charge ou produit.",
+    "Identifier la date de reconnaissance.",
+    "Appliquer la méthode d'évaluation correspondant à la catégorie.",
+    "Conserver valeur brute, amortissements, pertes de valeur et valeur nette lorsque pertinent.",
+    "Relier les opérations à leurs pièces justificatives.",
+    "Ne pas inventer une écriture lorsque des informations essentielles manquent.",
+    "Conserver une piste d'audit pour les modifications.",
+    "Distinguer règle légale, procédure interne, donnée, calcul et présentation.",
+    "Demander une validation humaine en cas d'ambiguïté importante."
+  ],
+  "principles": [
+    "image_fidele",
+    "fiabilite",
+    "pertinence",
+    "prudence",
+    "permanence_des_methodes",
+    "rattachement_des_charges_aux_produits",
+    "substance_economique",
+    "tracabilite"
+  ],
+  "account_classes": {
+    "1": "Comptes de capitaux",
+    "2": "Comptes d'immobilisations",
+    "3": "Comptes de stocks et encours",
+    "4": "Comptes de tiers",
+    "5": "Comptes financiers",
+    "6": "Comptes de charges",
+    "7": "Comptes de produits"
+  },
+  "key_rules": {
+    "stocks": {
+      "rule": "Évaluer selon les règles SCF, notamment au plus faible du coût et de la valeur nette de réalisation lorsque cette comparaison est applicable.",
+      "nr_value": "Prix de vente estimé moins coûts d'achèvement et de commercialisation."
+    },
+    "fixed_assets": {
+      "component_accounting": "Séparer les composants lorsque les durées d'utilité ou rythmes de consommation des avantages économiques diffèrent.",
+      "subsequent_expenditure": "Analyser les dépenses ultérieures pour déterminer charge ou immobilisation."
+    },
+    "documents": {
+      "required_properties": [
+        "datés",
+        "classés",
+        "numérotés",
+        "conservés",
+        "rattachés à l'opération"
+      ]
+    },
+    "audit_trail": {
+      "required": true,
+      "minimum_fields": [
+        "user",
+        "timestamp",
+        "old_value",
+        "new_value",
+        "reason",
+        "supporting_document"
+      ]
+    }
+  },
+  "financial_statements": [
+    "bilan",
+    "compte_de_resultat",
+    "variations_des_capitaux_propres",
+    "flux_de_tresorerie_lorsque_requis",
+    "annexe_aux_etats_financiers"
+  ],
+  "validation_policy": {
+    "missing_information": "Ne pas inventer; signaler les données manquantes.",
+    "ambiguous_operation": "Proposer les traitements possibles et demander validation habilitée.",
+    "closed_period": "Ne pas modifier silencieusement; utiliser une procédure de correction tracée."
+  }
+}

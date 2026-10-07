@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import dynamic from 'next/dynamic';
 import Navbar from '@/components/Navbar';
 import SakhrAgent from '@/components/lazy/LazySakhrAgent';
@@ -10,6 +10,7 @@ import { toPortalRole, PORTAL_TABS, resolvePortalTab, pilgrimHomeSection } from 
 import { isActiveReservation } from '@/lib/booking-catalog';
 import AgencyPendingBookings from '@/components/booking/AgencyPendingBookings';
 import ReviewComposer from '@/components/ReviewComposer';
+import WelcomeBanner from '@/components/WelcomeBanner';
 import AccountSecurityPanel from '@/components/AccountSecurityPanel';
 import SessionHeartbeat from '@/components/SessionHeartbeat';
 import LoginModal from '@/components/LoginModal';
@@ -47,8 +48,9 @@ const AiKnowledgeManager = dynamic(() => import('@/components/AiKnowledgeManager
 import {
   ShieldCheck, RefreshCw
 } from 'lucide-react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { authHeaders, getAuthToken, apiFetch, jsonAuthHeaders } from '@/lib/api-client';
 
 function mapClientUser(u: any): User {
   const role = toPortalRole(u.role, { email: u.email, roleName: u.roleName });
@@ -69,8 +71,11 @@ function mapClientUser(u: any): User {
 
 function CustomerPortalContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const initialTab = searchParams.get('tab') || '';
   const demoMode = searchParams.get('demo') === '1';
+  const bootTabRef = useRef(initialTab);
+  const bootDemoRef = useRef(demoMode);
 
   const [activeTab, setActiveTab] = useState<string>(initialTab);
   const [authReady, setAuthReady] = useState(false);
@@ -83,14 +88,27 @@ function CustomerPortalContent() {
   const [pilgrimsList, setPilgrimsList] = useState<User[]>([]);
   const [isUploading, setIsUploading] = useState(false);
 
+  const goPortalTab = (tab: string) => {
+    setActiveTab(tab);
+    try {
+      const params = new URLSearchParams(searchParams.toString());
+      if (tab) params.set('tab', tab);
+      else params.delete('tab');
+      const qs = params.toString();
+      router.replace(qs ? `/portal?${qs}` : '/portal', { scroll: false });
+    } catch {
+      /* ignore */
+    }
+  };
+
   const loadBookings = () => {
-    const token = localStorage.getItem('south_street_token');
+    const token = getAuthToken();
     if (!token) {
       setReservations([]);
       setReceipts([]);
       return;
     }
-    fetch('/api/bookings', { headers: { Authorization: `Bearer ${token}` } })
+    fetch('/api/bookings', { headers: authHeaders() })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (!data) return;
@@ -105,7 +123,7 @@ function CustomerPortalContent() {
       const mapped = mapClientUser(u);
       const portalRole = toPortalRole(mapped.role, { email: mapped.email, roleName: mapped.roleName });
       setCurrentUser(mapped);
-      setActiveTab(resolvePortalTab(portalRole, initialTab));
+      setActiveTab(resolvePortalTab(portalRole, bootTabRef.current));
       return portalRole;
     };
 
@@ -116,7 +134,7 @@ function CustomerPortalContent() {
       } catch {
         localStorage.removeItem('south_street_user');
       }
-    } else if (demoMode) {
+    } else if (bootDemoRef.current) {
       applyUser({
         id: 'usr_pilgrim_user',
         code: 'PILGRIM-101',
@@ -132,7 +150,7 @@ function CustomerPortalContent() {
       if (user) applyUser(user);
     });
 
-    if (demoMode) {
+    if (bootDemoRef.current) {
       setReservations([
         {
           reservation_id: 'res_1001',
@@ -227,6 +245,17 @@ function CustomerPortalContent() {
     ]);
     setAuthReady(true);
   }, []);
+
+
+  useEffect(() => {
+    /* sync portal tab from URL (Navbar ?tab=accountant etc.) */
+    if (!currentUser) return;
+    const portalRole = toPortalRole(currentUser.role, { email: currentUser.email, roleName: currentUser.roleName });
+    const tab = searchParams.get('tab') || '';
+    setActiveTab(resolvePortalTab(portalRole, tab));
+    // Intentionally keyed on identity/role + searchParams, not full currentUser object
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, currentUser?.id, currentUser?.role, currentUser?.email, currentUser?.roleName]);
 
   // Quick switch role helper for testing
   const switchDemoRole = (role: 'pilgrim' | 'murshid' | 'accountant' | 'admin' | 'agent' | 'manager') => {
@@ -331,7 +360,7 @@ function CustomerPortalContent() {
 
   const adoptSession = () => {
     const session = localStorage.getItem('south_street_user');
-    const token = localStorage.getItem('south_street_token');
+    const token = getAuthToken();
     if (!session) return;
     try {
       const mapped = mapClientUser(JSON.parse(session));
@@ -373,7 +402,13 @@ function CustomerPortalContent() {
 
   const portalRole = toPortalRole(currentUser.role, { email: currentUser.email, roleName: currentUser.roleName });
   const isPilgrim = portalRole === 'pilgrim';
+  const isAccountant = portalRole === 'accountant';
   const viewTab = resolvePortalTab(portalRole, activeTab);
+  const mainLayoutClass = isPilgrim
+    ? 'max-w-3xl pilgrim-main px-4 sm:px-6'
+    : isAccountant
+      ? 'portal-main-accountant w-full max-w-none px-2 sm:px-3 lg:px-4'
+      : 'max-w-6xl px-4 sm:px-6';
   const displayName = String(currentUser.name || '').replace(/\s*\(.*\)\s*$/, '').trim();
 
   return (
@@ -381,7 +416,8 @@ function CustomerPortalContent() {
       <SessionHeartbeat />
       <Navbar currentUser={currentUser} variant="light" onLogout={handleLogout} />
 
-        <main className={`pt-28 pb-16 mx-auto px-4 sm:px-6 space-y-6 ${isPilgrim ? 'max-w-3xl pilgrim-main' : 'max-w-6xl'}`}>
+        <main className={`pt-28 pb-16 mx-auto space-y-6 ${mainLayoutClass}`}>
+          {!isAccountant ? <WelcomeBanner /> : null}
         {demoMode && (
         <div className="luxury-card-static p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs animate-fade-up">
           <div className="flex items-center gap-2">
@@ -401,7 +437,8 @@ function CustomerPortalContent() {
         </div>
         )}
 
-        {isPilgrim ? (
+        {/* The accountant reaches its three tabs from the navbar list, so no header here. */}
+        {portalRole === 'accountant' ? null : isPilgrim ? (
           <div className="pilgrim-bar animate-fade-up">
             <strong className="pilgrim-id-name">{displayName}</strong>
             <nav className="pilgrim-tabs" aria-label="بوابة المعتمر">
@@ -409,7 +446,7 @@ function CustomerPortalContent() {
                 <button
                   key={item.tab}
                   type="button"
-                  onClick={() => setActiveTab(item.tab)}
+                  onClick={() => goPortalTab(item.tab)}
                   className={viewTab === item.tab ? 'is-on' : ''}
                 >
                   {item.label}
@@ -451,7 +488,7 @@ function CustomerPortalContent() {
               ) : (
                 <button
                   key={item.tab}
-                  onClick={() => setActiveTab(item.tab)}
+                  onClick={() => goPortalTab(item.tab)}
                   className={`portal-tab flex items-center gap-1.5 ${viewTab === item.tab ? 'portal-tab-active' : 'portal-tab-inactive'}`}
                 >
                   {item.label}
@@ -476,9 +513,9 @@ function CustomerPortalContent() {
           />
         )}
 
-        {currentUser.role === 'accountant' && activeTab === 'accountant' && (
-          <div className="space-y-4 animate-fade-up">
-            <AgencyPendingBookings />
+        {portalRole === 'accountant' && viewTab === 'accountant' && (
+          <div className="animate-fade-up">
+            {/* Booking requests live inside the dashboard's "الطلبات" section. */}
             <AccountantDashboard currentUser={currentUser} />
           </div>
         )}
@@ -552,6 +589,7 @@ function CustomerPortalContent() {
         {viewTab === 'account' && isPilgrim && (
           <div className="pilgrim-account animate-fade-up">
             <AccountSecurityPanel compact />
+            <p className="review-cta-hint">بعد انتهاء الرحلة، شاركنا تجربتك لمساعدة المعتمرين القادمين.</p>
             <ReviewComposer defaultName={displayName} compact />
           </div>
         )}
@@ -561,7 +599,7 @@ function CustomerPortalContent() {
         )}
       </main>
 
-      {!isPilgrim ? <SakhrAgent /> : null}
+      <SakhrAgent />
     </div>
   );
 }

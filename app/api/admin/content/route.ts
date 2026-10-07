@@ -1,10 +1,34 @@
 import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { getSqliteDb } from '@/lib/sqlite';
+import { verifyToken } from '@/lib/auth';
+import { getTokenFromRequest } from '@/lib/request-auth';
+import { normalizeLoginRole } from '@/lib/roles';
+import { requireRole, ADMINS, SUPER_ONLY } from '@/lib/staff-gate';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-export async function GET(req: Request) {
+const READ_ROLES = new Set(['SUPER_ADMIN', 'AGENCY_MANAGER']);
+const WRITE_ROLES = new Set(['SUPER_ADMIN', 'AGENCY_MANAGER']);
+
+function requireContentAccess(req: NextRequest, _mutating: boolean) {
+  return requireRole(req, ADMINS);
+}
+
+
+const __ADMIN_API_ROLES = new Set(['SUPER_ADMIN', 'AGENCY_MANAGER']);
+
+function requireAdminApi(req: any) {
+  return requireRole(req, ADMINS);
+}
+
+export async function GET(req: NextRequest) {
+  const __gate = requireAdminApi(req);
+  if ('error' in __gate) return __gate.error;
+
+  const gate = requireContentAccess(req, false);
+  if ('error' in gate) return gate.error;
   try {
     const { searchParams } = new URL(req.url);
     const section = searchParams.get('section');
@@ -23,7 +47,12 @@ export async function GET(req: Request) {
   }
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  const __gate = requireAdminApi(req);
+  if ('error' in __gate) return __gate.error;
+
+  const gate = requireContentAccess(req, true);
+  if ('error' in gate) return gate.error;
   try {
     const body = await req.json();
     const db = getSqliteDb();
@@ -61,11 +90,19 @@ export async function POST(req: Request) {
   }
 }
 
-export async function PUT(req: Request) {
+export async function PUT(req: NextRequest) {
+  const __gate = requireAdminApi(req);
+  if ('error' in __gate) return __gate.error;
+
   return POST(req);
 }
 
-export async function DELETE(req: Request) {
+export async function DELETE(req: NextRequest) {
+  const __gate = requireAdminApi(req);
+  if ('error' in __gate) return __gate.error;
+
+  const gate = requireContentAccess(req, true);
+  if ('error' in gate) return gate.error;
   try {
     const { searchParams } = new URL(req.url);
     const key = searchParams.get('key');

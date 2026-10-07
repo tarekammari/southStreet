@@ -2,10 +2,11 @@
 
 import React, { useEffect, useState } from 'react';
 import { CheckCircle2, KeyRound, Save } from 'lucide-react';
+import { authHeaders, getAuthToken, apiFetch, jsonAuthHeaders } from '@/lib/api-client';
 
 function token(): string {
   if (typeof window === 'undefined') return '';
-  return localStorage.getItem('south_street_token') || '';
+  return getAuthToken() || '';
 }
 
 export default function GoogleLoginSettings() {

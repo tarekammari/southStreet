@@ -8,9 +8,16 @@ import {
   Reservation,
   TravelerInfo,
 } from '@/types';
-import { ROOM_LABELS, canSelfManageReservation, isActiveReservation, isAgencyConfirmed, isPackageExpired } from '@/lib/booking-catalog';
+import {
+  DEPOSIT_PERCENT,
+  ROOM_LABELS,
+  canSelfManageReservation,
+  isActiveReservation,
+  isAgencyConfirmed,
+  isPackageExpired,
+} from '@/lib/booking-catalog';
 import { documentVerifyCode } from '@/lib/booking-documents';
-import { dbSaveMessage, dbSaveReceipt } from '@/lib/db';
+import { dbSaveMessage } from '@/lib/db';
 import { buildDmChatId } from '@/lib/chat-utils';
 
 export {
@@ -25,6 +32,8 @@ export {
   FREE_CANCEL_DAYS,
   reservationStatusLabel,
   isAgencyConfirmed,
+  isDemandAccepted,
+  isAwaitingDepositConfirmation,
   isPackageExpired,
 } from '@/lib/booking-catalog';
 
@@ -372,11 +381,29 @@ export function listPendingAgencyReservations(): Reservation[] {
   return rows.map(mapReservationRow);
 }
 
+/** Stage 2: director accepted, the accountant still has to record the deposit. */
+const AWAITING_DEPOSIT_SQL = `(
+  reservation_status = 'PAYMENT_PENDING'
+  OR (reservation_status = 'CONFIRMED' AND IFNULL(paid_amount, 0) <= 0)
+)`;
+
+export function listAwaitingDepositReservations(): Reservation[] {
+  const db = getSqliteDb();
+  const rows = db.prepare(`
+    SELECT * FROM reservations
+    WHERE ${AWAITING_DEPOSIT_SQL}
+    ORDER BY COALESCE(agency_confirmed_at, updated_at, created_at) ASC
+  `).all() as any[];
+  return rows.map(mapReservationRow);
+}
+
+/** Stage 3 and closed outcomes (confirmed, paid, rejected, cancelled). */
 export function listRecentAgencyReservations(limit = 40): Reservation[] {
   const db = getSqliteDb();
   const rows = db.prepare(`
     SELECT * FROM reservations
     WHERE reservation_status NOT IN ('REQUESTED', 'PENDING')
+      AND NOT ${AWAITING_DEPOSIT_SQL}
     ORDER BY COALESCE(updated_at, created_at) DESC
     LIMIT ?
   `).all(limit) as any[];
@@ -458,6 +485,10 @@ function notifyPilgrimAndAgency(input: {
   }
 }
 
+/**
+ * Agency accepts the demand only.
+ * Does NOT mark the deposit as paid — accountant finishes confirmation after the first payment.
+ */
 export function confirmReservationByAgency(
   reservationId: string,
   staff: { id: string; name: string },
@@ -473,32 +504,33 @@ export function confirmReservationByAgency(
 
   const invoice = parseJson<BookingInvoice | null>(row.invoice, null);
   const total = Number(row.total_price) || invoice?.total || 0;
-  const deposit = invoice?.depositAmount ?? Math.round(total * 0.3);
+  const deposit = invoice?.depositAmount ?? Math.round(total * DEPOSIT_PERCENT);
+  const paid = Number(row.paid_amount) || 0;
   const now = new Date().toISOString();
-  const verifyCode = documentVerifyCode(row.reservation_number, 'confirmation', total);
+  const acceptNote = [
+    note || '',
+    `ملاحظة: الطلب مقبول — العربون ${deposit.toLocaleString('ar-DZ')} دج (${Math.round(DEPOSIT_PERCENT * 100)}٪) غير مدفوع بعد. يُكمِل المحاسب التأكيد بعد تحصيل الدفعة الأولى.`,
+  ].filter(Boolean).join('\n');
   const updatedInvoice = invoice
-    ? { ...invoice, remainingAmount: Math.max(0, total - deposit) }
+    ? { ...invoice, depositAmount: deposit, remainingAmount: Math.max(0, total - paid) }
     : null;
 
   db.transaction(() => {
     db.prepare(`
       UPDATE reservations SET
-        reservation_status = 'CONFIRMED',
-        payment_status = 'PARTIALLY_PAID',
-        paid_amount = ?,
+        reservation_status = 'PAYMENT_PENDING',
+        payment_status = CASE WHEN IFNULL(paid_amount, 0) > 0 THEN payment_status ELSE 'UNPAID' END,
+        paid_amount = IFNULL(paid_amount, 0),
         agency_confirmed_at = ?,
         agency_confirmed_by = ?,
         agency_note = ?,
-        document_verify_code = ?,
         invoice = COALESCE(?, invoice),
         updated_at = ?
       WHERE reservation_id = ?
     `).run(
-      deposit,
       now,
       staff.name,
-      note || '',
-      verifyCode,
+      acceptNote,
       updatedInvoice ? JSON.stringify(updatedInvoice) : null,
       now,
       reservationId
@@ -506,33 +538,91 @@ export function confirmReservationByAgency(
     approveCustomerLogin(row.customer_id);
   })();
 
-  const reservation = getReservationById(reservationId) as Reservation;
-
-  const userRow = db.prepare('SELECT code, username FROM users WHERE id = ?').get(row.customer_id) as any;
-  dbSaveReceipt({
-    id: `RCP-${String(row.reservation_number).replace('RES-', '')}`,
-    pilgrimName: row.customer_name,
-    pilgrimCode: userRow?.code || userRow?.username || row.customer_id,
-    packageName: row.package_name,
-    totalAmount: total,
-    paidAmount: deposit,
-    remainingAmount: Math.max(0, total - deposit),
-    paymentMethod: 'دفعة تأكيد أولى (30%) — تحويل بريدي موب / CCP',
-    date: now.slice(0, 10),
-    accountantName: staff.name,
-    status: 'دفعة أولى — بعد تأكيد الوكالة',
-  });
+  // If a deposit was already collected (rare), accountant confirmation can finish immediately.
+  const finished = completeConfirmationAfterDeposit(reservationId, staff);
+  if (finished) return finished;
 
   notifyPilgrimAndAgency({
     customerId: row.customer_id,
     customerName: row.customer_name,
     reservationNumber: row.reservation_number,
-    pilgrimText: `مرحباً ${row.customer_name}، أكّدت الوكالة طلب عمرتك رقم ${row.reservation_number} وتم تفعيل دخول حسابك. الدفعة الأولى ${deposit.toLocaleString('ar-DZ')} دج، والمتبقي ${Math.max(0, total - deposit).toLocaleString('ar-DZ')} دج قبل السفر. برنامجك جاهز في بوابة المعتمر.`,
-    groupText: `تم تأكيد طلب ${row.customer_name} — ${row.package_name} (${row.reservation_number}).`,
+    pilgrimText: `مرحباً ${row.customer_name}، قبلت الوكالة طلب عمرتك رقم ${row.reservation_number} وتم تفعيل دخول حسابك. ملاحظة مهمة: لم تُسجَّل بعد دفعة العربون (${deposit.toLocaleString('ar-DZ')} دج — ${Math.round(DEPOSIT_PERCENT * 100)}٪). يكتمل التأكيد النهائي عند المحاسب بعد تحصيل هذه الدفعة.`,
+    groupText: `قُبل طلب ${row.customer_name} — ${row.package_name} (${row.reservation_number}) — بانتظار العربون عند المحاسب.`,
     packageName: row.package_name,
   });
 
-  return reservation;
+  return getReservationById(reservationId) as Reservation;
+}
+
+/**
+ * Accountant finishes confirmation once the first payment (deposit) is on the books.
+ * Safe to call repeatedly; no-op if deposit is still unpaid.
+ */
+export function completeConfirmationAfterDeposit(
+  reservationId: string,
+  staff?: { id?: string; name?: string }
+): Reservation | null {
+  const db = getSqliteDb();
+  const row = db.prepare('SELECT * FROM reservations WHERE reservation_id = ?').get(reservationId) as any;
+  if (!row) return null;
+
+  const status = String(row.reservation_status || '').toUpperCase();
+  if (!['PAYMENT_PENDING', 'CONFIRMED'].includes(status)) return null;
+
+  const invoice = parseJson<BookingInvoice | null>(row.invoice, null);
+  const total = Number(row.total_price) || invoice?.total || 0;
+  const deposit = invoice?.depositAmount ?? Math.round(total * DEPOSIT_PERCENT);
+  const paid = Number(row.paid_amount) || 0;
+  if (paid < deposit) return null;
+
+  // Already fully confirmed with money on record — only stamp if still PAYMENT_PENDING.
+  if (status === 'CONFIRMED' && paid > 0) return mapReservationRow(row);
+
+  const now = new Date().toISOString();
+  const verifyCode = documentVerifyCode(row.reservation_number, 'confirmation', total);
+  const paymentStatus = paid >= total ? 'PAID' : 'PARTIALLY_PAID';
+  const nextStatus = paid >= total ? 'PAID' : 'CONFIRMED';
+  const accountantName = staff?.name || 'المحاسب';
+  const noteExtra = `تم التأكيد النهائي من المحاسب (${accountantName}) بعد تحصيل العربون.`;
+  const prevNote = String(row.agency_note || '').trim();
+  const agencyNote = prevNote.includes('التأكيد النهائي من المحاسب')
+    ? prevNote
+    : [prevNote, noteExtra].filter(Boolean).join('\n');
+  const updatedInvoice = invoice
+    ? { ...invoice, remainingAmount: Math.max(0, total - paid) }
+    : null;
+
+  db.prepare(`
+    UPDATE reservations SET
+      reservation_status = ?,
+      payment_status = ?,
+      agency_note = ?,
+      document_verify_code = ?,
+      invoice = COALESCE(?, invoice),
+      updated_at = ?
+    WHERE reservation_id = ?
+  `).run(
+    nextStatus,
+    paymentStatus,
+    agencyNote,
+    verifyCode,
+    updatedInvoice ? JSON.stringify(updatedInvoice) : null,
+    now,
+    reservationId
+  );
+
+  if (status === 'PAYMENT_PENDING') {
+    notifyPilgrimAndAgency({
+      customerId: row.customer_id,
+      customerName: row.customer_name,
+      reservationNumber: row.reservation_number,
+      pilgrimText: `مرحباً ${row.customer_name}، أكمل المحاسب تأكيد حجزك رقم ${row.reservation_number} بعد تسجيل العربون. المدفوع ${paid.toLocaleString('ar-DZ')} دج، والمتبقي ${Math.max(0, total - paid).toLocaleString('ar-DZ')} دج. برنامجك جاهز في بوابة المعتمر.`,
+      groupText: `تأكيد نهائي (محاسب) لـ ${row.customer_name} — ${row.package_name} (${row.reservation_number}).`,
+      packageName: row.package_name,
+    });
+  }
+
+  return getReservationById(reservationId) as Reservation;
 }
 
 export function rejectReservationByAgency(

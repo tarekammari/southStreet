@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthUser } from '@/lib/request-auth';
+import { requireSession } from '@/lib/staff-gate';
+import { isPrivilegedRole } from '@/lib/roles';
+import { checkPrivilegedPassword } from '@/lib/password-policy';
 import {
   changeOwnPassword,
   getAccountByUserId,
@@ -12,10 +14,11 @@ function qrImageSrc(payload: string) {
   return `https://api.qrserver.com/v1/create-qr-code/?size=280x280&ecc=M&margin=8&data=${encodeURIComponent(payload)}`;
 }
 
+/** Shared gate: key-verified sessions for Super Admin / Admin, revocation honoured. */
 function requireUser(req: NextRequest) {
-  const auth = getAuthUser(req);
-  if (!auth?.id) return null;
-  return auth;
+  const gate = requireSession(req);
+  if ('error' in gate) return null;
+  return { id: gate.account.id as string, role: gate.role, username: gate.account.username as string };
 }
 
 export async function GET(req: NextRequest) {
@@ -46,7 +49,14 @@ export async function POST(req: NextRequest) {
     const currentPassword = String(body.currentPassword || '');
 
     if (action === 'change-password') {
-      changeOwnPassword(auth.id, currentPassword, String(body.nextPassword || ''));
+      const nextPassword = String(body.nextPassword || '');
+      if (isPrivilegedRole(auth.role)) {
+        const policy = checkPrivilegedPassword(nextPassword, auth.username);
+        if (!policy.ok) {
+          return NextResponse.json({ error: `كلمة المرور ضعيفة: ${policy.errors.join('، ')}` }, { status: 400 });
+        }
+      }
+      changeOwnPassword(auth.id, currentPassword, nextPassword);
       return NextResponse.json({
         success: true,
         message: 'تم تغيير كلمة المرور. استخدمها في الدخول التالي.',

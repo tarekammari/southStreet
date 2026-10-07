@@ -1,16 +1,38 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import Navbar from '@/components/Navbar';
 import SakhrAgent from '@/components/lazy/LazySakhrAgent';
 import Footer from '@/components/Footer';
 import { Hotel } from '@/types';
-import { MapPin, Sparkles, ArrowLeft, Star } from 'lucide-react';
+import { ArrowLeft, MapPin, Star } from 'lucide-react';
 import Link from 'next/link';
+import HotelGalleryDialog from '@/components/hotels/HotelGalleryDialog';
+
+const FALLBACK = 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=900&auto=format&fit=crop';
+
+function cityWord(city: string) {
+  return city === 'MAKKAH' ? 'مكة' : city === 'MADINAH' ? 'المدينة' : city;
+}
+
+function starMark(category: string) {
+  if (category === 'VIP') return 'VIP';
+  const digit = String(category || '').match(/(\d)/);
+  return digit ? digit[1] : '';
+}
+
+type PlaceFilter = 'ALL' | 'MAKKAH' | 'MADINAH';
+type ClassFilter = 'ALL' | 'VIP' | 'ECONOMY';
 
 export default function HotelsPage() {
   const [hotels, setHotels] = useState<Hotel[]>([]);
   const [loading, setLoading] = useState(true);
+  const [openHotel, setOpenHotel] = useState<Hotel | null>(null);
+  const [place, setPlace] = useState<PlaceFilter>('ALL');
+  const [tier, setTier] = useState<ClassFilter>('ALL');
+  const reduce = useReducedMotion();
+  const ease = [0.22, 1, 0.36, 1] as const;
 
   useEffect(() => {
     fetch('/api/admin/hotels')
@@ -22,63 +44,127 @@ export default function HotelsPage() {
       .catch(() => setLoading(false));
   }, []);
 
+  const visible = hotels.filter((htl) => {
+    if (place !== 'ALL' && htl.city !== place) return false;
+    if (tier === 'VIP' && htl.category !== 'VIP') return false;
+    if (tier === 'ECONOMY' && String(htl.category) !== 'ECONOMY') return false;
+    return true;
+  });
+
   return (
     <div className="page-shell min-h-screen bg-slate-app">
       <Navbar variant="light" />
 
       <main className="page-main pb-16 max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="text-center space-y-4 mb-10 pt-6">
-          <span className="badge-pro">
-            <Sparkles className="w-4 h-4" /> فنادق الحرمين الشريفين
-          </span>
-          <h1 className="text-3xl sm:text-4xl font-black font-cairo text-slate-900">
-            فنادقنا المعتمدة بالقرب من الحرمين
-          </h1>
-          <p className="text-sm text-slate-600 max-w-2xl mx-auto leading-relaxed">
-            مواقع استراتيجية قريبة من صحن الحرم المكي الشريف والمسجد النبوي — مختارة بعناية لراحة ضيوف الرحمن.
-          </p>
-        </div>
-
-        {loading ? (
-          <div className="text-center py-20 text-slate-500">جاري تحميل الفنادق...</div>
-        ) : hotels.length === 0 ? (
-          <div className="text-center py-20 text-slate-500">لا توجد فنادق مسجلة حالياً.</div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {hotels.map((htl) => (
-              <article key={htl.hotel_id} className="group rounded-2xl bg-white border border-slate-200 overflow-hidden shadow-sm hover:border-emerald-300 hover:shadow-xl transition-all">
-                <div className="relative h-48 overflow-hidden">
-                  <img src={htl.images?.[0] || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800&auto=format&fit=crop'} alt={htl.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                  <span className="absolute top-3 right-3 px-3 py-1 rounded-full bg-white/95 text-slate-800 text-xs font-bold shadow">
-                    {htl.city === 'MAKKAH' ? '🕋 مكة' : '🕌 المدينة'}
-                  </span>
-                  {htl.category && (
-                    <span className="absolute top-3 left-3 px-2 py-1 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold flex items-center gap-0.5">
-                      <Star className="w-3 h-3" /> {htl.category}
-                    </span>
-                  )}
-                </div>
-                <div className="p-5 space-y-3">
-                  <h3 className="font-black text-base font-cairo text-slate-900 group-hover:text-emerald-700 transition-colors">{htl.name}</h3>
-                  <p className="text-xs text-emerald-700 font-bold flex items-center gap-1">
-                    <MapPin className="w-4 h-4" /> {htl.distance_from_haram}
-                  </p>
-                  <p className="text-xs text-slate-600 leading-relaxed">{htl.description}</p>
-                  {htl.services?.length > 0 && (
-                    <div className="pt-2 border-t border-slate-100">
-                      <span className="text-[10px] text-slate-400 block font-bold mb-1.5">الخدمات:</span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {htl.services.map((s, idx) => (
-                          <span key={idx} className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-100">{s}</span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </article>
-            ))}
+        <h1 className="hotel-page-title">فنادق الحرمين الشريفين</h1>
+        <section className="hotel-stage">
+          <div className="hotel-filter-row">
+            <div className="hotel-filter-side is-places" role="group" aria-label="المكان">
+              {([
+                ['ALL', 'الكل'],
+                ['MAKKAH', 'مكة'],
+                ['MADINAH', 'المدينة'],
+              ] as const).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={`hotel-filter-btn${place === id ? ' is-on' : ''}`}
+                  aria-pressed={place === id}
+                  onClick={() => setPlace(id)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="hotel-filter-side is-class" role="group" aria-label="الفئة">
+              {([
+                ['ALL', 'الكل'],
+                ['VIP', 'VIP'],
+                ['ECONOMY', 'اقتصادي'],
+              ] as const).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={`hotel-filter-btn${tier === id ? ' is-on' : ''}`}
+                  aria-pressed={tier === id}
+                  onClick={() => setTier(id)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
-        )}
+
+          <div className="hotel-stage-main">
+            {loading ? (
+              <div className="text-center py-20 text-slate-500">جاري تحميل الفنادق...</div>
+            ) : hotels.length === 0 ? (
+              <div className="text-center py-20 text-slate-500">لا توجد فنادق مسجلة حالياً.</div>
+            ) : visible.length === 0 ? (
+              <p className="hotel-filter-empty">لا فنادق في هذا الاختيار.</p>
+            ) : (
+              <motion.div className="hotel-board" layout>
+                <AnimatePresence mode="popLayout">
+                {visible.map((htl) => {
+                  const mark = starMark(htl.category);
+                  return (
+                    <motion.article
+                      key={htl.hotel_id}
+                      layout
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setOpenHotel(htl)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setOpenHotel(htl);
+                        }
+                      }}
+                      className="hotel-shot"
+                      initial={reduce ? false : { opacity: 0, y: 18, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={reduce ? { opacity: 0 } : { opacity: 0, y: 12, scale: 0.98 }}
+                      transition={{ duration: reduce ? 0.01 : 0.4, ease }}
+                    >
+                      <img src={htl.images?.[0] || FALLBACK} alt={htl.name} />
+                      <div className="hotel-shot-shade" />
+                      <div className="hotel-shot-top">
+                        <span className="hotel-shot-city">{cityWord(htl.city)}</span>
+                        {mark ? (
+                          <span className={`hotel-shot-rate${mark === 'VIP' ? ' is-vip' : ''}`}>
+                            <Star />
+                            {mark}
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="hotel-shot-foot">
+                        <h3>{htl.name}</h3>
+                        {htl.distance_from_haram ? (
+                          <p className="hotel-shot-place">
+                            <MapPin />
+                            {htl.distance_from_haram}
+                          </p>
+                        ) : null}
+                        {htl.services?.length > 0 ? (
+                          <div className="hotel-shot-services">
+                            {htl.services.slice(0, 3).map((s) => (
+                              <span key={s}>{s}</span>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    </motion.article>
+                  );
+                })}
+                </AnimatePresence>
+              </motion.div>
+            )}
+          </div>
+        </section>
+
+        <AnimatePresence>
+          {openHotel ? <HotelGalleryDialog key={openHotel.hotel_id} hotel={openHotel} onClose={() => setOpenHotel(null)} /> : null}
+        </AnimatePresence>
 
         <div className="mt-10 text-center">
           <Link href="/" className="inline-flex items-center gap-2 text-sm font-bold text-slate-600 hover:text-emerald-700 transition-colors">

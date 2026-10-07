@@ -135,6 +135,9 @@ export function emptyRecordCard(columns: RecordColumn[], tableName: string): Rec
     row.category = 'religious_guide';
     row.languages = JSON.stringify(['العربية']);
   }
+  if (tableName === 'packages') {
+    row.image_url = '/images/kaaba_sharifa_home_page.webp';
+  }
   const card = buildRecordCard(row, columns, -1);
   return {
     ...card,

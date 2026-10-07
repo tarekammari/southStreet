@@ -1,368 +1,468 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { User, Receipt } from '@/types';
+import React, { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import {
+  BarChart3,
+  BookOpen,
+  Boxes,
+  ClipboardList,
+  Landmark,
+  LayoutDashboard,
+  Menu,
+  ReceiptText,
+  Sparkles,
+  Truck,
+  Users,
+  X,
+  BookMarked,
+  Scale,
+  History,
+  CalendarRange,
+  ChevronDown,
+  Percent,
+} from 'lucide-react';
+import { User } from '@/types';
 import AiKnowledgeManager from '@/components/AiKnowledgeManager';
+import RecapPanel from '@/components/accountant/RecapPanel';
+import TreasuryPanel from '@/components/accountant/TreasuryPanel';
+import AssetsPanel from '@/components/accountant/AssetsPanel';
+import LedgerPanel from '@/components/accountant/LedgerPanel';
+import SuppliersPanel from '@/components/accountant/SuppliersPanel';
+import PayrollPanel from '@/components/accountant/PayrollPanel';
+import ReportsPanel from '@/components/accountant/ReportsPanel';
+import ScfChartPanel from '@/components/accountant/ScfChartPanel';
+import ScfPrinciplesPanel from '@/components/accountant/ScfPrinciplesPanel';
+import FinanceAuditPanel from '@/components/accountant/FinanceAuditPanel';
+import FiscalPeriodsPanel from '@/components/accountant/FiscalPeriodsPanel';
+import ReceiptsPanel from '@/components/accountant/ReceiptsPanel';
+import SakhrFinancePanel from '@/components/accountant/SakhrFinancePanel';
+import TaxesPanel from '@/components/accountant/TaxesPanel';
+import AgencyPendingBookings from '@/components/booking/AgencyPendingBookings';
+import { ACCOUNTANT_NAV, type AccountantSectionId } from '@/lib/accountant-sections';
+import { SUPPLIER_LANES } from '@/lib/finance-categories';
 
 interface AccountantDashboardProps {
   currentUser: User;
 }
 
+export type AccountantSection = AccountantSectionId;
+
+type SectionConfig = {
+  id: AccountantSection;
+  label: string;
+  description: string;
+  icon: React.ComponentType<{ className?: string }>;
+  group: 'workspace' | 'finance' | 'operations' | 'insights' | 'scf';
+};
+
+const SECTIONS: SectionConfig[] = [
+  { id: 'overview', label: ACCOUNTANT_NAV.overview.label, description: ACCOUNTANT_NAV.overview.description, icon: LayoutDashboard, group: 'workspace' },
+  { id: 'treasury', label: ACCOUNTANT_NAV.treasury.label, description: ACCOUNTANT_NAV.treasury.description, icon: Landmark, group: 'finance' },
+  { id: 'ledger', label: ACCOUNTANT_NAV.ledger.label, description: ACCOUNTANT_NAV.ledger.description, icon: BookOpen, group: 'finance' },
+  { id: 'receipts', label: ACCOUNTANT_NAV.receipts.label, description: ACCOUNTANT_NAV.receipts.description, icon: ReceiptText, group: 'finance' },
+  { id: 'suppliers', label: ACCOUNTANT_NAV.suppliers.label, description: ACCOUNTANT_NAV.suppliers.description, icon: Truck, group: 'operations' },
+  { id: 'payroll', label: ACCOUNTANT_NAV.payroll.label, description: ACCOUNTANT_NAV.payroll.description, icon: Users, group: 'operations' },
+  { id: 'assets', label: ACCOUNTANT_NAV.assets.label, description: ACCOUNTANT_NAV.assets.description, icon: Boxes, group: 'operations' },
+  { id: 'bookings', label: ACCOUNTANT_NAV.bookings.label, description: ACCOUNTANT_NAV.bookings.description, icon: ClipboardList, group: 'operations' },
+  { id: 'reports', label: ACCOUNTANT_NAV.reports.label, description: ACCOUNTANT_NAV.reports.description, icon: BarChart3, group: 'insights' },
+  { id: 'chart', label: ACCOUNTANT_NAV.chart.label, description: ACCOUNTANT_NAV.chart.description, icon: BookMarked, group: 'scf' },
+  { id: 'principles', label: ACCOUNTANT_NAV.principles.label, description: ACCOUNTANT_NAV.principles.description, icon: Scale, group: 'scf' },
+  { id: 'periods', label: ACCOUNTANT_NAV.periods.label, description: ACCOUNTANT_NAV.periods.description, icon: CalendarRange, group: 'scf' },
+  { id: 'audit', label: ACCOUNTANT_NAV.audit.label, description: ACCOUNTANT_NAV.audit.description, icon: History, group: 'scf' },
+  { id: 'sakhr', label: ACCOUNTANT_NAV.sakhr.label, description: ACCOUNTANT_NAV.sakhr.description, icon: Sparkles, group: 'insights' },
+  { id: 'taxes', label: ACCOUNTANT_NAV.taxes.label, description: ACCOUNTANT_NAV.taxes.description, icon: Percent, group: 'finance' },
+];
+
+const RAIL_KEY = 'southstreet.acct.rail';
+
+/** Numbered expert rail. Children stay under الموردون and SCF. */
+const RAIL: {
+  id: AccountantSection;
+  index: string;
+  label?: string;
+  kind?: 'suppliers' | 'scf';
+}[] = [
+  { id: 'overview', index: '01' },
+  { id: 'suppliers', index: '02', kind: 'suppliers' },
+  { id: 'payroll', index: '03' },
+  { id: 'taxes', index: '04' },
+  { id: 'treasury', index: '05' },
+  { id: 'ledger', index: '06' },
+  { id: 'reports', index: '07' },
+  { id: 'sakhr', index: '08' },
+  { id: 'chart', index: '09', label: 'SCF', kind: 'scf' },
+  { id: 'receipts', index: '10' },
+  { id: 'assets', index: '11' },
+];
+
+const SCF_CHILDREN: { id: AccountantSection; label: string }[] = [
+  { id: 'chart', label: 'دليل الحسابات' },
+  { id: 'principles', label: 'المبادئ' },
+  { id: 'periods', label: 'الفترات' },
+  { id: 'audit', label: 'سجل التدقيق' },
+];
+
+const SCF_IDS = new Set<AccountantSection>(SCF_CHILDREN.map((c) => c.id));
+
+function normalizeSection(raw?: string | null, focus?: string | null): AccountantSection {
+  const v = String(raw || '').trim().toLowerCase();
+  if (v === 'services') return 'suppliers';
+  if (v === 'payroll' && String(focus || '').trim().toLowerCase() === 'services') return 'suppliers';
+  if (v === 'ai_teach' || v === 'sakhr') return 'sakhr';
+  if (SECTIONS.some((s) => s.id === v)) return v as AccountantSection;
+  return 'overview';
+}
+
 export default function AccountantDashboard({ currentUser }: AccountantDashboardProps) {
-  const [activeTab, setActiveTab] = useState<'receipts' | 'ai_teach'>('receipts');
-  const [receipts, setReceipts] = useState<Receipt[]>([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedReceipt, setSelectedReceipt] = useState<Receipt | null>(null);
-
-  const [pilgrimName, setPilgrimName] = useState('');
-  const [packageName, setPackageName] = useState('باقة أوت الاقتصادية المميزة (طيران مباشر)');
-  const [totalAmount, setTotalAmount] = useState(215000);
-  const [paidAmount, setPaidAmount] = useState(215000);
-  const [paymentMethod, setPaymentMethod] = useState('تحويل بريدي موب (BaridiMob)');
-
-  const fetchReceipts = async () => {
-    try {
-      const res = await fetch('/api/receipts');
-      if (res.ok) setReceipts(await res.json());
-    } catch {}
-  };
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [section, setSection] = useState<AccountantSection>(() =>
+    normalizeSection(searchParams.get('section'), searchParams.get('focus'))
+  );
+  const [railOpen, setRailOpen] = useState(true);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [sakhrMode, setSakhrMode] = useState<'ask' | 'teach'>('ask');
+  const [openBranch, setOpenBranch] = useState<'suppliers' | 'scf' | null>(() => {
+    const initial = normalizeSection(searchParams.get('section'), searchParams.get('focus'));
+    if (initial === 'suppliers') return 'suppliers';
+    if (SCF_IDS.has(initial)) return 'scf';
+    return null;
+  });
+  const activeLane = searchParams.get('lane')?.trim() || '';
 
   useEffect(() => {
-    fetchReceipts();
+    try {
+      if (localStorage.getItem(RAIL_KEY) === '0') setRailOpen(false);
+    } catch {
+      /* ignore */
+    }
   }, []);
 
-  const totalRevenue = receipts.reduce((acc, curr) => acc + (curr.paidAmount || 0), 0);
-  const totalPending = receipts.reduce((acc, curr) => acc + (curr.remainingAmount || 0), 0);
+  useEffect(() => {
+    const rawSection = searchParams.get('section');
+    setSection(normalizeSection(rawSection, searchParams.get('focus')));
+    if (String(rawSection || '').trim().toLowerCase() === 'services') {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set('section', 'suppliers');
+      router.replace(`/portal?${params.toString()}`, { scroll: false });
+    }
+  }, [searchParams, router]);
 
-  const handleCreateReceipt = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const newReceipt: Receipt = {
-      id: `REC-${Math.floor(1000 + Math.random() * 9000)}`,
-      pilgrimName,
-      pilgrimCode: 'PILGRIM-CUSTOM',
-      packageName,
-      totalAmount,
-      paidAmount,
-      remainingAmount: Math.max(0, totalAmount - paidAmount),
-      paymentMethod,
-      date: new Date().toISOString().split('T')[0],
-      accountantName: currentUser.name,
-      status: totalAmount - paidAmount <= 0 ? 'خالص الدفع' : 'عربون متبقي'
-    };
+  useEffect(() => {
+    if (section === 'suppliers') setOpenBranch('suppliers');
+    else if (SCF_IDS.has(section)) setOpenBranch('scf');
+    else setOpenBranch(null);
+  }, [section]);
 
+  useEffect(() => {
     try {
-      const res = await fetch('/api/receipts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newReceipt),
-      });
+      localStorage.setItem(RAIL_KEY, railOpen ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  }, [railOpen]);
 
-      if (res.ok) {
-        setIsModalOpen(false);
-        setPilgrimName('');
-        fetchReceipts();
-        setSelectedReceipt(newReceipt);
-      }
-    } catch {}
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setDrawerOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  useEffect(() => {
+    document.body.classList.add('acct-page');
+    return () => document.body.classList.remove('acct-page');
+  }, []);
+
+  const goSection = (id: AccountantSection, opts?: { supplier?: string; focus?: string; lane?: string }) => {
+    setSection(id);
+    setDrawerOpen(false);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('tab', 'accountant');
+    params.set('section', id);
+    if (opts?.supplier) params.set('supplier', opts.supplier);
+    else params.delete('supplier');
+    if (opts?.focus) params.set('focus', opts.focus);
+    else params.delete('focus');
+    if (opts?.lane) params.set('lane', opts.lane);
+    else params.delete('lane');
+    router.replace(`/portal?${params.toString()}`, { scroll: false });
   };
 
-  return (
-    <div className="space-y-6 text-right" dir="rtl">
-      {/* Header & Tabs */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-black/5">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-black text-[#1d1d1f] tracking-tight">
-            الشؤون المالية والسندات
-          </h2>
-          <p className="text-xs sm:text-sm text-[#6e6e73] mt-0.5">
-            إدارة السندات الرقمية، التحويلات، وتدريب صخر على الأسعار
-          </p>
-        </div>
+  const activeSection = SECTIONS.find((s) => s.id === section) || SECTIONS[0];
+  const laneMeta = section === 'suppliers' ? SUPPLIER_LANES.find((l) => l.id === activeLane) : undefined;
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="bg-[#f5f5f7] p-1 rounded-xl flex gap-1 border border-black/5">
+  const menuList = (collapsed: boolean) => (
+    <nav className={`acct-nav ${collapsed ? 'is-collapsed' : ''}`} aria-label="أقسام مكتب المحاسبة">
+      {RAIL.map((item) => {
+        const cfg = SECTIONS.find((s) => s.id === item.id) || SECTIONS[0];
+        const Icon = cfg.icon;
+        const label = item.label || cfg.label;
+        const opened = !collapsed && item.kind != null && openBranch === item.kind;
+        const branch =
+          (item.kind === 'suppliers' && section === 'suppliers') ||
+          (item.kind === 'scf' && SCF_IDS.has(section));
+        const on = item.kind !== 'scf' && section === item.id && !laneMeta;
+        return (
+          <React.Fragment key={item.id + (item.kind || '')}>
             <button
-              onClick={() => setActiveTab('receipts')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                activeTab === 'receipts' ? 'bg-white text-[#1d1d1f] shadow-sm' : 'text-[#6e6e73] hover:text-[#1d1d1f]'
-              }`}
+              type="button"
+              onClick={() => {
+                if (item.kind === 'suppliers') {
+                  setOpenBranch('suppliers');
+                  goSection('suppliers');
+                  return;
+                }
+                if (!item.kind) {
+                  setOpenBranch(null);
+                  goSection(item.id);
+                  return;
+                }
+                const opening = openBranch !== item.kind;
+                setOpenBranch(opening ? item.kind : null);
+                if (!opening) return;
+                if (!SCF_IDS.has(section)) goSection('chart');
+              }}
+              aria-expanded={item.kind ? opened : undefined}
+              aria-current={on ? 'page' : undefined}
+              title={collapsed ? label : undefined}
+              className={`acct-side-item acct-nav-enter ${on ? 'is-on' : ''} ${branch && !on ? 'is-branch' : ''} ${collapsed ? 'is-collapsed' : ''}`}
             >
-              السندات المالية
+              <span className="acct-side-icon"><Icon className="w-5 h-5" /></span>
+              {!collapsed && <span className="block truncate">{label}</span>}
+              {!collapsed && item.kind ? (
+                <span
+                  className="acct-nav-chevron-hit"
+                  role="presentation"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenBranch((cur) => (cur === item.kind ? null : item.kind!));
+                  }}
+                >
+                  <ChevronDown className={`acct-nav-chevron ${opened ? 'is-open' : ''}`} aria-hidden />
+                </span>
+              ) : null}
+            </button>
+            {!collapsed && item.kind === 'suppliers' ? (
+              <div className={`acct-nav-sub ${opened ? 'is-open' : ''}`}>
+                <div className="acct-nav-sub-clip">
+                  {SUPPLIER_LANES.map((lane) => {
+                    const laneOn = section === 'suppliers' && activeLane === lane.id;
+                    return (
+                      <button
+                        key={lane.id}
+                        type="button"
+                        aria-current={laneOn ? 'page' : undefined}
+                        className={`acct-side-item ${laneOn ? 'is-on' : ''}`}
+                        onClick={() => goSection('suppliers', { lane: lane.id })}
+                      >
+                        <span className="truncate">{lane.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+            {!collapsed && item.kind === 'scf' ? (
+              <div className={`acct-nav-sub ${opened ? 'is-open' : ''}`}>
+                <div className="acct-nav-sub-clip">
+                  {SCF_CHILDREN.map((child) => {
+                    const childOn = section === child.id;
+                    return (
+                      <button
+                        key={child.id}
+                        type="button"
+                        aria-current={childOn ? 'page' : undefined}
+                        className={`acct-side-item ${childOn ? 'is-on' : ''}`}
+                        onClick={() => goSection(child.id)}
+                      >
+                        <span className="truncate">{child.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+          </React.Fragment>
+        );
+      })}
+      <div className="acct-nav-divider" />
+      {(() => {
+        const bookings = SECTIONS.find((s) => s.id === 'bookings');
+        if (!bookings) return null;
+        const Icon = bookings.icon;
+        const on = section === 'bookings';
+        return (
+          <button
+            type="button"
+            onClick={() => goSection('bookings')}
+            aria-current={on ? 'page' : undefined}
+            title={collapsed ? bookings.label : undefined}
+            className={`acct-side-item ${on ? 'is-on' : ''} ${collapsed ? 'is-collapsed' : ''}`}
+          >
+            <span className="acct-side-icon"><Icon className="w-5 h-5" /></span>
+            {!collapsed && <span className="block truncate">{bookings.label}</span>}
+          </button>
+        );
+      })()}
+    </nav>
+  );
+
+  const sectionBody = (
+    <>
+      {section === 'overview' && <RecapPanel />}
+      {section === 'treasury' && <TreasuryPanel />}
+      {section === 'assets' && <AssetsPanel />}
+      {section === 'bookings' && (
+        <div className="acct-card p-4 sm:p-5 acct-rise">
+          <AgencyPendingBookings compact />
+        </div>
+      )}
+      {section === 'receipts' && <ReceiptsPanel currentUser={currentUser} />}
+      {section === 'ledger' && <LedgerPanel />}
+      {section === 'suppliers' && <SuppliersPanel />}
+      {section === 'payroll' && <PayrollPanel />}
+      {section === 'taxes' && <TaxesPanel />}
+      {section === 'reports' && <ReportsPanel />}
+      {section === 'chart' && <ScfChartPanel />}
+      {section === 'principles' && <ScfPrinciplesPanel />}
+      {section === 'audit' && <FinanceAuditPanel />}
+      {section === 'periods' && <FiscalPeriodsPanel />}
+      {section === 'sakhr' && (
+        <div className="space-y-4 acct-rise">
+          <div className="acct-segmented max-w-md">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={sakhrMode === 'ask'}
+              className={sakhrMode === 'ask' ? 'is-on' : ''}
+              onClick={() => setSakhrMode('ask')}
+            >
+              اسأل
             </button>
             <button
-              onClick={() => setActiveTab('ai_teach')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                activeTab === 'ai_teach' ? 'bg-white text-[#1d1d1f] shadow-sm' : 'text-[#6e6e73] hover:text-[#1d1d1f]'
-              }`}
+              type="button"
+              role="tab"
+              aria-selected={sakhrMode === 'teach'}
+              className={sakhrMode === 'teach' ? 'is-on' : ''}
+              onClick={() => setSakhrMode('teach')}
             >
-              تعليم صخر (الأسعار)
+              علّم
             </button>
           </div>
 
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="px-4 py-2 rounded-xl bg-[#0071e3] hover:bg-[#0077ed] text-white text-xs font-bold transition-all shadow-sm cursor-pointer"
-          >
-            إصدار سند جديد
-          </button>
+          {sakhrMode === 'ask' ? (
+            <SakhrFinancePanel onGo={goSection} />
+          ) : (
+            <AiKnowledgeManager
+              userRole="accountant"
+              userName={currentUser.name || 'محاسب الوكالة'}
+              allowedCategories={['pricing', 'packages', 'faq']}
+              title="علم صخر (للمحاسب)"
+              subtitle="علّم صخر أسعار وباقات وخدمات الوكالة"
+            />
+          )}
+        </div>
+      )}
+    </>
+  );
+
+  return (
+    <div className="acct-root acct-theme-light" dir="rtl">
+      <div className="acct-layout">
+        <aside className={`acct-rail ${railOpen ? 'is-expanded' : ''}`}>
+          <div className="acct-rail-brand">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center text-white shadow-md shadow-emerald-600/25 shrink-0">
+                <Landmark className="w-4.5 h-4.5" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-bold text-slate-900 tracking-tight leading-tight truncate">مكتب المحاسبة</div>
+                <div className="text-[10px] text-emerald-600 font-semibold truncate">SCF · النظام المالي</div>
+              </div>
+            </div>
+          </div>
+          {menuList(!railOpen)}
+        </aside>
+
+        <div className="acct-content">
+          <header className="acct-topbar" role="banner">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.matchMedia('(max-width: 1023px)').matches) setDrawerOpen(true);
+                  else setRailOpen((v) => !v);
+                }}
+                className="acct-iconbtn shrink-0"
+                aria-label={railOpen ? 'طي القائمة' : 'فتح القائمة'}
+              >
+                <Menu className="w-5 h-5 text-slate-600" />
+              </button>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h1 className="acct-top-title font-bold text-slate-900 tracking-tight">{laneMeta?.label || activeSection.label}</h1>
+                  <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    النظام المحاسبي SCF
+                  </span>
+                </div>
+                <p className="acct-top-subtitle hidden sm:block text-xs text-slate-500 mt-0.5">{laneMeta?.hint || activeSection.description}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-600 text-xs font-semibold border border-slate-200/60">
+                <CalendarRange className="w-3.5 h-3.5 text-slate-500" />
+                <span>السنة المالية 2026</span>
+              </div>
+            </div>
+          </header>
+
+          <div className="acct-workspace">
+            <main className="acct-main acct-section" key={section}>
+              {sectionBody}
+            </main>
+          </div>
         </div>
       </div>
 
-      {activeTab === 'receipts' && (
-        <div className="space-y-6">
-          {/* Financial Metrics */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-white border border-black/5 rounded-2xl p-5 shadow-[0_2px_12px_rgba(0,0,0,0.04)] space-y-1">
-              <span className="text-xs text-[#6e6e73] font-medium">إجمالي المبالغ المحصلة</span>
-              <div className="text-2xl sm:text-3xl font-black text-[#34c759] tracking-tight">{totalRevenue.toLocaleString()} دج</div>
-              <span className="text-[11px] text-[#6e6e73]">محدث فورياً من السجلات</span>
-            </div>
-
-            <div className="bg-white border border-black/5 rounded-2xl p-5 shadow-[0_2px_12px_rgba(0,0,0,0.04)] space-y-1">
-              <span className="text-xs text-[#6e6e73] font-medium">المبالغ قيد التحصيل</span>
-              <div className="text-2xl sm:text-3xl font-black text-[#ff9500] tracking-tight">{totalPending.toLocaleString()} دج</div>
-              <span className="text-[11px] text-[#6e6e73]">دفعات متبقية</span>
-            </div>
-
-            <div className="bg-white border border-black/5 rounded-2xl p-5 shadow-[0_2px_12px_rgba(0,0,0,0.04)] space-y-1">
-              <span className="text-xs text-[#6e6e73] font-medium">إجمالي السندات الصادرة</span>
-              <div className="text-2xl sm:text-3xl font-black text-[#1d1d1f] tracking-tight">{receipts.length} سند</div>
-              <span className="text-[11px] text-[#6e6e73]">سندات رقمية معتمدة</span>
-            </div>
-          </div>
-
-          {/* Receipts List */}
-          <div className="bg-white rounded-2xl p-5 sm:p-6 border border-black/5 shadow-[0_2px_12px_rgba(0,0,0,0.04)] space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-[#1d1d1f]">سجل سندات القبض</h3>
-              <span className="text-xs text-[#6e6e73]">{receipts.length} عملية</span>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-right text-xs">
-                <thead>
-                  <tr className="border-b border-black/5 text-[#6e6e73]">
-                    <th className="py-3 px-3 font-semibold">رقم السند</th>
-                    <th className="py-3 px-3 font-semibold">اسم المعتمر</th>
-                    <th className="py-3 px-3 font-semibold">الخدمة</th>
-                    <th className="py-3 px-3 font-semibold">المبلغ الإجمالي</th>
-                    <th className="py-3 px-3 font-semibold">المسدد</th>
-                    <th className="py-3 px-3 font-semibold">المتبقي</th>
-                    <th className="py-3 px-3 font-semibold">التاريخ</th>
-                    <th className="py-3 px-3 font-semibold">الإجراء</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-black/5 text-[#1d1d1f]">
-                  {receipts.map((r) => (
-                    <tr key={r.id} className="hover:bg-[#f5f5f7]/60 transition-colors">
-                      <td className="py-3 px-3 font-mono font-bold text-[#0071e3]">{r.id}</td>
-                      <td className="py-3 px-3 font-bold">{r.pilgrimName}</td>
-                      <td className="py-3 px-3 text-[#6e6e73] max-w-[200px] truncate">{r.packageName}</td>
-                      <td className="py-3 px-3 font-bold">{r.totalAmount.toLocaleString()} دج</td>
-                      <td className="py-3 px-3 text-[#34c759] font-bold">{r.paidAmount.toLocaleString()} دج</td>
-                      <td className="py-3 px-3 text-[#ff9500] font-bold">{r.remainingAmount.toLocaleString()} دج</td>
-                      <td className="py-3 px-3 text-[#6e6e73]">{r.date}</td>
-                      <td className="py-3 px-3">
-                        <button
-                          onClick={() => setSelectedReceipt(r)}
-                          className="px-3 py-1 rounded-lg bg-[#f5f5f7] hover:bg-[#e8e8ed] text-[#1d1d1f] font-bold text-xs transition-colors cursor-pointer"
-                        >
-                          معاينة وطباعة
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'ai_teach' && (
-        <AiKnowledgeManager
-          userRole="accountant"
-          userName={currentUser.name || 'المحاسب المالي'}
-          allowedCategories={['pricing', 'packages', 'faq']}
-          title="تعليم صخر (الأسعار وطرق الدفع)"
-          subtitle="تدريب صخر على حسابات الوكالة، التحويلات، شروط التقسيط، وسياسات الاسترداد"
-        />
-      )}
-
-      {/* Create Receipt Modal */}
-      {isModalOpen && (
+      {drawerOpen && (
         <div
-          className="fixed inset-0 z-50 bg-black/30 backdrop-blur-md flex items-center justify-center p-4"
-          onClick={() => setIsModalOpen(false)}
+          className="lg:hidden fixed inset-0 z-[70] acct-drawer-backdrop backdrop-blur-sm bg-slate-900/40"
+          onClick={() => setDrawerOpen(false)}
+          role="presentation"
         >
           <div
-            className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl text-right relative border border-black/5"
+            className="acct-side-drawer absolute inset-y-0 right-0 p-5 overflow-y-auto bg-white shadow-2xl w-80 max-w-[85vw]"
             onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="قائمة التنقل"
+            dir="rtl"
           >
-            <div className="flex items-center justify-between pb-3 mb-4 border-b border-black/5">
-              <h3 className="text-base font-bold text-[#1d1d1f]">إصدار سند قبض رقمي</h3>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="text-[#6e6e73] hover:text-[#1d1d1f] text-lg font-light p-1"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateReceipt} className="space-y-3.5 text-xs">
-              <div>
-                <label className="block text-xs font-bold text-[#1d1d1f] mb-1">اسم المعتمر</label>
-                <input
-                  type="text"
-                  required
-                  value={pilgrimName}
-                  onChange={(e) => setPilgrimName(e.target.value)}
-                  placeholder="الاسم الكامل للمعتمر"
-                  className="w-full bg-[#f5f5f7] border border-black/5 rounded-xl px-3.5 py-2.5 text-xs text-[#1d1d1f] outline-none focus:border-[#0071e3]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-[#1d1d1f] mb-1">البرنامج أو الخدمة</label>
-                <input
-                  type="text"
-                  required
-                  value={packageName}
-                  onChange={(e) => setPackageName(e.target.value)}
-                  className="w-full bg-[#f5f5f7] border border-black/5 rounded-xl px-3.5 py-2.5 text-xs text-[#1d1d1f] outline-none focus:border-[#0071e3]"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-[#1d1d1f] mb-1">المبلغ الإجمالي (دج)</label>
-                  <input
-                    type="number"
-                    required
-                    value={totalAmount}
-                    onChange={(e) => setTotalAmount(Number(e.target.value))}
-                    className="w-full bg-[#f5f5f7] border border-black/5 rounded-xl px-3 py-2 text-xs text-[#1d1d1f] outline-none focus:border-[#0071e3]"
-                  />
+            <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center text-white shadow-sm shadow-emerald-600/25">
+                  <Landmark className="w-4 h-4" />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-[#1d1d1f] mb-1">المسدد الآن (دج)</label>
-                  <input
-                    type="number"
-                    required
-                    value={paidAmount}
-                    onChange={(e) => setPaidAmount(Number(e.target.value))}
-                    className="w-full bg-[#f5f5f7] border border-black/5 rounded-xl px-3 py-2 text-xs text-[#1d1d1f] outline-none focus:border-[#0071e3]"
-                  />
+                  <p className="text-base font-bold text-slate-900">مكتب المحاسبة</p>
+                  <p className="text-xs text-slate-400">اختر القسم المحاسبي</p>
                 </div>
               </div>
-
-              <div>
-                <label className="block text-xs font-bold text-[#1d1d1f] mb-1">طريقة السداد</label>
-                <select
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                  className="w-full bg-[#f5f5f7] border border-black/5 rounded-xl px-3.5 py-2.5 text-xs text-[#1d1d1f] outline-none focus:border-[#0071e3]"
-                >
-                  <option value="تحويل بريدي موب (BaridiMob)">تحويل بريدي موب (BaridiMob)</option>
-                  <option value="تحويل حساب جاري CCP">تحويل حساب جاري CCP</option>
-                  <option value="نقداً في شباك الوكالة">نقداً في شباك الوكالة</option>
-                  <option value="بطاقة دفع بنكية CIB/Visa">بطاقة دفع بنكية CIB/Visa</option>
-                </select>
-              </div>
-
-              <div className="pt-2 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="flex-1 py-2.5 rounded-xl bg-[#f5f5f7] text-[#1d1d1f] font-bold text-xs hover:bg-[#e8e8ed] transition-all cursor-pointer"
-                >
-                  إلغاء
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-[#0071e3] text-white font-bold text-xs hover:bg-[#0077ed] transition-all shadow-sm cursor-pointer"
-                >
-                  اعتماد السند
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* View Printable Receipt Modal */}
-      {selectedReceipt && (
-        <div
-          className="fixed inset-0 z-50 bg-black/30 backdrop-blur-md flex items-center justify-center p-4"
-          onClick={() => setSelectedReceipt(null)}
-        >
-          <div
-            className="w-full max-w-md bg-white rounded-2xl p-6 border border-black/5 shadow-2xl text-right relative"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="text-center pb-4 border-b border-black/5 mb-4">
-              <h3 className="text-lg font-bold text-[#1d1d1f]">سوث ستريت للسياحة والأسفار</h3>
-              <p className="text-xs text-[#6e6e73]">SOUTH STREET Travel Agency</p>
-              <div className="text-xs font-bold text-[#0071e3] mt-1">سند قبض مالي رقم: {selectedReceipt.id}</div>
-            </div>
-
-            <div className="space-y-2 text-xs text-[#1d1d1f] mb-4">
-              <div className="flex justify-between py-1 border-b border-black/5">
-                <span className="text-[#6e6e73]">المستلم منه:</span>
-                <strong>{selectedReceipt.pilgrimName}</strong>
-              </div>
-              <div className="flex justify-between py-1 border-b border-black/5">
-                <span className="text-[#6e6e73]">مقابل خدمة:</span>
-                <strong>{selectedReceipt.packageName}</strong>
-              </div>
-              <div className="flex justify-between py-1 border-b border-black/5">
-                <span className="text-[#6e6e73]">طريقة السداد:</span>
-                <strong>{selectedReceipt.paymentMethod}</strong>
-              </div>
-              <div className="flex justify-between py-1 border-b border-black/5">
-                <span className="text-[#6e6e73]">التاريخ:</span>
-                <strong>{selectedReceipt.date}</strong>
-              </div>
-              <div className="flex justify-between py-1 border-b border-black/5">
-                <span className="text-[#6e6e73]">المحاسب المسؤول:</span>
-                <strong>{selectedReceipt.accountantName}</strong>
-              </div>
-            </div>
-
-            <div className="bg-[#f5f5f7] p-3.5 rounded-xl space-y-1.5 mb-4 text-xs">
-              <div className="flex justify-between">
-                <span className="text-[#6e6e73]">المبلغ الإجمالي:</span>
-                <strong>{selectedReceipt.totalAmount.toLocaleString()} دج</strong>
-              </div>
-              <div className="flex justify-between text-[#34c759]">
-                <span>المسدد:</span>
-                <strong>{selectedReceipt.paidAmount.toLocaleString()} دج</strong>
-              </div>
-              <div className="flex justify-between text-[#ff9500]">
-                <span>المتبقي:</span>
-                <strong>{selectedReceipt.remainingAmount.toLocaleString()} دج</strong>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between text-[11px] text-[#6e6e73] pt-2 border-t border-black/5">
-              <span>الاعتماد الرقمي</span>
-              <span className="font-mono font-bold text-[#1d1d1f]">VERIFIED-AES-{selectedReceipt.id}</span>
-            </div>
-
-            <div className="flex gap-2 mt-4 pt-2">
               <button
-                onClick={() => window.print()}
-                className="flex-1 bg-[#1d1d1f] hover:bg-[#2d2d2f] text-white font-bold py-2.5 rounded-xl text-xs transition-all cursor-pointer"
+                type="button"
+                onClick={() => setDrawerOpen(false)}
+                className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition-colors"
+                aria-label="إغلاق"
               >
-                طباعة السند
-              </button>
-              <button
-                onClick={() => setSelectedReceipt(null)}
-                className="px-5 bg-[#f5f5f7] hover:bg-[#e8e8ed] text-[#1d1d1f] font-bold py-2.5 rounded-xl text-xs transition-all cursor-pointer"
-              >
-                إغلاق
+                <X className="w-4 h-4" />
               </button>
             </div>
+            {menuList(false)}
           </div>
         </div>
       )}

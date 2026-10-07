@@ -1,0 +1,230 @@
+/* ------------------------------------------------------------------ *
+ * First-load motion: branded splash + staggered page entrances.
+ *
+ * While the splash is on screen, every entrance below is held at its first
+ * frame (body:has(> .intro-splash)), then plays as the splash lifts.
+ * See lib/intro-boot.ts and components/IntroSplash.tsx.
+ * ------------------------------------------------------------------ */
+
+@keyframes ss-rise {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes ss-rise-sm {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes ss-slide-in {
+  from { opacity: 0; transform: translateX(14px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes ss-pop {
+  from { opacity: 0; transform: translateY(10px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes ss-fan {
+  from { opacity: 0; transform: translateY(46px) scale(0.86); filter: blur(6px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+
+:root {
+  --ss-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --ss-step: 70ms;
+}
+
+/* ---------- Splash ---------- */
+.intro-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #fbfcfd;
+  cursor: pointer;
+  transition: opacity 0.65s var(--ss-ease), transform 0.65s var(--ss-ease), filter 0.65s var(--ss-ease);
+}
+.intro-splash.is-leaving {
+  opacity: 0;
+  transform: scale(1.04);
+  filter: blur(6px);
+  pointer-events: none;
+}
+.intro-splash-glow {
+  position: absolute;
+  inset: -20%;
+  background:
+    radial-gradient(40% 35% at 30% 30%, rgba(16, 185, 129, 0.14), transparent 70%),
+    radial-gradient(35% 30% at 72% 70%, rgba(106, 192, 255, 0.16), transparent 70%),
+    radial-gradient(30% 30% at 60% 25%, rgba(201, 169, 98, 0.12), transparent 70%);
+  animation: intro-drift 6s ease-in-out infinite alternate;
+}
+@keyframes intro-drift { to { transform: translate(3%, -2%) rotate(2deg); } }
+.intro-splash-center {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.1rem;
+}
+.intro-splash-logo { transform: scale(1.9); transform-origin: center; margin-bottom: 1.25rem; }
+.intro-splash-logo .brand.is-animated .brand-s1,
+.intro-splash-logo .brand.is-animated .brand-s2,
+.intro-splash-logo .brand.is-animated .brand-s3 { animation-duration: 1.1s; }
+.intro-splash-tag {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  animation: ss-rise 0.8s 0.55s var(--ss-ease) both;
+}
+.intro-splash-bar {
+  position: relative;
+  width: 9rem;
+  height: 3px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+  animation: ss-rise-sm 0.6s 0.7s var(--ss-ease) both;
+}
+.intro-splash-bar i {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(270deg, var(--primary-light), var(--gold-main));
+  transform-origin: right center;
+  animation: intro-load 1.4s 0.75s var(--ss-ease) both;
+}
+@keyframes intro-load { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+/* ---------- Entrances ---------- */
+
+/* Navbar: links drop in one after another */
+nav[aria-label='Primary navigation'] > * { animation: ss-rise-sm 0.55s var(--ss-ease) both; }
+nav[aria-label='Primary navigation'] > :nth-child(1) { animation-delay: 0.08s; }
+nav[aria-label='Primary navigation'] > :nth-child(2) { animation-delay: 0.14s; }
+nav[aria-label='Primary navigation'] > :nth-child(3) { animation-delay: 0.2s; }
+nav[aria-label='Primary navigation'] > :nth-child(4) { animation-delay: 0.26s; }
+nav[aria-label='Primary navigation'] > :nth-child(5) { animation-delay: 0.32s; }
+nav[aria-label='Primary navigation'] > :nth-child(n + 6) { animation-delay: 0.38s; }
+
+/* Home: carousel photos fan in from the centre */
+.hero-intro-card .hero-postcard-photo-wrap,
+.hero-intro-card .hero-album-label {
+  animation: ss-fan 1s var(--ss-ease) both;
+  animation-delay: calc(0.15s + var(--intro-step, 0) * 0.14s);
+}
+.hero-intro-card .hero-album-label { animation-name: ss-rise; animation-delay: calc(0.45s + var(--intro-step, 0) * 0.14s); }
+
+/* Home: booking steps line */
+.prog-steps li { animation: ss-rise-sm 0.6s var(--ss-ease) both; }
+.prog-steps li:nth-child(1) { animation-delay: 0.1s; }
+.prog-steps li:nth-child(2) { animation-delay: 0.2s; }
+.prog-steps li:nth-child(3) { animation-delay: 0.3s; }
+.prog-steps li:nth-child(4) { animation-delay: 0.4s; }
+
+/* Page headers and toolbars */
+.pcat-head > *,
+.catalog-head > * { animation: ss-rise 0.7s var(--ss-ease) both; }
+.pcat-head > :nth-child(2),
+.catalog-head > :nth-child(2) { animation-delay: 0.1s; }
+.pcat-bar { animation: ss-rise 0.7s 0.15s var(--ss-ease) both; }
+
+/* Lists of cards: short cascade (capped so long lists don't drag) */
+.pcat-list > .prow,
+.pipe-list > .pipe-row,
+.skm-list > li,
+.acd-roles > .acd-role { animation: ss-rise 0.6s var(--ss-ease) both; }
+.pcat-list > :nth-child(1), .pipe-list > :nth-child(1), .skm-list > :nth-child(1), .acd-roles > :nth-child(1) { animation-delay: 0.2s; }
+.pcat-list > :nth-child(2), .pipe-list > :nth-child(2), .skm-list > :nth-child(2), .acd-roles > :nth-child(2) { animation-delay: 0.28s; }
+.pcat-list > :nth-child(3), .pipe-list > :nth-child(3), .skm-list > :nth-child(3), .acd-roles > :nth-child(3) { animation-delay: 0.36s; }
+.pcat-list > :nth-child(4), .pipe-list > :nth-child(4), .skm-list > :nth-child(4), .acd-roles > :nth-child(4) { animation-delay: 0.44s; }
+.pcat-list > :nth-child(n + 5), .pipe-list > :nth-child(n + 5), .skm-list > :nth-child(n + 5), .acd-roles > :nth-child(n + 5) { animation-delay: 0.5s; }
+
+/* Pipeline steps, key panel, programs grid on other pages */
+.pipe-steps > li { animation: ss-pop 0.6s var(--ss-ease) both; }
+.pipe-steps > li:nth-child(2) { animation-delay: 0.08s; }
+.pipe-steps > li:nth-child(3) { animation-delay: 0.16s; }
+.skm,
+.enr-card,
+.book-wizard,
+.hotel-stage-main { animation: ss-rise 0.75s 0.05s var(--ss-ease) both; }
+.hotel-filter-side { animation: ss-slide-in 0.75s 0.15s var(--ss-ease) both; }
+
+/* Dashboards: sidebars cascade, main cards rise */
+.inn-side-link,
+.acct-side-item { animation: ss-slide-in 0.5s var(--ss-ease) both; }
+.inn-side-link:nth-child(1), .acct-side-item:nth-child(1) { animation-delay: 0.05s; }
+.inn-side-link:nth-child(2), .acct-side-item:nth-child(2) { animation-delay: 0.1s; }
+.inn-side-link:nth-child(3), .acct-side-item:nth-child(3) { animation-delay: 0.15s; }
+.inn-side-link:nth-child(4), .acct-side-item:nth-child(4) { animation-delay: 0.2s; }
+.inn-side-link:nth-child(5), .acct-side-item:nth-child(5) { animation-delay: 0.25s; }
+.inn-side-link:nth-child(6), .acct-side-item:nth-child(6) { animation-delay: 0.3s; }
+.inn-side-link:nth-child(n + 7), .acct-side-item:nth-child(n + 7) { animation-delay: 0.35s; }
+.inn-panel,
+.luxury-card,
+.trip-fold,
+.portal-tab { animation: ss-rise 0.65s 0.12s var(--ss-ease) both; }
+
+/* Sign-in windows */
+.login-simple,
+.admin-login-card { animation: ss-pop 0.55s var(--ss-ease) both; }
+
+/* ---------- Hold everything while the splash is on screen ---------- */
+body:has(> .intro-splash:not(.is-leaving)) nav[aria-label='Primary navigation'] > *,
+body:has(> .intro-splash:not(.is-leaving)) .hero-intro-card .hero-postcard-photo-wrap,
+body:has(> .intro-splash:not(.is-leaving)) .hero-intro-card .hero-album-label,
+body:has(> .intro-splash:not(.is-leaving)) .prog-steps li,
+body:has(> .intro-splash:not(.is-leaving)) .pcat-head > *,
+body:has(> .intro-splash:not(.is-leaving)) .catalog-head > *,
+body:has(> .intro-splash:not(.is-leaving)) .pcat-bar,
+body:has(> .intro-splash:not(.is-leaving)) .pcat-list > .prow,
+body:has(> .intro-splash:not(.is-leaving)) .pipe-list > .pipe-row,
+body:has(> .intro-splash:not(.is-leaving)) .pipe-steps > li,
+body:has(> .intro-splash:not(.is-leaving)) .skm,
+body:has(> .intro-splash:not(.is-leaving)) .skm-list > li,
+body:has(> .intro-splash:not(.is-leaving)) .enr-card,
+body:has(> .intro-splash:not(.is-leaving)) .book-wizard,
+body:has(> .intro-splash:not(.is-leaving)) .hotel-stage-main,
+body:has(> .intro-splash:not(.is-leaving)) .hotel-filter-side,
+body:has(> .intro-splash:not(.is-leaving)) .inn-side-link,
+body:has(> .intro-splash:not(.is-leaving)) .acct-side-item,
+body:has(> .intro-splash:not(.is-leaving)) .inn-panel,
+body:has(> .intro-splash:not(.is-leaving)) .luxury-card,
+body:has(> .intro-splash:not(.is-leaving)) .trip-fold,
+body:has(> .intro-splash:not(.is-leaving)) .portal-tab,
+body:has(> .intro-splash:not(.is-leaving)) .login-simple,
+body:has(> .intro-splash:not(.is-leaving)) .admin-login-card,
+body:has(> .intro-splash:not(.is-leaving)) .brand.is-animated .brand-s1,
+body:has(> .intro-splash:not(.is-leaving)) .brand.is-animated .brand-s2,
+body:has(> .intro-splash:not(.is-leaving)) .brand.is-animated .brand-s3,
+body:has(> .intro-splash:not(.is-leaving)) .brand.is-animated .brand-text {
+  animation-play-state: paused;
+}
+/* …except the splash's own logo, which is the show. */
+body:has(> .intro-splash:not(.is-leaving)) .intro-splash .brand.is-animated .brand-s1,
+body:has(> .intro-splash:not(.is-leaving)) .intro-splash .brand.is-animated .brand-s2,
+body:has(> .intro-splash:not(.is-leaving)) .intro-splash .brand.is-animated .brand-s3,
+body:has(> .intro-splash:not(.is-leaving)) .intro-splash .brand.is-animated .brand-text {
+  animation-play-state: running;
+}
+
+@media print {
+  .intro-splash { display: none !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intro-splash { display: none !important; }
+  nav[aria-label='Primary navigation'] > *,
+  .hero-intro-card .hero-postcard-photo-wrap,
+  .hero-intro-card .hero-album-label,
+  .prog-steps li,
+  .pcat-head > *, .catalog-head > *, .pcat-bar,
+  .pcat-list > .prow, .pipe-list > .pipe-row, .pipe-steps > li,
+  .skm, .skm-list > li, .acd-roles > .acd-role, .enr-card,
+  .book-wizard, .hotel-stage-main, .hotel-filter-side,
+  .inn-side-link, .acct-side-item, .inn-panel, .luxury-card, .trip-fold, .portal-tab,
+  .login-simple, .admin-login-card {
+    animation: none !important;
+  }
+}

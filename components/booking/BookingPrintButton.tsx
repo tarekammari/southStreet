@@ -3,11 +3,8 @@
 import { useState } from 'react';
 import { Loader2, Printer } from 'lucide-react';
 import { BookingDocType } from '@/lib/booking-documents';
+import { authHeaders, getAuthToken, apiFetch, jsonAuthHeaders } from '@/lib/api-client';
 
-function authHeaders(): HeadersInit {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('south_street_token') : null;
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
 
 export default function BookingPrintButton({
   type,
@@ -32,7 +29,7 @@ export default function BookingPrintButton({
   const [error, setError] = useState('');
 
   const print = async () => {
-    if (reservationId && !localStorage.getItem('south_street_token')) {
+    if (reservationId && !getAuthToken()) {
       setError('يلزم تسجيل الدخول لطباعة الطلب');
       return;
     }

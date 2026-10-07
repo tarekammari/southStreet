@@ -1,24 +1,63 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getSqliteDb } from '@/lib/sqlite';
 import { getDatabase, saveDatabase, AiKnowledgeRule } from '@/lib/db';
 import { getColumnLabelAr } from '@/lib/table-column-labels';
+import { ensurePackageRoomPrices } from '@/lib/package-options';
+import { requireRole, ADMINS } from '@/lib/staff-gate';
 
-const ALLOWED_TABLES: Record<string, string> = {
-  packages: 'باقات العمرة والحج',
-  hotels: 'الفنادق المعتمدة',
-  morshids: 'المرشدين وطاقم العمل',
-  users: 'المستخدمين والحسابات',
-  ai_knowledge: 'قواعد معرفة صخر AI',
-  seasons: 'المواسم والرحلات',
-  messages: 'رسائل الدردشة',
-  receipts: 'سندات القبض الرقمية',
-  audit_logs: 'سجل تدقيق الأمان',
-  agency_settings: 'إعدادات الوكالة',
-  page_content: 'محتوى صفحات التطبيق',
-  reviews: 'تقييمات المعتمرين',
+export const dynamic = 'force-dynamic';
+
+/**
+ * Generic table editor. Admins edit content tables; the Super Admin can also
+ * read the audit log and receipts. Accounts, agency settings (which hold
+ * security material) and messages have dedicated, permission-checked screens
+ * and are never reachable from here.
+ */
+type TableAccess = { label: string; write: boolean; superOnly?: boolean };
+const TABLES: Record<string, TableAccess> = {
+  packages: { label: 'باقات العمرة والحج', write: true },
+  hotels: { label: 'الفنادق المعتمدة', write: true },
+  morshids: { label: 'المرشدين وطاقم العمل', write: true },
+  seasons: { label: 'المواسم والرحلات', write: true },
+  page_content: { label: 'محتوى صفحات التطبيق', write: true },
+  reviews: { label: 'تقييمات المعتمرين', write: true },
+  ai_knowledge: { label: 'قواعد معرفة صخر AI', write: true },
+  audit_logs: { label: 'سجل تدقيق الأمان', write: false, superOnly: true },
+  receipts: { label: 'سندات القبض الرقمية', write: false, superOnly: true },
 };
 
+function canRead(table: string, role: string): boolean {
+  const t = TABLES[table];
+  return Boolean(t && (!t.superOnly || role === 'SUPER_ADMIN'));
+}
+
+function canWrite(table: string, role: string): boolean {
+  return canRead(table, role) && TABLES[table].write;
+}
+
+const ALLOWED_TABLES: Record<string, string> = Object.fromEntries(
+  Object.entries(TABLES).map(([name, t]) => [name, t.label])
+);
+
+/** Staff logins never touch Admin accounts from this editor. */
+function syncStaffLogin(staff: any): unknown {
+  try {
+    const { ensureStaffLogin } = require('@/lib/accounts') as typeof import('@/lib/accounts');
+    return ensureStaffLogin(staff);
+  } catch (err: any) {
+    if (err?.message === 'PRIVILEGED_PROTECTED' || err?.message === 'SUPER_ADMIN_PROTECTED') return undefined;
+    throw err;
+  }
+}
+
+function requireDbAdmin(req: NextRequest) {
+  return requireRole(req, ADMINS);
+}
+
 export async function GET(req: Request) {
+  const gate = requireDbAdmin(req as NextRequest);
+  if ('error' in gate) return gate.error;
+
   try {
     const { searchParams } = new URL(req.url);
     const tableName = searchParams.get('table') || '';
@@ -27,7 +66,7 @@ export async function GET(req: Request) {
 
     if (!tableName) {
       // Return list of available tables with row counts
-      const tablesSummary = Object.keys(ALLOWED_TABLES).map(tbl => {
+      const tablesSummary = Object.keys(ALLOWED_TABLES).filter((tbl) => canRead(tbl, gate.role)).map(tbl => {
         try {
           const cnt = (db.prepare(`SELECT COUNT(*) as cnt FROM ${tbl}`).get() as any).cnt;
           return {
@@ -42,7 +81,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ tables: tablesSummary });
     }
 
-    if (!ALLOWED_TABLES[tableName]) {
+    if (!canRead(tableName, gate.role)) {
       return NextResponse.json({ error: 'الجدول المطلوب غير مدعوم' }, { status: 400 });
     }
 
@@ -75,16 +114,21 @@ export async function GET(req: Request) {
     return NextResponse.json({
       tableName,
       label: ALLOWED_TABLES[tableName],
+      writable: canWrite(tableName, gate.role),
       columns,
       totalRows: parsedRows.length,
       rows: parsedRows
     });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'خطأ في استعلام البيانات' }, { status: 500 });
+    console.error('[db-tables GET]', error);
+    return NextResponse.json({ error: 'خطأ في استعلام البيانات' }, { status: 500 });
   }
 }
 
 export async function POST(req: Request) {
+  const gate = requireDbAdmin(req as NextRequest);
+  if ('error' in gate) return gate.error;
+
   try {
     const body = await req.json();
     const { action, tableName, rowData, formula } = body;
@@ -134,15 +178,22 @@ export async function POST(req: Request) {
 
     // Action 2: Direct Data Insertion into Specified Table
     if (action === 'insert_data' && tableName) {
-      if (!ALLOWED_TABLES[tableName]) {
+      if (!canWrite(tableName, gate.role)) {
         return NextResponse.json({ error: 'الجدول غير صالح للإضافة' }, { status: 400 });
       }
 
-      if (!rowData || typeof rowData !== 'object') {
+      if (!rowData || typeof rowData !== 'object' || Array.isArray(rowData)) {
         return NextResponse.json({ error: 'بيانات السطر غير صالحة' }, { status: 400 });
       }
 
-      const keys = Object.keys(rowData);
+      // Column names are interpolated into SQL, so only real columns pass.
+      const insertColumns = new Set(
+        (sqliteDb.prepare(`PRAGMA table_info(${tableName})`).all() as any[]).map((c) => c.name)
+      );
+      const keys = Object.keys(rowData).filter((k) => insertColumns.has(k));
+      if (keys.length === 0) {
+        return NextResponse.json({ error: 'لا توجد حقول صالحة' }, { status: 400 });
+      }
       const placeholders = keys.map(() => '?').join(', ');
       const values = keys.map(k => {
         const v = rowData[k];
@@ -151,16 +202,16 @@ export async function POST(req: Request) {
 
       const sql = `INSERT INTO ${tableName} (${keys.join(', ')}) VALUES (${placeholders})`;
       sqliteDb.prepare(sql).run(...values);
+      if (tableName === 'packages') {
+        ensurePackageRoomPrices(sqliteDb, String(rowData.package_id || ''));
+      }
 
       let extra: Record<string, unknown> = {};
       if (tableName === 'morshids') {
         const staffId = rowData.morshid_id;
         if (staffId) {
           const staff = sqliteDb.prepare('SELECT * FROM morshids WHERE morshid_id = ?').get(staffId) as any;
-          if (staff) {
-            const { ensureStaffLogin } = require('@/lib/accounts') as typeof import('@/lib/accounts');
-            extra.login = ensureStaffLogin(staff);
-          }
+          if (staff) extra.login = syncStaffLogin(staff);
         }
       }
 
@@ -175,7 +226,7 @@ export async function POST(req: Request) {
 
     // Action 3: Update an existing row (identified by its primary key)
     if (action === 'update_data' && tableName) {
-      if (!ALLOWED_TABLES[tableName]) {
+      if (!canWrite(tableName, gate.role)) {
         return NextResponse.json({ error: 'الجدول غير صالح للتعديل' }, { status: 400 });
       }
       if (!rowData || typeof rowData !== 'object') {
@@ -218,38 +269,8 @@ export async function POST(req: Request) {
       let extra: Record<string, unknown> = {};
       if (tableName === 'morshids') {
         const staff = sqliteDb.prepare('SELECT * FROM morshids WHERE morshid_id = ?').get(keyValue) as any;
-        if (staff) {
-          const { ensureStaffLogin } = require('@/lib/accounts') as typeof import('@/lib/accounts');
-          extra.login = ensureStaffLogin(staff);
-        }
+        if (staff) extra.login = syncStaffLogin(staff);
       }
-      if (tableName === 'users') {
-        const { lookupHash } = require('@/lib/db-crypto') as typeof import('@/lib/db-crypto');
-        const { ensureUserAccount } = require('@/lib/accounts') as typeof import('@/lib/accounts');
-        const user = sqliteDb.prepare('SELECT * FROM users WHERE id = ?').get(keyValue) as any;
-        if (user) {
-          extra.login = ensureUserAccount({
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            username: user.username,
-            role: user.role,
-            roleName: user.roleName,
-            phone: user.phone,
-            staffId: user.staffId,
-            issueSecrets: false,
-          });
-          if (rowData.email || rowData.username || rowData.code) {
-            sqliteDb.prepare('UPDATE users SET emailHash = ?, usernameHash = ?, codeHash = ? WHERE id = ?').run(
-              user.email ? lookupHash(user.email) : '',
-              user.username ? lookupHash(user.username) : '',
-              user.code ? lookupHash(user.code) : '',
-              user.id
-            );
-          }
-        }
-      }
-
       return NextResponse.json({
         success: true,
         message: `✅ تم حفظ التعديلات على [${ALLOWED_TABLES[tableName]}] بنجاح!`,
@@ -261,7 +282,7 @@ export async function POST(req: Request) {
 
     // Action 4: Delete a row (identified by its primary key)
     if (action === 'delete_data' && tableName) {
-      if (!ALLOWED_TABLES[tableName]) {
+      if (!canWrite(tableName, gate.role)) {
         return NextResponse.json({ error: 'الجدول غير صالح للحذف' }, { status: 400 });
       }
 
@@ -294,6 +315,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ error: 'إجراء غير معروف' }, { status: 400 });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'حدث خطأ أثناء معالجة الطلب' }, { status: 500 });
+    console.error('[db-tables POST]', error);
+    return NextResponse.json({ error: 'حدث خطأ أثناء معالجة الطلب' }, { status: 500 });
   }
 }

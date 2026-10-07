@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import UserAccessDashboard from '@/components/admin/UserAccessDashboard';
 import { logoutAndReload } from '@/lib/client-session';
 import '@/app/admin-dashboard.css';
+import SecurityKeyPrompt from '@/components/auth/SecurityKeyPrompt';
 
 export default function AdminDashboardPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -15,6 +16,7 @@ export default function AdminDashboardPage() {
   const [fileKeyInput, setFileKeyInput] = useState('');
   const [loginError, setLoginError] = useState('');
   const [loginSuccessMsg, setLoginSuccessMsg] = useState('');
+  const [keyFlow, setKeyFlow] = useState<{ flowToken: string; options: any; name?: string } | null>(null);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('south_street_user');
@@ -48,9 +50,17 @@ export default function AdminDashboardPage() {
         body: JSON.stringify({ username: email, password }),
       });
       const data = await res.json();
+      if (data.status === 'REQUIRES_SECURITY_KEY') {
+        setKeyFlow({ flowToken: data.flowToken, options: data.options, name: data.name });
+        return;
+      }
+      if (data.status === 'ENROLLMENT_REQUIRED' && data.enrollUrl) {
+        window.location.href = data.enrollUrl;
+        return;
+      }
       if (data.status === 'REQUIRES_FILE_KEY') {
         setLoginStep(2);
-        setLoginSuccessMsg('تم التحقق. يرجى رفع ملف المفتاح الأمني (.key)');
+        setLoginSuccessMsg(data.message || 'ارفع ملف المفتاح الحالي لتفعيل مفتاح الأمان لأول مرة.');
         return;
       }
       if (data.status === 'PENDING_APPROVAL') {
@@ -76,7 +86,9 @@ export default function AdminDashboardPage() {
         body: JSON.stringify({ username: email, password, fileKey }),
       });
       const data = await res.json();
-      if (data.status === 'SUCCESS') {
+      if (data.status === 'ENROLLMENT_REQUIRED' && data.enrollUrl) {
+        window.location.href = data.enrollUrl;
+      } else if (data.status === 'SUCCESS') {
         finishLogin(data);
       } else {
         setLoginError(data.error || 'مفتاح الأمان غير صحيح');
@@ -117,7 +129,19 @@ export default function AdminDashboardPage() {
           <p className="admin-login-sub">ساوث ستريت — التحكم بتفعيل المستخدمين والصلاحيات</p>
           {loginError ? <div className="admin-alert admin-alert-error">{loginError}</div> : null}
           {loginSuccessMsg ? <div className="admin-alert admin-alert-success">{loginSuccessMsg}</div> : null}
-          {loginStep === 1 ? (
+          {keyFlow ? (
+            <SecurityKeyPrompt
+              tone="dark"
+              flowToken={keyFlow.flowToken}
+              options={keyFlow.options}
+              name={keyFlow.name}
+              onSuccess={(data) => finishLogin(data)}
+              onCancel={() => {
+                setKeyFlow(null);
+                setPassword('');
+              }}
+            />
+          ) : loginStep === 1 ? (
             <form onSubmit={handleLoginStep1} className="admin-login-form">
               <div>
                 <label className="admin-label">البريد الإلكتروني أو اسم المستخدم</label>
@@ -126,9 +150,12 @@ export default function AdminDashboardPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin أو admin@southstreet.dz"
                   className="admin-input"
                   dir="ltr"
+                  autoComplete="username"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  maxLength={120}
                 />
               </div>
               <div>
@@ -140,6 +167,8 @@ export default function AdminDashboardPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   className="admin-input"
                   dir="ltr"
+                  autoComplete="current-password"
+                  maxLength={128}
                 />
               </div>
               <button type="submit" className="admin-btn-primary w-full">دخول</button>

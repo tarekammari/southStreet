@@ -32,99 +32,20 @@ import {
 import ExistingBookingPanel from '@/components/booking/ExistingBookingPanel';
 import BookingPrintButton from '@/components/booking/BookingPrintButton';
 import GoogleContinueButton from '@/components/GoogleContinueButton';
-
-const STEPS = [
-  { id: 1, label: 'الباقة' },
-  { id: 2, label: 'اختيارك' },
-  { id: 3, label: 'بياناتك' },
-  { id: 4, label: 'الفاتورة' },
-];
-
-type ViewId = 'offer' | 'packages' | 'room' | 'extra' | 'details' | 'invoice';
-
-const EXTRA_ICONS: Record<string, typeof FileCheck> = {
-  visa_fast: FileCheck,
-  private_transfer: Car,
-  zamzam: Droplets,
-  insurance: Shield,
-  extra_night: Moon,
-  wheelchair: Accessibility,
-};
-
-function RoomPeople({ count }: { count: number }) {
-  return (
-    <span className="book-people" aria-hidden>
-      {Array.from({ length: count }, (_, i) => (
-        <UserRound key={i} className="book-person" strokeWidth={2.25} />
-      ))}
-    </span>
-  );
-}
-
-function isAvailablePackage(pkg: { status?: string; published?: boolean }): boolean {
-  const status = String(pkg.status || '').toUpperCase();
-  if (status === 'UPCOMING' || status === 'DRAFT' || status === 'CLOSED' || status === 'FULL') return false;
-  return pkg.published !== false && (status === 'PUBLISHED' || status === 'OPEN' || status === 'CURRENT' || !status);
-}
-
-function formatDate(value?: string): string {
-  if (!value) return '';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleDateString('ar-DZ', { year: 'numeric', month: 'long', day: 'numeric' });
-}
-
-function formatShortDate(value?: string): string {
-  if (!value) return '';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleDateString('ar-DZ', { month: 'short', day: 'numeric' });
-}
-
-function money(n: number): string {
-  return `${n.toLocaleString('ar-DZ')} دج`;
-}
-
-function authHeaders(): HeadersInit {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('south_street_token') : null;
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
-function phaseOf(view: ViewId): number {
-  if (view === 'offer' || view === 'packages') return 1;
-  if (view === 'room' || view === 'extra') return 2;
-  if (view === 'details') return 3;
-  return 4;
-}
-
-function PriceFocus({
-  amount,
-  from,
-  extrasCount,
-}: {
-  amount: number;
-  from: boolean;
-  extrasCount: number;
-}) {
-  return (
-    <aside className="book-price-focus" aria-live="polite">
-      <span className="book-price-label">{from ? 'السعر يبدأ من' : 'سعرك الآن'}</span>
-      <strong key={amount} className="book-price-amount book-price-pop">{money(amount)}</strong>
-      <span className="book-price-hint">
-        {extrasCount > 0 ? `${extrasCount} إضافات ضمن السعر` : 'يتغيّر عند اختيار الغرفة أو إضافة'}
-      </span>
-    </aside>
-  );
-}
-
-function PriceBar({ amount }: { amount: number }) {
-  return (
-    <aside className="book-price-bar" aria-live="polite">
-      <span>سعرك الآن</span>
-      <strong key={amount} className="book-price-pop">{money(amount)}</strong>
-    </aside>
-  );
-}
+import { authHeaders, getAuthToken, apiFetch, jsonAuthHeaders } from '@/lib/api-client';
+import {
+  STEPS,
+  type ViewId,
+  EXTRA_ICONS,
+  RoomPeople,
+  isAvailablePackage,
+  formatDate,
+  formatShortDate,
+  money,
+  phaseOf,
+  PriceFocus,
+  PriceBar,
+} from '@/components/booking/wizardHelpers';
 
 export default function BookingWizard() {
   const router = useRouter();
@@ -132,6 +53,7 @@ export default function BookingWizard() {
   const prefillPackage = searchParams.get('package') || '';
   const editId = searchParams.get('edit') || '';
   const trackRef = (searchParams.get('ref') || '').trim();
+  const onBehalf = searchParams.get('onBehalf') === '1';
 
   const [packages, setPackages] = useState<Package[]>([]);
   const [loading, setLoading] = useState(true);
@@ -182,7 +104,7 @@ export default function BookingWizard() {
 
     try {
       const session = localStorage.getItem('south_street_user');
-      if (session) {
+      if (session && !onBehalf) {
         const u = JSON.parse(session);
         setLoggedIn(true);
         if (u.name) setName((prev) => prev || u.name);
@@ -193,8 +115,8 @@ export default function BookingWizard() {
       /* ignore */
     }
 
-    const token = localStorage.getItem('south_street_token');
-    if (!token) {
+    const token = getAuthToken();
+    if (!token || onBehalf) {
       setBooting(false);
       return;
     }
@@ -226,7 +148,7 @@ export default function BookingWizard() {
         window.clearTimeout(bootTimer);
         setBooting(false);
       });
-  }, [editId, trackRef]);
+  }, [editId, trackRef, onBehalf]);
 
   useEffect(() => {
     if (prefillPackage && screen === 'wizard' && !existing) {
@@ -241,10 +163,16 @@ export default function BookingWizard() {
 
   const selected = packages.find((p) => p.package_id === packageId) || null;
   const otherPackages = packages.filter((p) => p.package_id !== packageId);
-  const roomPrices = selected?.prices || [];
+  const roomPrices = useMemo(() => selected?.prices || [], [selected]);
   const editing = Boolean(existing && screen === 'wizard' && (editId || existing));
   const step = phaseOf(view);
-  const currentExtra = BOOKING_EXTRAS[extraIndex] || null;
+  const offerExtras = useMemo(() => {
+    const rows = selected?.annex_options;
+    if (!rows?.length) return BOOKING_EXTRAS;
+    const enabled = rows.filter((row) => row.enabled !== false);
+    return enabled.length ? enabled : BOOKING_EXTRAS;
+  }, [selected]);
+  const currentExtra = offerExtras[extraIndex] || null;
 
   const selectPackage = (id: string) => {
     const pkg = packages.find((p) => p.package_id === id);
@@ -276,7 +204,7 @@ export default function BookingWizard() {
     return match ? Number(match.amount) : 0;
   }, [roomPrices, roomType]);
 
-  const selectedExtras = BOOKING_EXTRAS.filter((item) => extraIds.includes(item.id));
+  const selectedExtras = offerExtras.filter((item) => extraIds.includes(item.id));
   const extrasTotal = selectedExtras.reduce((sum, item) => sum + item.price, 0);
   const total = roomAmount + extrasTotal;
   const fromPrice = selected?.prices?.length ? Math.min(...selected.prices.map((p) => p.amount)) : 0;
@@ -324,7 +252,7 @@ export default function BookingWizard() {
         setError('اختر نوع الغرفة');
         return;
       }
-      if (BOOKING_EXTRAS.length) {
+      if (offerExtras.length) {
         setExtraIndex(0);
         setView('extra');
         return;
@@ -333,7 +261,7 @@ export default function BookingWizard() {
       return;
     }
     if (view === 'extra') {
-      if (extraIndex < BOOKING_EXTRAS.length - 1) {
+      if (extraIndex < offerExtras.length - 1) {
         setExtraIndex((i) => i + 1);
         return;
       }
@@ -342,14 +270,19 @@ export default function BookingWizard() {
     }
     if (view === 'details') {
       if (name.trim().length < 4) {
-        setError('أدخل اسمك');
+        setError(onBehalf ? 'أدخل اسم العميل' : 'أدخل اسمك');
         return;
       }
       if (!phone.trim()) {
         setError('رقم الهاتف مطلوب');
         return;
       }
-      if (!loggedIn && !editing && !googleIdToken) {
+      if (onBehalf) {
+        if (!getAuthToken()) {
+          setError('سجّل الدخول كمحاسب أولاً ثم أعد المحاولة');
+          return;
+        }
+      } else if (!loggedIn && !editing && !googleIdToken) {
         setError('اربط حساب جوجل للمتابعة');
         return;
       }
@@ -379,8 +312,8 @@ export default function BookingWizard() {
       return;
     }
     if (view === 'details') {
-      if (BOOKING_EXTRAS.length) {
-        setExtraIndex(BOOKING_EXTRAS.length - 1);
+      if (offerExtras.length) {
+        setExtraIndex(offerExtras.length - 1);
         setView('extra');
         return;
       }
@@ -418,7 +351,8 @@ export default function BookingWizard() {
         email: email.trim(),
         password,
         passport: passport.trim(),
-        googleIdToken,
+        googleIdToken: onBehalf ? '' : googleIdToken,
+        onBehalf: onBehalf || undefined,
         reservationId: existing?.reservation_id,
       };
       const res = await fetch('/api/bookings', {
@@ -431,7 +365,7 @@ export default function BookingWizard() {
       });
       const data = await res.json();
       if (res.status === 409 && data.code === 'EXISTING_BOOKING' && data.reservation) {
-        adoptSession(data);
+        if (!onBehalf) adoptSession(data);
         applyReservation(data.reservation);
         setScreen('manage');
         setError('');
@@ -441,9 +375,13 @@ export default function BookingWizard() {
         setError(data.error || 'تعذّر تأكيد الحجز');
         return;
       }
-      adoptSession(data);
+      if (!onBehalf) adoptSession(data);
       if (data.reservation) applyReservation(data.reservation);
       window.dispatchEvent(new CustomEvent('southstreet:bookings-updated'));
+      if (onBehalf) {
+        router.push('/portal?tab=accountant&section=receipts');
+        return;
+      }
       setScreen('manage');
       setView('packages');
       router.replace('/book');
@@ -582,28 +520,27 @@ export default function BookingWizard() {
           <p className="book-option-sub">اضغط للاختيار — التفاصيل من الرابط — التالي للمتابعة</p>
           {loading ? (
             <p className="text-sm text-slate-500 py-10 text-center">جاري تحميل البرامج...</p>
+          ) : packages.filter((pkg) => !isPackageExpired(pkg)).length === 0 ? (
+            <p className="text-sm text-slate-500 py-10 text-center">لا توجد باقات مفتوحة للحجز حالياً.</p>
           ) : (
             <div className="book-big-list">
-              {packages.map((pkg) => {
+              {packages.filter((pkg) => !isPackageExpired(pkg)).map((pkg) => {
                 const from = pkg.prices?.length ? Math.min(...pkg.prices.map((p) => p.amount)) : 0;
-                const expired = isPackageExpired(pkg);
-                const active = !expired && pkg.package_id === packageId;
+                const active = pkg.package_id === packageId;
                 return (
-                  <article key={pkg.package_id} className={`book-pkg-pick ${active ? 'is-active' : ''} ${expired ? 'is-expired' : ''}`}>
+                  <article key={pkg.package_id} className={`book-pkg-pick ${active ? 'is-active' : ''}`}>
                     <button
                       type="button"
                       className="book-pkg-pick-main"
                       onClick={() => selectPackage(pkg.package_id)}
                       aria-pressed={active}
-                      disabled={expired}
                     >
                       <span className={`book-choice-radio${active ? ' is-on' : ''}`} aria-hidden>
                         {active ? <Check className="w-3 h-3" strokeWidth={3} /> : null}
                       </span>
-                      <span className="book-pkg-type">{expired ? 'منتهية' : pkg.type}</span>
+                      <span className="book-pkg-type">{pkg.type}</span>
                       <strong>{pkg.name}</strong>
                       <span className="book-choice-price">{money(from)}</span>
-                      {expired ? <em className="book-pkg-expired">انتهى موعد هذه العمرة</em> : null}
                     </button>
                     <Link
                       href={`/packages#${encodeURIComponent(pkg.package_id)}`}
@@ -624,6 +561,9 @@ export default function BookingWizard() {
           <h2 className="book-option-title">اختر الغرفة</h2>
           <p className="book-option-sub">اضغط على نوع الغرفة ثم التالي</p>
           <div className="book-big-list book-big-list-rooms">
+            {roomPrices.length === 0 && (
+              <p className="book-option-sub">لا توجد غرف على هذا البرنامج بعد. افتح بطاقة البرنامج واحفظ خيارات الحجز.</p>
+            )}
             {roomPrices.map((price) => {
               const count = roomOccupancy(price.room_type);
               const active = roomType === price.room_type;
@@ -653,7 +593,7 @@ export default function BookingWizard() {
 
       {view === 'extra' && currentExtra && (
         <section className="book-option-screen">
-          <p className="book-option-kicker">إضافة {extraIndex + 1} من {BOOKING_EXTRAS.length}</p>
+          <p className="book-option-kicker">إضافة {extraIndex + 1} من {offerExtras.length}</p>
           <span className="book-option-icon" aria-hidden>
             {(() => {
               const Icon = EXTRA_ICONS[currentExtra.id] || Check;
@@ -686,22 +626,41 @@ export default function BookingWizard() {
       {view === 'details' && (
         <section className="book-details-easy">
           <header className="book-section-head">
-            <h2>بياناتك</h2>
-            <p>{editing ? 'حدّث الاسم أو الهاتف إن احتجت.' : 'الاسم والهاتف وحساب جوجل يكفي.'}</p>
+            <h2>{onBehalf ? 'بيانات العميل' : 'بياناتك'}</h2>
+            <p>
+              {editing
+                ? 'حدّث الاسم أو الهاتف إن احتجت.'
+                : onBehalf
+                  ? 'الاسم والهاتف كافيان. البريد اختياري — بدون جوجل.'
+                  : 'الاسم والهاتف وحساب جوجل يكفي.'}
+            </p>
           </header>
           <div className="book-form book-form-easy book-form-simple">
             <label>
-              الاسم
+              {onBehalf ? 'اسم العميل' : 'الاسم'}
               <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
             </label>
             <label>
               الهاتف
               <input value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" dir="ltr" />
             </label>
+            {onBehalf ? (
+              <label>
+                البريد الإلكتروني <span className="book-optional">(اختياري)</span>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
+                  dir="ltr"
+                  placeholder="client@email.com"
+                />
+              </label>
+            ) : null}
           </div>
-          {!editing ? (
+          {!editing && !onBehalf ? (
             <div className="book-google-box">
-              {loggedIn || googleIdToken ? (
+              {(loggedIn || googleIdToken) ? (
                 <p className="book-google-ok"><CheckCircle className="w-5 h-5" /> {email || 'حساب جوجل مرتبط'}</p>
               ) : (
                 <GoogleContinueButton
@@ -732,6 +691,9 @@ export default function BookingWizard() {
                 />
               )}
             </div>
+          ) : null}
+          {onBehalf && !editing ? (
+            <p className="book-onbehalf-hint">يُسجَّل العميل مباشرة من لوحة المحاسب دون حساب جوجل، وتبقى جلستك كما هي.</p>
           ) : null}
         </section>
       )}
