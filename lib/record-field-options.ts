@@ -305,6 +305,11 @@ export const PACKAGE_STATUS_OPTIONS: FieldOption[] = [
   { value: 'CANCELLED', label: 'ملغي' },
 ];
 
+export const PACKAGE_FEATURED_OPTIONS: FieldOption[] = [
+  { value: '1', label: 'نعم — العرض الرئيسي في الصفحة الأولى' },
+  { value: '0', label: 'لا' },
+];
+
 const MULTI_SELECT_FIELDS = new Set(['languages', 'supported_languages']);
 
 export function isMultiSelectField(fieldName: string): boolean {
@@ -354,6 +359,7 @@ export function getFieldSelectOptions(fieldName: string, tableName?: string): Fi
     if (fieldName === 'type') return PACKAGE_TYPE_OPTIONS;
     if (fieldName === 'season_name') return SEASON_NAME_OPTIONS;
     if (fieldName === 'status') return PACKAGE_STATUS_OPTIONS;
+    if (fieldName === 'featured') return PACKAGE_FEATURED_OPTIONS;
   }
 
   return null;

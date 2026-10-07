@@ -3,6 +3,7 @@
  * Domain helpers live in `lib/db.ts` and call `getSqliteDb()` from here.
  */
 import Database from 'better-sqlite3';
+import { normalizePackageStatus } from './package-status';
 import { hashPassword } from './security';
 import { wrapDatabaseWithEncryption, migratePlaintextToEncrypted } from './encrypted-sqlite';
 import { initSecuritySchema } from './security-schema';
@@ -749,6 +750,8 @@ function migrateFinanceCategories(db: Database.Database) {
   ensureColumn('finance_supplier_payments', 'status', "TEXT DEFAULT 'POSTED'");
   ensureColumn('finance_client_payments', 'status', "TEXT DEFAULT 'POSTED'");
   ensureColumn('packages', 'annex_options', 'TEXT');
+  ensureColumn('packages', 'featured', 'INTEGER DEFAULT 0');
+  normalizePackageRows(db);
   ensureColumn('finance_staff_salaries', 'kind', "TEXT DEFAULT 'salary'");
   try {
     db.exec(`
@@ -1378,5 +1381,21 @@ function seedPageContent(db: Database.Database) {
     } catch (err) {
       console.warn('[Page content seed]', row[0], err);
     }
+  }
+}
+
+/** Older or hand-typed rows ("مفتوح", "OPEN"…) get the canonical status, and `published` follows it. */
+function normalizePackageRows(db: any) {
+  try {
+    const rows = db.prepare('SELECT package_id, status, published FROM packages').all() as any[];
+    const update = db.prepare('UPDATE packages SET status = ?, published = ? WHERE package_id = ?');
+    for (const row of rows) {
+      const status = normalizePackageStatus(row.status);
+      if (!status) continue;
+      const published = status === 'PUBLISHED' ? 1 : 0;
+      if (status !== row.status || Number(row.published) !== published) update.run(status, published, row.package_id);
+    }
+  } catch {
+    // packages table not created yet
   }
 }

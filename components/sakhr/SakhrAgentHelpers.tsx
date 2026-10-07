@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { AiAction, AiCard, MediaAsset, Package, Hotel } from '@/types';
 import { type TableRef } from '@/lib/admin-table-intent';
+import { ADMIN_TABLES, REDIRECT_TABLES } from '@/lib/admin-tables';
 
 export interface SakhrMessage {
   role: 'user' | 'ai';
@@ -33,18 +34,18 @@ export interface SakhrAgentProps {
   theme?: 'light' | 'dark';
 }
 
+/**
+ * Labels for every source name the chat can mention. The editable tables come
+ * from the shared registry; the redirect tables are kept only so old source
+ * names still get a readable label (they are NOT shown in the tables menu).
+ */
 export const TABLE_LABELS: Record<string, string> = {
-  packages: '📦 باقات العمرة والحج',
-  hotels: '🏨 الفنادق المعتمدة',
-  morshids: '👨‍💼 المرشدين وطاقم العمل',
-  users: '👤 المستخدمين والحسابات',
-  ai_knowledge: '📖 قواعد معرفة صخر AI',
-  seasons: '🗓️ المواسم والرحلات',
-  messages: '💬 رسائل الدردشة',
-  receipts: '🧾 سندات القبض الرقمية',
-  audit_logs: '🛡️ سجل تدقيق الأمان',
-  agency_settings: '⚙️ إعدادات الوكالة',
-  page_content: '📄 محتوى الصفحات'
+  ...Object.fromEntries(
+    Object.entries(ADMIN_TABLES).map(([name, t]) => [name, `${t.icon} ${t.label}`])
+  ),
+  ...Object.fromEntries(
+    Object.entries(REDIRECT_TABLES).map(([name, t]) => [name, t.label])
+  ),
 };
 
 export function tableLabelPlain(key: string): string {

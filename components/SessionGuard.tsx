@@ -14,8 +14,19 @@ export default function SessionGuard() {
         window.location.reload();
       }
     };
+    // A tab left open for hours may outlive its session; re-check on return.
+    let lastCheck = Date.now();
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible' || Date.now() - lastCheck < 60_000) return;
+      lastCheck = Date.now();
+      void syncSessionProfile();
+    };
     window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, []);
 
   return null;

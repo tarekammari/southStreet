@@ -11,6 +11,7 @@ import {
   UserRound,
 } from 'lucide-react';
 import { authHeaders, getAuthToken } from '@/lib/api-client';
+import { isOpenPackageStatus } from '@/lib/package-status';
 
 export const STEPS = [
   { id: 1, label: 'الباقة' },
@@ -41,9 +42,8 @@ export function RoomPeople({ count }: { count: number }) {
 }
 
 export function isAvailablePackage(pkg: { status?: string; published?: boolean }): boolean {
-  const status = String(pkg.status || '').toUpperCase();
-  if (status === 'UPCOMING' || status === 'DRAFT' || status === 'CLOSED' || status === 'FULL') return false;
-  return pkg.published !== false && (status === 'PUBLISHED' || status === 'OPEN' || status === 'CURRENT' || !status);
+  // An empty status counts as open; anything typed is mapped ("مفتوح", "OPEN"…).
+  return pkg.published !== false && (!String(pkg.status || '').trim() || isOpenPackageStatus(pkg.status));
 }
 
 export function formatDate(value?: string): string {

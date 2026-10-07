@@ -3,6 +3,8 @@
  * so the chat can open the right table tool without a round-trip to the AI.
  */
 
+import { ADMIN_TABLES, REDIRECT_TABLES } from './admin-tables';
+
 export type AdminTableAction = 'insert' | 'edit' | 'view';
 
 export interface TableRef {
@@ -17,18 +19,10 @@ export interface AdminTableIntent {
   alternatives: TableRef[];
 }
 
+/** Arabic labels, built from the shared registry (see lib/admin-tables.ts). */
 export const TABLE_LABELS_AR: Record<string, string> = {
-  packages: 'باقات العمرة والحج',
-  hotels: 'الفنادق المعتمدة',
-  morshids: 'المرشدين وطاقم العمل',
-  users: 'المستخدمين والحسابات',
-  ai_knowledge: 'قاعدة معرفة صخر AI',
-  seasons: 'المواسم والرحلات',
-  messages: 'رسائل الدردشة',
-  receipts: 'سندات القبض',
-  audit_logs: 'سجل تدقيق الأمان',
-  agency_settings: 'إعدادات الوكالة',
-  page_content: 'محتوى الصفحات',
+  ...Object.fromEntries(Object.entries(ADMIN_TABLES).map(([name, t]) => [name, t.label])),
+  ...Object.fromEntries(Object.entries(REDIRECT_TABLES).map(([name, t]) => [name, t.label])),
 };
 
 const INSERT_TERMS = [
@@ -72,6 +66,7 @@ export const TABLE_TERMS: Record<string, string[]> = {
     'معرفة', 'المعرفة', 'صيغة', 'صيغ', 'تدريب', 'قاعدة معرفة', 'اسئلة', 'أسئلة',
     'knowledge', 'faq',
   ],
+  reviews: ['تقييمات', 'التقييمات', 'اراء', 'آراء', 'review', 'reviews'],
   receipts: ['سند', 'سندات', 'وصل', 'وصولات', 'قبض', 'دفع', 'مدفوعات', 'receipt', 'receipts', 'payment'],
   messages: ['رسالة', 'رسائل', 'الرسائل', 'محادثة', 'محادثات', 'message', 'messages', 'chat'],
   audit_logs: ['تدقيق', 'سجل الامان', 'سجل الأمان', 'سجلات', 'audit', 'logs', 'log'],

@@ -57,6 +57,7 @@ export async function GET(req: Request) {
         status: p.status,
         image_url: p.image_url,
       }),
+      featured: Number(p.featured) === 1,
       published: Boolean(p.published),
       included_services: parsePackageList(p.included_services),
       excluded_services: parsePackageList(p.excluded_services),

@@ -1,17 +1,32 @@
 import { NextResponse } from 'next/server';
 import { getSqliteDb } from '@/lib/sqlite';
 import { requireRole, ADMINS } from '@/lib/staff-gate';
+import { inspectDelete, disableStaffLogin } from '@/lib/admin-delete-guards';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-export async function GET() {
+function parseLanguages(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw !== 'string') return [];
+  try {
+    const parsed = JSON.parse(raw || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function GET(req: Request) {
   try {
     const db = getSqliteDb();
+    // Admins get the full row; the public catalogue never receives phone numbers.
+    const isAdmin = !('error' in requireRole(req, ADMINS));
     const rows = db.prepare('SELECT * FROM morshids ORDER BY rowid ASC').all() as any[];
     const morshids = rows.map(m => {
-      const languages = typeof m.languages === 'string' ? JSON.parse(m.languages || '[]') : (m.languages || []);
-      return { ...m, languages, reviewCount: Number(m.review_count) || 0 };
+      const languages = parseLanguages(m.languages);
+      const { phone, ...publicFields } = m;
+      return { ...(isAdmin ? m : publicFields), languages, reviewCount: Number(m.review_count) || 0 };
     });
     return NextResponse.json(morshids, {
       headers: { 'Cache-Control': 'no-store, max-age=0' },
@@ -98,7 +113,15 @@ export async function DELETE(req: Request) {
     if (!id) return NextResponse.json({ error: 'المعرف مطلوب' }, { status: 400 });
 
     const db = getSqliteDb();
+    const row = db.prepare('SELECT * FROM morshids WHERE morshid_id = ?').get(id) as any;
+    if (!row) return NextResponse.json({ error: 'العضو غير موجود' }, { status: 404 });
+
+    // Same rules as the Tables panel: no deleting a guide who still has packages or salary records.
+    const { blocker } = inspectDelete(db, 'morshids', row);
+    if (blocker) return NextResponse.json({ error: blocker, code: 'DELETE_BLOCKED' }, { status: 409 });
+
     db.prepare('DELETE FROM morshids WHERE morshid_id = ?').run(id);
+    disableStaffLogin(db, id);
 
     return NextResponse.json({ success: true, message: 'تم حذف العضو بنجاح' });
   } catch (error: any) {

@@ -1,253 +1,90 @@
 import { NextResponse } from 'next/server';
-import { AiCard, AiAction } from '@/types';
-import { getDatabase, saveDatabase, AiKnowledgeRule } from '@/lib/db';
-import { getSqliteDb } from '@/lib/sqlite';
-import {
-  toolSearchPackages,
-  toolGetSeasonsInfo,
-  toolGetAgencySettings,
-  toolGetTeamMembers,
-  toolGetHotelsInfo,
-  toolSearchKnowledge,
-  toolComparePackages,
-  toolSearchAppContent,
-  toolResolveNavigation,
-  toolGetSiteInventory,
-  toolGetSitemapContext,
-} from '@/lib/ai-tools';
-import { runTrustedToolPipeline, hasArabicKeyword, isFactualQuestion } from '@/lib/sakhr-trusted-tools';
-import { callExternalAI } from '@/lib/sakhr-external-ai';
-import {
-  getAgencySourceLabel,
-  GENERAL_KB,
-  fetchWebPageTool,
-} from './sakhrShared';
-import {
-  detectSiteInventoryIntent,
-  detectSmartNavigationIntent,
-  detectHotelIntent,
-  detectCompareIntent,
-  detectNavigationIntent,
-  detectAdminDbToolsIntent,
-  detectMorchedIntent,
-  detectPackageOfferIntent,
-  detectAgencyCustomIntents,
-  buildNoKnowledgeResponse,
-  generateLocalRagResponse,
-} from './sakhrIntents';
-import {
-  normalizeSessionHistory,
-  sanitizeSakhrReply,
-  SAKHR_HISTORY_TURNS,
-} from '@/lib/sakhr-smart';
+import { requireSession } from '@/lib/staff-gate';
+import { toolGetAgencySettings } from '@/lib/ai-tools';
+import { resolveRequestIp } from '@/lib/security-threats';
+import { runSakhr, SakhrNotConfiguredError, type ChatTurn } from '@/lib/sakhr/agent';
+import type { Who } from '@/lib/sakhr/tools';
 
-function sakhrJson(payload: any, init?: { status?: number }) {
-  if (payload && typeof payload.text === 'string') {
-    payload = { ...payload, text: sanitizeSakhrReply(payload.text) };
-  }
-  return NextResponse.json(payload, init);
+/**
+ * Sakhr chat endpoint. Works for visitors (public tools only) and for every
+ * signed-in role (tools matching that role). Changes are never made here —
+ * they come back as confirmation cards handled by ./action.
+ */
+
+export const dynamic = 'force-dynamic';
+// Gemini + a few tool rounds; Vercel Hobby allows up to 60 s.
+export const maxDuration = 60;
+
+const MAX_MESSAGE = 2000;
+const MAX_HISTORY = 16;
+const WINDOW_MS = 5 * 60 * 1000;
+const LIMITS = { ANON: 15, SIGNED_IN: 60 };
+
+const g = globalThis as unknown as { __ssSakhrRate?: Map<string, number[]> };
+const hits = (g.__ssSakhrRate ||= new Map());
+
+function rateLimited(key: string, limit: number): boolean {
+  const now = Date.now();
+  const recent = (hits.get(key) || []).filter((t: number) => now - t < WINDOW_MS);
+  recent.push(now);
+  hits.set(key, recent);
+  return recent.length > limit;
 }
 
 export async function POST(req: Request) {
+  const body = await req.json().catch(() => ({}));
+  const message = String(body.message || '').trim().slice(0, MAX_MESSAGE);
+  if (!message) return NextResponse.json({ error: 'اكتب رسالتك أولاً' }, { status: 400 });
+
+  const history: ChatTurn[] = (Array.isArray(body.history) ? body.history : [])
+    .slice(-MAX_HISTORY)
+    .map((t: any) => ({ role: t?.role === 'model' ? 'model' : 'user', text: String(t?.text || '').slice(0, MAX_MESSAGE) }))
+    .filter((t: ChatTurn) => t.text);
+
+  // Visitors get the public tools; an expired or key-less admin session is treated as a visitor.
+  const session = requireSession(req);
+  const signedIn = !('error' in session);
+  const role: Who = signedIn ? session.role : 'ANON';
+
+  const ip = resolveRequestIp({
+    forwarded: req.headers.get('x-forwarded-for'),
+    realIp: req.headers.get('x-real-ip'),
+    fallback: '127.0.0.1',
+  });
+  if (rateLimited(signedIn ? `u:${session.account.id}` : `ip:${ip}`, signedIn ? LIMITS.SIGNED_IN : LIMITS.ANON)) {
+    return NextResponse.json({ error: 'رسائل كثيرة في وقت قصير. انتظر قليلاً ثم أعد المحاولة.' }, { status: 429 });
+  }
+
+  const agency = toolGetAgencySettings();
   try {
-    const body = await req.json();
-    const prompt = (body.prompt || '').trim();
-    const history = normalizeSessionHistory(body.history || [], SAKHR_HISTORY_TURNS);
-if (!prompt) {
-      return sakhrJson({
-        text: 'يرجى كتابة سؤالك وسيجيبك صخر فوراً. 🕋'
-      });
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // TOOL 0: Site inventory / sitemap exploration
-    // ─────────────────────────────────────────────────────────────
-    const inventoryResult = detectSiteInventoryIntent(prompt);
-    if (inventoryResult) {
-      return sakhrJson(inventoryResult);
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // TOOL 0.5: Smart sitemap-based navigation (natural language)
-    // ─────────────────────────────────────────────────────────────
-    const smartNavResult = detectSmartNavigationIntent(prompt);
-    if (smartNavResult) {
-      return sakhrJson({
-        text: smartNavResult.text,
-        actions: smartNavResult.action ? [smartNavResult.action] : [],
-        cards: smartNavResult.actionCard ? [smartNavResult.actionCard] : [],
-      });
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // TOOL 1: Deep App Navigation Intent (Instant Action)
-    // ─────────────────────────────────────────────────────────────
-    const navResult = detectNavigationIntent(prompt);
-    if (navResult) {
-      return sakhrJson({
-        text: navResult.text,
-        actions: navResult.action ? [navResult.action] : [],
-        cards: navResult.actionCard ? [navResult.actionCard] : []
-      });
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // TOOL 1.5: Admin Database Inspection, Table Viewer, Data Insertion & Formula Training
-    // ─────────────────────────────────────────────────────────────
-    const dbToolsResult = detectAdminDbToolsIntent(prompt);
-    if (dbToolsResult) {
-      return sakhrJson(dbToolsResult);
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // TOOL 2: Morched (Guide) & Team Discovery (SQLite Query)
-    // ─────────────────────────────────────────────────────────────
-    const morchedResult = detectMorchedIntent(prompt);
-    if (morchedResult) {
-      return sakhrJson({
-        text: morchedResult.text,
-        cards: morchedResult.cards,
-        actions: []
-      });
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // TOOL 3: Live Packages & Offers Tool (SQLite Query)
-    // ─────────────────────────────────────────────────────────────
-    const packageResult = detectPackageOfferIntent(prompt);
-    if (packageResult) {
-      return sakhrJson({
-        text: packageResult.text,
-        cards: packageResult.cards,
-        actions: []
-      });
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // TOOL 3.6: Hotel Discovery
-    // ─────────────────────────────────────────────────────────────
-    const hotelResult = detectHotelIntent(prompt);
-    if (hotelResult) {
-      return sakhrJson({ text: hotelResult.text, cards: hotelResult.cards, actions: [] });
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // TOOL 3.7: Package Comparison
-    // ─────────────────────────────────────────────────────────────
-    const compareResult = detectCompareIntent(prompt);
-    if (compareResult) {
-      return sakhrJson({ text: compareResult.text, cards: compareResult.cards, actions: [] });
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // TOOL 3.5: Director, Accountant, Agency Headquarters & Installments (2 to 10 months)
-    // ─────────────────────────────────────────────────────────────
-    const customResult = detectAgencyCustomIntents(prompt);
-    if (customResult) {
-      return sakhrJson(customResult);
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // TOOL 4: Live Web Page Scraper Tool (if URL provided)
-    // ─────────────────────────────────────────────────────────────
-    const urlMatch = prompt.match(/https?:\/\/[^\s]+/i);
-    if (urlMatch && urlMatch[0]) {
-      const targetUrl = urlMatch[0];
-      const webResult = await fetchWebPageTool(targetUrl);
-      if (webResult) {
-        return sakhrJson({
-          text: `🌐 **قراءة مباشرة من الموقع:** [${webResult.title}](${webResult.url})\n\n${webResult.text}\n\n💡 *تم استخراج وتلخيص الإجابة مباشرة من الرابط المطلوب بواسطة أداة الويب لصخر.*`,
-          cards: [],
-          actions: []
-        });
-      }
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // TIER 0: Trusted Tools Pipeline — all SQLite tables, scored & sourced
-    // ─────────────────────────────────────────────────────────────
-    const trusted = runTrustedToolPipeline(prompt);
-    if (trusted.hasAnswer && trusted.hit) {
-      return sakhrJson({
-        text: sanitizeSakhrReply(trusted.hit.text),
-        cards: trusted.hit.cards || [],
-        actions: [],
-        trusted: true,
-        externalAi: false,
-        sourceType: 'agency_db',
-        source: trusted.hit.table,
-        sourceLabel: getAgencySourceLabel(trusted.hit.table),
-        toolsUsed: trusted.toolsUsed,
-      });
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // TIER 0b: Legacy single knowledge match (fallback if pipeline missed)
-    // ─────────────────────────────────────────────────────────────
-    const dbMatch = toolSearchKnowledge(prompt);
-    if (dbMatch) {
-      const rule = dbMatch.rule;
-      const cards: AiCard[] = [];
-      const actions: AiAction[] = [];
-
-      if (rule.category === 'packages') {
-        cards.push({
-          type: 'action',
-          data: {
-            title: rule.title_ar,
-            description: 'استعراض الحجز المباشر لهذه الباقة',
-            buttonText: '🚀 الانتقال لمسار الحجز',
-            targetUrl: '/book'
-          }
-        });
-      }
-
-      const selectedAnswer = rule.modelAnswer || rule.response_ar;
-      return sakhrJson({
-        text: sanitizeSakhrReply(selectedAnswer),
-        cards,
-        actions,
-        trusted: true,
-        externalAi: false,
-        sourceType: 'agency_db',
-        source: 'ai_knowledge',
-        sourceLabel: getAgencySourceLabel('ai_knowledge'),
-      });
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // TIER 1: Greetings & navigation-only local responses
-    // ─────────────────────────────────────────────────────────────
-    const localResult = await generateLocalRagResponse(prompt);
-    if (!(localResult as { noKnowledge?: boolean }).noKnowledge) {
-      return sakhrJson(localResult);
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // TIER 2: External AI fallback — general knowledge with source label
-    // ─────────────────────────────────────────────────────────────
-    const external = await callExternalAI(prompt, history as Array<{ role: string; text: string }>);
-    if (external.success && external.text) {
-      return sakhrJson({
-        text: sanitizeSakhrReply(external.text),
-        cards: [],
-        trusted: false,
-        externalAi: true,
-        sourceType: external.sourceType || 'external_ai',
-        source: external.source,
-        sourceLabel: external.sourceLabel || external.source,
-        model: external.model,
-      });
-    }
-
-    // External AI unavailable — knowledge gap
-    return sakhrJson(buildNoKnowledgeResponse(prompt, !external.success));
-
+    const result = await runSakhr({
+      ctx: { req, role, userId: signedIn ? session.account.id : undefined },
+      userName: signedIn ? session.account.name : undefined,
+      agency: {
+        name: agency.agency_name || 'ساوث ستريت للأسفار والعمرة',
+        phone: agency.phone,
+        email: agency.email,
+        address: [agency.address, agency.city].filter(Boolean).join('، '),
+      },
+      history,
+      message,
+    });
+    return NextResponse.json({ ...result, role });
   } catch (error: any) {
-    console.error('[Sakhr Route Error]:', error?.message);
-    return sakhrJson(
-      { error: 'حدث خطأ في معالجة طلب الذكاء الاصطناعي' },
-      { status: 500 }
-    );
+    if (error instanceof SakhrNotConfiguredError) {
+      return NextResponse.json(
+        { error: 'صخر غير مُفعَّل بعد: يلزم إضافة مفتاح GROQ_API_KEY أو GEMINI_API_KEY في إعدادات الخادم.' },
+        { status: 503 }
+      );
+    }
+    const status = Number(error?.status || error?.code) || 0;
+    console.error('[sakhr] chat failed', status, error?.message);
+    if (status === 429) {
+      return NextResponse.json({ error: 'ضغط كبير على خدمة الذكاء الاصطناعي الآن. أعد المحاولة بعد دقيقة.' }, { status: 429 });
+    }
+    if (status === 503 || error?.name === 'TimeoutError' || error?.name === 'AbortError') {
+      return NextResponse.json({ error: 'خدمة الذكاء الاصطناعي مزدحمة الآن. أعد المحاولة بعد لحظات.' }, { status: 503 });
+    }
+    return NextResponse.json({ error: 'تعذّر على صخر الرد الآن. أعد المحاولة بعد لحظات.' }, { status: 502 });
   }
 }

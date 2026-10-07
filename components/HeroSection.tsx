@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { fetchJsonList } from '@/lib/fetch-json';
 import { PageContentRow } from '@/lib/page-content';
 import { useIntroDone } from '@/lib/intro';
+import { isOpenPackageStatus } from '@/lib/package-status';
 
 type HeroOffer = {
   id: string;
@@ -32,9 +33,8 @@ function lowestOfferPrice(prices: { amount?: number }[] | undefined): number | n
 }
 
 function isAvailablePackage(pkg: { status?: string; published?: boolean }): boolean {
-  const status = String(pkg.status || '').toUpperCase();
-  if (status === 'UPCOMING' || status === 'DRAFT' || status === 'CLOSED') return false;
-  return pkg.published !== false && (status === 'PUBLISHED' || status === 'OPEN' || status === 'CURRENT' || !status);
+  // An empty status counts as open; anything typed is mapped ("مفتوح", "OPEN"…).
+  return pkg.published !== false && (!String(pkg.status || '').trim() || isOpenPackageStatus(pkg.status));
 }
 
 function startOfTodayMs(): number {
@@ -74,7 +74,8 @@ function pickNearestOffer(packages: any[]): HeroOffer | null {
 
   const upcoming = withDate.filter((pkg) => isUpcomingPackage(pkg));
   const available = upcoming.filter((pkg) => isAvailablePackage(pkg));
-  const chosen = available[0] || upcoming[0] || withDate.find((pkg) => isAvailablePackage(pkg));
+  const featured = packages.find((pkg) => pkg.featured && isAvailablePackage(pkg) && isUpcomingPackage(pkg));
+  const chosen = featured || available[0] || upcoming[0] || withDate.find((pkg) => isAvailablePackage(pkg));
   if (!chosen) return null;
 
   return {

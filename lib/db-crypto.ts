@@ -128,6 +128,7 @@ const PLAIN_EXACT = new Set([
   'userRole',
   'actorRole',
   'published',
+  'featured',
   'reserved',
   'available',
   'is_active',

@@ -4,6 +4,7 @@ import './globals.css';
 import './programs.css';
 import './home.css';
 import './security.css';
+import './sakhr.css';
 import '../components/dashboards/accountant-theme.css';
 import SessionGuard from '@/components/SessionGuard';
 import IntroSplash from '@/components/IntroSplash';

@@ -15,6 +15,7 @@
     "admin:status": "tsx scripts/super-admin.ts status"
   },
   "dependencies": {
+    "@google/genai": "^2.27.0",
     "@simplewebauthn/browser": "^13.3.0",
     "@simplewebauthn/server": "^13.3.3",
     "@types/better-sqlite3": "^9.6.0",
@@ -26,6 +27,7 @@
     "express": "^4.19.2",
     "express-rate-limit": "^7.3.1",
     "framer-motion": "^12.0.0",
+    "groq-sdk": "^1.6.0",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "leaflet": "^1.9.4",

@@ -49,6 +49,11 @@ export async function syncSessionProfile(): Promise<any | null> {
         headers: { Authorization: `Bearer ${token}` },
         cache: 'no-store',
       });
+      // 401 = token expired or invalid, 404 = account gone: the stored session is dead.
+      if (res.status === 401 || res.status === 404) {
+        expireSession();
+        return null;
+      }
       if (!res.ok) return readStoredUser();
       const data = await res.json();
       const next = data?.user;
@@ -91,6 +96,17 @@ export function clearClientSession() {
     /* ignore quota / private mode */
   }
   clearAuthCookie();
+}
+
+/**
+ * The server no longer accepts this session (e.g. the 8-hour admin limit
+ * passed): forget it locally and reload so the page shows the signed-out state.
+ */
+export function expireSession(delayMs = 0) {
+  if (typeof window === 'undefined' || leaving) return;
+  leaving = true;
+  clearClientSession();
+  window.setTimeout(() => window.location.reload(), delayMs);
 }
 
 export async function logoutAndReload(redirectTo?: string) {

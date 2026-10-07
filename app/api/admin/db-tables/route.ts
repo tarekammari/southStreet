@@ -3,7 +3,15 @@ import { getSqliteDb } from '@/lib/sqlite';
 import { getDatabase, saveDatabase, AiKnowledgeRule } from '@/lib/db';
 import { getColumnLabelAr } from '@/lib/table-column-labels';
 import { ensurePackageRoomPrices } from '@/lib/package-options';
-import { requireRole, ADMINS } from '@/lib/staff-gate';
+import { normalizePackageStatus, toFeaturedFlag } from '@/lib/package-status';
+import { requireRole, requireStepUp, ADMINS } from '@/lib/staff-gate';
+import {
+  ADMIN_TABLES,
+  canReadTable,
+  canWriteTable,
+  STEP_UP_DELETE_TABLES,
+} from '@/lib/admin-tables';
+import { inspectDelete, disableStaffLogin } from '@/lib/admin-delete-guards';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,32 +20,73 @@ export const dynamic = 'force-dynamic';
  * read the audit log and receipts. Accounts, agency settings (which hold
  * security material) and messages have dedicated, permission-checked screens
  * and are never reachable from here.
+ *
+ * The list of tables, their labels and who may read / write them lives in
+ * lib/admin-tables.ts so the chat menu and this route can never disagree.
  */
-type TableAccess = { label: string; write: boolean; superOnly?: boolean };
-const TABLES: Record<string, TableAccess> = {
-  packages: { label: 'باقات العمرة والحج', write: true },
-  hotels: { label: 'الفنادق المعتمدة', write: true },
-  morshids: { label: 'المرشدين وطاقم العمل', write: true },
-  seasons: { label: 'المواسم والرحلات', write: true },
-  page_content: { label: 'محتوى صفحات التطبيق', write: true },
-  reviews: { label: 'تقييمات المعتمرين', write: true },
-  ai_knowledge: { label: 'قواعد معرفة صخر AI', write: true },
-  audit_logs: { label: 'سجل تدقيق الأمان', write: false, superOnly: true },
-  receipts: { label: 'سندات القبض الرقمية', write: false, superOnly: true },
-};
-
-function canRead(table: string, role: string): boolean {
-  const t = TABLES[table];
-  return Boolean(t && (!t.superOnly || role === 'SUPER_ADMIN'));
-}
-
-function canWrite(table: string, role: string): boolean {
-  return canRead(table, role) && TABLES[table].write;
-}
-
 const ALLOWED_TABLES: Record<string, string> = Object.fromEntries(
-  Object.entries(TABLES).map(([name, t]) => [name, t.label])
+  Object.entries(ADMIN_TABLES).map(([name, t]) => [name, t.label])
 );
+
+const canRead = canReadTable;
+const canWrite = canWriteTable;
+
+const DEFAULT_PAGE = 150;
+const MAX_PAGE = 500;
+
+/** `available` is always capacity − reserved, and `published` must follow `status`. */
+function syncPackageDerived(db: any, packageId: string) {
+  db.prepare(
+    `UPDATE packages
+        SET available = MAX(COALESCE(capacity, 0) - COALESCE(reserved, 0), 0),
+            published = CASE WHEN UPPER(COALESCE(status, '')) = 'PUBLISHED' THEN 1 ELSE 0 END
+      WHERE package_id = ?`
+  ).run(packageId);
+}
+
+/** Canonical status / featured flag for programme rows, whatever was typed. */
+function normalizePackageInput(rowData: Record<string, any>) {
+  if ('status' in rowData) {
+    const status = normalizePackageStatus(rowData.status);
+    if (status) rowData.status = status;
+  }
+  if ('featured' in rowData) rowData.featured = toFeaturedFlag(rowData.featured);
+}
+
+/** Only one programme is the home-page hero offer. */
+function keepSingleFeatured(db: any, packageId: string, rowData: Record<string, any>) {
+  if (packageId && rowData.featured === 1) {
+    db.prepare('UPDATE packages SET featured = 0 WHERE package_id != ?').run(packageId);
+  }
+}
+
+function writeAudit(db: any, gate: { account: any; role: string }, action: string, details: string, req: Request) {
+  try {
+    db.prepare(
+      'INSERT INTO audit_logs (id, timestamp, actorName, actorRole, action, details, ip) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).run(
+      `aud_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      new Date().toISOString(),
+      String(gate.account?.name || gate.account?.id || 'admin'),
+      gate.role,
+      action,
+      details,
+      req.headers.get('x-forwarded-for') || ''
+    );
+  } catch {
+    // auditing must never block the admin action itself
+  }
+}
+
+/** Turns SQLite constraint failures into a message the admin can act on. */
+function friendlyDbError(error: any): { status: number; message: string } | null {
+  const msg = String(error?.message || '');
+  const notNull = msg.match(/NOT NULL constraint failed: \w+\.(\w+)/);
+  if (notNull) return { status: 400, message: `الحقل «${getColumnLabelAr(notNull[1])}» مطلوب ولا يمكن تركه فارغاً` };
+  const unique = msg.match(/UNIQUE constraint failed: \w+\.(\w+)/);
+  if (unique) return { status: 409, message: `القيمة في «${getColumnLabelAr(unique[1])}» موجودة مسبقاً` };
+  return null;
+}
 
 /** Staff logins never touch Admin accounts from this editor. */
 function syncStaffLogin(staff: any): unknown {
@@ -94,7 +143,13 @@ export async function GET(req: Request) {
       labelAr: getColumnLabelAr(c.name)
     }));
 
-    const rows = db.prepare(`SELECT * FROM ${tableName} ORDER BY 1 DESC LIMIT 150`).all() as any[];
+    // tableName passed canRead() above, so it is one of the registry's fixed names.
+    const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '', 10) || DEFAULT_PAGE, 1), MAX_PAGE);
+    const offset = Math.max(parseInt(searchParams.get('offset') || '', 10) || 0, 0);
+    const totalCount = (db.prepare(`SELECT COUNT(*) as c FROM ${tableName}`).get() as any).c as number;
+    const rows = db
+      .prepare(`SELECT * FROM ${tableName} ORDER BY 1 DESC LIMIT ? OFFSET ?`)
+      .all(limit, offset) as any[];
 
     // Parse JSON fields if present
     const parsedRows = rows.map(r => {
@@ -117,6 +172,8 @@ export async function GET(req: Request) {
       writable: canWrite(tableName, gate.role),
       columns,
       totalRows: parsedRows.length,
+      totalCount,
+      offset,
       rows: parsedRows
     });
   } catch (error: any) {
@@ -190,6 +247,11 @@ export async function POST(req: Request) {
       const insertColumns = new Set(
         (sqliteDb.prepare(`PRAGMA table_info(${tableName})`).all() as any[]).map((c) => c.name)
       );
+      if (tableName === 'packages') {
+        normalizePackageInput(rowData);
+        // A new programme has no bookings yet, even when copied from another one.
+        rowData.reserved = 0;
+      }
       const keys = Object.keys(rowData).filter((k) => insertColumns.has(k));
       if (keys.length === 0) {
         return NextResponse.json({ error: 'لا توجد حقول صالحة' }, { status: 400 });
@@ -204,6 +266,8 @@ export async function POST(req: Request) {
       sqliteDb.prepare(sql).run(...values);
       if (tableName === 'packages') {
         ensurePackageRoomPrices(sqliteDb, String(rowData.package_id || ''));
+        syncPackageDerived(sqliteDb, String(rowData.package_id || ''));
+        keepSingleFeatured(sqliteDb, String(rowData.package_id || ''), rowData);
       }
 
       let extra: Record<string, unknown> = {};
@@ -245,6 +309,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'عمود المعرّف غير صالح' }, { status: 400 });
       }
 
+      if (tableName === 'packages') normalizePackageInput(rowData);
       const validNames = new Set(tableColumns.map(c => c.name));
       const keys = Object.keys(rowData).filter(k => validNames.has(k) && k !== keyColumn);
 
@@ -266,6 +331,16 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'لم يتم العثور على السطر المطلوب' }, { status: 404 });
       }
 
+      if (tableName === 'packages') {
+        const pkgId = keyColumn === 'package_id' ? String(keyValue) : String(
+          (sqliteDb.prepare(`SELECT package_id FROM packages WHERE ${keyColumn} = ?`).get(keyValue) as any)?.package_id || ''
+        );
+        if (pkgId) {
+          syncPackageDerived(sqliteDb, pkgId);
+          keepSingleFeatured(sqliteDb, pkgId, rowData);
+        }
+      }
+
       let extra: Record<string, unknown> = {};
       if (tableName === 'morshids') {
         const staff = sqliteDb.prepare('SELECT * FROM morshids WHERE morshid_id = ?').get(keyValue) as any;
@@ -280,8 +355,9 @@ export async function POST(req: Request) {
       });
     }
 
-    // Action 4: Delete a row (identified by its primary key)
-    if (action === 'delete_data' && tableName) {
+    // Action 4: Delete a row. Two steps: "delete_check" tells the dialog what depends
+    // on the row, and "delete_data" only runs with an explicit confirm flag.
+    if ((action === 'delete_check' || action === 'delete_data') && tableName) {
       if (!canWrite(tableName, gate.role)) {
         return NextResponse.json({ error: 'الجدول غير صالح للحذف' }, { status: 400 });
       }
@@ -298,13 +374,61 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'عمود المعرّف غير صالح' }, { status: 400 });
       }
 
-      const info = sqliteDb
-        .prepare(`DELETE FROM ${tableName} WHERE ${keyColumn} = ?`)
-        .run(keyValue);
+      const target = sqliteDb.prepare(`SELECT * FROM ${tableName} WHERE ${keyColumn} = ?`).get(keyValue) as any;
+      if (!target) {
+        return NextResponse.json({ error: 'لم يتم العثور على السطر المطلوب' }, { status: 404 });
+      }
+
+      const { blocker, notes } = inspectDelete(sqliteDb, tableName, target);
+
+      if (action === 'delete_check') {
+        return NextResponse.json({
+          success: true,
+          canDelete: !blocker,
+          blocker,
+          notes,
+          needsKey: STEP_UP_DELETE_TABLES.has(tableName),
+        });
+      }
+
+      if (body.confirm !== true) {
+        return NextResponse.json(
+          { error: 'الحذف يحتاج تأكيداً صريحاً', code: 'CONFIRM_REQUIRED' },
+          { status: 400 }
+        );
+      }
+      if (blocker) {
+        return NextResponse.json({ error: blocker, code: 'DELETE_BLOCKED' }, { status: 409 });
+      }
+      if (STEP_UP_DELETE_TABLES.has(tableName)) {
+        const denied = requireStepUp(req, gate);
+        if (denied) return denied.error;
+      }
+
+      const removeRow = sqliteDb.transaction(() => {
+        if (tableName === 'packages') {
+          sqliteDb.prepare('DELETE FROM package_prices WHERE package_id = ?').run(target.package_id);
+        }
+        const info = sqliteDb.prepare(`DELETE FROM ${tableName} WHERE ${keyColumn} = ?`).run(keyValue);
+        if (tableName === 'morshids' && info.changes > 0) {
+          // The staff login must not outlive the staff profile (admin accounts are never touched).
+          disableStaffLogin(sqliteDb, target.morshid_id);
+        }
+        return info;
+      });
+      const info = removeRow();
 
       if (info.changes === 0) {
         return NextResponse.json({ error: 'لم يتم العثور على السطر المطلوب' }, { status: 404 });
       }
+
+      writeAudit(
+        sqliteDb,
+        gate,
+        'DELETE_ROW',
+        `${tableName}: ${String(target.name || target.title_ar || keyValue)} (${keyColumn}=${String(keyValue)})`,
+        req
+      );
 
       return NextResponse.json({
         success: true,
@@ -316,6 +440,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'إجراء غير معروف' }, { status: 400 });
   } catch (error: any) {
     console.error('[db-tables POST]', error);
+    const friendly = friendlyDbError(error);
+    if (friendly) return NextResponse.json({ error: friendly.message }, { status: friendly.status });
     return NextResponse.json({ error: 'حدث خطأ أثناء معالجة الطلب' }, { status: 500 });
   }
 }

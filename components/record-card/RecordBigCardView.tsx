@@ -4,7 +4,7 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from '
 import {
   ImageOff, Phone, Pencil, Save, RotateCcw, Loader2, ArrowRight,
   ChevronDown, ChevronLeft, ChevronRight, Plus, Briefcase, Landmark, Calculator,
-  Users, Ban, X,
+  Users, Ban, X, Trash2,
 } from 'lucide-react';
 import { buildRecordCard, RecordCardModel, RecordColumn } from '@/lib/record-card';
 import {
@@ -44,6 +44,9 @@ import LoginCredentialsPanel from '@/components/LoginCredentialsPanel';
 import ReviewsModerator from '@/components/ReviewsModerator';
 import { StarRating } from '@/components/StarRating';
 import { authHeaders, getAuthToken, jsonAuthHeaders } from '@/lib/api-client';
+import { adminFetch } from '@/lib/webauthn-client';
+import DeleteRecordDialog, { CLOSED_DELETE_DIALOG, type DeleteDialogState } from '@/components/record-card/DeleteRecordDialog';
+import StaffSalaryPanel from '@/components/record-card/StaffSalaryPanel';
 
 function RecordPhotoSlider({
   photos,
@@ -545,6 +548,8 @@ interface RecordBigCardProps {
   onClose: () => void;
   onSaved: (closeCard?: boolean) => void;
   isNew?: boolean;
+  /** view-only tables (receipts, audit log): no edit, no delete */
+  readOnly?: boolean;
 }
 
 const SKIP_ON_INSERT = new Set([
@@ -553,13 +558,14 @@ const SKIP_ON_INSERT = new Set([
   'pcFingerprint', 'lastLoginIp',
 ]);
 
-export function RecordBigCard({ card, columns, tableName, tableLabel, onClose, onSaved, isNew = false }: RecordBigCardProps) {
+export function RecordBigCard({ card, columns, tableName, tableLabel, onClose, onSaved, isNew = false, readOnly = false }: RecordBigCardProps) {
   const [editing, setEditing] = useState(false);
   const [showTechnical, setShowTechnical] = useState(false);
   const [saving, setSaving] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [previewUrl, setPreviewUrl] = useState('');
   const [error, setError] = useState('');
+  const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState>(CLOSED_DELETE_DIALOG);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const previewUrlRef = useRef('');
   const photoCol = useMemo(() => primaryPhotoColumn(columns.map((c) => c.name)), [columns]);
@@ -1158,6 +1164,70 @@ export function RecordBigCard({ card, columns, tableName, tableLabel, onClose, o
     }
   };
 
+  /** Step 1: ask the server what depends on this row, then show the dialog. */
+  const requestDelete = async () => {
+    if (!card.keyColumn || card.keyValue == null) {
+      setError('لا يمكن حذف هذا السطر لعدم وجود معرّف أساسي');
+      return;
+    }
+    setDeleteDialog({ ...CLOSED_DELETE_DIALOG, open: true, loading: true });
+    try {
+      const res = await fetch('/api/admin/db-tables', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'delete_check',
+          tableName,
+          keyColumn: card.keyColumn,
+          keyValue: card.keyValue,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setDeleteDialog({ ...CLOSED_DELETE_DIALOG, open: true, blocker: data.error || 'تعذر فحص السجل قبل الحذف' });
+        return;
+      }
+      setDeleteDialog({
+        ...CLOSED_DELETE_DIALOG,
+        open: true,
+        blocker: data.blocker || null,
+        notes: Array.isArray(data.notes) ? data.notes : [],
+        needsKey: Boolean(data.needsKey),
+      });
+    } catch {
+      setDeleteDialog({ ...CLOSED_DELETE_DIALOG, open: true, blocker: 'تعذر الاتصال بالخادم' });
+    }
+  };
+
+  /** Step 2: the real delete. Packages and staff ask for a security-key tap (HTTP 428 → adminFetch). */
+  const confirmDelete = async () => {
+    setDeleteDialog((d) => ({ ...d, busy: true, error: '' }));
+    try {
+      const send = deleteDialog.needsKey ? adminFetch : fetch;
+      const res = await send('/api/admin/db-tables', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'delete_data',
+          tableName,
+          keyColumn: card.keyColumn,
+          keyValue: card.keyValue,
+          confirm: true,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        setDeleteDialog(CLOSED_DELETE_DIALOG);
+        onSaved(true);
+        return;
+      }
+      setDeleteDialog((d) => ({ ...d, busy: false, error: data.error || 'فشل الحذف' }));
+    } catch (err: any) {
+      const detail = /[\u0600-\u06FF]/.test(String(err?.message || '')) ? err.message : 'تعذر إتمام الحذف';
+      setDeleteDialog((d) => ({ ...d, busy: false, error: detail }));
+    }
+  };
+
   const visiblePrimary = useMemo(
     () => layout.primary.filter((f) => {
       if (f.name.toLowerCase() === 'images') return false;
@@ -1302,14 +1372,25 @@ export function RecordBigCard({ card, columns, tableName, tableLabel, onClose, o
                   {isNew ? 'إضافة جديد' : 'حفظ التعديلات'}
                 </button>
               </>
+            ) : readOnly ? (
+              <span className="text-[12px] text-slate-400">عرض فقط</span>
             ) : (
-              <button
-                type="button"
-                onClick={() => setEditing(true)}
-                className="btn-pro-primary text-[13px] py-1.5 px-3 flex items-center gap-1.5"
-              >
-                <Pencil className="w-3.5 h-3.5" /> تعديل البيانات
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={requestDelete}
+                  className="btn-pro-outline text-[13px] py-1.5 px-3 flex items-center gap-1.5 text-red-600"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> حذف
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditing(true)}
+                  className="btn-pro-primary text-[13px] py-1.5 px-3 flex items-center gap-1.5"
+                >
+                  <Pencil className="w-3.5 h-3.5" /> تعديل البيانات
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -1365,6 +1446,10 @@ export function RecordBigCard({ card, columns, tableName, tableLabel, onClose, o
           )}
 
           {tableName === 'morshids' && !isNew && card.keyValue != null && (
+            <StaffSalaryPanel morshidId={String(card.keyValue)} staffName={card.title} />
+          )}
+
+          {tableName === 'morshids' && !isNew && card.keyValue != null && (
             <div className="mt-4">
               <ReviewsModerator staffId={String(card.keyValue)} title="تقييمات هذا العضو — موافقة الإدارة قبل النشر" />
             </div>
@@ -1392,6 +1477,14 @@ export function RecordBigCard({ card, columns, tableName, tableLabel, onClose, o
         </div>
         </div>
       </div>
+
+      <DeleteRecordDialog
+        state={deleteDialog}
+        title={card.title}
+        tableLabel={tableLabel}
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteDialog(CLOSED_DELETE_DIALOG)}
+      />
     </div>
   );
 }

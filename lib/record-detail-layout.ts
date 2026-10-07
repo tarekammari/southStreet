@@ -38,7 +38,7 @@ export interface DetailLayout {
 /** Reading order: who/what first, then contact, dates, figures, and prose last. */
 const DISPLAY_ORDER = [
   'name', 'title_ar', 'agency_name', 'packageName', 'pilgrimName', 'legal_name', 'content_key',
-  'username', 'roleName', 'role', 'type', 'category', 'hotel_category', 'city', 'section', 'status',
+  'username', 'roleName', 'role', 'type', 'category', 'hotel_category', 'city', 'section', 'status', 'featured',
   'phone', 'whatsapp', 'emergency_phone', 'email', 'website', 'address',
   'season_name', 'start_date', 'end_date', 'date', 'opening_hours',
   'duration_days', 'departure_city', 'airline',
@@ -63,6 +63,8 @@ const TECHNICAL_FIELDS = new Set([
 const OMITTED_BY_TABLE: Record<string, Set<string>> = {
   morshids: new Set(['status']),
   hotels: new Set(['latitude', 'longitude', 'hotel_id']),
+  // derived on the server: available = capacity − reserved, published follows status
+  packages: new Set(['available', 'published']),
 };
 
 function isOmitted(column: RecordColumn, tableName?: string): boolean {
