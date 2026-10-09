@@ -369,3 +369,27 @@
   .skr-rec-dot, .skr-speak.is-on { animation: none; }
   .skr-rec-levels i { transition: none; }
 }
+
+/* ------------------------------------------------------------------ *
+ * Table opened by Sakhr: chat stays visible beside it (desktop) or
+ * under it (phone) until the user closes the chat.
+ * ------------------------------------------------------------------ */
+html.skr-side .skr-panel { z-index: 330; }
+@media (min-width: 1024px) {
+  html.skr-side .luxury-modal-overlay { padding-right: calc(min(480px, 100vw - 16px) + 48px); }
+}
+@media (max-width: 1023.98px) {
+  html.skr-side .skr-panel { top: auto; height: 46vh; bottom: 8px; }
+  html.skr-side .luxury-modal-overlay { padding-bottom: calc(46vh + 16px); align-items: stretch; }
+}
+html.skr-side .luxury-modal-overlay .luxury-table-shell { height: 100%; }
+
+/* Hands-free voice conversation */
+.skr-handsfree { color: var(--skr-gold); }
+.skr-handsfree-dot {
+  width: 8px; height: 8px; border-radius: 999px; background: var(--skr-gold); flex: none;
+  animation: skr-hf 1.2s ease-in-out infinite;
+}
+@keyframes skr-hf { 0%, 100% { opacity: 0.35; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.15); } }
+@media (prefers-reduced-motion: reduce) { .skr-handsfree-dot { animation: none; } }
+.skr-handsfree button { color: var(--skr-text); font-weight: 600; }

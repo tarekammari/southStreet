@@ -8,7 +8,7 @@ import { LOGIN_ROLE_LABELS, normalizeLoginRole } from '@/lib/roles';
 import { adminFetch, keyErrorMessage } from '@/lib/webauthn-client';
 import type { SakhrAgentProps } from '@/components/sakhr/SakhrAgentHelpers';
 import type { VisualSpec } from '@/lib/sakhr/visual';
-import { speak, stopSpeaking, useArabicVoice, useVoiceRecorder, voiceInputSupported } from '@/components/sakhr/voice';
+import { speak, stopSpeaking, unlockAudio, useArabicVoice, useVoiceRecorder, voiceInputSupported } from '@/components/sakhr/voice';
 
 const TableBrowser = dynamic(() => import('@/components/sakhr/TableBrowser'), { ssr: false });
 const SakhrVisual = dynamic(() => import('@/components/sakhr/SakhrVisual'), { ssr: false });
@@ -40,6 +40,12 @@ type ChatMessage = {
 };
 
 const STORE_KEY = 'ss_sakhr_chat';
+const OPEN_KEY = 'ss_sakhr_open';
+
+// Hands-free mode outlives a page change: the reply that opened a page is still
+// being spoken when the next page's Sakhr mounts, and that one listens next.
+let handsFreeOn = false;
+let resumeListening: (() => void) | null = null;
 const MAX_STORED = 40;
 
 function bearer(): Record<string, string> {
@@ -174,7 +180,19 @@ function SecretBox({ label, value }: { label: string; value: string }) {
 
 export default function SakhrAgent(_props: SakhrAgentProps) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  // Stays open across pages (each page mounts its own Sakhr) until the user closes it.
+  const [open, setOpenState] = useState(false);
+  const setOpen = useCallback((next: boolean | ((v: boolean) => boolean)) => {
+    setOpenState((prev) => {
+      const value = typeof next === 'function' ? next(prev) : next;
+      try {
+        sessionStorage.setItem(OPEN_KEY, value ? '1' : '0');
+      } catch {
+        /* ignore */
+      }
+      return value;
+    });
+  }, []);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [thinking, setThinking] = useState(false);
@@ -185,17 +203,49 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [voiceNotice, setVoiceNotice] = useState('');
   const sendRef = useRef<(text?: string, viaVoice?: boolean) => void>(() => undefined);
+  // Hands-free conversation: speak → Sakhr answers aloud → listens again, no buttons.
+  const [handsFree, setHandsFreeState] = useState(false);
+  const setHandsFree = useCallback((on: boolean) => {
+    handsFreeOn = on;
+    setHandsFreeState(on);
+  }, []);
   const voice = useVoiceRecorder({
     onText: (text) => {
       setVoiceNotice('');
       setDraft('');
       sendRef.current(text, true);
     },
-    onError: (message) => setVoiceNotice(message),
+    onError: (message) => {
+      setHandsFree(false);
+      setVoiceNotice(message);
+    },
     onInterim: (text) => setDraft(text),
+    onNoSpeech: () => setHandsFree(false),
   });
+  const voiceRef = useRef(voice);
+  voiceRef.current = voice;
+  useEffect(() => {
+    const resume = () => {
+      if (handsFreeOn && voiceRef.current.state === 'idle') void voiceRef.current.start({ auto: true });
+    };
+    resumeListening = resume;
+    setHandsFreeState(handsFreeOn);
+    return () => {
+      if (resumeListening === resume) resumeListening = null;
+    };
+  }, []);
+  const listenAgain = useCallback(() => {
+    if (!handsFreeOn) return;
+    // A short pause so the end of Sakhr's own voice is not recorded.
+    window.setTimeout(() => resumeListening?.(), 250);
+  }, []);
 
   useEffect(() => {
+    try {
+      if (sessionStorage.getItem(OPEN_KEY) === '1') setOpenState(true);
+    } catch {
+      /* closed by default */
+    }
     setMicReady(voiceInputSupported());
     try {
       setSpeakReplies(localStorage.getItem('ss_sakhr_speak') !== '0');
@@ -210,6 +260,7 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
       setSpeakingId(null);
       return;
     }
+    unlockAudio();
     if (speak(text, () => setSpeakingId((cur) => (cur === id ? null : cur)))) setSpeakingId(id);
   };
   const [role, setRole] = useState<string>('ANON');
@@ -250,6 +301,13 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
     if (open) window.setTimeout(() => inputRef.current?.focus(), 80);
   }, [open]);
 
+  // A table opened by Sakhr sits beside the chat (below it on phones), never over it.
+  const docked = open && !!table;
+  useEffect(() => {
+    document.documentElement.classList.toggle('skr-side', docked);
+    return () => document.documentElement.classList.remove('skr-side');
+  }, [docked]);
+
   const send = useCallback(async (override?: string, viaVoice = false) => {
     const text = (override ?? draft).trim();
     if (!text || thinking) return;
@@ -283,9 +341,15 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
           visuals: (data.clientActions || []).filter((a: any) => a.type === 'visual' && a.visual).map((a: any) => a.visual as VisualSpec),
         },
       ]);
-      if (viaVoice && speakReplies && data.reply) {
-        if (speak(data.reply, () => setSpeakingId((cur) => (cur === replyId ? null : cur)))) setSpeakingId(replyId);
-      }
+      const spoken =
+        speakReplies &&
+        !!data.reply &&
+        speak(data.reply, () => {
+          setSpeakingId((cur) => (cur === replyId ? null : cur));
+          if (viaVoice) listenAgain();
+        });
+      if (spoken) setSpeakingId(replyId);
+      else if (viaVoice) listenAgain();
       for (const action of data.clientActions || []) {
         if (action.type === 'open_table') setTable(action.table);
         if (action.type === 'navigate' && typeof action.href === 'string' && action.href.startsWith('/')) {
@@ -294,10 +358,19 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
       }
     } catch (err) {
       setMessages((prev) => [...prev, { id: newId(), role: 'model', text: (err as Error).message, error: true }]);
+      setHandsFree(false);
     } finally {
       setThinking(false);
     }
-  }, [draft, messages, router, thinking, speakReplies]);
+  }, [draft, messages, router, thinking, speakReplies, listenAgain, setHandsFree]);
+
+  const closeChat = () => {
+    setHandsFree(false);
+    stopSpeaking();
+    setSpeakingId(null);
+    if (voice.state === 'recording') voice.stop(false);
+    setOpen(false);
+  };
   sendRef.current = (text, viaVoice) => void send(text, viaVoice);
 
   const updateAction = (msgId: string, token: string, patch: Partial<ActionCard>) => {
@@ -347,7 +420,7 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
     <>
       <div className="fixed bottom-5 right-5 sm:bottom-8 sm:right-8 z-50 select-none sakhr-fab-shell">
         <button
-          onClick={() => setOpen((v) => !v)}
+          onClick={() => (open ? closeChat() : setOpen(true))}
           aria-label={open ? 'إغلاق صخر' : 'فتح صخر، المساعد الذكي'}
           aria-expanded={open}
           className={`sakhr-fab-future relative w-14 h-14 sm:w-[64px] sm:h-[64px] rounded-full focus:outline-none group cursor-pointer flex items-center justify-center ${open ? 'is-open' : ''}`}
@@ -392,6 +465,8 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
                   onClick={() => {
                     const next = !speakReplies;
                     setSpeakReplies(next);
+                    if (next) unlockAudio();
+                    else setHandsFree(false);
                     if (!next) {
                       stopSpeaking();
                       setSpeakingId(null);
@@ -402,7 +477,7 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
                       /* ignore */
                     }
                   }}
-                  title={speakReplies ? 'قراءة الردود الصوتية: مفعّلة' : 'قراءة الردود الصوتية: متوقفة'}
+                  title={speakReplies ? 'الرد بالصوت: مفعّل' : 'الرد بالصوت: متوقف'}
                   aria-label={speakReplies ? 'إيقاف قراءة الردود' : 'تفعيل قراءة الردود'}
                   aria-pressed={speakReplies}
                 >
@@ -417,12 +492,7 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
               <button
                 type="button"
                 className="skr-icon"
-                onClick={() => {
-                  stopSpeaking();
-                  setSpeakingId(null);
-                  if (voice.state === 'recording') voice.stop(false);
-                  setOpen(false);
-                }}
+                onClick={closeChat}
                 aria-label="إغلاق"
               >
                 <X className="w-4 h-4" />
@@ -491,6 +561,15 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
             <div ref={endRef} />
           </div>
 
+          {handsFree && voice.state === 'idle' ? (
+            <p className="skr-voice-note skr-handsfree" role="status">
+              <span className="skr-handsfree-dot" aria-hidden />
+              {thinking ? 'صخر يفكّر…' : speakingId ? 'صخر يتكلّم… سأستمع إليك بعده' : 'محادثة صوتية'}
+              <button type="button" onClick={() => { setHandsFree(false); stopSpeaking(); setSpeakingId(null); }}>
+                إنهاء
+              </button>
+            </p>
+          ) : null}
           {voiceNotice ? (
             <p className="skr-voice-note" role="status">
               {voiceNotice}
@@ -501,7 +580,16 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
             <div className={`skr-input skr-rec${voice.state === 'transcribing' ? ' is-busy' : ''}`} role="group" aria-label="تسجيل صوتي">
               {voice.state === 'recording' ? (
                 <>
-                  <button type="button" className="skr-rec-cancel" onClick={() => voice.stop(false)} aria-label="إلغاء التسجيل" title="إلغاء">
+                  <button
+                    type="button"
+                    className="skr-rec-cancel"
+                    onClick={() => {
+                      setHandsFree(false);
+                      voice.stop(false);
+                    }}
+                    aria-label="إلغاء التسجيل"
+                    title="إلغاء"
+                  >
                     <Trash2 className="w-4 h-4" />
                   </button>
                   <span className="skr-rec-dot" aria-hidden />
@@ -513,8 +601,16 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
                       <i key={i} style={{ transform: `scaleY(${l})` }} />
                     ))}
                   </span>
-                  <span className="skr-rec-label">أتكلّم… ثم اضغط إرسال</span>
-                  <button type="button" className="skr-rec-send" onClick={() => voice.stop(true)} aria-label="إرسال التسجيل">
+                  <span className="skr-rec-label">{handsFree ? 'أستمع إليك… تكلّم' : 'تكلّم… يُرسل تلقائياً عند توقفك'}</span>
+                  <button
+                    type="button"
+                    className="skr-rec-send"
+                    onClick={() => {
+                      if (speakReplies) unlockAudio();
+                      voice.stop(true);
+                    }}
+                    aria-label="إرسال التسجيل"
+                  >
                     <ArrowUp className="w-4 h-4" />
                   </button>
                 </>
@@ -527,6 +623,8 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
             className="skr-input"
             onSubmit={(e) => {
               e.preventDefault();
+              if (speakReplies) unlockAudio();
+              setHandsFree(false);
               void send();
             }}
           >
@@ -537,6 +635,8 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
+                  if (speakReplies) unlockAudio();
+                  setHandsFree(false);
                   void send();
                 }
               }}
@@ -553,6 +653,8 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
                   setVoiceNotice('');
                   stopSpeaking();
                   setSpeakingId(null);
+                  if (speakReplies) unlockAudio();
+                  setHandsFree(speakReplies);
                   void voice.start();
                 }}
                 aria-label="تحدّث مع صخر بالصوت"

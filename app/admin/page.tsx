@@ -6,6 +6,7 @@ import UserAccessDashboard from '@/components/admin/UserAccessDashboard';
 import { logoutAndReload } from '@/lib/client-session';
 import '@/app/admin-dashboard.css';
 import SecurityKeyPrompt from '@/components/auth/SecurityKeyPrompt';
+import SakhrAgent from '@/components/lazy/LazySakhrAgent';
 
 export default function AdminDashboardPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -199,5 +200,10 @@ export default function AdminDashboardPage() {
     );
   }
 
-  return <UserAccessDashboard currentUser={currentUser} onLogout={handleLogout} />;
+  return (
+    <>
+      <UserAccessDashboard currentUser={currentUser} onLogout={handleLogout} />
+      <SakhrAgent />
+    </>
+  );
 }
