@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { SESSION_COOKIE, sessionCookieOptions } from '@/lib/session-token';
 import { verifyGoogleCredential } from '@/lib/google-id-token';
 import {
   attachGoogleId,
@@ -148,12 +149,7 @@ export async function POST(req: Request) {
         redirect: waiting?.redirect || (appointment ? '/portal' : postLoginPath(role)),
       },
     });
-    res.cookies.set('south_street_token', token, {
-      httpOnly: false,
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 60 * 60 * 24,
-    });
+    res.cookies.set(SESSION_COOKIE, token, sessionCookieOptions(60 * 60 * 24));
     return res;
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'تعذر الدخول عبر جوجل' }, { status: 400 });

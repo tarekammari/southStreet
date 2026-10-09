@@ -65,7 +65,7 @@ export const EMPTY_STATS: DashboardStats = {
 export const HEARTBEAT_MS = 45000;
 export const REFRESH_MS = 10000;
 
-export type DashSection = 'overview' | 'users' | 'security' | 'google' | 'server' | 'bookings' | 'content' | 'sakhr';
+export type DashSection = 'overview' | 'users' | 'security' | 'google' | 'server' | 'bookings' | 'content' | 'sakhr' | 'backups';
 export type FilterKey = 'all' | 'online' | 'active' | 'pending' | 'suspended';
 export type RoleFilter = 'all' | LoginRole;
 export type FlyoutKey = 'accounts' | 'sessions' | 'types' | null;

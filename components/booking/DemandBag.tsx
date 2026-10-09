@@ -146,6 +146,9 @@ export default function DemandBag({
                     {' '}
                     {isStaff ? res.package_name : formatDate(res.program?.start_date)} · {res.reservation_number}
                   </p>
+                  {String(res.status).toUpperCase() === 'REJECTED' && res.agency_note ? (
+                    <p className="refusal-reason">السبب: {res.agency_note}</p>
+                  ) : null}
                   <div className="demand-bag-actions">
                     {isStaff ? (
                       <Link href={inbox} onClick={() => setOpen(false)}>مراجعة الطلب</Link>

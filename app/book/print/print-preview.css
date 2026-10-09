@@ -1,14 +1,13 @@
 .print-viewer {
   min-height: 100vh;
-  background: #0c0f14;
+  background: #e9ecf1;
   display: flex;
   flex-direction: column;
+  font-family: var(--font-tajawal), 'Tajawal', system-ui, sans-serif;
 }
 
 .print-viewer-pro {
-  background:
-    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(184, 134, 11, 0.12), transparent),
-    linear-gradient(180deg, #151922 0%, #0c0f14 100%);
+  background: #e9ecf1;
 }
 
 .print-toolbar {
@@ -20,10 +19,11 @@
   align-items: center;
   gap: 16px;
   padding: 14px 24px;
-  background: rgba(12, 15, 20, 0.88);
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  color: #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  color: #0f172a;
 }
 
 .print-toolbar-start {
@@ -52,9 +52,10 @@
 .print-toolbar-sub {
   font-size: 11px;
   font-weight: 600;
-  color: #94a3b8;
+  color: #64748b;
   margin-top: 3px;
   font-variant-numeric: tabular-nums;
+  display: block;
 }
 
 .print-toolbar-btn {
@@ -63,9 +64,9 @@
   gap: 8px;
   padding: 9px 16px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.05);
-  color: #f1f5f9;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #0f172a;
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
@@ -74,18 +75,20 @@
 }
 
 .print-toolbar-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.16);
+  background: #f8fafc;
+  border-color: #9ca3af;
 }
 
 .print-toolbar-btn-primary {
-  background: linear-gradient(180deg, #059669, #047857);
-  border-color: #10b981;
-  box-shadow: 0 4px 14px rgba(5, 150, 105, 0.35);
+  background: #047857;
+  border-color: #047857;
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(4, 120, 87, 0.3);
 }
 
 .print-toolbar-btn-primary:hover:not(:disabled) {
-  background: linear-gradient(180deg, #10b981, #059669);
+  background: #065f46;
+  border-color: #065f46;
 }
 
 .print-toolbar-btn:disabled {
@@ -129,17 +132,17 @@
   overflow: hidden;
   border-radius: 3px;
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.08),
-    0 32px 64px -16px rgba(0, 0, 0, 0.65),
-    0 0 80px rgba(184, 134, 11, 0.06);
+    0 0 0 1px rgba(15, 23, 42, 0.06),
+    0 18px 48px -12px rgba(15, 23, 42, 0.25);
   background: #fff;
 }
 
 .print-sheet-wrap {
-  width: min(794px, 100%);
+  width: 794px;
+  max-width: 100%;
   box-shadow:
-    0 25px 50px -12px rgba(0, 0, 0, 0.55),
-    0 0 0 1px rgba(255, 255, 255, 0.06);
+    0 0 0 1px rgba(15, 23, 42, 0.06),
+    0 18px 48px -12px rgba(15, 23, 42, 0.25);
   border-radius: 4px;
   overflow: hidden;
   background: #fff;
@@ -175,8 +178,8 @@
   gap: 4px;
   padding: 4px 6px;
   border-radius: 10px;
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
 }
 
 .print-page-indicator {
@@ -184,7 +187,7 @@
   font-weight: 700;
   min-width: 7rem;
   text-align: center;
-  color: #e2e8f0;
+  color: #0f172a;
   padding: 0 6px;
 }
 
@@ -202,7 +205,7 @@
 }
 
 .print-hint strong {
-  color: #94a3b8;
+  color: #334155;
   font-weight: 700;
 }
 
@@ -211,8 +214,8 @@
   overflow: hidden;
   background: #fff;
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.08),
-    0 28px 60px -18px rgba(0, 0, 0, 0.7);
+    0 0 0 1px rgba(15, 23, 42, 0.06),
+    0 18px 48px -12px rgba(15, 23, 42, 0.25);
 }
 
 .print-one-page {
@@ -248,13 +251,13 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
-  color: #94a3b8;
+  color: #64748b;
   font-size: 14px;
-  background: #0c0f14;
+  background: #e9ecf1;
 }
 
 .print-error {
-  color: #f87171;
+  color: #b91c1c;
 }
 
 @media (max-width: 768px) {

@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { dbEncryptionSecret } from './secrets';
 import bcrypt from 'bcryptjs';
 import { encryptValue, decryptValue, lookupHash } from './db-crypto';
 
@@ -49,7 +50,7 @@ export function generateNewSecurityKey(): { keyString: string; fileContent: stri
   const randomBytes = crypto.randomBytes(32).toString('hex').toUpperCase();
   const keyId = `SOUTHSTREET-KEY-v1-${randomBytes.substring(0, 16)}`;
   const signature = crypto
-    .createHmac('sha256', process.env.DB_ENCRYPTION_SECRET || 'SouthStreet-AES-256-SuperSecretKey-2026!')
+    .createHmac('sha256', dbEncryptionSecret())
     .update(keyId)
     .digest('hex')
     .toUpperCase();

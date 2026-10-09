@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { extractSessionToken } from '@/lib/session-token';
 import { verifyToken, verifyPurposeToken, type JwtPayload } from '@/lib/auth';
 import { getSqliteDb } from '@/lib/sqlite';
 import { isPrivilegedRole, normalizeLoginRole, type LoginRole } from '@/lib/roles';
@@ -20,11 +21,7 @@ export type GateOk = {
 export type GateResult = GateOk | { error: NextResponse };
 
 function readToken(req: Request): string | null {
-  const auth = req.headers.get('authorization');
-  if (auth?.startsWith('Bearer ')) return auth.slice(7).trim();
-  const cookie = req.headers.get('cookie') || '';
-  const match = cookie.match(/(?:^|;\s*)south_street_token=([^;]+)/);
-  return match ? decodeURIComponent(match[1]) : null;
+  return extractSessionToken(req.headers.get('authorization'), req.headers.get('cookie'));
 }
 
 function deny(status: number, error: string, code?: string) {

@@ -18,6 +18,11 @@ const RecordBigCard = dynamic(() => import('@/components/RecordCardGrid').then((
   ssr: false,
 });
 
+const TeamWorkspace = dynamic(() => import('@/components/team/TeamWorkspace'), { ssr: false });
+
+/** Staff are managed in the Team workspace (profile + login together), not as raw rows. */
+const TEAM_TABLE = 'morshids';
+
 type TableData = {
   tableName: string;
   label: string;
@@ -50,6 +55,7 @@ export default function TableBrowser({
   const [bigCard, setBigCard] = useState<RecordCardModel | null>(null);
   const [creatingNew, setCreatingNew] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [teamOpen, setTeamOpen] = useState(table === TEAM_TABLE);
   // Reopening a table renders from cache first, then refreshes in the background.
   const cache = useRef<Map<string, TableData>>(new Map());
   // The parent passes a fresh callback each render; keeping it in a ref stops
@@ -162,6 +168,10 @@ export default function TableBrowser({
   }, [notify]);
 
   useEffect(() => {
+    if (table === TEAM_TABLE) {
+      setTeamOpen(true);
+      return;
+    }
     void fetchTable(table);
   }, [table, fetchTable]);
 
@@ -197,6 +207,11 @@ export default function TableBrowser({
   };
 
   const switchTable = (name: string) => {
+    if (name === TEAM_TABLE) {
+      setMenuOpen(false);
+      setTeamOpen(true);
+      return;
+    }
     setSearch('');
     setSelectedKey(null);
     setBigCard(null);
@@ -204,6 +219,19 @@ export default function TableBrowser({
     setMenuOpen(false);
     void fetchTable(name);
   };
+
+  if (teamOpen) {
+    return (
+      <TeamWorkspace
+        variant="modal"
+        onClose={() => {
+          setTeamOpen(false);
+          // Opened straight onto the team: closing returns to the chat.
+          if (table === TEAM_TABLE || !data) onClose();
+        }}
+      />
+    );
+  }
 
   return (
     <>

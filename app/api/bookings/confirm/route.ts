@@ -78,6 +78,9 @@ export async function POST(req: NextRequest) {
     if (!reservationId) {
       return NextResponse.json({ error: 'معرّف الطلب مطلوب' }, { status: 400 });
     }
+    if (action === 'reject' && note.length < 3) {
+      return NextResponse.json({ error: 'اكتب سبب الرفض — يصل إلى المعتمر' }, { status: 400 });
+    }
 
     const staff = { id: account.id, name: account.name || 'موظف الوكالة' };
     let reservation;
@@ -115,7 +118,7 @@ export async function POST(req: NextRequest) {
       reservation,
       message:
         action === 'reject'
-          ? 'تم رفض الطلب'
+          ? 'تم رفض الطلب وأُبلغ المعتمر بالسبب'
           : reservation.status === 'PAYMENT_PENDING'
             ? 'قُبل الطلب — التأكيد النهائي بعد تحصيل العربون من المحاسب'
             : 'تم التأكيد',
@@ -123,6 +126,12 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     if (error?.message === 'NOT_FOUND') {
       return NextResponse.json({ error: 'الطلب غير موجود' }, { status: 404 });
+    }
+    if (error?.message === 'DEPOSIT_PAID') {
+      return NextResponse.json(
+        { error: 'سُجّل عربون لهذا الطلب. يتم الإلغاء مع استرجاع المبلغ من المحاسبة.' },
+        { status: 409 }
+      );
     }
     if (error?.message === 'INVALID_STATUS') {
       return NextResponse.json({ error: 'لا يمكن معالجة هذا الطلب في حالته الحالية' }, { status: 409 });

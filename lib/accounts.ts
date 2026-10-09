@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { dbLookupSecret } from './secrets';
 import { getSqliteDb } from './sqlite';
 import { lookupHash, generatePassword, generateSecret } from './db-crypto';
 import { hashPassword, verifyPassword } from './security';
@@ -74,7 +75,7 @@ export function parseQrPayload(raw: string): { username: string; secret: string 
 }
 
 export function hashQrSecret(secret: string): string {
-  return crypto.createHmac('sha256', process.env.DB_LOOKUP_SECRET || process.env.DB_ENCRYPTION_SECRET || 'SouthStreet-AES-256-SuperSecretKey-2026!')
+  return crypto.createHmac('sha256', dbLookupSecret())
     .update(secret)
     .digest('hex');
 }
@@ -92,7 +93,7 @@ function suggestUsername(name: string, id: string, email?: string): string {
   if (ascii.length >= 3) return ascii.slice(0, 24);
 
   const compact = id.replace(/[^a-z0-9]/gi, '').toLowerCase() || 'user';
-  return `ss.${compact}`.slice(0, 24);
+  return `ss.${compact.slice(-6)}`;
 }
 
 function uniqueUsername(db: ReturnType<typeof getSqliteDb>, desired: string, excludeUserId?: string): string {
@@ -183,6 +184,17 @@ function rowToView(row: any): PublicAccountView {
     googleLinked: Boolean(row.googleId || row.google_id),
     status: row.status || 'APPROVED',
   };
+}
+
+/**
+ * True when another account already uses this email. Account creation looks
+ * accounts up by email, so a duplicate would silently take over that account.
+ */
+export function isEmailTaken(email: string, exceptUserId?: string): boolean {
+  const clean = (email || '').trim().toLowerCase();
+  if (!clean || isDevMultiAccountEmail(clean)) return false;
+  const row = getSqliteDb().prepare('SELECT id FROM users WHERE emailHash = ?').get(lookupHash(clean)) as { id?: string } | undefined;
+  return Boolean(row?.id && row.id !== exceptUserId);
 }
 
 export function findUserForLogin(identifier: string): any | null {
@@ -454,8 +466,7 @@ export function ensureUserAccount(input: {
       UPDATE users SET
         name = ?, role = ?, roleName = ?, phone = COALESCE(NULLIF(?, ''), phone),
         staffId = COALESCE(NULLIF(?, ''), staffId),
-        requiresFileKey = ?,
-        loginEnabled = 1
+        requiresFileKey = ?
       WHERE id = ?
     `).run(
       input.name || existing.name,
@@ -502,12 +513,16 @@ export function ensureStaffLogin(staff: {
   category?: string;
   status?: string;
   phone?: string;
+  email?: string;
+  username?: string;
 }): IssuedCredentials {
   const role = loginRoleFromStaff(staff.category, staff.roleName, staff.status);
   return ensureUserAccount({
     staffId: staff.morshid_id,
     name: staff.name,
     phone: staff.phone,
+    email: staff.email || undefined,
+    username: staff.username || undefined,
     role,
     roleName: staff.roleName,
     issueSecrets: true,

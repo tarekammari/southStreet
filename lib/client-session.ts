@@ -1,4 +1,5 @@
 const USER_KEY = 'south_street_user';
+import { SESSION_MARKER, isJwtLike } from './session-token';
 const TOKEN_KEY = 'south_street_token';
 
 let leaving = false;
@@ -40,15 +41,25 @@ export async function syncSessionProfile(): Promise<any | null> {
   if (typeof window === 'undefined') return null;
   const token = localStorage.getItem(TOKEN_KEY);
   if (!token) return null;
-  writeAuthCookie(token);
   if (syncingProfile) return syncingProfile;
 
   syncingProfile = (async () => {
     try {
-      const res = await fetch('/api/account/me', {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: 'no-store',
-      });
+      // Signed in before sessions moved to an httpOnly cookie: trade the stored
+      // token for the cookie once, then forget it.
+      if (isJwtLike(token)) {
+        const up = await fetch('/api/auth/session', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
+        });
+        if (up.status === 401 || up.status === 403) {
+          expireSession();
+          return null;
+        }
+        if (up.ok) localStorage.setItem(TOKEN_KEY, SESSION_MARKER);
+      }
+      const res = await fetch('/api/account/me', { cache: 'no-store', credentials: 'same-origin' });
       // 401 = token expired or invalid, 404 = account gone: the stored session is dead.
       if (res.status === 401 || res.status === 404) {
         expireSession();
@@ -81,10 +92,6 @@ function clearAuthCookie() {
   const expire = 'Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT';
   document.cookie = `${TOKEN_KEY}=; Path=/; ${expire}; SameSite=Lax`;
   document.cookie = `${TOKEN_KEY}=; Path=/; ${expire}`;
-}
-
-function writeAuthCookie(token: string) {
-  document.cookie = `${TOKEN_KEY}=${encodeURIComponent(token)}; Path=/; Max-Age=86400; SameSite=Lax`;
 }
 
 export function clearClientSession() {
@@ -136,10 +143,10 @@ export async function logoutAndReload(redirectTo?: string) {
   window.location.replace(next);
 }
 
-export function enterSessionAndReload(token: string, user: unknown, redirectTo: string) {
+/** The server already set the httpOnly session cookie; keep only the signed-in marker and the profile. */
+export function enterSessionAndReload(_token: string, user: unknown, redirectTo: string) {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(TOKEN_KEY, token);
+  localStorage.setItem(TOKEN_KEY, SESSION_MARKER);
   localStorage.setItem(USER_KEY, JSON.stringify(user));
-  writeAuthCookie(token);
   window.location.assign(redirectTo);
 }

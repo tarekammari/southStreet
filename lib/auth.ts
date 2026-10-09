@@ -9,7 +9,7 @@ export const PRIVILEGED_EXPIRES_IN = '8h';
  * The signing secret must come from the environment. In production a missing
  * secret is a hard failure; a built-in fallback would let anyone mint tokens.
  */
-function jwtSecret(): string {
+export function jwtSecret(): string {
   const secret = process.env.JWT_SECRET?.trim();
   if (secret && secret.length >= 32) return secret;
   if (process.env.NODE_ENV === 'production') {

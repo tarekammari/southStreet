@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { extractSessionToken } from '@/lib/session-token';
 import { verifyToken } from '@/lib/auth';
 import { User, UserRole } from '@/types';
 import { normalizePortalRole } from '@/lib/chat-utils';
@@ -11,9 +12,7 @@ export interface AuthUser {
 }
 
 export function getTokenFromRequest(req: NextRequest): string | null {
-  const auth = req.headers.get('authorization');
-  if (auth?.startsWith('Bearer ')) return auth.slice(7);
-  return req.cookies.get('south_street_token')?.value || null;
+  return extractSessionToken(req.headers.get('authorization'), req.headers.get('cookie'));
 }
 
 export function getAuthUser(req: NextRequest): AuthUser | null {

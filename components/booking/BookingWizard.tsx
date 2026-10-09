@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { SESSION_MARKER } from '@/lib/session-token';
+import { RefusedRequestStrip, dismissRefusal, latestRefusal } from '@/components/booking/PendingRequestBanner';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -72,6 +74,7 @@ export default function BookingWizard() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [existing, setExisting] = useState<Reservation | null>(null);
+  const [refusal, setRefusal] = useState<Reservation | null>(null);
   const [screen, setScreen] = useState<'manage' | 'wizard'>('wizard');
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [cancelling, setCancelling] = useState(false);
@@ -133,7 +136,10 @@ export default function BookingWizard() {
               : null)
           : null;
         const active = byRef || data?.activeReservation || list.find((row) => isActiveReservation(row.status));
-        if (!active) return;
+        if (!active) {
+          setRefusal(latestRefusal(list));
+          return;
+        }
         if (editId) {
           applyReservation(active);
           setScreen('wizard');
@@ -332,7 +338,8 @@ export default function BookingWizard() {
 
   const adoptSession = (data: any) => {
     if (data.token && data.user) {
-      localStorage.setItem('south_street_token', data.token);
+      // The session itself is the httpOnly cookie the server just set.
+      localStorage.setItem('south_street_token', SESSION_MARKER);
       localStorage.setItem('south_street_user', JSON.stringify(data.user));
       setLoggedIn(true);
     }
@@ -455,6 +462,15 @@ export default function BookingWizard() {
 
   return (
     <div className="book-wizard book-wizard-stage" dir="rtl">
+      {refusal && !existing ? (
+        <RefusedRequestStrip
+          reservation={refusal}
+          onDismiss={() => {
+            dismissRefusal(refusal.reservation_id);
+            setRefusal(null);
+          }}
+        />
+      ) : null}
       {editing ? (
         <p className="book-edit-banner">تعديل الطلب {existing?.reservation_number} — راجع الخيارات ثم احفظ الفاتورة الجديدة</p>
       ) : null}

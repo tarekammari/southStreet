@@ -1,12 +1,13 @@
 import crypto from 'crypto';
+import { jwtSecret } from '@/lib/auth';
 import fs from 'fs';
 import path from 'path';
 import jwt, { SignOptions } from 'jsonwebtoken';
 import QRCode from 'qrcode';
 import { BookingExtra, BookingInvoice, Reservation } from '@/types';
 import { ROOM_LABELS, isAgencyConfirmed } from '@/lib/booking-catalog';
+import { toolGetAgencySettings } from '@/lib/ai-tools';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'south-street-secret-2026-key-prod';
 const DOC_ISSUER = 'south-street-doc';
 
 export type BookingDocType =
@@ -47,7 +48,7 @@ export interface BookingDocumentPayload {
 
 export function documentVerifyCode(ref: string, type: string, total: number): string {
   return crypto
-    .createHmac('sha256', JWT_SECRET)
+    .createHmac('sha256', jwtSecret())
     .update(`${ref}|${type}|${Math.round(total)}|south-street`)
     .digest('hex')
     .slice(0, 14)
@@ -57,14 +58,14 @@ export function documentVerifyCode(ref: string, type: string, total: number): st
 export function signPrintToken(payload: BookingDocumentPayload, expiresIn: SignOptions['expiresIn'] = '20m'): string {
   return jwt.sign(
     { ...payload, purpose: 'booking-doc' } as jwt.JwtPayload,
-    JWT_SECRET,
+    jwtSecret(),
     { expiresIn, issuer: DOC_ISSUER }
   );
 }
 
 export function verifyPrintToken(token: string): BookingDocumentPayload | null {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET, { issuer: DOC_ISSUER }) as BookingDocumentPayload & { purpose?: string };
+    const decoded = jwt.verify(token, jwtSecret(), { issuer: DOC_ISSUER }) as BookingDocumentPayload & { purpose?: string };
     if (decoded.purpose !== 'booking-doc') return null;
     return decoded;
   } catch {
@@ -122,36 +123,24 @@ function money(n?: number): string {
   return `${Math.round(Number(n) || 0).toLocaleString('ar-DZ')} دج`;
 }
 
+/** DD/MM/YYYY with plain digits: locale output mixes direction marks into printed dates. */
 function formatShortDate(value?: string): string {
   if (!value) return '—';
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleDateString('ar-DZ', { year: 'numeric', month: '2-digit', day: '2-digit' });
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
 }
 
-function isPendingDemand(data: BookingDocumentPayload): boolean {
-  if (isAgencyConfirmed(data.reservationStatus) || data.type === 'confirmation' || data.type === 'receipt') {
-    return false;
-  }
-  return data.type === 'request'
-    || data.type === 'invoice'
-    || data.reservationStatus === 'REQUESTED'
-    || data.reservationStatus === 'PENDING'
-    || data.reservationStatus === 'DRAFT';
-}
 
-function extraNames(data: BookingDocumentPayload): string {
-  const names = (data.extras || []).map((item) => item.title).filter(Boolean);
-  return names.length ? names.join(' · ') : 'بدون إضافات';
-}
 
 let cachedAgencyLogo = '';
 
 function agencyLogoDataUri(): string {
   if (cachedAgencyLogo) return cachedAgencyLogo;
   const files = [
-    path.join(process.cwd(), 'images', 'south_street_logo_white_white.png'),
-    path.join(process.cwd(), 'public', 'images', 'south_street_logo_white_white.png'),
+    path.join(process.cwd(), 'public', 'images', 'south_street_logo_trans.png'),
+    path.join(process.cwd(), 'images', 'south_street_logo_trans.png'),
     path.join(process.cwd(), 'images', 'south_street_logo_width.png'),
     path.join(process.cwd(), 'public', 'images', 'south_street_logo_width.png'),
   ];
@@ -212,414 +201,272 @@ function escapeHtml(value: string): string {
     .replace(/"/g, '&quot;');
 }
 
-type DocTone = {
-  banner: string;
+type Agency = { name: string; legal: string; lines: string[]; contact: string[] };
+
+function agencyLetterhead(): Agency {
+  let row: any = {};
+  try {
+    row = toolGetAgencySettings() || {};
+  } catch {
+    /* settings table unavailable: plain header */
+  }
+  const name = String(row.agency_name || 'ساوث ستريت للأسفار').trim();
+  const legal = String(row.legal_name || 'South Street Travel').trim();
+  const place = [row.address, row.city, row.country].map((v: unknown) => String(v || '').trim()).filter(Boolean).join('، ');
+  const contact = [row.phone, row.email, row.website].map((v: unknown) => String(v || '').trim()).filter(Boolean);
+  return { name, legal, lines: place ? [place] : [], contact };
+}
+
+type DocKind = {
   title: string;
-  subtitle: string;
-  notice?: string;
-  noticeEm?: string;
-  accent: string;
-  soft: string;
-  border: string;
-  totalBg: string;
-  totalColor: string;
+  english: string;
+  state: { label: string; tone: 'amber' | 'green' | 'slate' | 'teal' | 'navy' };
+  notice?: { title: string; text: string; tone: 'amber' | 'green' | 'slate' };
+  watermark?: string;
 };
 
-function toneFor(data: BookingDocumentPayload): DocTone {
-  const pending = isPendingDemand(data);
-  if (pending || data.type === 'request') {
-    return {
-      banner: '#b45309',
-      title: 'الطلب غير مؤكد',
-      subtitle: 'هذه استمارة طلب فقط — ليست فاتورة وليست تأكيداً من الوكالة',
-      notice: 'لم يتم تأكيد هذا الطلب بعد',
-      noticeEm: 'الحجز والمقاعد والسعر النهائي لا تثبت إلا بعد موافقة الوكالة — امسح الرمز لمتابعة الطلب',
-      accent: '#b45309',
-      soft: '#fffbeb',
-      border: '#fcd34d',
-      totalBg: '#fff7ed',
-      totalColor: '#9a3412',
-    };
+function kindOf(data: BookingDocumentPayload): DocKind {
+  const confirmed = isAgencyConfirmed(data.reservationStatus);
+  switch (data.type) {
+    case 'quote':
+      return {
+        title: 'عرض سعر',
+        english: 'Quotation',
+        state: { label: 'غير ملزم', tone: 'slate' },
+        notice: { title: 'عرض تقديري', text: 'الأسعار والمقاعد قابلة للتغيير حتى إرسال الطلب وتأكيده من الوكالة.', tone: 'slate' },
+        watermark: 'عرض سعر',
+      };
+    case 'request':
+      return {
+        title: 'استمارة طلب حجز',
+        english: 'Booking request',
+        state: confirmed ? { label: 'مؤكد', tone: 'green' } : { label: 'قيد المراجعة', tone: 'amber' },
+        notice: confirmed
+          ? undefined
+          : { title: 'طلب غير مؤكد بعد', text: 'هذه استمارة طلب وليست فاتورة ولا تأكيداً. المقعد والسعر النهائي يثبتان بعد موافقة الوكالة.', tone: 'amber' },
+        watermark: confirmed ? undefined : 'غير مؤكد',
+      };
+    case 'invoice':
+      return confirmed
+        ? { title: 'فاتورة', english: 'Invoice', state: { label: 'حجز مؤكد', tone: 'navy' } }
+        : {
+            title: 'فاتورة أولية',
+            english: 'Proforma invoice',
+            state: { label: 'بانتظار العربون', tone: 'amber' },
+            notice: { title: 'قُبل طلبك — بقي العربون', text: 'يتأكد الحجز نهائياً عند تسديد العربون المبيّن أدناه لدى الوكالة.', tone: 'amber' },
+            watermark: 'فاتورة أولية',
+          };
+    case 'receipt':
+      return { title: 'سند قبض', english: 'Payment receipt', state: { label: 'مبلغ مستلم', tone: 'teal' } };
+    case 'confirmation':
+    default:
+      return {
+        title: 'تأكيد الحجز',
+        english: 'Booking confirmation',
+        state: { label: 'مؤكد', tone: 'green' },
+        notice: { title: 'حجزك مؤكد', text: 'تؤكد ساوث ستريت للأسفار حجز المقعد في البرنامج المبيّن أدناه. احتفظ بهذه الوثيقة.', tone: 'green' },
+      };
   }
-  if (data.type === 'quote') {
-    return {
-      banner: '#334155',
-      title: 'عرض سعر',
-      subtitle: 'عرض تقديري فقط — غير ملزم حتى تأكيد الوكالة',
-      notice: 'هذا العرض غير ملزم',
-      noticeEm: 'الأسعار والمقاعد قابلة للتغيير حتى إرسال الطلب وتأكيده',
-      accent: '#334155',
-      soft: '#f8fafc',
-      border: '#cbd5e1',
-      totalBg: '#f1f5f9',
-      totalColor: '#0f172a',
-    };
-  }
-  if (data.type === 'receipt') {
-    return {
-      banner: '#0f766e',
-      title: 'سند قبض',
-      subtitle: 'إيصال دفعة مستلمة من الوكالة',
-      accent: '#0f766e',
-      soft: '#f0fdfa',
-      border: '#99f6e4',
-      totalBg: '#ccfbf1',
-      totalColor: '#115e59',
-    };
-  }
-  if (data.type === 'confirmation') {
-    return {
-      banner: '#047857',
-      title: 'تأكيد الحجز',
-      subtitle: 'وثيقة تأكيد رسمية من ساوث ستريت للأسفار',
-      accent: '#047857',
-      soft: '#ecfdf5',
-      border: '#a7f3d0',
-      totalBg: '#d1fae5',
-      totalColor: '#065f46',
-    };
-  }
-  return {
-    banner: '#1e3a5f',
-    title: 'فاتورة الحجز',
-    subtitle: 'فاتورة برنامج العمرة — ساوث ستريت للأسفار',
-    accent: '#1e3a5f',
-    soft: '#f8fafc',
-    border: '#cbd5e1',
-    totalBg: '#eff6ff',
-    totalColor: '#1e3a5f',
-  };
 }
 
-function tableRows(pairs: Array<[string, string]>): string {
-  return pairs.map(([label, value]) => `
-    <tr>
-      <th>${escapeHtml(label)}</th>
-      <td>${escapeHtml(value || '—')}</td>
-    </tr>
-  `).join('');
-}
+const TONES = {
+  amber: { bg: '#fffbeb', border: '#fcd34d', text: '#92400e', solid: '#b45309' },
+  green: { bg: '#ecfdf5', border: '#6ee7b7', text: '#065f46', solid: '#047857' },
+  slate: { bg: '#f8fafc', border: '#cbd5e1', text: '#334155', solid: '#475569' },
+  teal: { bg: '#f0fdfa', border: '#5eead4', text: '#115e59', solid: '#0f766e' },
+  navy: { bg: '#eef2ff', border: '#c7d2fe', text: '#1e1b4b', solid: '#12054a' },
+} as const;
 
 function renderSimpleDocument(data: BookingDocumentPayload): string {
-  const tone = toneFor(data);
+  const kind = kindOf(data);
+  const agency = agencyLetterhead();
   const logoSrc = agencyLogoDataUri();
   const trackUrl = resolveTrackUrl(data);
-  const qrSrc = requestQrDataUri([trackUrl, `REF:${data.ref}`, 'SOUTH STREET'].join('\n'));
-  const year = new Date().getFullYear();
+  const qrSrc = requestQrDataUri([trackUrl, `REF:${data.ref}`, data.verifyCode ? `CODE:${data.verifyCode}` : '', 'SOUTH STREET'].filter(Boolean).join('\n'), 96);
   const lines = data.invoice?.lines || [];
   const total = data.invoice?.total ?? lines.reduce((s, l) => s + Number(l.amount || 0), 0);
   const paid = Number(data.paidAmount || 0);
   const deposit = data.invoice?.depositAmount ?? Math.round(total * 0.3);
-  const remaining = Math.max(0, total - (paid || 0));
+  const remaining = Math.max(0, total - paid);
   const isReceipt = data.type === 'receipt';
-  const isQuote = data.type === 'quote';
-  const isPending = isPendingDemand(data);
+  const confirmed = isAgencyConfirmed(data.reservationStatus);
+  const proforma = data.type === 'invoice' && !confirmed;
+  const stateTone = TONES[kind.state.tone];
+  const noticeTone = kind.notice ? TONES[kind.notice.tone] : null;
 
-  const tripPairs: Array<[string, string]> = [
+  const itemRows = isReceipt
+    ? `<tr><td class="n">1</td><td><b>دفعة على حساب الحجز</b><small>${escapeHtml(data.packageName || '')}</small></td><td class="amt">${money(paid || total)}</td></tr>`
+    : (lines.length ? lines : [{ id: 'base', title: data.packageName || 'برنامج العمرة', detail: '', amount: total }])
+        .map((line, i) => `<tr><td class="n">${i + 1}</td><td><b>${escapeHtml(line.title)}</b>${line.detail ? `<small>${escapeHtml(line.detail)}</small>` : ''}</td><td class="amt">${money(line.amount)}</td></tr>`)
+        .join('');
+
+  const totals: Array<[string, string, string?]> = isReceipt
+    ? [['المبلغ المستلم', money(paid || total), 'grand']]
+    : data.type === 'request' || data.type === 'quote'
+      ? [['المجموع التقديري', money(total), 'grand']]
+      : proforma
+        ? [['المجموع', money(total)], ['العربون المطلوب للتأكيد', money(deposit), 'due'], ['المتبقي بعد العربون', money(Math.max(0, total - deposit))]]
+        : [['المجموع', money(total), 'grand'], ['المدفوع', money(paid)], ['المتبقي', money(remaining), remaining > 0 ? 'due' : undefined]];
+
+  const tripRows: Array<[string, string]> = [
     ['البرنامج', data.packageName || '—'],
-    ['الغرفة', data.roomLabel || data.roomType || '—'],
-    ['السفر / العودة', `${formatShortDate(data.startDate)} — ${formatShortDate(data.endDate)}`],
+    ['الذهاب', formatShortDate(data.startDate)],
+    ['العودة', formatShortDate(data.endDate)],
     ['المدة', data.durationDays ? `${data.durationDays} يوماً` : '—'],
+    ['الغرفة', data.roomLabel || data.roomType || '—'],
     ['الطيران', data.airline || '—'],
-    ['الإضافات', extraNames(data)],
   ];
-
-  const priceRows = isReceipt
-    ? `
-      <tr><td>المبلغ المستلم</td><td class="amt">${money(paid || total)}</td></tr>
-      ${data.packageName ? `<tr><td>مقابل</td><td>${escapeHtml(data.packageName)}</td></tr>` : ''}
-    `
-    : (lines.length
-      ? lines.map((line) => `
-          <tr>
-            <td>${escapeHtml(line.title)}</td>
-            <td class="amt">${money(line.amount)}</td>
-          </tr>
-        `).join('')
-      : `<tr><td>سعر البرنامج</td><td class="amt">${money(total)}</td></tr>`);
-
-  const totalLabel = isReceipt
-    ? 'المبلغ المستلم'
-    : isPending || isQuote
-      ? 'المجموع التقديري'
-      : 'المجموع';
-
-  const showPaySplit = !isReceipt && !isQuote && !isPending && total > 0;
+  const clientRows: Array<[string, string]> = [
+    ['الاسم', data.customerName || '—'],
+    ['الهاتف', data.customerPhone || '—'],
+    ['البريد', data.customerEmail || '—'],
+    ...(data.pilgrimCode ? ([['رمز المعتمر', data.pilgrimCode]] as Array<[string, string]>) : []),
+  ];
+  const extras = (data.extras || []).map((e) => e.title).filter(Boolean);
+  const kv = (rows: Array<[string, string]>) =>
+    rows.map(([k, v]) => `<div class="kv"><span>${escapeHtml(k)}</span><b>${escapeHtml(v || '—')}</b></div>`).join('');
 
   return `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>${escapeHtml(tone.title)} — ${escapeHtml(data.ref)}</title>
+  <title>${escapeHtml(kind.title)} — ${escapeHtml(data.ref)}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet" />
   <style>
-    @page { size: A4 portrait; margin: 12mm; }
+    @page { size: A4 portrait; margin: 0; }
     * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     html, body { margin: 0; padding: 0; background: #fff; color: #0f172a; }
-    body { font-family: 'Segoe UI', 'Tahoma', 'Arial', sans-serif; font-size: 12px; line-height: 1.5; }
-    .form {
-      width: 100%;
-      max-width: 186mm;
-      margin: 0 auto;
-      min-height: 273mm;
-      display: flex;
-      flex-direction: column;
-      border: 1px solid #e2e8f0;
-    }
-    .alert {
-      background: ${tone.banner};
-      color: #fff;
-      text-align: center;
-      padding: 14px 16px;
-    }
-    .alert strong {
-      display: block;
-      font-size: 20px;
-      font-weight: 900;
-      letter-spacing: 0.02em;
-    }
-    .alert span {
-      display: block;
-      margin-top: 4px;
-      font-size: 12px;
-      font-weight: 700;
-      opacity: 0.95;
-    }
-    .head {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 28px;
-      padding: 16px 20px 14px;
-      border-bottom: 1px solid #e2e8f0;
-    }
-    .brand img {
-      display: block;
-      height: 72px;
-      width: auto;
-      max-width: 160px;
-      object-fit: contain;
-    }
-    .qr-card { flex: 0 0 auto; text-align: center; }
-    .qr-card img {
-      width: 80px;
-      height: 80px;
-      display: block;
-      background: #fff;
-      padding: 3px;
-      border: 1px solid #e2e8f0;
-    }
-    .qr-card span {
-      display: block;
-      margin-top: 5px;
-      font-size: 8px;
-      font-weight: 800;
-      color: #64748b;
-      white-space: nowrap;
-    }
-    .idline {
-      display: grid;
-      grid-template-columns: 1.1fr 0.9fr 1.5fr;
-      border-bottom: 1px solid #e2e8f0;
-      background: #f8fafc;
-    }
-    .idline > div {
-      padding: 9px 14px;
-      border-left: 1px solid #e2e8f0;
-      min-width: 0;
-    }
-    .idline > div:last-child { border-left: 0; }
-    .idline span {
-      display: block;
-      font-size: 8px;
-      font-weight: 800;
-      color: #64748b;
-      white-space: nowrap;
-    }
-    .idline b {
-      display: block;
-      margin-top: 3px;
-      color: #0f172a;
-      font-size: 12px;
-      font-family: ui-monospace, Consolas, monospace;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .idline-url { direction: ltr; text-align: left; }
-    .idline-url b { font-size: 9px; color: ${tone.accent}; }
-    .notice {
-      margin: 14px 16px 0;
-      padding: 12px 14px;
-      border: 2px solid ${tone.accent};
-      background: ${tone.soft};
-      color: ${tone.totalColor};
-      font-weight: 700;
-      text-align: center;
-    }
-    .notice em {
-      display: block;
-      margin-top: 4px;
-      font-style: normal;
-      font-size: 11px;
-      font-weight: 800;
-    }
-    .section { padding: 14px 16px 0; }
-    .section h3 {
-      margin: 0 0 8px;
-      font-size: 11px;
-      font-weight: 800;
-      color: #64748b;
-      letter-spacing: 0.04em;
-    }
-    table.form-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 12px;
-    }
-    table.form-table th,
-    table.form-table td {
-      border: 1px solid #e2e8f0;
-      padding: 8px 10px;
-      text-align: right;
-    }
-    table.form-table th {
-      width: 28%;
-      background: #f8fafc;
-      color: #64748b;
-      font-size: 10px;
-      font-weight: 800;
-    }
-    table.form-table td { font-weight: 700; color: #0f172a; }
-    .amt { text-align: left; white-space: nowrap; font-weight: 800; }
-    .total-row td {
-      background: ${tone.totalBg};
-      color: ${tone.totalColor};
-      font-size: 13px;
-      font-weight: 900;
-    }
-    .hint {
-      margin: 12px 16px 0;
-      font-size: 10px;
-      color: #64748b;
-      font-weight: 700;
-      line-height: 1.6;
-    }
-    .signs {
-      margin-top: auto;
-      padding: 28px 16px 16px;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 24px;
-    }
-    .sign {
-      border-top: 1px solid #cbd5e1;
-      padding-top: 8px;
-      font-size: 10px;
-      color: #64748b;
-      font-weight: 700;
-    }
-    .foot {
-      padding: 8px 16px;
-      border-top: 1px solid #e2e8f0;
-      display: flex;
-      justify-content: space-between;
-      font-size: 8px;
-      color: #94a3b8;
-    }
-    @media print { .form { max-width: none; min-height: auto; border: 0; } }
+    body { font-family: 'Tajawal', 'Segoe UI', Tahoma, Arial, sans-serif; font-size: 11.5px; line-height: 1.55; }
+    .sheet { position: relative; width: 210mm; min-height: 297mm; margin: 0 auto; padding: 14mm 14mm 12mm; display: flex; flex-direction: column; overflow: hidden; }
+    .brandbar { position: absolute; inset: 0 0 auto 0; height: 5px; background: linear-gradient(90deg, #12054a 0 62%, #6ac0ff 62% 100%); }
+    .wm { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; z-index: 0; }
+    .wm span { transform: rotate(-28deg); font-size: 92px; font-weight: 800; color: rgba(18, 5, 74, 0.045); white-space: nowrap; }
+    .sheet > *:not(.wm):not(.brandbar) { position: relative; z-index: 1; }
+
+    .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; padding-bottom: 14px; border-bottom: 1px solid #e2e8f0; }
+    .org { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .org img { width: 92px; height: 58px; object-fit: cover; object-position: center 46%; }
+    .org h1 { margin: 0; font-size: 17px; font-weight: 800; color: #12054a; }
+    .org .legal { font-size: 10.5px; color: #64748b; font-weight: 700; letter-spacing: 0.02em; }
+    .org .meta { margin-top: 3px; font-size: 10px; color: #475569; }
+    .org .meta span + span::before { content: ' · '; color: #cbd5e1; }
+    .doc { text-align: left; flex-shrink: 0; }
+    .doc .t { font-size: 22px; font-weight: 800; color: #12054a; line-height: 1.15; text-align: right; }
+    .doc .en { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #94a3b8; text-align: right; }
+    .doc dl { margin: 8px 0 0; display: grid; grid-template-columns: auto auto; gap: 2px 12px; font-size: 10.5px; }
+    .doc dt { color: #64748b; font-weight: 700; text-align: right; }
+    .doc dd { margin: 0; font-weight: 800; font-family: ui-monospace, Consolas, monospace; direction: ltr; text-align: left; }
+    .pill { display: inline-block; margin-top: 8px; padding: 3px 10px; border-radius: 999px; font-size: 10.5px; font-weight: 800; background: ${stateTone.bg}; color: ${stateTone.text}; border: 1px solid ${stateTone.border}; float: right; }
+
+    .notice { margin-top: 14px; display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 10px; background: ${noticeTone?.bg || '#fff'}; border: 1px solid ${noticeTone?.border || '#e2e8f0'}; color: ${noticeTone?.text || '#0f172a'}; }
+    .notice i { flex-shrink: 0; width: 8px; height: 8px; margin-top: 5px; border-radius: 999px; background: ${noticeTone?.solid || '#0f172a'}; }
+    .notice b { display: block; font-size: 12px; }
+    .notice span { font-size: 10.5px; font-weight: 600; }
+
+    .cards { margin-top: 14px; display: grid; grid-template-columns: 1fr 1.25fr; gap: 12px; }
+    .card { border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px 12px; }
+    .card h3 { margin: 0 0 6px; font-size: 10px; font-weight: 800; letter-spacing: 0.06em; color: #64748b; }
+    .kv { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; border-bottom: 1px dashed #eef2f7; }
+    .kv:last-child { border-bottom: 0; }
+    .kv span { color: #64748b; font-weight: 600; white-space: nowrap; }
+    .kv b { font-weight: 800; text-align: left; overflow-wrap: anywhere; unicode-bidi: plaintext; }
+    .extras { margin-top: 6px; font-size: 10.5px; color: #475569; }
+
+    table.items { width: 100%; margin-top: 14px; border-collapse: separate; border-spacing: 0; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
+    .items th { background: #12054a; color: #fff; font-size: 10.5px; font-weight: 800; padding: 8px 10px; text-align: right; }
+    .items th.amt { text-align: left; }
+    .items td { padding: 9px 10px; border-top: 1px solid #eef2f7; vertical-align: top; }
+    .items td.n { width: 34px; color: #94a3b8; font-weight: 800; }
+    .items td small { display: block; color: #64748b; font-size: 10px; margin-top: 1px; }
+    .items td.amt { width: 130px; text-align: left; font-weight: 800; white-space: nowrap; }
+
+    .sum { display: flex; justify-content: flex-end; margin-top: 10px; }
+    .sum table { width: 280px; border-collapse: collapse; }
+    .sum td { padding: 6px 10px; font-size: 11.5px; }
+    .sum td:last-child { text-align: left; font-weight: 800; white-space: nowrap; }
+    .sum tr.grand td { background: #12054a; color: #fff; font-size: 13px; font-weight: 800; }
+    .sum tr.grand td:first-child { border-radius: 0 8px 8px 0; }
+    .sum tr.grand td:last-child { border-radius: 8px 0 0 8px; }
+    .sum tr.due td { background: #fffbeb; color: #92400e; font-weight: 800; }
+    .sum tr + tr td { border-top: 1px solid #f1f5f9; }
+
+    .confirm { margin-top: 12px; font-size: 10.5px; color: #475569; }
+    .confirm b { color: #065f46; }
+
+    .bottom { margin-top: auto; padding-top: 18px; display: grid; grid-template-columns: auto 1fr 1fr; gap: 16px; align-items: end; }
+    .verify { display: flex; gap: 10px; align-items: center; }
+    .verify img { width: 84px; height: 84px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 3px; background: #fff; }
+    .verify div { font-size: 9.5px; color: #64748b; line-height: 1.6; }
+    .verify code { display: block; font-size: 11px; font-weight: 800; color: #12054a; letter-spacing: 0.08em; direction: ltr; text-align: right; }
+    .verify .url { direction: ltr; text-align: right; font-size: 8.5px; color: #94a3b8; word-break: break-all; }
+    .sign { height: 64px; border: 1px dashed #cbd5e1; border-radius: 10px; padding: 6px 10px; font-size: 10px; color: #64748b; font-weight: 700; }
+    .foot { margin-top: 12px; padding-top: 8px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; font-size: 9px; color: #94a3b8; }
+
+    @media screen { body { background: #fff; } }
+    @media print { .sheet { width: auto; min-height: 297mm; } }
   </style>
 </head>
 <body>
-  <article class="form">
-    <div class="alert">
-      <strong>${escapeHtml(tone.title)}</strong>
-      <span>${escapeHtml(tone.subtitle)}</span>
-    </div>
+  <article class="sheet">
+    <div class="brandbar"></div>
+    ${kind.watermark ? `<div class="wm"><span>${escapeHtml(kind.watermark)}</span></div>` : ''}
 
-    <header class="head">
-      <div class="brand">
-        ${logoSrc ? `<img src="${logoSrc}" alt="South Street" />` : '<strong>ساوث ستريت للأسفار</strong>'}
+    <header class="top">
+      <div class="org">
+        ${logoSrc ? `<img src="${logoSrc}" alt="" />` : ''}
+        <div>
+          <h1>${escapeHtml(agency.name)}</h1>
+          <div class="legal">${escapeHtml(agency.legal)}</div>
+          ${agency.lines.length || agency.contact.length ? `<div class="meta">${[...agency.lines, ...agency.contact].map((v) => `<span>${escapeHtml(v)}</span>`).join('')}</div>` : ''}
+        </div>
       </div>
-      <div class="qr-card">
-        <img src="${qrSrc}" alt="QR ${escapeHtml(data.ref)}" />
-        <span>امسح للمتابعة</span>
+      <div class="doc">
+        <div class="t">${escapeHtml(kind.title)}</div>
+        <div class="en">${escapeHtml(kind.english)}</div>
+        <dl>
+          <dt>الرقم</dt><dd>${escapeHtml(data.ref)}</dd>
+          <dt>التاريخ</dt><dd>${escapeHtml(formatShortDate(data.issuedAt))}</dd>
+        </dl>
+        <span class="pill">${escapeHtml(kind.state.label)}</span>
       </div>
     </header>
 
-    <div class="idline">
-      <div>
-        <span>رقم ${isReceipt ? 'السند' : 'الطلب'}</span>
-        <b>${escapeHtml(data.ref)}</b>
-      </div>
-      <div>
-        <span>التاريخ</span>
-        <b>${escapeHtml(formatShortDate(data.issuedAt))}</b>
-      </div>
-      <div class="idline-url">
-        <span dir="rtl">رابط المتابعة</span>
-        <b title="${escapeHtml(trackUrl)}">${escapeHtml(displayTrackUrl(trackUrl))}</b>
-      </div>
-    </div>
+    ${kind.notice ? `<div class="notice"><i></i><div><b>${escapeHtml(kind.notice.title)}</b><span>${escapeHtml(kind.notice.text)}</span></div></div>` : ''}
 
-    ${tone.notice ? `
-    <div class="notice">
-      ${escapeHtml(tone.notice)}
-      ${tone.noticeEm ? `<em>${escapeHtml(tone.noticeEm)}</em>` : ''}
-    </div>` : ''}
-
-    <section class="section">
-      <h3>بيانات أولية</h3>
-      <table class="form-table">
-        ${tableRows([
-          ['الاسم', data.customerName || '—'],
-          ['الهاتف', data.customerPhone || '—'],
-        ])}
-      </table>
+    <section class="cards">
+      <div class="card"><h3>${isReceipt ? 'الدافع' : 'العميل'}</h3>${kv(clientRows)}</div>
+      <div class="card"><h3>الرحلة</h3>${kv(tripRows)}${extras.length && !isReceipt ? `<div class="extras">الإضافات: ${escapeHtml(extras.join(' · '))}</div>` : ''}</div>
     </section>
 
-    ${!isReceipt ? `
-    <section class="section">
-      <h3>خيارات الرحلة</h3>
-      <table class="form-table">${tableRows(tripPairs)}</table>
-    </section>` : `
-    <section class="section">
-      <h3>تفاصيل الدفعة</h3>
-      <table class="form-table">
-        ${tableRows([
-          ['البرنامج', data.packageName || '—'],
-          ['السفر', `${formatShortDate(data.startDate)} — ${formatShortDate(data.endDate)}`],
-        ])}
-      </table>
-    </section>`}
+    <table class="items">
+      <thead><tr><th>#</th><th>البيان</th><th class="amt">المبلغ</th></tr></thead>
+      <tbody>${itemRows}</tbody>
+    </table>
 
-    <section class="section">
-      <h3>${isReceipt ? 'المبلغ' : isPending || isQuote ? 'الأسعار التقديرية' : 'الأسعار'}</h3>
-      <table class="form-table">
-        ${priceRows}
-        <tr class="total-row"><td>${escapeHtml(totalLabel)}</td><td class="amt">${money(isReceipt ? (paid || total) : total)}</td></tr>
-        ${showPaySplit ? `
-        <tr><td>المدفوع</td><td class="amt">${money(paid || deposit)}</td></tr>
-        <tr><td>المتبقي</td><td class="amt">${money(remaining)}</td></tr>` : ''}
-      </table>
+    <div class="sum"><table>${totals.map(([k, v, cls]) => `<tr${cls ? ` class="${cls}"` : ''}><td>${escapeHtml(k)}</td><td>${escapeHtml(v)}</td></tr>`).join('')}</table></div>
+
+    ${(data.type === 'confirmation' || (data.type === 'invoice' && confirmed)) && data.agencyConfirmedAt
+      ? `<p class="confirm">أكّدت الوكالة هذا الحجز يوم <b>${escapeHtml(formatShortDate(data.agencyConfirmedAt))}</b>${data.agencyConfirmedBy ? ` — ${escapeHtml(data.agencyConfirmedBy)}` : ''}.</p>`
+      : ''}
+
+    <section class="bottom">
+      <div class="verify">
+        <img src="${qrSrc}" alt="" />
+        <div>
+          تحقّق من صحة الوثيقة
+          ${data.verifyCode ? `<code>${escapeHtml(data.verifyCode)}</code>` : ''}
+          <div class="url">${escapeHtml(displayTrackUrl(trackUrl))}</div>
+        </div>
+      </div>
+      <div class="sign">${data.type === 'request' ? 'توقيع طالب الحجز' : isReceipt ? 'توقيع المستلم' : 'توقيع العميل'}</div>
+      <div class="sign">ختم وتوقيع الوكالة</div>
     </section>
-
-    <p class="hint">
-      ${isPending || isQuote
-        ? 'هذه الوثيقة لا تلزم الوكالة ولا تُعتمد للدفع أو للسفر. بعد التأكيد تصدر وثيقة رسمية.'
-        : isReceipt
-          ? 'احتفظ بهذا السند كإثبات دفع لدى الوكالة.'
-          : 'وثيقة صادرة عن ساوث ستريت للأسفار — احتفظ بنسخة للمتابعة.'}
-    </p>
-
-    <div class="signs">
-      <div class="sign">${isReceipt ? 'توقيع المستلم' : 'توقيع طالب الحجز'}</div>
-      <div class="sign">ختم / توقيع الوكالة</div>
-    </div>
 
     <footer class="foot">
-      <span>© ${year} ساوث ستريت للأسفار</span>
-      <span>${escapeHtml(data.ref)}</span>
+      <span>${escapeHtml(agency.name)} — ${escapeHtml(agency.legal)}</span>
+      <span>${escapeHtml(kind.title)} · ${escapeHtml(data.ref)}</span>
     </footer>
   </article>
 </body>

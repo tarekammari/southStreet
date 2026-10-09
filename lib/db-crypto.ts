@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { dbEncryptionSecret, dbLookupSecret } from './secrets';
 
 /**
  * Application-level AES-256-GCM for every sensitive SQLite TEXT value.
@@ -11,15 +12,11 @@ const PREFIX = 'SSENC1.';
 const LEGACY_CBC_SEP = ':';
 
 function encryptionSecret(): string {
-  return (
-    process.env.DB_ENCRYPTION_SECRET ||
-    process.env.SERVER_ENCRYPTION_KEY ||
-    'SouthStreet-AES-256-SuperSecretKey-2026!'
-  );
+  return dbEncryptionSecret();
 }
 
 function hmacSecret(): string {
-  return process.env.DB_LOOKUP_SECRET || encryptionSecret();
+  return dbLookupSecret();
 }
 
 let aesKey: Buffer | null = null;

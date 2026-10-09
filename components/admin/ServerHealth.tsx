@@ -6,8 +6,8 @@ import type { DatabaseUsage, ServerHealth } from '@/lib/server-health';
 import type { TopUserUsage } from '@/lib/top-users';
 import { authHeaders, getAuthToken, apiFetch, jsonAuthHeaders } from '@/lib/api-client';
 
-const LIME = '#c6f250';
-const DONUT = ['#f4f4f5', '#a78bfa', '#2ee6a6', '#c6f250', '#fb8a3c', '#38bdf8', '#f472b6', '#facc15'];
+const LIME = '#65a30d';
+const DONUT = ['#475569', '#8b5cf6', '#10b981', '#84cc16', '#f97316', '#0ea5e9', '#ec4899', '#eab308'];
 
 function token(): string {
   if (typeof window === 'undefined') return '';
@@ -145,7 +145,7 @@ function Donut({
   );
 }
 
-function BarChart({ values, color = '#e7e7ea' }: { values: number[]; color?: string }) {
+function BarChart({ values, color = '#94a3b8' }: { values: number[]; color?: string }) {
   const uid = useId().replace(/:/g, '');
   const max = Math.max(12, ...values, 1);
   const w = 320;
@@ -192,7 +192,7 @@ function SemiGauge({ value, label }: { value: number; label: string }) {
       <svg viewBox="0 0 240 150" aria-hidden="true">
         <defs>
           <linearGradient id={`gg-${uid}`} x1="0" x2="1" y1="0" y2="0">
-            <stop offset="0%" stopColor="#c6f250" />
+            <stop offset="0%" stopColor="#84cc16" />
             <stop offset="55%" stopColor="#fb8a3c" />
             <stop offset="100%" stopColor="#ef4444" />
           </linearGradient>

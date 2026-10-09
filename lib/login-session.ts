@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { SESSION_COOKIE, sessionCookieOptions } from '@/lib/session-token';
 import { getSqliteDb } from '@/lib/sqlite';
 import { upsertUserSession } from '@/lib/presence';
 import { hashPassword, needsPasswordRehash, generateDeviceFingerprint } from '@/lib/security';
@@ -37,29 +38,55 @@ const IP_LIMIT = 5;
 const ACCOUNT_LIMIT = 8;
 const LOCK_MS = 15 * 60 * 1000;
 
-type Strike = { count: number; lockUntil: number };
-const g = globalThis as unknown as { __ssLoginStrikes?: { ip: Map<string, Strike>; account: Map<string, Strike> } };
-const strikes = (g.__ssLoginStrikes ||= { ip: new Map(), account: new Map() });
+/**
+ * Strikes live in the database, so a restart or an update does not wipe an
+ * attacker's lock. Keys: "ip:<address>" and "acct:<user id>".
+ */
+let strikeTableReady = false;
+function strikeDb() {
+  const db = getSqliteDb();
+  if (!strikeTableReady) {
+    db.exec('CREATE TABLE IF NOT EXISTS login_strikes (key TEXT PRIMARY KEY, count INTEGER NOT NULL DEFAULT 0, lock_until INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL DEFAULT 0)');
+    strikeTableReady = true;
+  }
+  return db;
+}
 
 const lockoutDisabled = () => process.env.NODE_ENV !== 'production';
 
-function bump(map: Map<string, Strike>, key: string, limit: number): boolean {
+function bump(key: string, limit: number): boolean {
+  const db = strikeDb();
   const now = Date.now();
-  const rec = map.get(key) || { count: 0, lockUntil: 0 };
-  if (rec.lockUntil && rec.lockUntil < now) {
-    rec.count = 0;
-    rec.lockUntil = 0;
+  const rec = (db.prepare('SELECT count, lock_until FROM login_strikes WHERE key = ?').get(key) as { count: number; lock_until: number } | undefined) || {
+    count: 0,
+    lock_until: 0,
+  };
+  let count = rec.count;
+  let lockUntil = rec.lock_until;
+  if (lockUntil && lockUntil < now) {
+    count = 0;
+    lockUntil = 0;
   }
-  rec.count += 1;
-  if (rec.count >= limit) rec.lockUntil = now + LOCK_MS;
-  map.set(key, rec);
-  return rec.lockUntil > now;
+  count += 1;
+  if (count >= limit) lockUntil = now + LOCK_MS;
+  db.prepare(
+    'INSERT INTO login_strikes (key, count, lock_until, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(key) DO UPDATE SET count = excluded.count, lock_until = excluded.lock_until, updated_at = excluded.updated_at'
+  ).run(key, count, lockUntil, now);
+  // Old entries are useless after a day.
+  db.prepare('DELETE FROM login_strikes WHERE updated_at < ?').run(now - 24 * 60 * 60 * 1000);
+  return lockUntil > now;
 }
 
 export function recordLoginFailure(meta: ClientMeta, reason: string, accountId?: string) {
   if (lockoutDisabled()) return;
-  const ipLocked = bump(strikes.ip, meta.clientIp, IP_LIMIT);
-  const accountLocked = accountId ? bump(strikes.account, accountId, ACCOUNT_LIMIT) : false;
+  let ipLocked = false;
+  let accountLocked = false;
+  try {
+    ipLocked = bump(`ip:${meta.clientIp}`, IP_LIMIT);
+    accountLocked = accountId ? bump(`acct:${accountId}`, ACCOUNT_LIMIT) : false;
+  } catch {
+    /* a storage hiccup must not break login */
+  }
   try {
     recordLoginIncident({
       ip: meta.clientIp,
@@ -72,14 +99,18 @@ export function recordLoginFailure(meta: ClientMeta, reason: string, accountId?:
   }
 }
 
-function lockedFor(map: Map<string, Strike>, key: string): number {
-  const rec = map.get(key);
-  return rec && rec.lockUntil > Date.now() ? Math.ceil((rec.lockUntil - Date.now()) / 60000) : 0;
+function lockedFor(key: string): number {
+  try {
+    const rec = strikeDb().prepare('SELECT lock_until FROM login_strikes WHERE key = ?').get(key) as { lock_until: number } | undefined;
+    return rec && rec.lock_until > Date.now() ? Math.ceil((rec.lock_until - Date.now()) / 60000) : 0;
+  } catch {
+    return 0;
+  }
 }
 
 export function lockoutResponse(meta: ClientMeta, accountId?: string): NextResponse | null {
   if (lockoutDisabled()) return null;
-  const mins = Math.max(lockedFor(strikes.ip, meta.clientIp), accountId ? lockedFor(strikes.account, accountId) : 0);
+  const mins = Math.max(lockedFor(`ip:${meta.clientIp}`), accountId ? lockedFor(`acct:${accountId}`) : 0);
   if (!mins) return null;
   return NextResponse.json(
     { error: `تم إيقاف المحاولات مؤقتاً بسبب تكرار الأخطاء. أعد المحاولة بعد ${mins} دقيقة.` },
@@ -88,8 +119,13 @@ export function lockoutResponse(meta: ClientMeta, accountId?: string): NextRespo
 }
 
 export function clearLoginFailures(meta: ClientMeta, accountId?: string) {
-  strikes.ip.delete(meta.clientIp);
-  if (accountId) strikes.account.delete(accountId);
+  try {
+    const db = strikeDb();
+    db.prepare('DELETE FROM login_strikes WHERE key = ?').run(`ip:${meta.clientIp}`);
+    if (accountId) db.prepare('DELETE FROM login_strikes WHERE key = ?').run(`acct:${accountId}`);
+  } catch {
+    /* ignore */
+  }
 }
 
 /* ------------------------------------------------------------------ *
@@ -195,12 +231,6 @@ export function completeLogin(
     waitingBooking: Boolean(waiting),
     appointment,
   });
-  res.cookies.set('south_street_token', token, {
-    httpOnly: false,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-    path: '/',
-    maxAge: privileged ? 60 * 60 * 8 : 60 * 60 * 24,
-  });
+  res.cookies.set(SESSION_COOKIE, token, sessionCookieOptions(privileged ? 60 * 60 * 8 : 60 * 60 * 24));
   return res;
 }

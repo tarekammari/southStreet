@@ -1,8 +1,16 @@
 /**
- * SQLite connection bootstrap (better-sqlite3), schema init, and seeds.
+ * SQLite connection bootstrap, schema init, and seeds.
  * Domain helpers live in `lib/db.ts` and call `getSqliteDb()` from here.
+ *
+ * Two storage modes, same synchronous API:
+ *  - local file (better-sqlite3) — the default, used on a PC;
+ *  - Turso (libsql embedded replica) when TURSO_DATABASE_URL is set — used on
+ *    Vercel, whose disk is wiped between runs. Reads come from a local copy in
+ *    /tmp, writes go to Turso, so the data is permanent.
  */
 import Database from 'better-sqlite3';
+import os from 'os';
+import path from 'path';
 import { normalizePackageStatus } from './package-status';
 import { hashPassword } from './security';
 import { wrapDatabaseWithEncryption, migratePlaintextToEncrypted } from './encrypted-sqlite';
@@ -13,18 +21,56 @@ import { seedScfChartAccounts } from './scf-chart-seed';
 
 let dbInstance: Database.Database | null = null;
 let dbPathUsed: string | null = null;
+let replica: { sync(): unknown } | null = null;
+let lastSync = 0;
+/** Other Vercel instances may have written since; refresh the local copy this often. */
+const REPLICA_SYNC_MS = 2_000;
+
+function tursoConfig() {
+  const url = process.env.TURSO_DATABASE_URL?.trim();
+  if (!url) return null;
+  return { url, authToken: process.env.TURSO_AUTH_TOKEN?.trim() || '' };
+}
+
+/** libsql (Turso) embedded replica with the better-sqlite3 API. */
+function openTursoReplica(cfg: { url: string; authToken: string }): Database.Database {
+  const Libsql = require('libsql');
+  const dir = isServerlessHost() ? '/tmp' : os.tmpdir();
+  const file = path.join(dir, 'south_street.turso-replica.db');
+  const db = new Libsql(file, { syncUrl: cfg.url, authToken: cfg.authToken, readYourWrites: true });
+  db.sync();
+  replica = db;
+  lastSync = Date.now();
+  return db as Database.Database;
+}
+
+function refreshReplica() {
+  if (!replica || Date.now() - lastSync < REPLICA_SYNC_MS) return;
+  lastSync = Date.now();
+  try {
+    replica.sync();
+  } catch (err) {
+    console.warn('[turso] sync failed, serving the local copy:', (err as Error)?.message);
+  }
+}
 
 export function getSqliteDb(): Database.Database {
-  const DB_PATH = resolveDbPath();
+  const turso = tursoConfig();
+  const DB_PATH = turso ? turso.url : resolveDbPath();
   if (dbInstance && dbPathUsed === DB_PATH) {
+    refreshReplica();
     return dbInstance;
   }
 
-  ensureDbFile(DB_PATH);
-
-  const raw = new Database(DB_PATH);
-  // WAL needs extra files; on serverless use a single journal file in /tmp
-  raw.pragma(isServerlessHost() ? 'journal_mode = DELETE' : 'journal_mode = WAL');
+  let raw: Database.Database;
+  if (turso) {
+    raw = openTursoReplica(turso);
+  } else {
+    ensureDbFile(DB_PATH);
+    raw = new Database(DB_PATH);
+    // WAL needs extra files; on serverless use a single journal file in /tmp
+    raw.pragma(isServerlessHost() ? 'journal_mode = DELETE' : 'journal_mode = WAL');
+  }
   raw.pragma('foreign_keys = ON');
 
   dbInstance = wrapDatabaseWithEncryption(raw);

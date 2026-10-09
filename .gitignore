@@ -1,5 +1,6 @@
 # Next.js build output
 .next/
+.next-preview/
 out/
 
 # Node dependencies
@@ -42,3 +43,14 @@ google_auth_image.png
 test_gemini.js
 test_sakhr_endpoint.js
 gemini_api_debug.log
+
+# Database backups (contain encrypted data)
+backups/
+
+# VPS deploy (scripts/update.sh)
+.next-a/
+.next-b/
+.next-active
+.deploy-state
+.deploy-info.json
+logs/

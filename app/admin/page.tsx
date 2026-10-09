@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { SESSION_MARKER } from '@/lib/session-token';
 import UserAccessDashboard from '@/components/admin/UserAccessDashboard';
 import { logoutAndReload } from '@/lib/client-session';
 import '@/app/admin-dashboard.css';
@@ -33,7 +34,8 @@ export default function AdminDashboardPage() {
   }, []);
 
   const finishLogin = (data: { token: string; user: any }) => {
-    localStorage.setItem('south_street_token', data.token);
+    // The session itself is the httpOnly cookie the server just set.
+    localStorage.setItem('south_street_token', SESSION_MARKER);
     localStorage.setItem('south_street_user', JSON.stringify(data.user));
     setCurrentUser(data.user);
     setIsLoggedIn(true);

@@ -24,6 +24,7 @@ import {
   verifyPrintToken,
 } from '@/lib/booking-documents';
 import type { SignOptions } from 'jsonwebtoken';
+import { canPrintDoc } from '@/lib/booking-print-rules';
 
 import { requireSession } from '@/lib/staff-gate';
 
@@ -111,6 +112,11 @@ export async function POST(req: NextRequest) {
       const reservation = owned || (staff ? getReservationById(reservationId) : null);
       if (!reservation) {
         return NextResponse.json({ error: 'الطلب غير موجود أو غير مصرّح' }, { status: 404 });
+      }
+      // Only the papers that fit the request's stage (no confirmation for a refused request…).
+      const allowed = type === 'receipt' ? (Number(reservation.paid_amount) || 0) > 0 : canPrintDoc(type, reservation.status);
+      if (!allowed) {
+        return NextResponse.json({ error: 'هذه الوثيقة غير متاحة في المرحلة الحالية للطلب' }, { status: 409 });
       }
       payload = reservationDocumentPayload(reservation, type, {
         pilgrimCode: account?.code || account?.username,

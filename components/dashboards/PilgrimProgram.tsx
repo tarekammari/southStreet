@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import PrintMenu from '@/components/booking/PrintMenu';
 import Link from 'next/link';
 import {
   Calendar,
@@ -238,11 +239,7 @@ export default function PilgrimProgram({
               <ChevronDown className="trip-fold-chevron" aria-hidden />
             </summary>
             <div className="trip-manage">
-              <BookingPrintButton type="request" reservationId={active.reservation_id} label="طباعة الطلب" className="trip-action" />
-              <BookingPrintButton type="invoice" reservationId={active.reservation_id} label="الفاتورة" className="trip-action" />
-              {confirmed ? (
-                <BookingPrintButton type="confirmation" reservationId={active.reservation_id} label="التأكيد" className="trip-action" />
-              ) : null}
+              <PrintMenu reservationId={active.reservation_id} status={active.status} className="trip-action" />
               {manage.ok ? (
                 <>
                   <Link href={`/book?edit=${encodeURIComponent(active.reservation_id)}`} className="trip-action no-underline">تعديل</Link>
@@ -277,6 +274,9 @@ export default function PilgrimProgram({
                   <p key={res.reservation_id}>
                     <b>{res.reservation_number}</b>
                     <span>{reservationStatusLabel(res.status)}</span>
+                    {String(res.status).toUpperCase() === 'REJECTED' && res.agency_note ? (
+                      <em className="refusal-reason">السبب: {res.agency_note}</em>
+                    ) : null}
                     {String(res.status).toUpperCase() === 'COMPLETED' ? (
                       <Link href="/portal?tab=account" className="leave-review no-underline">اترك تقييماً</Link>
                     ) : null}

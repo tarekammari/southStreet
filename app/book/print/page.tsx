@@ -5,6 +5,14 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowRight, Loader2, Printer } from 'lucide-react';
 import './print-preview.css';
 
+const DOC_NAMES: Record<string, string> = {
+  request: 'استمارة طلب',
+  invoice: 'فاتورة',
+  confirmation: 'تأكيد الحجز',
+  receipt: 'سند قبض',
+  quote: 'عرض سعر',
+};
+
 function PrintContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -80,7 +88,7 @@ function PrintContent() {
           معاينة الوثيقة قبل الطباعة
           {meta.ref ? (
             <span className="print-toolbar-sub">
-              {meta.type ? `${meta.type} · ` : ''}{meta.ref}
+              {meta.type ? `${DOC_NAMES[meta.type] || meta.type} · ` : ''}{meta.ref}
             </span>
           ) : null}
         </div>
@@ -91,7 +99,7 @@ function PrintContent() {
       </header>
 
       <main className="print-stage">
-        <div>
+        <div className="print-stage-inner">
           <div className="print-sheet-wrap">
             <iframe
               ref={iframeRef}

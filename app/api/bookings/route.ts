@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { SESSION_COOKIE, sessionCookieOptions } from '@/lib/session-token';
 import { getSqliteDb } from '@/lib/sqlite';
 import { getAuthUser } from '@/lib/request-auth';
 import { attachGoogleId, ensureUserAccount, findUserByGoogleId, findUserForLogin, queueAccessRequest, saveUserPhoto } from '@/lib/accounts';
@@ -246,12 +247,7 @@ function existingBookingResponse(
     token: session.token,
     user: { ...session.user, redirect: '/book' },
   }, { status: 409 });
-  res.cookies.set('south_street_token', session.token, {
-    httpOnly: false,
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 60 * 60 * 24,
-  });
+  res.cookies.set(SESSION_COOKIE, session.token, sessionCookieOptions(60 * 60 * 24));
   return res;
 }
 
@@ -608,12 +604,7 @@ export async function POST(req: NextRequest) {
       extrasCatalog: BOOKING_EXTRAS,
       message: 'تم إرسال طلبك. ستُراجعه الوكالة وتُفعَّل حسابك للدخول بعد التأكيد.',
     });
-    res.cookies.set('south_street_token', session.token, {
-      httpOnly: false,
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 60 * 60 * 24,
-    });
+    res.cookies.set(SESSION_COOKIE, session.token, sessionCookieOptions(60 * 60 * 24));
     return res;
   } catch (error: any) {
     console.error('[booking]', error);

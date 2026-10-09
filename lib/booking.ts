@@ -432,6 +432,19 @@ function approveCustomerLogin(customerId: string) {
   db.prepare(`UPDATE users SET status = 'APPROVED', loginEnabled = 1 WHERE id = ?`).run(customerId);
 }
 
+/**
+ * Who signs agency messages to pilgrims: the agency desk account if it exists,
+ * otherwise any employee, then the Admin, then the Super Admin.
+ */
+function agencySender(db: ReturnType<typeof getSqliteDb>): any | null {
+  const desk = db.prepare("SELECT * FROM users WHERE id = 'usr_agent'").get();
+  if (desk) return desk;
+  const rows = db.prepare('SELECT * FROM users').all() as any[];
+  const byRole = (roles: string[]) =>
+    rows.find((u) => roles.includes(String(u.role || '').toUpperCase()) && u.loginEnabled !== 0 && u.loginEnabled !== false);
+  return byRole(['AGENCY_AGENT', 'AGENT', 'STAFF']) || byRole(['AGENCY_MANAGER', 'MANAGER']) || byRole(['SUPER_ADMIN', 'ADMIN']) || null;
+}
+
 function notifyPilgrimAndAgency(input: {
   customerId: string;
   customerName: string;
@@ -443,7 +456,7 @@ function notifyPilgrimAndAgency(input: {
 }) {
   try {
     const db = getSqliteDb();
-    const agent = db.prepare("SELECT * FROM users WHERE id = 'usr_agent'").get() as any;
+    const agent = agencySender(db);
     if (agent) {
       dbSaveMessage({
         id: '',
@@ -634,8 +647,13 @@ export function rejectReservationByAgency(
   const row = db.prepare('SELECT * FROM reservations WHERE reservation_id = ?').get(reservationId) as any;
   if (!row) throw new Error('NOT_FOUND');
   const status = String(row.reservation_status || '').toUpperCase();
-  if (status !== 'REQUESTED' && status !== 'PENDING') {
+  const accepted = status === 'PAYMENT_PENDING';
+  if (status !== 'REQUESTED' && status !== 'PENDING' && !accepted) {
     throw new Error('INVALID_STATUS');
+  }
+  // Money already received must be refunded through accounting, not dropped here.
+  if (accepted && (Number(row.paid_amount) || 0) > 0) {
+    throw new Error('DEPOSIT_PAID');
   }
 
   const now = new Date().toISOString();
@@ -657,7 +675,9 @@ export function rejectReservationByAgency(
     customerId: row.customer_id,
     customerName: row.customer_name,
     reservationNumber: row.reservation_number,
-    pilgrimText: `نعتذر ${row.customer_name}، لم تتم الموافقة على طلب ${row.reservation_number}. ${note ? `السبب: ${note}` : 'تواصل معنا من المحادثة لمعرفة البدائل.'}`,
+    pilgrimText: accepted
+      ? `نعتذر ${row.customer_name}، أُلغي طلب العمرة ${row.reservation_number}. ${note ? `السبب: ${note}` : ''} يمكنك اختيار برنامج آخر في أي وقت أو مراسلتنا هنا.`
+      : `نعتذر ${row.customer_name}، لم تتم الموافقة على طلب العمرة ${row.reservation_number}. ${note ? `السبب: ${note}` : ''} يمكنك اختيار برنامج آخر في أي وقت أو مراسلتنا هنا.`,
   });
 
   return getReservationById(reservationId) as Reservation;

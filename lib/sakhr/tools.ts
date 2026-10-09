@@ -11,6 +11,9 @@ import { GET as bookingQueueGET, POST as bookingDecisionPOST } from '@/app/api/b
 import { GET as tablesGET, POST as tablesPOST } from '@/app/api/admin/db-tables/route';
 import { GET as usersGET, POST as usersPOST, PATCH as usersPATCH } from '@/app/api/admin/users/route';
 import { GET as treasuryGET } from '@/app/api/finance/treasury/route';
+import { getSqliteDb } from '@/lib/sqlite';
+import { reservationStatusLabel } from '@/lib/booking-catalog';
+import { sanitizeVisual, type VisualSpec } from '@/lib/sakhr/visual';
 
 /**
  * Sakhr's tools. Each one runs through the app's own API handler with the
@@ -29,9 +32,12 @@ export type Who = LoginRole | 'ANON';
 
 export type ToolContext = CallerContext & { role: Who; userId?: string };
 
-export type ToolResult = { ok: boolean; data?: unknown; error?: string; status?: number };
+export type ToolResult = { ok: boolean; data?: unknown; error?: string; status?: number; visual?: VisualSpec };
 
-export type ClientAction = { type: 'navigate'; href: string } | { type: 'open_table'; table: string };
+export type ClientAction =
+  | { type: 'navigate'; href: string }
+  | { type: 'open_table'; table: string }
+  | { type: 'visual'; visual: VisualSpec };
 
 export type SakhrTool = {
   name: string;
@@ -151,6 +157,162 @@ async function tableSchema(ctx: ToolContext, table: string) {
   return { columns, pk: columns.find((c) => c.pk) };
 }
 
+/** Agency figures for reports and charts. Money only for finance roles. */
+function agencyStats(role: Who, months: number) {
+  const db = getSqliteDb();
+  const money = FINANCE.includes(role);
+  const rows = db.prepare('SELECT reservation_status, total_price, paid_amount, created_at, invoice FROM reservations').all() as any[];
+  const totalOf = (r: any) => {
+    try {
+      const inv = typeof r.invoice === 'string' ? JSON.parse(r.invoice) : r.invoice;
+      if (inv && Number(inv.total)) return Number(inv.total);
+    } catch {
+      /* fall back to the stored price */
+    }
+    return Number(r.total_price) || 0;
+  };
+
+  const byStatus: Record<string, number> = {};
+  const monthKeys: string[] = [];
+  const now = new Date();
+  for (let i = months - 1; i >= 0; i -= 1) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    monthKeys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  }
+  const byMonth = Object.fromEntries(monthKeys.map((k) => [k, { requests: 0, value: 0, paid: 0 }]));
+  let value = 0;
+  let paid = 0;
+  for (const r of rows) {
+    const label = reservationStatusLabel(r.reservation_status);
+    byStatus[label] = (byStatus[label] || 0) + 1;
+    const key = String(r.created_at || '').slice(0, 7);
+    const refused = ['REJECTED', 'CANCELLED'].includes(String(r.reservation_status || '').toUpperCase());
+    if (byMonth[key]) {
+      byMonth[key].requests += 1;
+      if (!refused) byMonth[key].value += totalOf(r);
+      byMonth[key].paid += Number(r.paid_amount) || 0;
+    }
+    if (!refused) value += totalOf(r);
+    paid += Number(r.paid_amount) || 0;
+  }
+
+  const programs = (db.prepare('SELECT name, capacity, reserved, available, start_date FROM packages').all() as any[]).map((p) => ({
+    program: p.name,
+    start: p.start_date,
+    capacity: Number(p.capacity) || 0,
+    reserved: Number(p.reserved) || 0,
+    available: Number(p.available) || 0,
+  }));
+
+  let paymentsByMonth: Record<string, number> | undefined;
+  if (money) {
+    paymentsByMonth = Object.fromEntries(monthKeys.map((k) => [k, 0]));
+    try {
+      for (const p of db.prepare('SELECT amount, entry_date, created_at, status FROM finance_client_payments').all() as any[]) {
+        if (String(p.status || 'POSTED').toUpperCase() !== 'POSTED') continue;
+        const key = String(p.entry_date || p.created_at || '').slice(0, 7);
+        if (key in paymentsByMonth) paymentsByMonth[key] += Number(p.amount) || 0;
+      }
+    } catch {
+      /* no payments table yet */
+    }
+  }
+
+  const months_ = monthKeys.map((k) => ({
+    month: k,
+    requests: byMonth[k].requests,
+    ...(money ? { booked_value_dzd: byMonth[k].value, paid_on_bookings_dzd: byMonth[k].paid, payments_received_dzd: paymentsByMonth?.[k] || 0 } : {}),
+  }));
+  return {
+    totals: {
+      requests: rows.length,
+      ...(money ? { booked_value_dzd: value, paid_dzd: paid, outstanding_dzd: Math.max(0, value - paid) } : {}),
+      seats_capacity: programs.reduce((s, p) => s + p.capacity, 0),
+      seats_reserved: programs.reduce((s, p) => s + p.reserved, 0),
+    },
+    by_status: byStatus,
+    by_month: months_,
+    programs,
+    currency: 'DZD',
+  };
+}
+
+const MONTHS_AR = ['جانفي', 'فيفري', 'مارس', 'أفريل', 'ماي', 'جوان', 'جويلية', 'أوت', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+const monthLabel = (key: string) => {
+  const [y, m] = key.split('-').map(Number);
+  return `${MONTHS_AR[(m || 1) - 1]} ${String(y).slice(2)}`;
+};
+
+/** Standard reports built on the server from exact figures (one tool call, no numbers typed by the model). */
+function buildReport(kind: string, role: Who, months: number): { visual: VisualSpec; summary: Record<string, unknown> } {
+  const st = agencyStats(role, months);
+  const money = FINANCE.includes(role);
+  const t = st.totals as Record<string, number>;
+  const labels = st.by_month.map((m) => monthLabel(m.month));
+  const statusLabels = Object.keys(st.by_status);
+
+  if (kind === 'programs') {
+    const progs = st.programs.slice(0, 12);
+    return {
+      visual: {
+        title: 'امتلاء البرامج',
+        subtitle: `${progs.length} برنامج · ${t.seats_reserved} مقعد محجوز من ${t.seats_capacity}`,
+        kpis: [
+          { label: 'المقاعد الكلية', value: t.seats_capacity, unit: 'مقعد' },
+          { label: 'المحجوزة', value: t.seats_reserved, unit: 'مقعد' },
+          { label: 'نسبة الامتلاء', value: t.seats_capacity ? Math.round((t.seats_reserved / t.seats_capacity) * 100) : 0, unit: '%' },
+        ],
+        charts: progs.length
+          ? [{ type: 'hbar', title: 'المقاعد المحجوزة والمتاحة لكل برنامج', unit: 'مقعد', labels: progs.map((p) => p.program), series: [{ name: 'محجوز', values: progs.map((p) => p.reserved) }, { name: 'متاح', values: progs.map((p) => p.available) }] }]
+          : undefined,
+        table: progs.length
+          ? { columns: ['البرنامج', 'الانطلاق', 'السعة', 'محجوز', 'متاح'], rows: progs.map((p) => [p.program, String(p.start || '—'), p.capacity, p.reserved, p.available]) }
+          : undefined,
+      },
+      summary: { programs: progs.length, seats_capacity: t.seats_capacity, seats_reserved: t.seats_reserved },
+    };
+  }
+
+  if (kind === 'finance' && money) {
+    return {
+      visual: {
+        title: 'الحالة المالية للحجوزات',
+        subtitle: `آخر ${months} أشهر · بالدينار الجزائري`,
+        kpis: [
+          { label: 'قيمة الحجوزات', value: t.booked_value_dzd, unit: 'دج' },
+          { label: 'المحصّل', value: t.paid_dzd, unit: 'دج' },
+          { label: 'المتبقي', value: t.outstanding_dzd, unit: 'دج' },
+        ],
+        charts: [
+          { type: 'area', title: 'المبالغ المحصّلة شهرياً', unit: 'دج', labels, series: [{ name: 'المحصّل', values: st.by_month.map((m: any) => m.payments_received_dzd || m.paid_on_bookings_dzd || 0) }] },
+          { type: 'bar', title: 'قيمة الحجوزات الجديدة شهرياً', unit: 'دج', labels, series: [{ name: 'قيمة الحجوزات', values: st.by_month.map((m: any) => m.booked_value_dzd || 0) }] },
+        ],
+      },
+      summary: { booked_value_dzd: t.booked_value_dzd, paid_dzd: t.paid_dzd, outstanding_dzd: t.outstanding_dzd },
+    };
+  }
+
+  // overview
+  return {
+    visual: {
+      title: 'نشاط الوكالة',
+      subtitle: `آخر ${months} أشهر`,
+      kpis: [
+        { label: 'طلبات العمرة', value: t.requests, unit: 'طلب' },
+        ...(money ? [{ label: 'المحصّل', value: t.paid_dzd, unit: 'دج' }, { label: 'المتبقي', value: t.outstanding_dzd, unit: 'دج' }] : []),
+        { label: 'المقاعد المحجوزة', value: t.seats_reserved, unit: `من ${t.seats_capacity}` },
+      ],
+      charts: [
+        { type: 'bar', title: 'الطلبات الجديدة شهرياً', unit: 'طلب', labels, series: [{ name: 'الطلبات', values: st.by_month.map((m) => m.requests) }] },
+        ...(statusLabels.length
+          ? [{ type: 'donut' as const, title: 'الطلبات حسب الحالة', unit: 'طلب', labels: statusLabels, series: [{ name: 'الطلبات', values: statusLabels.map((k) => st.by_status[k]) }] }]
+          : []),
+      ],
+    },
+    summary: { totals: st.totals, by_status: st.by_status },
+  };
+}
+
 /* ------------------------------------------------------------------ *
  * Tools
  * ------------------------------------------------------------------ */
@@ -185,6 +347,12 @@ export const SAKHR_TOOLS: SakhrTool[] = [
           end: formatProgramDate(p.end_date),
           days: p.duration_days,
           from_price: programMinPrice(p) ? money(programMinPrice(p)) : 'عند الطلب',
+          // Exact per-room prices (DZD) so prices can be compared or charted.
+          room_prices_dzd: Object.fromEntries(
+            (Array.isArray(p.prices) ? p.prices : [])
+              .filter((pr: any) => Number(pr.amount) > 0)
+              .map((pr: any) => [String(pr.room_type || '').toUpperCase(), Number(pr.amount)])
+          ),
           seats_left: p.available,
           capacity: p.capacity,
           status: AVAILABILITY_LABEL[programAvailability(p)],
@@ -308,13 +476,13 @@ export const SAKHR_TOOLS: SakhrTool[] = [
   },
   {
     name: 'decide_booking',
-    description: 'Accept or reject a new Umrah request (Admin only). Accepting sends it to the accountant for the deposit.',
+    description: 'Accept or reject a new Umrah request, or cancel (decision=reject) an accepted one that has no deposit yet (Admin only). Accepting sends it to the accountant for the deposit. A rejection needs a clear, polite reason for the pilgrim: ask the user for it if they did not give one.',
     parameters: {
       type: 'object',
       properties: {
         reservation_id: { type: 'string', description: 'The id from booking_queue.' },
         decision: { type: 'string', enum: ['accept', 'reject'] },
-        note: { type: 'string', description: 'Optional note shown to the pilgrim (reason for rejection).' },
+        note: { type: 'string', description: 'Shown to the pilgrim. Required when rejecting (the reason); optional when accepting.' },
       },
       required: ['reservation_id', 'decision'],
     },
@@ -659,6 +827,97 @@ export const SAKHR_TOOLS: SakhrTool[] = [
       if (a.page === 'portal' && role === 'ANON') return { error: 'سجّل الدخول أولاً' };
       const href = map[a.page];
       return href ? { type: 'navigate', href } : { error: 'صفحة غير معروفة' };
+    },
+  },
+  {
+    name: 'agency_stats',
+    description:
+      'Agency figures for reports and charts: requests by status and by month, seats per program, and (finance roles) booked value, paid, outstanding and payments per month in DZD. Use it before drawing a chart of agency activity.',
+    parameters: {
+      type: 'object',
+      properties: { months: { type: 'number', description: 'How many recent months (1-24, default 6).' } },
+    },
+    roles: STAFF,
+    kind: 'read',
+    run: async (ctx, a) => {
+      const months = Math.min(24, Math.max(1, Math.round(Number(a?.months) || 6)));
+      return { ok: true, data: agencyStats(ctx.role, months) };
+    },
+  },
+  {
+    name: 'agency_report',
+    description:
+      'Show a ready, designed report with charts in the chat (exact figures from the database). kind: "overview" (requests per month, status, seats), "finance" (booked value, collected, outstanding — finance roles), "programs" (seats per program). Prefer this for any agency report / dashboard / chart request.',
+    parameters: {
+      type: 'object',
+      properties: {
+        kind: { type: 'string', enum: ['overview', 'finance', 'programs'] },
+        months: { type: 'number', description: '1-24, default 6' },
+      },
+      required: ['kind'],
+    },
+    roles: STAFF,
+    kind: 'read',
+    run: async (ctx, a) => {
+      const months = Math.min(24, Math.max(1, Math.round(Number(a?.months) || 6)));
+      const kind = ['overview', 'finance', 'programs'].includes(a?.kind) ? a.kind : 'overview';
+      if (kind === 'finance' && !FINANCE.includes(ctx.role)) return { ok: false, error: 'التقرير المالي للمحاسب والإدارة فقط' };
+      const { visual, summary } = buildReport(kind, ctx.role, months);
+      const clean = sanitizeVisual(visual);
+      if ('error' in clean) return { ok: false, error: clean.error };
+      return { ok: true, data: { shown_in_chat: true, summary }, visual: clean };
+    },
+  },
+  {
+    name: 'show_visual',
+    description:
+      'Custom visual in the chat (KPIs, up to 3 charts, a table) for data not covered by agency_report, e.g. comparing program prices, or any table of 4+ rows. Real numbers from tools only; one measure per chart; pie/donut = one series of parts of a whole; short labels, Arabic titles.',
+    parameters: {
+      type: 'object',
+      properties: {
+        title: { type: 'string' },
+        subtitle: { type: 'string' },
+        kpis: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: { label: { type: 'string' }, value: { type: 'number' }, unit: { type: 'string' }, hint: { type: 'string' } },
+            required: ['label', 'value'],
+          },
+        },
+        charts: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              type: { type: 'string', enum: ['bar', 'hbar', 'line', 'area', 'pie', 'donut'] },
+              title: { type: 'string' },
+              unit: { type: 'string', description: 'e.g. "دج" or "طلب"' },
+              labels: { type: 'array', items: { type: 'string' } },
+              series: {
+                type: 'array',
+                items: { type: 'object', properties: { name: { type: 'string' }, values: { type: 'array', items: { type: 'number' } } }, required: ['name', 'values'] },
+              },
+            },
+            required: ['type', 'title', 'labels', 'series'],
+          },
+        },
+        table: {
+          type: 'object',
+          properties: {
+            columns: { type: 'array', items: { type: 'string' } },
+            rows: { type: 'array', items: { type: 'array', items: { type: 'string' } } },
+          },
+        },
+        note: { type: 'string' },
+      },
+      required: ['title'],
+    },
+    roles: EVERYONE,
+    kind: 'client',
+    clientAction: (a) => {
+      const visual = sanitizeVisual(a);
+      return 'error' in visual ? { error: visual.error } : { type: 'visual', visual };
     },
   },
   {

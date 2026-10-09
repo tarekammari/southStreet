@@ -3,6 +3,7 @@
  * Token key and Bearer header match lib/client-session.ts conventions.
  */
 import { fetchJsonList as fetchJsonListBase } from './fetch-json';
+import { isJwtLike } from './session-token';
 
 export const AUTH_TOKEN_KEY = 'south_street_token';
 export const AUTH_USER_KEY = 'south_street_user';
@@ -23,7 +24,7 @@ export function authHeaders(opts?: { json?: boolean }): HeadersInit {
   if (opts?.json) {
     headers['Content-Type'] = 'application/json';
   }
-  if (token) {
+  if (isJwtLike(token)) {
     headers.Authorization = `Bearer ${token}`;
   }
   return headers;

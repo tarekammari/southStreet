@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { Loader2, Printer } from 'lucide-react';
 import { BookingDocType } from '@/lib/booking-documents';
-import { authHeaders, getAuthToken, apiFetch, jsonAuthHeaders } from '@/lib/api-client';
+import { getAuthToken } from '@/lib/api-client';
+import { openBookingDocument } from '@/components/booking/PrintMenu';
 
 
 export default function BookingPrintButton({
@@ -35,28 +36,9 @@ export default function BookingPrintButton({
     }
     setLoading(true);
     setError('');
-    try {
-      const res = await fetch('/api/bookings/document', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders(),
-        },
-        body: JSON.stringify({ type, step, draft, reservationId, receiptId }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || 'تعذّر إصدار الوثيقة');
-        return;
-      }
-      if (data.printUrl) {
-        window.open(data.printUrl, '_blank', 'noopener,noreferrer');
-      }
-    } catch {
-      setError('تعذّر الاتصال بالخادم');
-    } finally {
-      setLoading(false);
-    }
+    const problem = await openBookingDocument({ type, step, draft, reservationId, receiptId });
+    if (problem) setError(problem);
+    setLoading(false);
   };
 
   const titles: Record<BookingDocType, string> = {

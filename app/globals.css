@@ -7703,6 +7703,37 @@ body.modal-open .sakhr-panel-shell {
   background: #047857;
   transform: translateY(-0.5px);
 }
+/* Refused / cancelled request: a card, because the reason can be long. */
+.request-status.is-refused {
+  align-items: flex-start;
+  flex-wrap: wrap;
+  border-radius: 1rem;
+  padding: 0.7rem 0.8rem;
+  border-color: #fecdd3;
+  background: #fff1f2;
+}
+.request-status-badge.is-bad { color: #be123c; padding-top: 0.15rem; }
+.request-status.is-refused .request-status-dot { background: #e11d48; animation: none; }
+.request-status.is-refused .request-status-copy { flex-direction: column; align-items: flex-start; gap: 0.15rem; flex-basis: 12rem; }
+.request-status.is-refused .request-status-copy em {
+  display: block !important;
+  flex-shrink: 1;
+  white-space: normal;
+  font-size: 0.74rem;
+  line-height: 1.6;
+  color: #881337;
+  letter-spacing: 0;
+}
+.request-status.is-refused .request-status-copy strong { max-width: none !important; }
+.request-status.is-refused .request-status-cta { background: #be123c; }
+.request-status.is-refused .request-status-cta:hover { background: #9f1239; }
+.request-status-cta.is-ghost { background: #fff !important; color: #be123c; border: 1px solid #fecdd3; padding: 0 0.6rem; }
+.request-status-close {
+  display: grid; place-items: center; flex-shrink: 0;
+  width: 1.95rem; height: 1.95rem; border-radius: 999px;
+  border: 0; background: transparent; color: #9f1239; cursor: pointer;
+}
+.request-status-close:hover { background: rgba(225, 29, 72, 0.08); }
 @media (max-width: 640px) {
   .request-status-copy em {
     display: none;
@@ -7743,6 +7774,27 @@ body.modal-open .sakhr-panel-shell {
   }
   .page-shell-home .request-status.is-home .request-status-copy {
     display: none;
+  }
+  /* A refusal is only useful with its reason: let that strip grow. */
+  .page-shell-home .request-pending-shell:has(.is-refused) { height: auto; }
+  .page-shell-home .request-status.is-home.is-refused {
+    height: auto;
+    flex-wrap: wrap;
+    padding-block: 0.5rem;
+    background: #fff1f2;
+    border-bottom-color: #fecdd3;
+  }
+  .page-shell-home .request-status.is-home.is-refused .request-status-copy {
+    display: flex;
+    order: 3;
+    flex-basis: 100%;
+  }
+  .page-shell-home .request-status.is-home.is-refused .request-status-copy strong { display: none; }
+  .page-shell-home .request-status.is-home.is-refused .request-status-copy em {
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 }
 @keyframes requestStatusPulse {
@@ -9486,6 +9538,14 @@ body.modal-open .sakhr-panel-shell {
 }
 .pipe-tag.is-warn { background: #fffbeb; color: #b45309; border-color: #fde68a; }
 .pipe-tag.is-good { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+.pipe-reason {
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 10px 12px; border-radius: 12px;
+  background: #fff1f2; border: 1px solid #fecdd3; color: #881337;
+}
+.pipe-reason strong { font-size: 12px; color: #be123c; }
+.pipe-reason span { font-size: 13px; line-height: 1.7; color: #4c0519; }
+.pipe-reason em { font-style: normal; font-size: 11px; color: #9f1239; opacity: 0.8; }
 .pipe-tag.is-ok { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
 .pipe-tag.is-bad { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
 .pipe-wait { margin: 0.25rem 0; font-size: 0.75rem; font-weight: 700; color: #b45309; }
@@ -9503,3 +9563,38 @@ body.modal-open .sakhr-panel-shell {
   .pipe-steps { grid-template-columns: 1fr; }
   .pipe-tag { display: none; }
 }
+
+/* Agency refusal reason shown to the pilgrim in lists */
+.refusal-reason {
+  display: block;
+  margin: 0.35rem 0 0;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.6rem;
+  background: #fff1f2;
+  color: #881337;
+  font-size: 0.72rem;
+  font-style: normal;
+  line-height: 1.6;
+}
+
+/* Print menu (components/booking/PrintMenu.tsx) */
+.print-menu { position: relative; display: inline-flex; flex-direction: column; }
+.print-menu-list {
+  position: absolute; z-index: 60; bottom: calc(100% + 6px); inset-inline-end: 0;
+  min-width: 232px; padding: 6px; border-radius: 14px;
+  background: #fff; border: 1px solid #e5e7eb;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.16);
+  display: flex; flex-direction: column; gap: 2px;
+  animation: printMenuIn 0.16s ease;
+}
+@keyframes printMenuIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.print-menu-item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 9px 10px; border: 0; border-radius: 10px; background: transparent;
+  color: #0f172a; text-align: start; cursor: pointer;
+}
+.print-menu-item:hover, .print-menu-item:focus-visible { background: #f1f5f9; outline: none; }
+.print-menu-item svg { flex-shrink: 0; color: #047857; }
+.print-menu-item span { display: flex; flex-direction: column; min-width: 0; }
+.print-menu-item strong { font-size: 13px; font-weight: 800; }
+.print-menu-item em { font-style: normal; font-size: 11.5px; color: #64748b; }

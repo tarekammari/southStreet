@@ -139,6 +139,23 @@ export function middleware(request: NextRequest, event: NextFetchEvent) {
   const userAgent = request.headers.get('user-agent') || '';
   const host = request.headers.get('host') || request.headers.get('x-forwarded-host') || request.nextUrl.host || '';
   const origin = request.headers.get('origin') || '';
+
+  // CSRF: an API call that changes data must come from this site's own pages.
+  // (The session cookie is SameSite=Lax too; this check is the second lock.)
+  if (url.pathname.startsWith('/api/') && !['GET', 'HEAD', 'OPTIONS'].includes(request.method)) {
+    let foreign = request.headers.get('sec-fetch-site') === 'cross-site';
+    if (!foreign && origin) {
+      try {
+        foreign = new URL(origin).host !== host;
+      } catch {
+        foreign = true;
+      }
+    }
+    if (foreign) {
+      return NextResponse.json({ error: 'طلب مرفوض: مصدره موقع آخر', code: 'CROSS_SITE' }, { status: 403 });
+    }
+  }
+
   const contentType = request.headers.get('content-type') || '';
   const accept = request.headers.get('accept') || '';
   const scheme = (

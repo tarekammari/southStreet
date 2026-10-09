@@ -17,9 +17,9 @@ import {
 } from 'lucide-react';
 import { AgencyDemand, Reservation } from '@/types';
 import { ROOM_LABELS, reservationStatusLabel } from '@/lib/booking-catalog';
-import BookingPrintButton from '@/components/booking/BookingPrintButton';
+import PrintMenu from '@/components/booking/PrintMenu';
 import { authHeaders } from '@/lib/api-client';
-import AdminConfirmDialog from '@/components/admin/AdminConfirmDialog';
+import RejectRequestDialog from '@/components/booking/RejectRequestDialog';
 import ClientPaymentModal from '@/components/accountant/ClientPaymentModal';
 
 /**
@@ -115,7 +115,14 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
   const [note, setNote] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
   const [flash, setFlash] = useState('');
-  const [pendingRejectId, setPendingRejectId] = useState<string | null>(null);
+  const [rejecting, setRejecting] = useState<{
+    id: string;
+    mode: 'reject' | 'cancel';
+    name: string;
+    phone?: string;
+    reference: string;
+    packageName?: string;
+  } | null>(null);
   const [stage, setStage] = useState<Stage | null>(null);
   const [openId, setOpenId] = useState('');
   const [depositFor, setDepositFor] = useState<DepositPreset | null>(null);
@@ -156,7 +163,8 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
     else setStage(recent.length ? 'done' : 'demand');
   }, [loading, stage, perms, demands.length, awaiting.length, recent.length]);
 
-  const act = async (reservationId: string, action: 'confirm' | 'reject') => {
+  /** Returns true when the server accepted the decision. */
+  const act = async (reservationId: string, action: 'confirm' | 'reject', reason?: string): Promise<boolean> => {
     setBusyId(reservationId);
     setError('');
     setFlash('');
@@ -164,18 +172,20 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
       const res = await fetch('/api/bookings/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ reservationId, action, note: note[reservationId] || '' }),
+        body: JSON.stringify({ reservationId, action, note: action === 'reject' ? reason || '' : note[reservationId] || '' }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data.error || 'تعذّر معالجة الطلب');
-        return;
+        return false;
       }
       setFlash(data.message || 'تم');
       setOpenId('');
       window.dispatchEvent(new CustomEvent('southstreet:bookings-updated'));
+      return true;
     } catch {
       setError('تعذّر الاتصال بالخادم');
+      return false;
     } finally {
       setBusyId('');
     }
@@ -311,7 +321,7 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
                             className="agency-demand-note"
                             rows={2}
                             maxLength={500}
-                            placeholder="ملاحظة للمعتمر (اختياري)"
+                            placeholder="ملاحظة للمعتمر عند القبول (اختياري)"
                             value={note[res.reservation_id] || ''}
                             onChange={(e) => setNote((prev) => ({ ...prev, [res.reservation_id]: e.target.value }))}
                           />
@@ -336,14 +346,22 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
                               type="button"
                               className="pipe-btn is-danger"
                               disabled={busy}
-                              onClick={() => setPendingRejectId(res.reservation_id)}
+                              onClick={() =>
+                                setRejecting({
+                                  id: res.reservation_id,
+                                  mode: 'reject',
+                                  name: res.customer_name,
+                                  phone: res.customer_phone,
+                                  reference: res.reservation_number,
+                                  packageName: res.package_name,
+                                })
+                              }
                             >
                               <XCircle className="w-3.5 h-3.5" /> رفض
                             </button>
                           </>
                         ) : null}
-                        <BookingPrintButton type="request" label="طلب الحجز" reservationId={res.reservation_id} className={PRINT_BTN} />
-                        <BookingPrintButton type="invoice" label="الفاتورة" reservationId={res.reservation_id} className={PRINT_BTN} />
+                        <PrintMenu reservationId={res.reservation_id} status={res.status} className={PRINT_BTN} />
                         <Link href="/portal?tab=chat" className={`${PRINT_BTN} no-underline`}>مراسلة المعتمر</Link>
                       </div>
                     </SummaryRow>
@@ -395,8 +413,26 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
                             <Wallet className="w-3.5 h-3.5" /> تسجيل العربون وتأكيد الحجز
                           </button>
                         ) : null}
-                        <BookingPrintButton type="invoice" label="الفاتورة" reservationId={res.reservation_id} className={PRINT_BTN} />
-                        <BookingPrintButton type="request" label="طلب الحجز" reservationId={res.reservation_id} className={PRINT_BTN} />
+                        {perms.canApprove && paid === 0 ? (
+                          <button
+                            type="button"
+                            className="pipe-btn is-danger"
+                            disabled={busyId === res.reservation_id}
+                            onClick={() =>
+                              setRejecting({
+                                id: res.reservation_id,
+                                mode: 'cancel',
+                                name: res.customer_name,
+                                phone: res.customer_phone,
+                                reference: res.reservation_number,
+                                packageName: res.package_name,
+                              })
+                            }
+                          >
+                            <XCircle className="w-3.5 h-3.5" /> إلغاء الطلب
+                          </button>
+                        ) : null}
+                        <PrintMenu reservationId={res.reservation_id} status={res.status} className={PRINT_BTN} />
                       </div>
                     </SummaryRow>
                   );
@@ -423,15 +459,19 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
                         <div>المدفوع: <b>{money(res.paid_amount)}</b></div>
                         <div>آخر تحديث: {formatDate(res.updated_at || res.created_at)}</div>
                         {res.agency_note ? (
-                          <div className="sm:col-span-2 whitespace-pre-line text-slate-500">{res.agency_note}</div>
+                          outcomeTone(status) === 'is-bad' ? (
+                            <div className="sm:col-span-2 pipe-reason">
+                              <strong>سبب الرفض</strong>
+                              <span className="whitespace-pre-line">{res.agency_note}</span>
+                              {res.agency_confirmed_by ? <em>{res.agency_confirmed_by} · {formatDate(res.agency_confirmed_at)}</em> : null}
+                            </div>
+                          ) : (
+                            <div className="sm:col-span-2 whitespace-pre-line text-slate-500">{res.agency_note}</div>
+                          )
                         ) : null}
                       </dl>
                       <div className="pipe-actions">
-                        <BookingPrintButton type="request" label="طلب الحجز" reservationId={res.reservation_id} className={PRINT_BTN} />
-                        <BookingPrintButton type="invoice" label="الفاتورة" reservationId={res.reservation_id} className={PRINT_BTN} />
-                        {printable ? (
-                          <BookingPrintButton type="confirmation" label="تأكيد الوكالة" reservationId={res.reservation_id} className={PRINT_BTN} />
-                        ) : null}
+                        <PrintMenu reservationId={res.reservation_id} status={status} className={PRINT_BTN} />
                       </div>
                     </SummaryRow>
                   );
@@ -451,21 +491,29 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
         )}
       </div>
 
-      <AdminConfirmDialog
-        open={Boolean(pendingRejectId)}
-        title="رفض طلب الحجز؟"
-        message="سيتم رفض طلب العمرة وتحرير المقعد. يصل السبب المكتوب في الملاحظة إلى المعتمر."
-        confirmLabel="رفض الطلب"
-        danger
-        busy={Boolean(pendingRejectId && busyId === pendingRejectId)}
-        onCancel={() => setPendingRejectId(null)}
-        onConfirm={() => {
-          const id = pendingRejectId;
-          if (!id) return;
-          setPendingRejectId(null);
-          void act(id, 'reject');
-        }}
-      />
+      {rejecting ? (
+        <RejectRequestDialog
+          mode={rejecting.mode}
+          customerName={rejecting.name}
+          customerPhone={rejecting.phone}
+          reference={rejecting.reference}
+          packageName={rejecting.packageName}
+          busy={busyId === rejecting.id}
+          onCancel={() => setRejecting(null)}
+          onConfirm={async (reason, whatsapp) => {
+            const target = rejecting;
+            // Open WhatsApp from the click itself so the browser does not block the tab.
+            const tab = whatsapp ? window.open('about:blank', '_blank') : null;
+            const ok = await act(target.id, 'reject', reason);
+            if (ok) {
+              setRejecting(null);
+              if (tab && whatsapp) tab.location.href = whatsapp;
+            } else {
+              tab?.close();
+            }
+          }}
+        />
+      ) : null}
 
       {depositFor ? (
         <ClientPaymentModal

@@ -3,12 +3,15 @@
 import dynamic from 'next/dynamic';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowUp, Brain, Check, Copy, Loader2, RefreshCw, Table, X } from 'lucide-react';
+import { ArrowUp, Brain, Check, Copy, Loader2, Mic, RefreshCw, Table, Trash2, Volume2, VolumeX, X } from 'lucide-react';
 import { LOGIN_ROLE_LABELS, normalizeLoginRole } from '@/lib/roles';
 import { adminFetch, keyErrorMessage } from '@/lib/webauthn-client';
 import type { SakhrAgentProps } from '@/components/sakhr/SakhrAgentHelpers';
+import type { VisualSpec } from '@/lib/sakhr/visual';
+import { speak, stopSpeaking, useArabicVoice, useVoiceRecorder, voiceInputSupported } from '@/components/sakhr/voice';
 
 const TableBrowser = dynamic(() => import('@/components/sakhr/TableBrowser'), { ssr: false });
+const SakhrVisual = dynamic(() => import('@/components/sakhr/SakhrVisual'), { ssr: false });
 
 /**
  * Sakhr — the agency's AI assistant (Gemini, server side: /api/ai/sakhr).
@@ -32,6 +35,7 @@ type ChatMessage = {
   role: 'user' | 'model';
   text: string;
   actions?: ActionCard[];
+  visuals?: VisualSpec[];
   error?: boolean;
 };
 
@@ -76,9 +80,36 @@ function renderInline(text: string, keyBase: string): React.ReactNode[] {
   return out;
 }
 
+const TABLE_ROW = /^\s*\|.*\|\s*$/;
+const TABLE_RULE = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/;
+const cells = (line: string) => line.trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
+
 function FormattedText({ text }: { text: string }) {
   const blocks: React.ReactNode[] = [];
   let list: { ordered: boolean; items: string[] } | null = null;
+  let table: string[] | null = null;
+  const flushTable = (k: number) => {
+    if (!table) return;
+    const rows = table.filter((l) => !TABLE_RULE.test(l)).map(cells);
+    const [head, ...body] = rows;
+    if (head) {
+      blocks.push(
+        <div key={`t${k}`} className="skr-mdtable-wrap">
+          <table>
+            <thead>
+              <tr>{head.map((c, j) => <th key={j}>{renderInline(c, `th${k}-${j}`)}</th>)}</tr>
+            </thead>
+            <tbody>
+              {body.map((row, i) => (
+                <tr key={i}>{head.map((_, j) => <td key={j}>{renderInline(row[j] || '', `td${k}-${i}-${j}`)}</td>)}</tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+    table = null;
+  };
   const flush = (k: number) => {
     if (!list) return;
     const Tag = list.ordered ? 'ol' : 'ul';
@@ -93,6 +124,12 @@ function FormattedText({ text }: { text: string }) {
   };
   text.split('\n').forEach((raw, k) => {
     const line = raw.trimEnd();
+    if (TABLE_ROW.test(line) || (table && TABLE_RULE.test(line))) {
+      flush(k);
+      (table ||= []).push(line);
+      return;
+    }
+    flushTable(k);
     const bullet = line.match(/^\s*[-*•]\s+(.*)$/);
     const numbered = line.match(/^\s*\d+[.)]\s+(.*)$/);
     if (bullet || numbered) {
@@ -106,6 +143,7 @@ function FormattedText({ text }: { text: string }) {
     if (line.trim()) blocks.push(<p key={`p${k}`}>{renderInline(line.replace(/^#+\s*/, ''), `p${k}`)}</p>);
   });
   flush(-1);
+  flushTable(-2);
   return <>{blocks}</>;
 }
 
@@ -140,6 +178,40 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [thinking, setThinking] = useState(false);
+  // Voice: replies are read aloud after a voice question (unless muted), and on demand.
+  const canSpeak = useArabicVoice();
+  const [micReady, setMicReady] = useState(false);
+  const [speakReplies, setSpeakReplies] = useState(true);
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
+  const [voiceNotice, setVoiceNotice] = useState('');
+  const sendRef = useRef<(text?: string, viaVoice?: boolean) => void>(() => undefined);
+  const voice = useVoiceRecorder({
+    onText: (text) => {
+      setVoiceNotice('');
+      setDraft('');
+      sendRef.current(text, true);
+    },
+    onError: (message) => setVoiceNotice(message),
+    onInterim: (text) => setDraft(text),
+  });
+
+  useEffect(() => {
+    setMicReady(voiceInputSupported());
+    try {
+      setSpeakReplies(localStorage.getItem('ss_sakhr_speak') !== '0');
+    } catch {
+      /* default on */
+    }
+  }, []);
+
+  const readAloud = (id: string, text: string) => {
+    if (speakingId === id) {
+      stopSpeaking();
+      setSpeakingId(null);
+      return;
+    }
+    if (speak(text, () => setSpeakingId((cur) => (cur === id ? null : cur)))) setSpeakingId(id);
+  };
   const [role, setRole] = useState<string>('ANON');
   const [table, setTable] = useState<string | null>(null);
   const closeTable = useCallback(() => setTable(null), []);
@@ -178,9 +250,11 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
     if (open) window.setTimeout(() => inputRef.current?.focus(), 80);
   }, [open]);
 
-  const send = useCallback(async () => {
-    const text = draft.trim();
+  const send = useCallback(async (override?: string, viaVoice = false) => {
+    const text = (override ?? draft).trim();
     if (!text || thinking) return;
+    stopSpeaking();
+    setSpeakingId(null);
     const userMsg: ChatMessage = { id: newId(), role: 'user', text };
     const history = messages
       .filter((m) => !m.error && m.text)
@@ -198,15 +272,20 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'تعذّر على صخر الرد الآن.');
       if (data.role) setRole(data.role);
+      const replyId = newId();
       setMessages((prev) => [
         ...prev,
         {
-          id: newId(),
+          id: replyId,
           role: 'model',
           text: data.reply || '',
           actions: (data.actions || []).map((a: any) => ({ token: a.token, tool: a.tool, summary: a.summary, state: 'pending' as const })),
+          visuals: (data.clientActions || []).filter((a: any) => a.type === 'visual' && a.visual).map((a: any) => a.visual as VisualSpec),
         },
       ]);
+      if (viaVoice && speakReplies && data.reply) {
+        if (speak(data.reply, () => setSpeakingId((cur) => (cur === replyId ? null : cur)))) setSpeakingId(replyId);
+      }
       for (const action of data.clientActions || []) {
         if (action.type === 'open_table') setTable(action.table);
         if (action.type === 'navigate' && typeof action.href === 'string' && action.href.startsWith('/')) {
@@ -218,7 +297,8 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
     } finally {
       setThinking(false);
     }
-  }, [draft, messages, router, thinking]);
+  }, [draft, messages, router, thinking, speakReplies]);
+  sendRef.current = (text, viaVoice) => void send(text, viaVoice);
 
   const updateAction = (msgId: string, token: string, patch: Partial<ActionCard>) => {
     setMessages((prev) =>
@@ -305,12 +385,46 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
                   الجداول
                 </button>
               ) : null}
+              {canSpeak ? (
+                <button
+                  type="button"
+                  className={`skr-icon${speakReplies ? ' is-on' : ''}`}
+                  onClick={() => {
+                    const next = !speakReplies;
+                    setSpeakReplies(next);
+                    if (!next) {
+                      stopSpeaking();
+                      setSpeakingId(null);
+                    }
+                    try {
+                      localStorage.setItem('ss_sakhr_speak', next ? '1' : '0');
+                    } catch {
+                      /* ignore */
+                    }
+                  }}
+                  title={speakReplies ? 'قراءة الردود الصوتية: مفعّلة' : 'قراءة الردود الصوتية: متوقفة'}
+                  aria-label={speakReplies ? 'إيقاف قراءة الردود' : 'تفعيل قراءة الردود'}
+                  aria-pressed={speakReplies}
+                >
+                  {speakReplies ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                </button>
+              ) : null}
               {messages.length ? (
                 <button type="button" className="skr-icon" onClick={clearChat} title="محادثة جديدة" aria-label="محادثة جديدة">
                   <RefreshCw className="w-4 h-4" />
                 </button>
               ) : null}
-              <button type="button" className="skr-icon" onClick={() => setOpen(false)} aria-label="إغلاق">
+              <button
+                type="button"
+                className="skr-icon"
+                onClick={() => {
+                  stopSpeaking();
+                  setSpeakingId(null);
+                  if (voice.state === 'recording') voice.stop(false);
+                  setOpen(false);
+                }}
+                aria-label="إغلاق"
+              >
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -330,6 +444,18 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
                       <FormattedText text={m.text} />
                     </div>
                   ) : null}
+                  {canSpeak && m.role === 'model' && m.text && !m.error ? (
+                    <button
+                      type="button"
+                      className={`skr-speak${speakingId === m.id ? ' is-on' : ''}`}
+                      onClick={() => readAloud(m.id, m.text)}
+                      aria-label={speakingId === m.id ? 'إيقاف القراءة' : 'استمع للرد'}
+                      title={speakingId === m.id ? 'إيقاف القراءة' : 'استمع للرد'}
+                    >
+                      {speakingId === m.id ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+                    </button>
+                  ) : null}
+                  {m.visuals?.map((v, i) => <SakhrVisual key={`v${i}`} visual={v} />)}
                   {m.actions?.map((card) => (
                     <div key={card.token} className={`skr-card is-${card.state}`}>
                       <p className="skr-card-summary">{card.summary}</p>
@@ -365,6 +491,38 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
             <div ref={endRef} />
           </div>
 
+          {voiceNotice ? (
+            <p className="skr-voice-note" role="status">
+              {voiceNotice}
+              <button type="button" onClick={() => setVoiceNotice('')} aria-label="إخفاء"><X className="w-3.5 h-3.5" /></button>
+            </p>
+          ) : null}
+          {voice.state !== 'idle' && !(voice.state === 'recording' && draft) ? (
+            <div className={`skr-input skr-rec${voice.state === 'transcribing' ? ' is-busy' : ''}`} role="group" aria-label="تسجيل صوتي">
+              {voice.state === 'recording' ? (
+                <>
+                  <button type="button" className="skr-rec-cancel" onClick={() => voice.stop(false)} aria-label="إلغاء التسجيل" title="إلغاء">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                  <span className="skr-rec-dot" aria-hidden />
+                  <span className="skr-rec-time" dir="ltr">
+                    {`${Math.floor(voice.seconds / 60)}:${String(voice.seconds % 60).padStart(2, '0')}`}
+                  </span>
+                  <span className="skr-rec-levels" aria-hidden>
+                    {voice.levels.map((l, i) => (
+                      <i key={i} style={{ transform: `scaleY(${l})` }} />
+                    ))}
+                  </span>
+                  <span className="skr-rec-label">أتكلّم… ثم اضغط إرسال</span>
+                  <button type="button" className="skr-rec-send" onClick={() => voice.stop(true)} aria-label="إرسال التسجيل">
+                    <ArrowUp className="w-4 h-4" />
+                  </button>
+                </>
+              ) : (
+                <span className="skr-rec-label"><Loader2 className="w-4 h-4 animate-spin" /> جاري تحويل صوتك إلى نص…</span>
+              )}
+            </div>
+          ) : (
           <form
             className="skr-input"
             onSubmit={(e) => {
@@ -387,10 +545,28 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
               placeholder="اكتب رسالتك…"
               aria-label="رسالتك إلى صخر"
             />
-            <button type="submit" disabled={!draft.trim() || thinking} aria-label="إرسال">
-              {thinking ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowUp className="w-4 h-4" />}
-            </button>
+            {micReady && !draft.trim() && !thinking ? (
+              <button
+                type="button"
+                className="skr-mic"
+                onClick={() => {
+                  setVoiceNotice('');
+                  stopSpeaking();
+                  setSpeakingId(null);
+                  void voice.start();
+                }}
+                aria-label="تحدّث مع صخر بالصوت"
+                title="تحدّث بالصوت"
+              >
+                <Mic className="w-4 h-4" />
+              </button>
+            ) : (
+              <button type="submit" disabled={!draft.trim() || thinking} aria-label="إرسال">
+                {thinking ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowUp className="w-4 h-4" />}
+              </button>
+            )}
           </form>
+          )}
         </section>
       )}
 

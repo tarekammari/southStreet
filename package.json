@@ -12,7 +12,12 @@
     "lint": "next lint",
     "admin:setup": "tsx scripts/super-admin.ts setup",
     "admin:recover": "tsx scripts/super-admin.ts recover",
-    "admin:status": "tsx scripts/super-admin.ts status"
+    "admin:status": "tsx scripts/super-admin.ts status",
+    "db:push-turso": "tsx scripts/turso-push.ts",
+    "db:rekey": "tsx scripts/db-rekey.ts",
+    "db:backup": "tsx scripts/backup-db.ts",
+    "db:restore": "tsx scripts/restore-db.ts",
+    "release": "node scripts/release.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.27.0",
@@ -31,6 +36,7 @@
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "leaflet": "^1.9.4",
+    "libsql": "^0.5.29",
     "lucide-react": "^0.475.0",
     "next": "^15.1.0",
     "qrcode": "^1.5.4",
