@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
-import { Tajawal, Amiri, Cairo, Aref_Ruqaa, Roboto } from 'next/font/google';
+// Fonts are self-hosted (public/fonts) so the build never depends on Google Fonts.
+import './fonts.css';
 import './globals.css';
 import './programs.css';
 import './home.css';
@@ -10,43 +11,6 @@ import SessionGuard from '@/components/SessionGuard';
 import IntroSplash from '@/components/IntroSplash';
 import { INTRO_BOOT_SCRIPT } from '@/lib/intro-boot';
 import './motion.css';
-
-const tajawal = Tajawal({
-  subsets: ['arabic'],
-  weight: ['400', '500', '700', '800'],
-  display: 'swap',
-  variable: '--font-tajawal',
-});
-
-const amiri = Amiri({
-  subsets: ['arabic'],
-  weight: ['400', '700'],
-  display: 'swap',
-  preload: false,
-  variable: '--font-amiri',
-});
-
-const cairo = Cairo({
-  subsets: ['arabic'],
-  weight: ['400', '700', '800'],
-  display: 'swap',
-  variable: '--font-cairo',
-});
-
-const roboto = Roboto({
-  weight: ['400', '500', '700'],
-  subsets: ['latin'],
-  display: 'swap',
-  variable: '--font-roboto',
-});
-
-const arefRuqaa = Aref_Ruqaa({
-  subsets: ['arabic'],
-  weight: ['400', '700'],
-  display: 'swap',
-  preload: false,
-  variable: '--font-ruqaa',
-});
 
 export const metadata: Metadata = {
   title: 'سوث ستريت | SOUTH STREET - وكالة الرحلات وعروض العمرة والحج',
@@ -67,7 +31,6 @@ export default function RootLayout({
     <html
       lang="ar"
       dir="rtl"
-      className={`${tajawal.variable} ${roboto.variable} ${amiri.variable} ${cairo.variable} ${arefRuqaa.variable}`}
     >
       <head>
         {/* Decides before first paint whether the intro splash plays (see lib/intro.ts). */}
