@@ -74,8 +74,12 @@ const securityHeaders = [
   ...(httpsSite ? [{ key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' }] : []),
 ];
 
+const { dbInitVersion } = require('./lib/db-init-version');
+
 const nextConfig = {
   poweredByHeader: false,
+  // Lets the app on Turso skip the start-up setup it already ran (lib/sqlite.ts).
+  env: { DB_INIT_VERSION: dbInitVersion() },
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
   },

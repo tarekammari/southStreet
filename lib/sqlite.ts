@@ -44,6 +44,30 @@ function openTursoReplica(cfg: { url: string; authToken: string }): Database.Dat
   return db as Database.Database;
 }
 
+/** Fingerprint of the set-up code (inlined at build time on Vercel, computed in scripts). */
+function initVersion(): string {
+  return process.env.DB_INIT_VERSION || (require('./db-init-version') as { dbInitVersion(): string }).dbInitVersion();
+}
+
+/** Turso only: true when this exact set-up already ran against the shared database. */
+function setupAlreadyDone(raw: Database.Database): boolean {
+  try {
+    const row = raw.prepare("SELECT value FROM app_meta WHERE key = 'init_version'").get() as { value?: string } | undefined;
+    return row?.value === initVersion();
+  } catch {
+    return false; // first run: no app_meta table yet
+  }
+}
+
+function markSetupDone(raw: Database.Database) {
+  try {
+    raw.exec('CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT)');
+    raw.prepare("INSERT INTO app_meta (key, value) VALUES ('init_version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(initVersion());
+  } catch (err) {
+    console.warn('[turso] could not record the set-up version:', (err as Error)?.message);
+  }
+}
+
 function refreshReplica() {
   if (!replica || Date.now() - lastSync < REPLICA_SYNC_MS) return;
   lastSync = Date.now();
@@ -75,6 +99,8 @@ export function getSqliteDb(): Database.Database {
 
   dbInstance = wrapDatabaseWithEncryption(raw);
   dbPathUsed = DB_PATH;
+  // Turso: tables, seeds and migrations were already applied by an earlier start.
+  if (turso && setupAlreadyDone(raw)) return dbInstance;
   initTables(dbInstance);
   initSecuritySchema(dbInstance);
   try {
@@ -98,6 +124,7 @@ export function getSqliteDb(): Database.Database {
     console.warn('[Account backfill]:', err);
   }
 
+  if (turso) markSetupDone(raw);
   return dbInstance;
 }
 
