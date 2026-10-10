@@ -27,7 +27,13 @@ export function reprepareAcrossTransactions<T extends Db>(db: T): T {
     const proxy: Stmt = new Proxy(first, {
       get(target, prop) {
         if (prop === 'run' || prop === 'get' || prop === 'all' || prop === 'iterate') {
-          return (...args: unknown[]) => current()[prop](...args);
+          // A layer above (the column encryption) may have replaced the method:
+          // callers get that, and it in turn reaches the native method below.
+          if (Object.prototype.hasOwnProperty.call(target, prop)) return target[prop];
+          return (...args: unknown[]) => {
+            const stmt = current();
+            return Object.getPrototypeOf(stmt)[prop].apply(stmt, args);
+          };
         }
         if (prop === 'raw') return (on?: boolean) => { rawMode = on ?? true; target.raw(on); return proxy; };
         if (prop === 'pluck') return (on?: boolean) => { pluckMode = on ?? true; target.pluck(on); return proxy; };
