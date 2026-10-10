@@ -1,4 +1,5 @@
 import { getSqliteDb } from './sqlite';
+import { toList } from './json-list';
 import { parsePackageList } from './package-lists';
 import { Package, Hotel, Morshid, Season, AgencySettings } from '@/types';
 import {
@@ -152,7 +153,7 @@ export function toolGetTeamMembers(category?: string, query?: string) {
     roleName: m.roleName,
     specialization: m.specialization,
     experience_years: m.experience_years,
-    languages: JSON.parse(m.languages || '[]'),
+    languages: toList(m.languages),
     phone: m.phone,
     avatar: m.avatar,
     rating: m.rating,
@@ -189,8 +190,8 @@ export function toolGetHotelsInfo(city?: string, category?: string) {
     address: h.address,
     distance_from_haram: h.distance_from_haram,
     description: h.description,
-    services: JSON.parse(h.services || '[]'),
-    images: JSON.parse(h.images || '[]')
+    services: toList(h.services),
+    images: toList(h.images)
   }));
 }
 

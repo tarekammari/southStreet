@@ -5,6 +5,7 @@
  * you need the raw Database handle. Do not merge these files aggressively.
  */
 import { getSqliteDb } from './sqlite';
+import { toList } from './json-list';
 import { parsePackageList } from './package-lists';
 import {
   User, Message, Receipt, AuditLog, UserRole,
@@ -155,7 +156,7 @@ export function getDatabase(): DatabaseSchema {
     id: k.id,
     category: k.category,
     title_ar: k.title_ar,
-    keywords: JSON.parse(k.keywords || '[]'),
+    keywords: toList(k.keywords),
     response_ar: k.response_ar,
     is_active: Boolean(k.is_active),
     updatedBy: k.updatedBy,
@@ -182,7 +183,7 @@ export function getDatabase(): DatabaseSchema {
     website: agencyRow.website,
     opening_hours: agencyRow.opening_hours,
     emergency_phone: agencyRow.emergency_phone,
-    supported_languages: JSON.parse(agencyRow.supported_languages || '[]'),
+    supported_languages: toList(agencyRow.supported_languages),
     default_currency: agencyRow.default_currency,
     timezone: agencyRow.timezone
   } : {} as AgencySettings;
@@ -202,9 +203,9 @@ export function getDatabase(): DatabaseSchema {
     longitude: h.longitude,
     distance_from_haram: h.distance_from_haram,
     description: h.description,
-    services: JSON.parse(h.services || '[]'),
-    images: JSON.parse(h.images || '[]'),
-    videos: JSON.parse(h.videos || '[]'),
+    services: toList(h.services),
+    images: toList(h.images),
+    videos: toList(h.videos),
     status: h.status
   }));
 
@@ -216,7 +217,7 @@ export function getDatabase(): DatabaseSchema {
   const morshids: Morshid[] = morshidRows.map(m => ({
     morshid_id: m.morshid_id,
     name: m.name,
-    languages: JSON.parse(m.languages || '[]'),
+    languages: toList(m.languages),
     experience_years: m.experience_years,
     specialization: m.specialization,
     phone: m.phone,

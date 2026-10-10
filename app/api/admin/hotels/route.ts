@@ -2,26 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSqliteDb } from '@/lib/sqlite';
 import { requireRole, ADMINS } from '@/lib/staff-gate';
 import { isHotelShownOnSite } from '@/lib/record-field-options';
-
-/**
- * List columns are JSON arrays, but rows added from the table editor or by Sakhr
- * can hold plain text ("تكييف مركزي، واي فاي"). One such row used to break the
- * whole list, so parse each one leniently.
- */
-function toList(value: unknown): string[] {
-  if (Array.isArray(value)) return value.map(String).filter(Boolean);
-  const text = String(value ?? '').trim();
-  if (!text) return [];
-  if (text.startsWith('[')) {
-    try {
-      const parsed = JSON.parse(text);
-      if (Array.isArray(parsed)) return parsed.map(String).filter(Boolean);
-    } catch {
-      /* fall through to plain text */
-    }
-  }
-  return text.split(/[،,؛;\r\n]+/).map((s) => s.trim()).filter(Boolean);
-}
+import { toList } from '@/lib/json-list';
 
 /** `?site=1` → only the hotels chosen to appear on the public hotels page. */
 export async function GET(req: Request) {
