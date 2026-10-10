@@ -20,6 +20,13 @@ export interface MorshidRow {
   rating?: number;
   review_count?: number;
   reviewCount?: number;
+  experience_years?: number | null;
+  bio?: string;
+  skills?: string[];
+  qualifications?: string[];
+  languages?: string[];
+  show_on_home?: boolean;
+  home_order?: number;
 }
 
 function isFemaleGuide(member: MorshidRow): boolean {
@@ -58,8 +65,15 @@ function pickBest(rows: MorshidRow[], prefer?: (member: MorshidRow) => boolean):
   return ranked[0];
 }
 
-/** Homepage about-us: director, one male guide, one female guide. */
+/**
+ * Homepage team section: the members the admin switched on ("show on home page"),
+ * in their chosen order. Until anyone is chosen: director, one male and one female guide.
+ */
 function pickAboutMembers(rows: MorshidRow[]): MorshidRow[] {
+  const chosen = rows.filter((m) => m.show_on_home);
+  if (chosen.length) {
+    return [...chosen].sort((a, b) => (Number(a.home_order) || 99) - (Number(b.home_order) || 99));
+  }
   const director = pickBest(rows.filter(isDirector));
   const male = pickBest(rows.filter(isMaleGuide), (m) => m.category === 'religious_guide');
   const female = pickBest(rows.filter(isFemaleGuide));

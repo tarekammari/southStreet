@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSqliteDb } from '@/lib/sqlite';
 import { requireRole, ADMINS } from '@/lib/staff-gate';
 import { inspectDelete, disableStaffLogin } from '@/lib/admin-delete-guards';
+import { ensureStaffProfileColumns, staffExtras, toFlag } from '@/lib/staff-profile';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -22,11 +23,12 @@ export async function GET(req: Request) {
     const db = getSqliteDb();
     // Admins get the full row; the public catalogue never receives phone numbers.
     const isAdmin = !('error' in requireRole(req, ADMINS));
+    ensureStaffProfileColumns(db);
     const rows = db.prepare('SELECT * FROM morshids ORDER BY rowid ASC').all() as any[];
     const morshids = rows.map(m => {
       const languages = parseLanguages(m.languages);
       const { phone, ...publicFields } = m;
-      return { ...(isAdmin ? m : publicFields), languages, reviewCount: Number(m.review_count) || 0 };
+      return { ...(isAdmin ? m : publicFields), languages, ...staffExtras(m), reviewCount: Number(m.review_count) || 0 };
     });
     return NextResponse.json(morshids, {
       headers: { 'Cache-Control': 'no-store, max-age=0' },
@@ -44,7 +46,33 @@ export async function POST(req: Request) {
     const body = await req.json();
     const db = getSqliteDb();
 
+    ensureStaffProfileColumns(db);
     const morshid_id = body.morshid_id || `msh_${Date.now()}`;
+
+    // A login account that has no staff profile yet (e.g. created by Sakhr): add the profile and link it.
+    if (typeof body.link_user_id === 'string' && body.link_user_id) {
+      const user = db.prepare('SELECT id, name, staffId FROM users WHERE id = ?').get(body.link_user_id) as any;
+      if (!user) return NextResponse.json({ error: 'الحساب غير موجود' }, { status: 404 });
+      if (user.staffId) return NextResponse.json({ error: 'لهذا الحساب ملف مسبقاً' }, { status: 409 });
+      const category = CATEGORIES.has(String(body.category)) ? String(body.category) : 'religious_guide';
+      db.prepare(
+        `INSERT INTO morshids (morshid_id, name, roleName, specialization, experience_years, languages, phone, avatar, rating, status, category, image)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, 'متاح', ?, ?)`
+      ).run(
+        morshid_id,
+        String(body.name || user.name || '').trim().slice(0, 120),
+        String(body.roleName || '').slice(0, 200),
+        String(body.specialization || '').slice(0, 200),
+        Number.isFinite(Number(body.experience_years)) && body.experience_years !== null && body.experience_years !== '' ? Number(body.experience_years) : null,
+        JSON.stringify(Array.isArray(body.languages) ? body.languages.map(String).slice(0, 12) : []),
+        String(body.phone || '').slice(0, 40),
+        String(body.name || user.name || 'م').charAt(0),
+        category,
+        String(body.image || '').slice(0, 500)
+      );
+      db.prepare('UPDATE users SET staffId = ? WHERE id = ?').run(morshid_id, user.id);
+      return NextResponse.json({ success: true, morshid_id, message: 'تم إنشاء الملف وربطه بالحساب' });
+    }
     const { isEmailTaken } = require('@/lib/accounts') as typeof import('@/lib/accounts');
     if (!body.morshid_id && typeof body.email === 'string' && body.email.trim() && isEmailTaken(body.email)) {
       return NextResponse.json({ error: 'هذا البريد الإلكتروني مستعمل لحساب آخر' }, { status: 409 });
@@ -111,7 +139,10 @@ export async function POST(req: Request) {
 }
 
 /** Columns a staff profile edit may change; anything else in the body is ignored. */
-const EDITABLE = ['name', 'roleName', 'specialization', 'experience_years', 'languages', 'phone', 'category', 'image', 'rating'] as const;
+const EDITABLE = [
+  'name', 'roleName', 'specialization', 'experience_years', 'languages', 'phone', 'category', 'image', 'rating',
+  'bio', 'skills', 'qualifications', 'show_on_home', 'home_order',
+] as const;
 const CATEGORIES = new Set(['staff', 'religious_guide', 'women_guide', 'field_guide', 'accountant']);
 
 export async function PATCH(req: Request) {
@@ -121,6 +152,7 @@ export async function PATCH(req: Request) {
     const body = await req.json().catch(() => ({}));
     const id = String(body.morshid_id || '');
     const db = getSqliteDb();
+    ensureStaffProfileColumns(db);
     const row = id ? (db.prepare('SELECT * FROM morshids WHERE morshid_id = ?').get(id) as any) : null;
     if (!row) return NextResponse.json({ error: 'العضو غير موجود' }, { status: 404 });
 
@@ -133,8 +165,14 @@ export async function PATCH(req: Request) {
         if (!value) return NextResponse.json({ error: 'الاسم مطلوب' }, { status: 400 });
       } else if (key === 'category') {
         if (!CATEGORIES.has(String(value))) return NextResponse.json({ error: 'نوع العضو غير صالح' }, { status: 400 });
-      } else if (key === 'languages') {
-        value = JSON.stringify(Array.isArray(value) ? value.map(String).slice(0, 12) : []);
+      } else if (key === 'languages' || key === 'skills' || key === 'qualifications') {
+        value = JSON.stringify(Array.isArray(value) ? value.map((v) => String(v).trim().slice(0, 80)).filter(Boolean).slice(0, 20) : []);
+      } else if (key === 'show_on_home') {
+        value = toFlag(value);
+      } else if (key === 'home_order') {
+        value = Math.max(0, Math.min(99, Number(value) || 0));
+      } else if (key === 'bio') {
+        value = String(value ?? '').trim().slice(0, 1200);
       } else if (key === 'experience_years' || key === 'rating') {
         const n = Number(value);
         value = Number.isFinite(n) ? n : null;

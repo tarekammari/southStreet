@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import AppVersionBadge from '@/components/admin/AppVersionBadge';
 import BackupsPanel from '@/components/admin/BackupsPanel';
+import AboutPageEditor from '@/components/admin/AboutPageEditor';
 import TeamWorkspace from '@/components/team/TeamWorkspace';
 import Link from 'next/link';
 import {
@@ -40,6 +41,7 @@ import {
   UserCog,
   Users,
   X,
+  FileText,
 } from 'lucide-react';
 import {
   DEFAULT_USER_PHOTO,
@@ -107,7 +109,7 @@ const EMPTY_STATS: DashboardStats = {
 const HEARTBEAT_MS = 45000;
 const REFRESH_MS = 20000;
 
-type DashSection = 'users' | 'security' | 'google' | 'server' | 'bookings' | 'keys' | 'backups';
+type DashSection = 'users' | 'security' | 'google' | 'server' | 'bookings' | 'keys' | 'backups' | 'about';
 type FilterKey = 'all' | 'online' | 'active' | 'pending' | 'suspended';
 type RoleFilter = 'all' | LoginRole;
 type FlyoutKey = 'accounts' | 'sessions' | 'types' | null;
@@ -635,7 +637,9 @@ export default function UserAccessDashboard({
         ? 'حالة الخادم'
         : section === 'bookings'
           ? 'طلبات العمرة'
-          : 'إدارة الحسابات';
+          : section === 'about'
+            ? 'صفحة عن الوكالة'
+            : 'إدارة الحسابات';
   const roleFilterLabel = roleFilter === 'all' ? '' : LOGIN_ROLE_LABELS[roleFilter];
   const filterCount = (id: FilterKey) => {
     if (id === 'online') return onlineCount;
@@ -755,6 +759,11 @@ export default function UserAccessDashboard({
               <AgencyPendingBookings />
             </div>
           ) : null}
+          {section === 'about' ? (
+            <div key="about" className="inn-stage-pane is-active inn-swap">
+              <AboutPageEditor />
+            </div>
+          ) : null}
 
           {section === 'users' ? (
             <div key={`users-${filter}`} className="inn-stage-pane is-active inn-swap">
@@ -832,6 +841,15 @@ export default function UserAccessDashboard({
                   <ShoppingBag className="w-4 h-4" />
                   <span className="inn-side-label">طلبات العمرة</span>
                   {demandCount > 0 ? <span className="inn-side-badge">{demandCount}</span> : null}
+                </button>
+                <button
+                  type="button"
+                  className={`inn-side-link${section === 'about' ? ' is-active' : ''}`}
+                  onClick={() => goSection('about')}
+                  title="صفحة عن الوكالة"
+                >
+                  <FileText className="w-4 h-4" />
+                  <span className="inn-side-label">صفحة عن الوكالة</span>
                 </button>
                 <button
                   type="button"

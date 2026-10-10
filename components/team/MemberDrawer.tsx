@@ -7,6 +7,7 @@ import {
   Camera,
   CheckCircle2,
   Fingerprint,
+  Home,
   KeyRound,
   Link2,
   Loader2,
@@ -34,6 +35,7 @@ import {
   type Viewer,
 } from './teamModel';
 import {
+  createStaff,
   deleteAccount,
   deleteStaff,
   issueCredentials,
@@ -57,7 +59,56 @@ type Draft = {
   experience_years: string;
   languages: string[];
   image: string;
+  bio: string;
+  skills: string[];
+  qualifications: string[];
+  show_on_home: boolean;
+  home_order: string;
 };
+
+/** Staff type a login role gets when its public profile is created. */
+const CATEGORY_FOR_ROLE: Partial<Record<LoginRole, string>> = {
+  GUIDE_MURSHID: 'religious_guide',
+  ACCOUNTANT: 'accountant',
+  AGENCY_AGENT: 'staff',
+  AGENCY_MANAGER: 'staff',
+  SUPER_ADMIN: 'staff',
+};
+
+/** Free tags (skills, qualifications): type and press Enter, click x to remove. */
+function TagInput({ value, onChange, placeholder, max = 20 }: { value: string[]; onChange: (next: string[]) => void; placeholder: string; max?: number }) {
+  const [text, setText] = useState('');
+  const add = () => {
+    const parts = text.split(/[،,]+/).map((t) => t.trim()).filter(Boolean);
+    if (parts.length) onChange(Array.from(new Set([...value, ...parts])).slice(0, max));
+    setText('');
+  };
+  return (
+    <div className="tm-tags">
+      {value.map((t) => (
+        <span key={t} className="tm-chip is-on">
+          {t}
+          <button type="button" onClick={() => onChange(value.filter((x) => x !== t))} aria-label={`حذف ${t}`}>×</button>
+        </span>
+      ))}
+      <input
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ',' || e.key === '،') {
+            e.preventDefault();
+            add();
+          } else if (e.key === 'Backspace' && !text && value.length) {
+            onChange(value.slice(0, -1));
+          }
+        }}
+        onBlur={add}
+        placeholder={value.length ? 'أضف…' : placeholder}
+        maxLength={80}
+      />
+    </div>
+  );
+}
 
 function draftOf(m: Member): Draft {
   return {
@@ -70,6 +121,11 @@ function draftOf(m: Member): Draft {
     experience_years: m.staff?.experience_years != null ? String(m.staff.experience_years) : '',
     languages: m.staff?.languages || [],
     image: m.staff?.photo || '',
+    bio: m.staff?.bio || '',
+    skills: m.staff?.skills || [],
+    qualifications: m.staff?.qualifications || [],
+    show_on_home: Boolean(m.staff?.show_on_home),
+    home_order: m.staff?.home_order ? String(m.staff.home_order) : '',
   };
 }
 
@@ -100,6 +156,8 @@ export default function MemberDrawer({
   const isSelf = viewer.id === member.id;
   const isTop = member.role === 'SUPER_ADMIN';
   const isStaff = Boolean(member.staffId && member.staff);
+  // Team members (not clients) may get a public profile: photo, bio, skills…
+  const canHaveProfile = isStaff || Boolean(CATEGORY_FOR_ROLE[member.role]);
   const canManage = !isTop && !isSelf && (viewer.role === 'SUPER_ADMIN' || member.role !== 'AGENCY_MANAGER');
   const canEditProfile = canManage || isSelf;
   const state = memberState(member);
@@ -151,7 +209,29 @@ export default function MemberDrawer({
         return;
       }
       const original = draftOf(member);
-      if (isStaff && member.staffId) {
+      const profile = {
+        name: draft.name.trim(),
+        phone: draft.phone.trim(),
+        roleName: draft.title.trim(),
+        category: draft.category || CATEGORY_FOR_ROLE[member.role] || 'staff',
+        specialization: draft.specialization.trim(),
+        experience_years: draft.experience_years === '' ? null : Number(draft.experience_years),
+        languages: draft.languages,
+        bio: draft.bio.trim(),
+        skills: draft.skills,
+        qualifications: draft.qualifications,
+        show_on_home: draft.show_on_home,
+        home_order: draft.home_order === '' ? 0 : Number(draft.home_order),
+      };
+      if (!isStaff && canHaveProfile) {
+        // First public profile for this account: create it, then fill every field.
+        const created = await createStaff({ link_user_id: member.id, ...profile, image: draft.image });
+        if (!created.ok) return onToast(created.error, 'error');
+        const filled = await patchStaff(created.data.morshid_id, { ...profile, ...(draft.image ? { image: draft.image } : {}) });
+        if (!filled.ok) return onToast(filled.error, 'error');
+        const acc = await patchAccount(member.id, { name: profile.name, phone: profile.phone, email: draft.email.trim() });
+        if (!acc.ok) return onToast(acc.error, 'error');
+      } else if (isStaff && member.staffId) {
         const r = await patchStaff(member.staffId, {
           name: draft.name.trim(),
           phone: draft.phone.trim(),
@@ -160,6 +240,11 @@ export default function MemberDrawer({
           specialization: draft.specialization.trim(),
           experience_years: draft.experience_years === '' ? null : Number(draft.experience_years),
           languages: draft.languages,
+          bio: profile.bio,
+          skills: profile.skills,
+          qualifications: profile.qualifications,
+          show_on_home: profile.show_on_home,
+          home_order: profile.home_order,
           ...(draft.image !== original.image ? { image: draft.image } : {}),
         });
         if (!r.ok) return onToast(r.error, 'error');
@@ -233,6 +318,16 @@ export default function MemberDrawer({
       onChanged();
     });
 
+  const toggleHome = () =>
+    run('home', async () => {
+      if (!member.staffId) return;
+      const next = !member.staff?.show_on_home;
+      const r = await patchStaff(member.staffId, { show_on_home: next });
+      if (!r.ok) return onToast(r.error, 'error');
+      onToast(next ? 'سيظهر في قسم الطاقم بالصفحة الرئيسية' : 'لن يظهر في الصفحة الرئيسية');
+      onChanged();
+    });
+
   const pickPhoto = async (file?: File | null) => {
     if (!file) return;
     await run('photo', async () => {
@@ -262,7 +357,7 @@ export default function MemberDrawer({
           <div className="tm-drawer-id">
             <div className="tm-drawer-photo">
               <MemberAvatar member={{ ...member, photo: editing && draft.image ? draft.image : member.photo }} size={72} />
-              {editing && isStaff ? (
+              {editing && canHaveProfile ? (
                 <>
                   <button type="button" className="tm-photo-btn" onClick={() => fileRef.current?.click()} aria-label="تغيير الصورة">
                     {busy === 'photo' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
@@ -323,10 +418,45 @@ export default function MemberDrawer({
                       ) : null,
                       { wide: true }
                     )}
+                    {field(
+                      'المهارات',
+                      member.staff?.skills?.length ? (
+                        <span className="tm-chips">{member.staff.skills.map((l) => <span key={l} className="tm-chip">{l}</span>)}</span>
+                      ) : null,
+                      { wide: true }
+                    )}
+                    {field(
+                      'المؤهلات والشهادات',
+                      member.staff?.qualifications?.length ? (
+                        <span className="tm-chips">{member.staff.qualifications.map((l) => <span key={l} className="tm-chip">{l}</span>)}</span>
+                      ) : null,
+                      { wide: true }
+                    )}
+                    {field('نبذة تعريفية', member.staff?.bio ? <span className="tm-bio">{member.staff.bio}</span> : null, { wide: true })}
                   </>
                 ) : null}
                 {field('تاريخ الانضمام', fullDate(member.createdAt))}
               </dl>
+              {isStaff ? (
+                <div className="tm-home-row">
+                  <div>
+                    <strong><Home className="w-4 h-4" /> الظهور في الصفحة الرئيسية</strong>
+                    <small>يظهر في قسم «طاقم الوكالة والمرشدون» بالصفحة الرئيسية، ويظهر الجميع في صفحة «عن الوكالة».</small>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={Boolean(member.staff?.show_on_home)}
+                    className={`tm-switch${member.staff?.show_on_home ? ' is-on' : ''}`}
+                    onClick={toggleHome}
+                    disabled={!canEditProfile || busy === 'home'}
+                  >
+                    <span />
+                  </button>
+                </div>
+              ) : canHaveProfile && canEditProfile ? (
+                <p className="tm-note">لا يملك هذا العضو ملفاً تعريفياً بعد. اضغط «تعديل» لإضافة صورته ونبذة عنه ومهاراته وخبراته، ليظهر في صفحات الموقع.</p>
+              ) : null}
             </section>
           ) : null}
 
@@ -352,11 +482,11 @@ export default function MemberDrawer({
                   <span>البريد الإلكتروني</span>
                   <input value={draft.email} onChange={(e) => setDraft({ ...draft, email: e.target.value })} dir="ltr" type="email" maxLength={160} />
                 </label>
-                {isStaff ? (
+                {canHaveProfile ? (
                   <>
                     <label className="tm-input">
                       <span>نوع العضو</span>
-                      <select value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })} disabled={!canManage}>
+                      <select value={draft.category || CATEGORY_FOR_ROLE[member.role] || 'staff'} onChange={(e) => setDraft({ ...draft, category: e.target.value })} disabled={!canManage}>
                         {staffTypes.map((t) => <option key={t.id} value={t.category}>{t.label}</option>)}
                       </select>
                     </label>
@@ -391,6 +521,26 @@ export default function MemberDrawer({
                         })}
                       </div>
                     </div>
+                    <div className="tm-input is-wide">
+                      <span>المهارات</span>
+                      <TagInput value={draft.skills} onChange={(skills) => setDraft((d) => ({ ...d, skills }))} placeholder="مثال: فقه المناسك، الإسعافات الأولية، إدارة المجموعات" />
+                    </div>
+                    <div className="tm-input is-wide">
+                      <span>المؤهلات والشهادات</span>
+                      <TagInput value={draft.qualifications} onChange={(qualifications) => setDraft((d) => ({ ...d, qualifications }))} placeholder="مثال: إجازة في الشريعة، شهادة مرشد معتمد" />
+                    </div>
+                    <label className="tm-input is-wide">
+                      <span>نبذة تعريفية (تظهر في صفحة «عن الوكالة»)</span>
+                      <textarea value={draft.bio} onChange={(e) => setDraft({ ...draft, bio: e.target.value })} rows={4} maxLength={1200} placeholder="خبرته، الرحلات التي رافقها، ما يميّزه…" />
+                    </label>
+                    <label className="tm-input tm-check">
+                      <input type="checkbox" checked={draft.show_on_home} onChange={(e) => setDraft({ ...draft, show_on_home: e.target.checked })} />
+                      <span>إظهاره في الصفحة الرئيسية</span>
+                    </label>
+                    <label className="tm-input">
+                      <span>ترتيب الظهور</span>
+                      <input value={draft.home_order} onChange={(e) => setDraft({ ...draft, home_order: e.target.value.replace(/[^0-9]/g, '') })} inputMode="numeric" dir="ltr" maxLength={2} placeholder="1" />
+                    </label>
                   </>
                 ) : null}
               </div>

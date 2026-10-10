@@ -5,6 +5,7 @@ import os from 'os';
 import path from 'path';
 import sharp from 'sharp';
 import { requireRole, ADMINS } from '@/lib/staff-gate';
+import { mediaGoesToDatabase, saveMedia } from '@/lib/media-store';
 
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp'];
 const VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime'];
@@ -117,6 +118,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: isVideo ? 'حجم الفيديو يتجاوز 80 ميغابايت' : 'حجم الصورة يتجاوز 12 ميغابايت' }, { status: 400 });
     }
 
+    // No lasting disk (Vercel): images are kept in the database; videos are too big for it.
+    const toDatabase = mediaGoesToDatabase();
+    if (toDatabase && isVideo) {
+      return NextResponse.json({ error: 'رفع الفيديو غير متاح على النسخة التجريبية — سيعمل على الخادم الدائم (VPS)' }, { status: 400 });
+    }
+
     const raw = Buffer.from(await file.arrayBuffer());
     let buffer: Buffer = raw;
     const safeBase = (file.name || 'upload')
@@ -137,8 +144,9 @@ export async function POST(req: NextRequest) {
       ext = '.mp4';
     }
 
-    const filename = `${Date.now()}_${safeBase}${ext}`;
-    writeBoth(filename, buffer);
+    let filename = `${Date.now()}_${safeBase}${ext}`;
+    if (toDatabase) filename = saveMedia(buffer, 'image/webp', '.webp');
+    else writeBoth(filename, buffer);
 
     return NextResponse.json({
       success: true,

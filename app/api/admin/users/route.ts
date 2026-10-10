@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/db';
 import { ensureUserAccount, isEmailTaken, updateUserAccess, updateUserProfile, deleteUserAccount } from '@/lib/accounts';
 import { getSqliteDb } from '@/lib/sqlite';
+import { ensureStaffProfileColumns, staffExtras } from '@/lib/staff-profile';
 import { normalizeLoginRole, LOGIN_ROLE_LABELS, toPortalRole, PORTAL_TABS, isPrivilegedRole } from '@/lib/roles';
 import { enrichUsersWithSessions, isImageSource, resolveUserPhoto } from '@/lib/user-access-view';
 import { generateDeviceFingerprint } from '@/lib/security';
@@ -22,6 +23,11 @@ type StaffProfile = {
   languages: string[];
   rating: number | null;
   photo: string;
+  bio?: string;
+  skills?: string[];
+  qualifications?: string[];
+  show_on_home?: boolean;
+  home_order?: number;
 };
 
 function parseList(raw: unknown): string[] {
@@ -38,6 +44,7 @@ function parseList(raw: unknown): string[] {
 function loadStaffProfiles(sqlite: any): Map<string, StaffProfile> {
   const profiles = new Map<string, StaffProfile>();
   try {
+    ensureStaffProfileColumns(sqlite);
     const staff = sqlite.prepare('SELECT * FROM morshids').all() as any[];
     for (const member of staff) {
       const photo = isImageSource(member?.image)
@@ -53,6 +60,7 @@ function loadStaffProfiles(sqlite: any): Map<string, StaffProfile> {
         languages: parseList(member.languages),
         rating: member.rating != null ? Number(member.rating) : null,
         photo: photo ? String(photo).trim() : '',
+        ...staffExtras(member),
       });
     }
   } catch {

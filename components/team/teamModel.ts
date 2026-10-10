@@ -9,6 +9,11 @@ export type StaffProfile = {
   languages: string[];
   rating: number | null;
   photo: string;
+  bio?: string;
+  skills?: string[];
+  qualifications?: string[];
+  show_on_home?: boolean;
+  home_order?: number;
 };
 
 export type Member = {

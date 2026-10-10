@@ -25,7 +25,8 @@ import TestimonialsSection from '@/components/TestimonialsSection';
 import { initialOf, photoOf, type MorshidRow } from '@/components/AboutSection';
 import { useReveal } from '@/components/info/useReveal';
 import { fetchJsonList } from '@/lib/fetch-json';
-import { PageContentRow, pickPageContent } from '@/lib/page-content';
+import type { PageContentRow } from '@/lib/page-content';
+import { readAboutContent } from '@/lib/about-content';
 import '@/app/info-pages.css';
 
 type AgencyInfo = Partial<Record<
@@ -33,20 +34,8 @@ type AgencyInfo = Partial<Record<
   string
 >>;
 
-const VALUES = [
-  { icon: HeartHandshake, title: 'مرافقة دينية متخصصة', text: 'مرشدون ومرشدات يرافقونكم في المناسك خطوة بخطوة، ويجيبون عن أسئلتكم طوال الرحلة.' },
-  { icon: BedDouble, title: 'فنادق قريبة من الحرم', text: 'نختار فنادق موثوقة في مكة المكرمة والمدينة المنورة، مع توضيح المسافة والخدمات لكل فندق.' },
-  { icon: ReceiptText, title: 'أسعار واضحة', text: 'سعر كل برنامج ونوع غرفة معروض بوضوح، وتحصلون على وصل وفاتورة لكل دفعة.' },
-  { icon: ShieldCheck, title: 'متابعة قبل وأثناء الرحلة', text: 'نتابع وثائقكم وتأشيرتكم وحالة حجزكم، وتصلكم كل التحديثات في بوابتكم الخاصة.' },
-];
-
-const JOURNEY = [
-  { title: 'اختر برنامجك', text: 'تصفح البرامج المتاحة وقارن التواريخ والفنادق والأسعار.' },
-  { title: 'أرسل طلب الحجز', text: 'املأ طلبك عبر الموقع في دقائق، أو اطلب المساعدة من صخر.' },
-  { title: 'التأكيد والوثائق', text: 'تراجع الوكالة طلبك، وتتابع معك الوثائق والتأشيرة والدفع.' },
-  { title: 'السفر مع المرشد', text: 'رحلة منظمة من المطار إلى الفندق مع مرافقة في أداء المناسك.' },
-  { title: 'العودة والتقييم', text: 'شاركنا تجربتك لتساعد المعتمرين القادمين في اختيارهم.' },
-];
+/** Icons for the "why us" cards, in order (repeats when there are more cards). */
+const VALUE_ICONS = [HeartHandshake, BedDouble, ReceiptText, ShieldCheck, Star, Users];
 
 function whatsappHref(raw: string): string {
   const digits = raw.replace(/[^\d]/g, '').replace(/^00/, '');
@@ -80,19 +69,9 @@ export default function AboutPage() {
   useReveal();
 
   const name = agency.agency_name || 'وكالة ساوث ستريت';
-  const hero = pickPageContent(content, 'about_hero', {
-    title: 'رفيقكم الأمين في رحلة العمر',
-    content:
-      agency.description ||
-      'وكالة سياحة وأسفار متخصصة في رحلات العمرة والحج، نرافقكم من لحظة اختيار البرنامج حتى عودتكم سالمين، بتنظيم واضح ومرافقة دينية متخصصة.',
-    image: '/images/maka01.webp',
-  });
-  const story = pickPageContent(content, 'about_story', {
-    title: 'من نحن',
-    content:
-      'نؤمن أن رحلة العمرة ليست سفراً عادياً، بل لحظة ينتظرها المسلم طويلاً. لذلك نهتم بكل تفصيلة: اختيار الفندق، وتنظيم التنقلات، ومرافقة المرشد، وتيسير الوثائق، حتى تتفرغوا للعبادة بقلب مطمئن.\n\nفريقنا يجمع إداريين ومرشدين ومرشدات ذوي خبرة، يعملون معاً ليكون كل معتمر في أيدٍ أمينة من الجزائر إلى الحرمين الشريفين.',
-    image: '/images/section2_03.webp',
-  });
+  const about = readAboutContent(content);
+  const hero = { ...about.hero, text: about.hero.text || agency.description || 'وكالة سياحة وأسفار متخصصة في رحلات العمرة والحج، نرافقكم من لحظة اختيار البرنامج حتى عودتكم سالمين، بتنظيم واضح ومرافقة دينية متخصصة.' };
+  const story = about.story;
 
   const statCards = [
     { icon: CalendarCheck, value: stats.programs, label: 'برامج متاحة الآن' },
@@ -125,7 +104,7 @@ export default function AboutPage() {
             <div className="ip-reveal">
               <span className="ip-eyebrow"><BadgeCheck className="w-4 h-4" /> {name}</span>
               <h1>{hero.title}</h1>
-              <p className="ip-lead">{hero.content}</p>
+              <p className="ip-lead">{hero.text}</p>
               <div className="ip-actions">
                 <Link href="/packages" className="ip-btn is-primary">
                   تصفح البرامج <ArrowLeft className="w-4 h-4" />
@@ -143,7 +122,7 @@ export default function AboutPage() {
           </div>
         </section>
 
-        {statCards.length ? (
+        {about.settings.stats && statCards.length ? (
           <div className="ip-wrap">
             <div className="ip-stats">
               {statCards.map((s) => (
@@ -163,7 +142,7 @@ export default function AboutPage() {
             <div className="ip-reveal">
               <span className="ip-eyebrow">قصتنا</span>
               <h2 className="ip-h2">{story.title}</h2>
-              <p>{story.content}</p>
+              <p>{story.text}</p>
             </div>
             <div className="ip-story-img ip-reveal">
               <img src={story.image} alt="" loading="lazy" />
@@ -172,35 +151,41 @@ export default function AboutPage() {
         </section>
 
         {/* Values */}
+        {about.values.items.length ? (
         <section className="ip-section is-soft">
           <div className="ip-wrap">
             <div className="ip-head ip-reveal">
               <span className="ip-eyebrow">لماذا نحن</span>
-              <h2 className="ip-h2">ما يميّز رحلتكم معنا</h2>
+              <h2 className="ip-h2">{about.values.heading}</h2>
             </div>
             <div className="ip-cards">
-              {VALUES.map((v) => (
-                <article key={v.title} className="ip-card ip-reveal">
-                  <i><v.icon className="w-5 h-5" /></i>
-                  <h3>{v.title}</h3>
-                  <p>{v.text}</p>
-                </article>
-              ))}
+              {about.values.items.map((v, i) => {
+                const Icon = VALUE_ICONS[i % VALUE_ICONS.length];
+                return (
+                  <article key={`${v.title}-${i}`} className="ip-card ip-reveal">
+                    <i><Icon className="w-5 h-5" /></i>
+                    <h3>{v.title}</h3>
+                    <p>{v.text}</p>
+                  </article>
+                );
+              })}
             </div>
           </div>
         </section>
 
+        ) : null}
+
         {/* How it works */}
+        {about.journey.items.length ? (
         <section className="ip-section">
           <div className="ip-wrap">
             <div className="ip-head ip-reveal">
               <span className="ip-eyebrow">كيف نعمل</span>
-              <h2 className="ip-h2">من الحجز إلى العودة</h2>
-              <p className="ip-lead">خمس خطوات واضحة، ونحن معكم في كل واحدة منها.</p>
+              <h2 className="ip-h2">{about.journey.heading}</h2>
             </div>
             <div className="ip-steps">
-              {JOURNEY.map((s) => (
-                <div key={s.title} className="ip-step ip-reveal">
+              {about.journey.items.map((s, i) => (
+                <div key={`${s.title}-${i}`} className="ip-step ip-reveal">
                   <h3>{s.title}</h3>
                   <p>{s.text}</p>
                 </div>
@@ -209,8 +194,30 @@ export default function AboutPage() {
           </div>
         </section>
 
+        ) : null}
+
+        {/* Gallery (photos added by the admin) */}
+        {about.gallery.items.length ? (
+          <section className="ip-section">
+            <div className="ip-wrap">
+              <div className="ip-head ip-reveal">
+                <span className="ip-eyebrow">صور</span>
+                <h2 className="ip-h2">{about.gallery.heading}</h2>
+              </div>
+              <div className="ip-gallery">
+                {about.gallery.items.map((p, i) => (
+                  <figure key={`${p.url}-${i}`} className="ip-photo ip-reveal">
+                    <img src={p.url} alt={p.caption || ''} loading="lazy" />
+                    {p.caption ? <figcaption>{p.caption}</figcaption> : null}
+                  </figure>
+                ))}
+              </div>
+            </div>
+          </section>
+        ) : null}
+
         {/* Team */}
-        {team.length ? (
+        {about.settings.team && team.length ? (
           <section className="ip-section is-soft">
             <div className="ip-wrap">
               <div className="ip-head ip-reveal">
@@ -237,7 +244,13 @@ export default function AboutPage() {
                             {count ? <span>({count} تقييم)</span> : null}
                           </span>
                         ) : null}
-                        {m.specialization ? <p>{m.specialization}</p> : null}
+                        {Number(m.experience_years) > 0 ? <span className="ip-member-exp">{m.experience_years} سنوات خبرة</span> : null}
+                        {m.bio ? <p className="ip-member-bio">{m.bio}</p> : m.specialization ? <p>{m.specialization}</p> : null}
+                        {m.skills?.length ? (
+                          <div className="ip-member-tags">
+                            {m.skills.slice(0, 4).map((t) => <span key={t}>{t}</span>)}
+                          </div>
+                        ) : null}
                       </div>
                     </article>
                   );
@@ -248,7 +261,7 @@ export default function AboutPage() {
         ) : null}
 
         {/* Reviews (existing component, shows only approved reviews) */}
-        <TestimonialsSection />
+        {about.settings.reviews ? <TestimonialsSection /> : null}
 
         {/* Contact */}
         <section className="ip-section" id="contact">

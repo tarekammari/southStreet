@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { DB_MEDIA_PREFIX, loadMedia } from '@/lib/media-store';
 
 /**
  * Mirroring images/ -> public/images/ only needs to happen once per process.
@@ -46,6 +47,15 @@ export async function GET(
 
   if (!filename || filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
     return new NextResponse('Invalid filename', { status: 400 });
+  }
+
+  // Images uploaded on Vercel live in the database (lib/media-store).
+  if (filename.startsWith(DB_MEDIA_PREFIX)) {
+    const media = loadMedia(filename);
+    if (!media) return new NextResponse('File not found', { status: 404 });
+    return new NextResponse(new Uint8Array(media.data), {
+      headers: { 'Content-Type': media.mime, 'Cache-Control': 'public, max-age=31536000, immutable' },
+    });
   }
 
   mirrorImagesOnce();
