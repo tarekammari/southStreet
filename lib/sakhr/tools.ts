@@ -372,7 +372,8 @@ export const SAKHR_TOOLS: SakhrTool[] = [
     roles: EVERYONE,
     kind: 'read',
     run: async (ctx, args) => {
-      const res = await callRoute(hotelsGET as any, ctx, { path: '/api/admin/hotels' });
+      // Visitors and clients only hear about hotels shown on the site; staff see all.
+      const res = await callRoute(hotelsGET as any, ctx, { path: '/api/admin/hotels', query: { site: STAFF.includes(ctx.role) ? undefined : 1 } });
       if (!res.ok || !Array.isArray(res.data)) return fail(res);
       const hotels = (res.data as any[])
         .filter((h) => !args?.city || String(h.city).toUpperCase() === args.city)
@@ -813,16 +814,16 @@ export const SAKHR_TOOLS: SakhrTool[] = [
   {
     name: 'open_page',
     description:
-      'Open a page of the app for the user: home, programs, hotels, booking, the user portal, or the admin dashboard.',
+      'Open a page of the app for the user: home, programs, hotels, booking, about the agency, the Umrah guide (rituals step by step), the user portal, or the admin dashboard.',
     parameters: {
       type: 'object',
-      properties: { page: { type: 'string', enum: ['home', 'programs', 'hotels', 'book', 'portal', 'admin_dashboard'] } },
+      properties: { page: { type: 'string', enum: ['home', 'programs', 'hotels', 'book', 'about', 'guide', 'portal', 'admin_dashboard'] } },
       required: ['page'],
     },
     roles: EVERYONE,
     kind: 'client',
     clientAction: (a, role) => {
-      const map: Record<string, string> = { home: '/', programs: '/packages', hotels: '/hotels', book: '/book', portal: '/portal', admin_dashboard: '/admin' };
+      const map: Record<string, string> = { home: '/', programs: '/packages', hotels: '/hotels', book: '/book', about: '/about', guide: '/guide', portal: '/portal', admin_dashboard: '/admin' };
       if (a.page === 'admin_dashboard' && !ADMINS.includes(role)) return { error: 'لوحة الإدارة للمشرفين فقط' };
       if (a.page === 'portal' && role === 'ANON') return { error: 'سجّل الدخول أولاً' };
       const href = map[a.page];

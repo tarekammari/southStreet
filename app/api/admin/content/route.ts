@@ -23,12 +23,8 @@ function requireAdminApi(req: any) {
   return requireRole(req, ADMINS);
 }
 
+/** Page texts are public marketing content: every visitor must see the edited version. Writes stay Admin-only. */
 export async function GET(req: NextRequest) {
-  const __gate = requireAdminApi(req);
-  if ('error' in __gate) return __gate.error;
-
-  const gate = requireContentAccess(req, false);
-  if ('error' in gate) return gate.error;
   try {
     const { searchParams } = new URL(req.url);
     const section = searchParams.get('section');

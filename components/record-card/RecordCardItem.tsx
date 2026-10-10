@@ -18,6 +18,7 @@ import {
   accountViewGroup,
   isPendingStatus,
   isBlockedStatus,
+  isHotelShownOnSite,
   type StaffViewGroupId,
   type AccountViewGroupId,
 } from '@/lib/record-field-options';
@@ -50,6 +51,8 @@ export const RecordCard = memo(function RecordCard({
       <div className="record-card-media">
         {isPendingStatus(card.row.status) ? (
           <span className="record-card-pending">بانتظار الموافقة</span>
+        ) : 'hotel_id' in card.row && !isHotelShownOnSite(card.row.status) ? (
+          <span className="record-card-blocked">مخفي من الموقع</span>
         ) : isBlockedStatus(card.row.status) ? (
           <span className="record-card-blocked">موقوف أو مرفوض</span>
         ) : null}

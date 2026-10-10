@@ -18,6 +18,8 @@ export const PAGE_CONTENT_LABELS: Record<string, string> = {
   programs_section: 'مواعيد البرامج',
   promo_billboard: 'لوحة الطيران المباشر',
   footer_newsletter: 'نشرة تذييل الصفحة',
+  about_hero: 'صفحة عن الوكالة — العنوان الرئيسي',
+  about_story: 'صفحة عن الوكالة — قصتنا',
 };
 
 export const PAGE_CONTENT_SECTIONS: { id: string; label: string }[] = [

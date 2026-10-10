@@ -95,6 +95,18 @@ export const HOTEL_CITY_OPTIONS: FieldOption[] = [
   { value: 'MADINAH', label: 'المدينة المنورة' },
 ];
 
+/** Hotels: the status decides whether the hotel appears on the public hotels page. */
+export const HOTEL_STATUS_OPTIONS: FieldOption[] = [
+  { value: 'ACTIVE', label: 'ظاهر في صفحة الفنادق' },
+  { value: 'INACTIVE', label: 'مخفي من الموقع' },
+];
+
+/** Anything but an explicit "hidden" value counts as shown (older rows have ACTIVE or empty). */
+export function isHotelShownOnSite(status: unknown): boolean {
+  const s = String(status ?? '').trim().toLowerCase();
+  return !['hidden', 'inactive', 'disabled', 'مخفي', 'مخفي من الموقع', 'غير ظاهر', 'متوقف', '0', 'false'].includes(s);
+}
+
 export const HOTEL_SERVICE_OPTIONS = [
   'بوفيه مفتوح',
   'واي فاي سريع',
@@ -344,6 +356,7 @@ export function getFieldSelectOptions(fieldName: string, tableName?: string): Fi
     return MORSHID_CATEGORY_OPTIONS;
   }
   if (tableName === 'hotels' && fieldName === 'city') return HOTEL_CITY_OPTIONS;
+  if (tableName === 'hotels' && fieldName === 'status') return HOTEL_STATUS_OPTIONS;
   if (fieldName === 'role') return USER_ROLE_OPTIONS;
   if (fieldName === 'hotel_category') return HOTEL_CATEGORY_OPTIONS;
   if (isMultiSelectField(fieldName)) return LANGUAGE_OPTIONS;

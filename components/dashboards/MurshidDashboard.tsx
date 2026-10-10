@@ -68,7 +68,7 @@ export default function MurshidDashboard({ currentUser, pilgrims, onBroadcast }:
               </p>
               <div className="pt-2">
                 <Link
-                  href="/portal?tab=rituals"
+                  href="/guide"
                   className="inline-flex px-4 py-2 rounded-xl bg-[#1d1d1f] hover:bg-[#2d2d2f] text-white font-bold text-xs transition-all"
                 >
                   فتح عداد المناسك

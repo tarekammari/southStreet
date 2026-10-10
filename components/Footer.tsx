@@ -12,11 +12,11 @@ const PRODUCT_LINKS = [
   { label: 'حجز العمرة', href: '/book' },
   { label: 'البرامج', href: '/packages' },
   { label: 'الفنادق', href: '/hotels' },
-  { label: 'دليل العمرة', href: '/portal?tab=rituals' },
+  { label: 'دليل العمرة', href: '/guide' },
 ];
 
 const COMPANY_LINKS = [
-  { label: 'عن الوكالة', href: '/#about-section' },
+  { label: 'عن الوكالة', href: '/about' },
   { label: 'بوابة الوكالة', href: '/portal' },
   { label: 'لوحة التحكم', href: '/admin' },
   { label: 'تواصل معنا', href: '#contact' },
@@ -77,11 +77,8 @@ export default function Footer({ content }: { content?: PageContentRow[] }) {
     content: 'أدخلوا بريدكم الإلكتروني للأخبار وتحديثات الرحلات',
   });
 
-  const productLinks = PRODUCT_LINKS.map((link) =>
-    pilgrim && link.href.includes('tab=rituals')
-      ? { label: 'برنامجي', href: '/portal?tab=program' }
-      : link
-  );
+  // The Umrah guide is public now, so every visitor (pilgrims too) keeps it.
+  const productLinks = PRODUCT_LINKS;
   const companyLinks = COMPANY_LINKS.map((link) =>
     pilgrim && link.href === '/portal'
       ? { label: 'برنامجي', href: '/portal?tab=program' }

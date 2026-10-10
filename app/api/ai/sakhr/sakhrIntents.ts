@@ -199,14 +199,14 @@ export function detectNavigationIntent(prompt: string): { action?: AiAction; act
   if (['عن الوكالة', 'عن وكالة', 'من نحن', 'تعريف الوكالة', 'about us'].some(k => lower.includes(k))) {
     return {
       text: '🏢 تم توجيهك إلى قسم **عن الوكالة** للتعرف على خبرة ساوث ستريت في رحلات العمرة والحج المباشرة.',
-      action: { type: 'navigate', target: '#about-section' },
+      action: { type: 'navigate', target: '/about' },
       actionCard: {
         type: 'action',
         data: {
           title: 'عن وكالة ساوث ستريت',
           description: 'خبرة أكثر من 15 عاماً في تأطير ضيوف الرحمن والتأشيرات المباشرة.',
           buttonText: '🏢 الانتقال لقسم عن الوكالة',
-          targetUrl: '/#about-section'
+          targetUrl: '/about'
         }
       }
     };
@@ -279,14 +279,14 @@ export function detectNavigationIntent(prompt: string): { action?: AiAction; act
   if (['افتح المناسك', 'عداد الطواف', 'دليل المناسك', 'خطوات العمرة', 'عداد السعي', 'دليل العمرة'].some(k => lower.includes(k))) {
     return {
       text: '🕋 تفضل بفتح **عداد ودليل المناسك التفاعلي** لمتابعة أشواط الطواف والسعي وتلاوة الأدعية المأثورة.',
-      action: { type: 'navigate', target: 'portal?tab=rituals' },
+      action: { type: 'navigate', target: '/guide' },
       actionCard: {
         type: 'action',
         data: {
           title: 'عداد ودليل المناسك التفاعلي',
           description: 'متابعة أشواط الطواف (7 أشواط) والسعي، مع نصوص الأدعية والتوجيه الصوتي.',
           buttonText: '🕋 فتح عداد المناسك الآن',
-          targetUrl: '/portal?tab=rituals'
+          targetUrl: '/guide'
         }
       }
     };

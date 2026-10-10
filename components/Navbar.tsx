@@ -44,7 +44,7 @@ type NavLink = {
 
 const BASE_NAV_LINKS: NavLink[] = [
   { label: 'الرئيسية', href: '/' },
-  { label: 'عن الوكالة', href: '/#about-section' },
+  { label: 'عن الوكالة', href: '/about' },
   { label: 'البرامج', href: '/packages' },
   { label: 'الفنادق', href: '/hotels' },
 ];
@@ -77,7 +77,7 @@ function navLinksFor(user?: User | null): NavLink[] {
       },
     ];
   }
-  return [...BASE_NAV_LINKS, { label: 'دليل العمرة', href: '/portal?tab=rituals' }];
+  return [...BASE_NAV_LINKS, { label: 'دليل العمرة', href: '/guide' }];
 }
 
 function ProfileFace({ user, size = 36 }: { user: User; size?: number }) {

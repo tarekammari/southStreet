@@ -37,7 +37,7 @@ export default function PilgrimDashboard({ currentUser, onTriggerSOS }: PilgrimD
       {/* Quick Action Shortcuts */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Link
-          href="/portal?tab=rituals"
+          href="/guide"
           className="bg-white border border-black/5 rounded-2xl p-5 sm:p-6 shadow-[0_2px_12px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_20px_rgba(0,0,0,0.07)] transition-all space-y-2 block"
         >
           <span className="text-xs font-bold text-[#0071e3] uppercase tracking-wide">المناسك</span>

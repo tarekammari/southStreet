@@ -8,7 +8,7 @@ import { fetchJsonList } from '@/lib/fetch-json';
 import { StarRating } from '@/components/StarRating';
 import { PageContentRow, pickPageContent } from '@/lib/page-content';
 
-interface MorshidRow {
+export interface MorshidRow {
   morshid_id: string;
   name: string;
   roleName?: string;
@@ -66,11 +66,11 @@ function pickAboutMembers(rows: MorshidRow[]): MorshidRow[] {
   return [director, male, female].filter((row): row is MorshidRow => Boolean(row));
 }
 
-function photoOf(member: MorshidRow): string {
+export function photoOf(member: MorshidRow): string {
   return extractImageUrls(member.image, 'image')[0] || extractImageUrls(member.avatar, 'avatar')[0] || '';
 }
 
-function initialOf(member: MorshidRow): string {
+export function initialOf(member: MorshidRow): string {
   const avatar = (member.avatar || '').trim();
   if (avatar.length > 0 && avatar.length <= 3 && !/[./]/.test(avatar)) return avatar;
   return (member.name || 'م').charAt(0);

@@ -35,7 +35,7 @@ export default function HotelsPage() {
   const ease = [0.22, 1, 0.36, 1] as const;
 
   useEffect(() => {
-    fetch('/api/admin/hotels')
+    fetch('/api/admin/hotels?site=1', { cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) setHotels(data);
