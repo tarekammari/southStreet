@@ -18,6 +18,7 @@ import { initSecuritySchema } from './security-schema';
 import { ensureDbFile, isServerlessHost, resolveDbPath } from './db-path';
 import { bootstrapFiscalPeriodsForYear } from './finance-periods';
 import { seedScfChartAccounts } from './scf-chart-seed';
+import { reprepareAcrossTransactions } from './turso-statements';
 
 let dbInstance: Database.Database | null = null;
 let dbPathUsed: string | null = null;
@@ -39,6 +40,7 @@ function openTursoReplica(cfg: { url: string; authToken: string }): Database.Dat
   const file = path.join(dir, 'south_street.turso-replica.db');
   const db = new Libsql(file, { syncUrl: cfg.url, authToken: cfg.authToken, readYourWrites: true });
   db.sync();
+  reprepareAcrossTransactions(db);
   replica = db;
   lastSync = Date.now();
   return db as Database.Database;
