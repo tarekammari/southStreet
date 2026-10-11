@@ -60,7 +60,11 @@ export async function POST(req: NextRequest) {
           url: `/connect?call=${call.id}`,
           callId: call.id,
         });
-        await sleep(6000);
+        // Wait for the next ring, but stop at once when the call is answered / cancelled.
+        for (let t = 0; t < 12; t++) {
+          await sleep(500);
+          if (getCall(call.id)?.state !== 'ringing') break;
+        }
       }
       const last = getCall(call.id);
       // Answered calls need no follow-up (the app clears the notification); missed ones become a missed-call notice.

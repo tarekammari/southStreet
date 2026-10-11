@@ -11,6 +11,7 @@ import QRCode from 'qrcode';
 import { Bell, CheckCircle2, Download, Lock, MessageCircle, Mic, Monitor, PhoneCall, Share, Smartphone, SquarePlus } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import { versionLabel } from '@/lib/connect/version';
 import '@/app/info-pages.css';
 
 type Platform = 'android' | 'ios' | 'windows';
@@ -90,6 +91,7 @@ export default function DownloadPage() {
             <div>
               <span className="ip-eyebrow"><Download className="w-4 h-4" /> تطبيق مجاني</span>
               <h1>South Street <em>Connect</em></h1>
+              <p className="ip-lead" dir="ltr" style={{ fontSize: '0.8rem', opacity: 0.7, marginTop: 0 }}>v{versionLabel()}</p>
               <p className="ip-lead">رسائل ومكالمات صوتية واضحة بينك وبين فريق الوكالة ومرشدك، على أندرويد والآيفون وويندوز. بدون متجر تطبيقات: ثبّته من هنا في ثوانٍ.</p>
               <div className="ip-actions">
                 {installed ? (

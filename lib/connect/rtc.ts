@@ -34,6 +34,11 @@ function tuneOpus(sdp: string): string {
   return sdp;
 }
 
+/** Fire-and-forget signal (hang-up, decline): the screen never waits for the server. */
+function send(body: Record<string, unknown>) {
+  void fetch('/api/connect/call', { method: 'POST', headers: jsonAuthHeaders(), body: JSON.stringify(body), keepalive: true }).catch(() => undefined);
+}
+
 async function api(body: Record<string, unknown>) {
   const res = await fetch('/api/connect/call', { method: 'POST', headers: jsonAuthHeaders(), body: JSON.stringify(body) });
   const data = await res.json().catch(() => ({}));
@@ -98,7 +103,7 @@ export class VoiceCall {
         this.h.onPhase('active');
         this.h.onConnectedAt(Date.now());
       } else if (pc.connectionState === 'failed') {
-        void this.hangup('failed');
+        this.hangup('failed');
       }
     };
     try {
@@ -112,16 +117,21 @@ export class VoiceCall {
   async call(toUserId: string) {
     this.h.onPhase('calling');
     await this.setup();
-    const offer = await this.pc!.createOffer({ offerToReceiveAudio: true });
-    await this.pc!.setLocalDescription({ type: 'offer', sdp: tuneOpus(offer.sdp || '') });
+    if (this.finished || !this.pc) return; // hung up while the microphone was opening
+    const offer = await this.pc.createOffer({ offerToReceiveAudio: true });
+    if (this.finished || !this.pc) return;
+    await this.pc.setLocalDescription({ type: 'offer', sdp: tuneOpus(offer.sdp || '') });
     try {
-      const res = await api({ action: 'start', to: toUserId, offer: this.pc!.localDescription!.sdp });
+      const res = await api({ action: 'start', to: toUserId, offer: this.pc.localDescription!.sdp });
       this.id = res.id;
     } catch (err) {
+      if (this.finished) return;
       this.cleanup();
       this.h.onEnd((err as { code?: string }).code === 'BUSY' ? 'busy' : 'failed');
       throw err;
     }
+    // Hung up while dialling: stop the other phone ringing.
+    if (this.finished) return send({ action: 'end', id: this.id });
     this.startPolling();
   }
 
@@ -178,19 +188,21 @@ export class VoiceCall {
     else this.pendingIce.push(init);
   }
 
-  static async decline(callId: string) {
-    await api({ action: 'decline', id: callId }).catch(() => undefined);
+  static decline(callId: string) {
+    send({ action: 'decline', id: callId });
   }
 
   setMuted(muted: boolean) {
     this.mic?.getAudioTracks().forEach((t) => (t.enabled = !muted));
   }
 
-  async hangup(reason: CallEndReason = 'hangup') {
+  /** Ends at once on this phone; the other side is told in the background. */
+  hangup(reason: CallEndReason = 'hangup') {
     if (this.finished) return;
-    if (this.id) await api({ action: 'end', id: this.id }).catch(() => undefined);
+    const id = this.id;
     this.cleanup();
     this.h.onEnd(reason);
+    if (id) send({ action: 'end', id });
   }
 
   private startPolling() {

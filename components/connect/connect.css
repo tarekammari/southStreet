@@ -145,3 +145,25 @@
 }
 
 .cn-banner.cn-update { background: #e8f5ee !important; color: #0f5132 !important; }
+
+/* About sheet: version, checks, ringing test */
+.cn-version { display: block; margin-top: 10px; color: var(--cn-muted); font-size: 0.75rem; }
+.cn-sheet { position: fixed; inset: 0; z-index: 60; background: rgba(15, 23, 42, 0.45); display: flex; align-items: flex-end; justify-content: center; }
+.cn-sheet-card { width: 100%; max-width: 460px; background: var(--cn-panel); border-radius: 20px 20px 0 0; padding: 16px 16px calc(18px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 12px; }
+@media (min-width: 720px) { .cn-sheet { align-items: center; } .cn-sheet-card { border-radius: 20px; } }
+.cn-sheet-card header { display: flex; align-items: center; gap: 12px; }
+.cn-sheet-card header img { width: 44px; height: 44px; border-radius: 12px; }
+.cn-sheet-card header div { flex: 1; min-width: 0; }
+.cn-sheet-card header h2 { font-size: 1rem; font-weight: 900; margin: 0; }
+.cn-sheet-card header small { color: var(--cn-muted); font-size: 0.78rem; }
+.cn-checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.cn-checks li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--cn-line); }
+.cn-checks li.is-ok svg { color: #16a34a; flex: none; }
+.cn-checks li.is-bad svg { color: #dc2626; flex: none; }
+.cn-checks li span { display: flex; flex-direction: column; gap: 2px; font-size: 0.86rem; }
+.cn-checks li small { color: var(--cn-muted); font-size: 0.76rem; line-height: 1.5; }
+.cn-sheet-btn { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; border-radius: 12px; font-weight: 800; border: 1px solid var(--cn-line); }
+.cn-sheet-btn.is-main { background: var(--cn-brand) !important; color: #fff !important; border-color: transparent; }
+.cn-sheet-btn:disabled { opacity: 0.5; }
+.cn-sheet-note { margin: 0; font-size: 0.82rem; text-align: center; color: #0f5132; }
+.cn-sheet-note.is-error { color: #b91c1c; }

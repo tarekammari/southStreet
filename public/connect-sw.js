@@ -4,7 +4,7 @@
  * like a phone), with "رد" / "رفض" buttons; "رفض" declines without opening the
  * app. Network first: the app always shows live data; offline, the last loaded
  * screen is used. */
-const CACHE = 'ss-connect-v2';
+const CACHE = 'ss-connect-v3';
 const SHELL = ['/connect', '/icons/connect-192.png'];
 
 self.addEventListener('install', (event) => {
@@ -105,6 +105,7 @@ self.addEventListener('notificationclick', (event) => {
   n.close();
 
   if (event.action === 'decline' && data.callId) {
+    if (String(data.callId).startsWith('test-')) return; // ringing test: nothing to tell the server
     event.waitUntil(
       fetch('/api/connect/call', {
         method: 'POST',

@@ -6,11 +6,13 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Bell, BellOff, Download, Loader2, RefreshCw, MessageCircle, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Search, Users } from 'lucide-react';
+import { Bell, BellOff, Download, Info, Loader2, RefreshCw, MessageCircle, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Search, Users } from 'lucide-react';
 import { authHeaders, jsonAuthHeaders } from '@/lib/api-client';
 import { VoiceCall, startTone, stopTone, type CallEndReason, type CallPhase } from '@/lib/connect/rtc';
 import type { ConnectContact, ConnectUser } from '@/lib/connect/store';
 import ChatView from './ChatView';
+import AboutSheet from './AboutSheet';
+import { versionLabel } from '@/lib/connect/version';
 import CallOverlay, { type CallView } from './CallOverlay';
 import './connect.css';
 
@@ -70,6 +72,8 @@ export default function ConnectApp() {
   const [installEvt, setInstallEvt] = useState<any>(null);
   const [standalone, setStandalone] = useState(true);
   const [updateReady, setUpdateReady] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const [live, setLive] = useState(false);
   const callRef = useRef<VoiceCall | null>(null);
   const incomingRef = useRef<Incoming | null>(null);
   const stamps = useRef<Record<string, number>>({});
@@ -125,7 +129,7 @@ export default function ConnectApp() {
     setCallView((v) => (v ? { ...v, phase: 'ended', note: END_NOTE[reason] } : v));
     callRef.current = null;
     incomingRef.current = null;
-    window.setTimeout(() => setCallView((v) => (v?.phase === 'ended' ? null : v)), 1800);
+    window.setTimeout(() => setCallView((v) => (v?.phase === 'ended' ? null : v)), 900);
     void loadContacts();
     setRefreshKey((k) => k + 1);
   }, [loadContacts]);
@@ -149,6 +153,7 @@ export default function ConnectApp() {
     callRef.current = call;
     try {
       await call.call(peer.id);
+      if (callRef.current !== call) return; // hung up while dialling
       setCallView((v) => (v ? { ...v, phase: 'ringing' } : v));
       startTone('ringback');
     } catch (err) {
@@ -173,10 +178,10 @@ export default function ConnectApp() {
 
   acceptRef.current = acceptCall;
 
-  const declineCall = async () => {
+  const declineCall = () => {
     const inc = incomingRef.current;
     stopTone();
-    if (inc) await VoiceCall.decline(inc.id);
+    if (inc) VoiceCall.decline(inc.id);
     endUi('declined');
   };
 
@@ -233,6 +238,7 @@ export default function ConnectApp() {
       es = new EventSource('/api/connect/stream');
       es.addEventListener('hello', (ev) => {
         failures = 0;
+        setLive(true);
         try {
           const v = JSON.parse((ev as MessageEvent).data).version;
           if (v && APP_VERSION && v !== APP_VERSION) setUpdateReady(true);
@@ -266,6 +272,7 @@ export default function ConnectApp() {
       es.addEventListener('ice', toCall);
       es.onerror = () => {
         failures += 1;
+        setLive(false);
         // The browser reconnects by itself; after repeated failures use the backup.
         if (failures >= 3) startFallback();
       };
@@ -335,6 +342,11 @@ export default function ConnectApp() {
   }, []);
 
   /* ---------- push ---------- */
+  useEffect(() => {
+    if (vapid && typeof Notification !== 'undefined' && Notification.permission === 'granted') void enablePush();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vapid]);
+
   const enablePush = async () => {
     try {
       if (!vapid) throw new Error('no key');
@@ -408,6 +420,9 @@ export default function ConnectApp() {
             <small>{me.name}</small>
           </div>
           <div className="cn-top-actions">
+            <button type="button" className="cn-icon" onClick={() => setAboutOpen(true)} title="حول التطبيق" aria-label="حول التطبيق">
+              <Info className="w-5 h-5" />
+            </button>
             {!standalone && installEvt ? (
               <button type="button" className="cn-pill" onClick={async () => { installEvt.prompt(); await installEvt.userChoice; setInstallEvt(null); }}>
                 <Download className="w-4 h-4" /> تثبيت
@@ -504,16 +519,21 @@ export default function ConnectApp() {
             <img src="/icons/connect-192.png" alt="" />
             <h2>South Street Connect</h2>
             <p>اختر محادثة أو جهة اتصال. الرسائل والمكالمات الصوتية بين المعتمرين وفريق الوكالة.</p>
+            <small className="cn-version" dir="ltr">v{versionLabel()}</small>
           </div>
         )}
       </main>
+
+      {aboutOpen ? (
+        <AboutSheet onClose={() => setAboutOpen(false)} live={live} serverPush={Boolean(vapid)} pushState={pushState} onEnablePush={enablePush} />
+      ) : null}
 
       {callView ? (
         <CallOverlay
           view={callView}
           onAccept={() => void acceptCall()}
-          onDecline={() => void declineCall()}
-          onHangup={() => void (callRef.current ? callRef.current.hangup('hangup') : declineCall())}
+          onDecline={declineCall}
+          onHangup={() => (callRef.current ? callRef.current.hangup('hangup') : declineCall())}
           onMute={() => setCallView((v) => {
             if (!v) return v;
             callRef.current?.setMuted(!v.muted);
