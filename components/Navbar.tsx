@@ -77,6 +77,22 @@ function navLinksFor(user?: User | null): NavLink[] {
       },
     ];
   }
+  // Guides get their workspace one click away, like the accountant.
+  if (portalRole === 'murshid') {
+    return [
+      ...BASE_NAV_LINKS,
+      {
+        label: 'لوحة المرشد',
+        href: '/portal?tab=murshid',
+        featured: true,
+        children: [
+          { label: 'لوحة المرشد', href: '/portal?tab=murshid', icon: 'dashboard' },
+          { label: 'المراسلة', href: '/portal?tab=chat', icon: 'chat' },
+          { label: 'أمان الحساب', href: '/portal?tab=security', icon: 'security' },
+        ],
+      },
+    ];
+  }
   return [...BASE_NAV_LINKS, { label: 'دليل العمرة', href: '/guide' }];
 }
 

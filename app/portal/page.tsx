@@ -506,11 +506,10 @@ function CustomerPortalContent() {
 
         {/* Dynamic Views by Role and Tab */}
 
-        {currentUser.role === 'murshid' && activeTab === 'murshid' && (
+        {portalRole === 'murshid' && viewTab === 'murshid' && (
           <MurshidDashboard
             currentUser={currentUser}
             pilgrims={pilgrimsList}
-            onBroadcast={() => alert('تم بث تنبيه عاجل لجميع معتمري الفوج عبر القناة المشفرة 📢')}
           />
         )}
 
