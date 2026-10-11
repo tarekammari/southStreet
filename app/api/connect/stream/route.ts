@@ -30,7 +30,8 @@ export async function GET(req: Request) {
       };
       // Tell the browser to reconnect quickly after the stream ends.
       controller.enqueue(encoder.encode('retry: 800\n\n'));
-      send('hello', { now: Date.now() });
+      // `version`: the deployed build, so an open app knows when to update itself.
+      send('hello', { now: Date.now(), version: process.env.APP_VERSION || '' });
 
       const unsubscribe = subscribe(me.id, (e: ConnectEvent) => send(e.type, e));
 

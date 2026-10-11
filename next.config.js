@@ -76,10 +76,21 @@ const securityHeaders = [
 
 const { dbInitVersion } = require('./lib/db-init-version');
 
+/** Version of this build: lets an open app notice a newer deployment and update itself. */
+function appVersion() {
+  const sha = process.env.VERCEL_GIT_COMMIT_SHA || process.env.APP_VERSION;
+  if (sha) return sha.slice(0, 12);
+  try {
+    return require('child_process').execSync('git rev-parse --short=12 HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+  } catch {
+    return String(Date.now());
+  }
+}
+
 const nextConfig = {
   poweredByHeader: false,
-  // Lets the app on Turso skip the start-up setup it already ran (lib/sqlite.ts).
-  env: { DB_INIT_VERSION: dbInitVersion() },
+  // DB_INIT_VERSION lets the app on Turso skip the start-up setup it already ran (lib/sqlite.ts).
+  env: { DB_INIT_VERSION: dbInitVersion(), APP_VERSION: appVersion() },
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
   },

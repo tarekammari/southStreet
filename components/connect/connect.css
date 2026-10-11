@@ -143,3 +143,5 @@
 @media (prefers-reduced-motion: reduce) {
   .cn-call-avatar, .cn-rec-dot { animation: none !important; }
 }
+
+.cn-banner.cn-update { background: #e8f5ee !important; color: #0f5132 !important; }

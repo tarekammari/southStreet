@@ -6,7 +6,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Bell, BellOff, Download, Loader2, MessageCircle, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Search, Users } from 'lucide-react';
+import { Bell, BellOff, Download, Loader2, RefreshCw, MessageCircle, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Search, Users } from 'lucide-react';
 import { authHeaders, jsonAuthHeaders } from '@/lib/api-client';
 import { VoiceCall, startTone, stopTone, type CallEndReason, type CallPhase } from '@/lib/connect/rtc';
 import type { ConnectContact, ConnectUser } from '@/lib/connect/store';
@@ -45,6 +45,9 @@ function clearCallNotifications(callId: string | null) {
   ).catch(() => undefined);
 }
 
+/** The build this screen runs (set in next.config.js); the live stream reports the deployed one. */
+const APP_VERSION = process.env.APP_VERSION || '';
+
 function urlBase64ToUint8Array(base64: string) {
   const pad = '='.repeat((4 - (base64.length % 4)) % 4);
   const raw = atob((base64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
@@ -66,6 +69,7 @@ export default function ConnectApp() {
   const [pushState, setPushState] = useState<'unknown' | 'on' | 'off' | 'unsupported'>('unknown');
   const [installEvt, setInstallEvt] = useState<any>(null);
   const [standalone, setStandalone] = useState(true);
+  const [updateReady, setUpdateReady] = useState(false);
   const callRef = useRef<VoiceCall | null>(null);
   const incomingRef = useRef<Incoming | null>(null);
   const stamps = useRef<Record<string, number>>({});
@@ -227,8 +231,14 @@ export default function ConnectApp() {
     const open = () => {
       if (!alive || typeof EventSource === 'undefined') return startFallback();
       es = new EventSource('/api/connect/stream');
-      es.addEventListener('hello', () => {
+      es.addEventListener('hello', (ev) => {
         failures = 0;
+        try {
+          const v = JSON.parse((ev as MessageEvent).data).version;
+          if (v && APP_VERSION && v !== APP_VERSION) setUpdateReady(true);
+        } catch {
+          /* ignore */
+        }
         stopFallback();
         void pollOnce(); // catch up on anything missed while disconnected
       });
@@ -264,6 +274,8 @@ export default function ConnectApp() {
 
     const onVisible = () => {
       if (document.visibilityState !== 'visible') return;
+      // Like the stores: look for a newer version each time the app comes back.
+      void navigator.serviceWorker?.getRegistration('/connect').then((reg) => reg?.update()).catch(() => undefined);
       if (!es || es.readyState === EventSource.CLOSED) {
         es?.close();
         open();
@@ -278,6 +290,34 @@ export default function ConnectApp() {
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [me, loadContacts, endUi, showIncoming]);
+
+  /* ---------- updates ---------- */
+  // A newer version is online: apply it at a quiet moment (never during a call or
+  // while typing). In the background it is silent; on screen a banner offers it.
+  const applyUpdate = useCallback(async () => {
+    if (callRef.current || incomingRef.current) return;
+    try {
+      const reg = await navigator.serviceWorker?.getRegistration('/connect');
+      await reg?.update();
+    } catch {
+      /* the page update is enough */
+    }
+    window.location.reload();
+  }, []);
+
+  useEffect(() => {
+    if (!updateReady) return;
+    const busyTyping = () =>
+      [...document.querySelectorAll<HTMLTextAreaElement | HTMLInputElement>('.cn-app textarea, .cn-app input')].some(
+        (el) => el.value.trim() && !el.closest('.cn-search')
+      );
+    const quietly = () => {
+      if (document.visibilityState === 'hidden' && !busyTyping()) void applyUpdate();
+    };
+    quietly();
+    document.addEventListener('visibilitychange', quietly);
+    return () => document.removeEventListener('visibilitychange', quietly);
+  }, [updateReady, applyUpdate]);
 
   // Notification buttons: "رد" opens the app and answers; the worker may also message an open window.
   useEffect(() => {
@@ -380,6 +420,12 @@ export default function ConnectApp() {
             ) : null}
           </div>
         </header>
+
+        {updateReady && !callView ? (
+          <button type="button" className="cn-banner cn-update" onClick={() => void applyUpdate()}>
+            <RefreshCw className="w-4 h-4" /> نسخة جديدة من التطبيق جاهزة — اضغط للتحديث
+          </button>
+        ) : null}
 
         {pushState === 'off' && vapid ? (
           <button type="button" className="cn-banner" onClick={() => void enablePush()}>
