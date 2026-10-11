@@ -1,0 +1,67 @@
+/* Share buttons, WhatsApp call-to-action, social profile icons. */
+.ss-share { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ss-share-label { font-size: 0.8rem; font-weight: 800; color: #64748b; margin-inline-end: 2px; }
+.ss-share-btn {
+  display: grid; place-items: center; width: 36px; height: 36px; border-radius: 12px; cursor: pointer;
+  background: #fff; border: 1px solid #e2e8f0; color: #334155; transition: transform .15s, border-color .15s, color .15s, background .15s;
+}
+.ss-share.is-compact .ss-share-btn { width: 32px; height: 32px; border-radius: 10px; }
+.ss-share-btn:hover { transform: translateY(-1px); border-color: #94a3b8; }
+.ss-share-btn.is-wa:hover { color: #fff; background: #25d366; border-color: #25d366; }
+.ss-share-btn.is-fb:hover { color: #fff; background: #1877f2; border-color: #1877f2; }
+.ss-share-btn.is-tg:hover { color: #fff; background: #229ed9; border-color: #229ed9; }
+
+.ss-wa-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 11px 18px; border-radius: 14px;
+  background: #25d366; color: #fff !important; font-weight: 800; font-size: 0.92rem; text-decoration: none;
+  box-shadow: 0 10px 24px -12px rgba(37, 211, 102, 0.8); transition: transform .15s, background .15s;
+}
+.ss-wa-btn:hover { background: #1ebe5b; transform: translateY(-1px); }
+.ss-wa-btn.is-small { padding: 8px 12px; font-size: 0.82rem; border-radius: 12px; }
+.ss-wa-btn.is-outline { background: #fff; color: #128c4a !important; border: 1px solid #25d366; box-shadow: none; }
+.ss-wa-btn.is-outline:hover { background: #ecfdf3; }
+
+.ss-socials { display: flex; flex-wrap: wrap; gap: 8px; }
+.ss-social {
+  display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; color: #334155;
+  background: #fff; border: 1px solid #e2e8f0; transition: color .15s, border-color .15s, transform .15s;
+}
+.ss-social:hover { color: #047857; border-color: #047857; transform: translateY(-1px); }
+@media (prefers-reduced-motion: reduce) { .ss-share-btn, .ss-wa-btn, .ss-social { transition: none; } }
+.prow-social { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-top: 10px; padding-top: 10px; border-top: 1px dashed #e2e8f0; }
+
+/* /links — link-in-bio page */
+.ssl {
+  min-height: 100vh; padding: 28px 16px 40px; display: flex; justify-content: center;
+  background: radial-gradient(700px 360px at 50% -10%, rgba(4, 120, 87, 0.16), transparent 70%), linear-gradient(180deg, #f6fbf8, #eef5f1);
+  font-family: var(--font-tajawal), 'Tajawal', sans-serif; color: #0f172a;
+}
+.ssl-card { width: 100%; max-width: 460px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; }
+.ssl-logo { width: 150px; height: auto; }
+.ssl-card h1 { font-family: var(--font-cairo), 'Cairo', sans-serif; font-size: 1.35rem; font-weight: 900; }
+.ssl-tag { color: #64748b; font-size: 0.9rem; line-height: 1.8; margin-top: -6px; }
+.ssl-wa {
+  width: 100%; display: flex; align-items: center; gap: 12px; padding: 16px 18px; border-radius: 18px; text-align: right;
+  background: #25d366; color: #fff; text-decoration: none; box-shadow: 0 14px 30px -14px rgba(37, 211, 102, 0.9); transition: transform .15s;
+}
+.ssl-wa:hover { transform: translateY(-2px); }
+.ssl-wa b { display: block; font-size: 1.05rem; }
+.ssl-wa small { display: block; opacity: 0.92; font-size: 0.8rem; margin-top: 2px; }
+.ssl-programs { width: 100%; background: #fff; border: 1px solid #e2e8f0; border-radius: 18px; padding: 12px; text-align: right; }
+.ssl-programs h2 { font-size: 0.82rem; font-weight: 800; color: #b8913f; padding: 0 6px 6px; }
+.ssl-program { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px; border-radius: 12px; color: #0f172a; text-decoration: none; font-weight: 700; font-size: 0.92rem; }
+.ssl-program:hover { background: #ecfdf5; color: #047857; }
+.ssl-links { width: 100%; display: flex; flex-direction: column; gap: 10px; }
+.ssl-link {
+  display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 16px; background: #fff; border: 1px solid #e2e8f0;
+  text-decoration: none; color: #0f172a; text-align: right; transition: border-color .15s, transform .15s;
+}
+.ssl-link:hover { border-color: #047857; transform: translateY(-1px); }
+.ssl-link i { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: #ecfdf5; color: #047857; flex: none; font-style: normal; }
+.ssl-link span { flex: 1; min-width: 0; }
+.ssl-link b { display: block; font-size: 0.95rem; }
+.ssl-link small { display: block; color: #64748b; font-size: 0.8rem; margin-top: 2px; }
+.ssl-chev { color: #94a3b8; flex: none; }
+.ssl-socials { justify-content: center; margin-top: 4px; }
+.ssl-site { color: #047857; font-weight: 800; font-size: 0.85rem; margin-top: 6px; }
+@media (prefers-reduced-motion: reduce) { .ssl-wa, .ssl-link { transition: none; } }

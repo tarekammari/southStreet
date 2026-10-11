@@ -393,3 +393,4 @@ html.skr-side .luxury-modal-overlay .luxury-table-shell { height: 100%; }
 @keyframes skr-hf { 0%, 100% { opacity: 0.35; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.15); } }
 @media (prefers-reduced-motion: reduce) { .skr-handsfree-dot { animation: none; } }
 .skr-handsfree button { color: var(--skr-text); font-weight: 600; }
+.skr-empty .skr-wa { margin-top: 14px; }

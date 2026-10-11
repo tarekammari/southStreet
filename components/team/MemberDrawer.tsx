@@ -162,11 +162,20 @@ export default function MemberDrawer({
   const canEditProfile = canManage || isSelf;
   const state = memberState(member);
 
-  // A different member, or fresh data for this one, resets the form.
+  // The team list refreshes every 30 s with fresh objects. Fresh data only updates
+  // the form while it is not being edited, so a refresh never discards your changes.
+  const editingRef = useRef(false);
+  editingRef.current = editing;
+  useEffect(() => {
+    if (!editingRef.current) setDraft(draftOf(member));
+  }, [member]);
+
+  // Another member opened: start from their data, out of edit mode.
   useEffect(() => {
     setDraft(draftOf(member));
     setEditing(false);
-  }, [member]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [member.id]);
 
   useEffect(() => {
     setTab('profile');

@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSqliteDb } from '@/lib/sqlite';
+import { readSocialLinks, SOCIAL_KEY } from '@/lib/social';
+import type { PageContentRow } from '@/lib/page-content';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,7 +19,10 @@ export async function GET() {
       const value = String(row[key] ?? '').trim();
       if (value) info[key] = value;
     }
-    return NextResponse.json(info, { headers: { 'Cache-Control': 'no-store' } });
+    // Contact channels (WhatsApp, social profiles) edited in the dashboard.
+    const socialRow = getSqliteDb().prepare("SELECT * FROM page_content WHERE key = ?").get(SOCIAL_KEY) as PageContentRow | undefined;
+    const social = readSocialLinks(socialRow ? [socialRow] : [], info.whatsapp || '');
+    return NextResponse.json({ ...info, social }, { headers: { 'Cache-Control': 'no-store' } });
   } catch {
     return NextResponse.json({}, { status: 200 });
   }

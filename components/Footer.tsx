@@ -6,6 +6,9 @@ import { ArrowLeft } from 'lucide-react';
 import { motion, useInView } from 'framer-motion';
 import { fetchJsonList } from '@/lib/fetch-json';
 import { PageContentRow, pickPageContent } from '@/lib/page-content';
+import { SOCIAL_LABELS, waLink, withUtm } from '@/lib/social';
+import { useAgencyInfo } from '@/components/social/useAgencyInfo';
+import { SOCIAL_ICON, WhatsAppIcon } from '@/components/social/SocialIcons';
 import { toPortalRole } from '@/lib/roles';
 
 const PRODUCT_LINKS = [
@@ -22,11 +25,8 @@ const COMPANY_LINKS = [
   { label: 'تواصل معنا', href: '#contact' },
 ];
 
-const CONTACT_LINKS = [
-  { label: 'info@south-street.com', href: 'mailto:info@south-street.com' },
-  { label: '+213 21 55 44 33', href: 'tel:+21321554433' },
-  { label: 'الجزائر العاصمة', href: '#contact' },
-];
+/** Shown until the agency settings load. */
+const CONTACT_FALLBACK = [{ label: 'الجزائر العاصمة', href: '/about#contact' }];
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -71,6 +71,20 @@ export default function Footer({ content }: { content?: PageContentRow[] }) {
       /* ignore */
     }
   }, []);
+
+  const agency = useAgencyInfo();
+  const social = agency?.social;
+  const wa = social?.whatsapp ? waLink(social.whatsapp, social.welcome) : '';
+  const contactLinks = agency
+    ? [
+        agency.phone && { label: agency.phone, href: `tel:${agency.phone.replace(/\s+/g, '')}`, ltr: true },
+        agency.email && { label: agency.email, href: `mailto:${agency.email}`, ltr: true },
+        (agency.address || agency.city) && { label: agency.city || agency.address || '', href: '/about#contact' },
+      ].filter(Boolean) as { label: string; href: string; ltr?: boolean }[]
+    : CONTACT_FALLBACK;
+  const profiles = social
+    ? (Object.keys(SOCIAL_LABELS) as (keyof typeof SOCIAL_LABELS)[]).filter((k) => social[k]).map((k) => ({ key: k, url: social[k], label: SOCIAL_LABELS[k] }))
+    : [];
 
   const news = pickPageContent(rows, 'footer_newsletter', {
     title: 'لا تفوّتوا جديدنا',
@@ -174,9 +188,26 @@ export default function Footer({ content }: { content?: PageContentRow[] }) {
             </motion.nav>
             <motion.nav aria-label="التواصل" variants={itemVariants}>
               <h3>التواصل</h3>
-              {CONTACT_LINKS.map((link) => (
-                <a key={link.href} href={link.href}>{link.label}</a>
+              {contactLinks.map((link) => (
+                <a key={link.href} href={link.href} dir={'ltr' in link && link.ltr ? 'ltr' : undefined}>{link.label}</a>
               ))}
+              {wa ? (
+                <a href={withUtm(wa, 'website', 'footer')} target="_blank" rel="noreferrer" className="ss-wa-btn is-small" style={{ marginTop: 6, width: 'fit-content' }}>
+                  <WhatsAppIcon /> راسلنا على واتساب
+                </a>
+              ) : null}
+              {profiles.length ? (
+                <div className="ss-socials" style={{ marginTop: 8 }}>
+                  {profiles.map((p) => {
+                    const Icon = SOCIAL_ICON[p.key];
+                    return (
+                      <a key={p.key} href={p.url} target="_blank" rel="noreferrer" className="ss-social" aria-label={p.label} title={p.label}>
+                        <Icon />
+                      </a>
+                    );
+                  })}
+                </div>
+              ) : null}
             </motion.nav>
           </motion.div>
         </div>

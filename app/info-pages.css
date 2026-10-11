@@ -263,3 +263,4 @@ a.ip-contact-item:hover { border-color: var(--ip-brand); box-shadow: 0 14px 30px
 .ip-member-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
 .ip-member-tags span { font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: var(--ip-brand-soft); color: var(--ip-brand); }
 @media (prefers-reduced-motion: reduce) { .ip-photo img { transition: none; } }
+.ip-share { margin-top: 18px; }

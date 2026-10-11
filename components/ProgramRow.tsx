@@ -1,6 +1,10 @@
 'use client';
 
 import Link from 'next/link';
+import ShareBar from '@/components/social/ShareBar';
+import { WhatsAppIcon } from '@/components/social/SocialIcons';
+import { useAgencyInfo } from '@/components/social/useAgencyInfo';
+import { waLink, withUtm } from '@/lib/social';
 import { ArrowLeft, CalendarDays, Clock, Hotel, Plane, UserRound } from 'lucide-react';
 import type { Package } from '@/types';
 import { DEPOSIT_PERCENT, ROOM_LABELS } from '@/lib/booking-catalog';
@@ -40,6 +44,11 @@ export default function ProgramRow({ pkg, index, compact = false }: { pkg: Packa
   const room = cheapestRoom(pkg);
   const showSeats = pkg.capacity > 0 && (availability === 'open' || availability === 'few' || availability === 'full');
   const flight = [pkg.airline, pkg.departure_city].filter(Boolean).join(' · ');
+  const agencyInfo = useAgencyInfo();
+  const shareText = `${pkg.name}${price > 0 ? ` — ابتداءً من ${price.toLocaleString('ar-DZ')} دج` : ''}`;
+  const waHref = agencyInfo?.social.whatsapp
+    ? withUtm(waLink(agencyInfo.social.whatsapp, `السلام عليكم، أريد الاستفسار عن برنامج: ${pkg.name}`), 'website', 'program')
+    : '';
 
   return (
     <article id={pkg.package_id} className={`prow is-${availability}${compact ? ' is-compact' : ''}`}>
@@ -138,6 +147,17 @@ export default function ProgramRow({ pkg, index, compact = false }: { pkg: Packa
             {availability === 'expired' ? 'انتهى البرنامج' : availability === 'full' ? 'المقاعد مكتملة' : 'يفتح الحجز قريباً'}
           </span>
         )}
+
+        {!compact && availability !== 'expired' ? (
+          <div className="prow-social">
+            {waHref ? (
+              <a href={waHref} target="_blank" rel="noreferrer" className="ss-wa-btn is-small is-outline">
+                <WhatsAppIcon /> استفسر على واتساب
+              </a>
+            ) : null}
+            <ShareBar compact url={`/packages#${pkg.package_id}`} text={shareText} />
+          </div>
+        ) : null}
       </aside>
     </article>
   );

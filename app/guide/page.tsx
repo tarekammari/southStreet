@@ -19,6 +19,7 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import SakhrAgent from '@/components/lazy/LazySakhrAgent';
 import UmrahCounter from '@/components/UmrahCounter';
+import ShareBar from '@/components/social/ShareBar';
 import { useReveal } from '@/components/info/useReveal';
 import { CHECKLIST, FAQ, SECTIONS } from '@/components/info/guideContent';
 import '@/app/info-pages.css';
@@ -174,6 +175,7 @@ export default function GuidePage() {
                 <a href="#prepare" className="ip-btn is-primary">ابدأ القراءة <ArrowLeft className="w-4 h-4" /></a>
                 <Link href="/packages" className="ip-btn is-ghost">برامج العمرة</Link>
               </div>
+              <ShareBar className="ip-share" text="دليل العمرة خطوة بخطوة — الإحرام والطواف والسعي مع الأدعية" />
             </div>
             <div className="ip-hero-art ip-reveal">
               <img src="/images/kaaba_sharifa_home_page.webp" alt="الكعبة المشرفة" />

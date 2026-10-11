@@ -4,6 +4,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import AppVersionBadge from '@/components/admin/AppVersionBadge';
 import BackupsPanel from '@/components/admin/BackupsPanel';
 import AboutPageEditor from '@/components/admin/AboutPageEditor';
+import WhatsAppHub from '@/components/admin/WhatsAppHub';
+import { WhatsAppIcon } from '@/components/social/SocialIcons';
 import TeamWorkspace from '@/components/team/TeamWorkspace';
 import Link from 'next/link';
 import {
@@ -109,7 +111,7 @@ const EMPTY_STATS: DashboardStats = {
 const HEARTBEAT_MS = 45000;
 const REFRESH_MS = 20000;
 
-type DashSection = 'users' | 'security' | 'google' | 'server' | 'bookings' | 'keys' | 'backups' | 'about';
+type DashSection = 'users' | 'security' | 'google' | 'server' | 'bookings' | 'keys' | 'backups' | 'about' | 'whatsapp';
 type FilterKey = 'all' | 'online' | 'active' | 'pending' | 'suspended';
 type RoleFilter = 'all' | LoginRole;
 type FlyoutKey = 'accounts' | 'sessions' | 'types' | null;
@@ -639,7 +641,9 @@ export default function UserAccessDashboard({
           ? 'طلبات العمرة'
           : section === 'about'
             ? 'صفحة عن الوكالة'
-            : 'إدارة الحسابات';
+            : section === 'whatsapp'
+              ? 'واتساب والتواصل'
+              : 'إدارة الحسابات';
   const roleFilterLabel = roleFilter === 'all' ? '' : LOGIN_ROLE_LABELS[roleFilter];
   const filterCount = (id: FilterKey) => {
     if (id === 'online') return onlineCount;
@@ -764,6 +768,11 @@ export default function UserAccessDashboard({
               <AboutPageEditor />
             </div>
           ) : null}
+          {section === 'whatsapp' ? (
+            <div key="whatsapp" className="inn-stage-pane is-active inn-swap">
+              <WhatsAppHub />
+            </div>
+          ) : null}
 
           {section === 'users' ? (
             <div key={`users-${filter}`} className="inn-stage-pane is-active inn-swap">
@@ -850,6 +859,15 @@ export default function UserAccessDashboard({
                 >
                   <FileText className="w-4 h-4" />
                   <span className="inn-side-label">صفحة عن الوكالة</span>
+                </button>
+                <button
+                  type="button"
+                  className={`inn-side-link${section === 'whatsapp' ? ' is-active' : ''}`}
+                  onClick={() => goSection('whatsapp')}
+                  title="واتساب والتواصل"
+                >
+                  <WhatsAppIcon className="w-4 h-4" />
+                  <span className="inn-side-label">واتساب والتواصل</span>
                 </button>
                 <button
                   type="button"

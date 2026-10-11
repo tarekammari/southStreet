@@ -6,16 +6,44 @@ import './programs.css';
 import './home.css';
 import './security.css';
 import './sakhr.css';
+import './social.css';
 import '../components/dashboards/accountant-theme.css';
 import SessionGuard from '@/components/SessionGuard';
 import IntroSplash from '@/components/IntroSplash';
 import { INTRO_BOOT_SCRIPT } from '@/lib/intro-boot';
 import './motion.css';
 
+/** Public address of the site: link previews (Facebook, WhatsApp…) need absolute URLs. */
+const SITE_URL =
+  process.env.APP_ORIGIN?.trim() ||
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : 'http://localhost:3000');
+
+const SITE_TITLE = 'سوث ستريت | SOUTH STREET - وكالة الرحلات وعروض العمرة والحج';
+const SITE_DESCRIPTION = 'وكالة ساوث ستريت للعمرة والحج من الجزائر: برامج وأسعار واضحة، فنادق قريبة من الحرم، مرشدون يرافقونكم، وحجز سهل عبر الموقع أو واتساب.';
+
 export const metadata: Metadata = {
-  title: 'سوث ستريت | SOUTH STREET - وكالة الرحلات وعروض العمرة والحج',
-  description: 'وكالة سوث ستريت للرحلات والعمرة والحج - حجز فاخر، بطاقات بريدية للبقاع المقدسة، وتواصل مشفر E2E حقيقي',
-  keywords: ['عمرة', 'حج', 'سوث ستريت', 'رحلات مكة', 'فنادق مكة', 'الجزائر عمرة'],
+  metadataBase: new URL(SITE_URL),
+  title: { default: SITE_TITLE, template: '%s | ساوث ستريت' },
+  description: SITE_DESCRIPTION,
+  keywords: ['عمرة', 'حج', 'سوث ستريت', 'ساوث ستريت', 'رحلات مكة', 'فنادق مكة', 'الجزائر عمرة', 'عمرة 2026', 'وكالة سياحة الجزائر'],
+  applicationName: 'South Street',
+  openGraph: {
+    type: 'website',
+    locale: 'ar_DZ',
+    siteName: 'ساوث ستريت للأسفار والعمرة',
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    url: '/',
+    images: [{ url: '/og/south-street-og.jpg', width: 1200, height: 630, alt: 'ساوث ستريت — رحلات العمرة والحج' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    images: ['/og/south-street-og.jpg'],
+  },
+  robots: { index: true, follow: true },
+  formatDetection: { telephone: true },
 };
 
 export const viewport: Viewport = {

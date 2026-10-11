@@ -116,7 +116,7 @@ const BOT_AGENTS =
   /(bot|crawl|spider|slurp|scrapy|curl|wget|python-requests|httpclient|okhttp|java\/|go-http|libwww|perl|nikto|sqlmap|nmap|masscan|zgrab|nuclei|dirbuster|gobuster|ffuf|feroxbuster|wfuzz|wpscan|acunetix|nessus|openvas|burpsuite|sqlninja|hydra|medusa|semrush|ahrefs|mj12|dotbot|petalbot|bytespider|censys|shodan|zmap|httpx|katana)/i;
 
 /** Search engines we do not want to flag as hostile. */
-const FRIENDLY_BOTS = /(googlebot|bingbot|duckduckbot|applebot|yandexbot|facebookexternalhit|twitterbot|linkedinbot|whatsapp)/i;
+const FRIENDLY_BOTS = /(googlebot|bingbot|duckduckbot|applebot|yandexbot|facebookexternalhit|facebookexternalua|facebookcatalog|meta-externalagent|twitterbot|linkedinbot|whatsapp|telegrambot|discordbot|slackbot|pinterestbot|instagram|tiktok|snapchat)/i;
 
 /** Paths that only exist on other stacks — requesting them means someone is probing. */
 const SCANNER_PATHS =

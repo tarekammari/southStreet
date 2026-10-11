@@ -22,6 +22,7 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import SakhrAgent from '@/components/lazy/LazySakhrAgent';
 import TestimonialsSection from '@/components/TestimonialsSection';
+import ShareBar from '@/components/social/ShareBar';
 import { initialOf, photoOf, type MorshidRow } from '@/components/AboutSection';
 import { useReveal } from '@/components/info/useReveal';
 import { fetchJsonList } from '@/lib/fetch-json';
@@ -111,6 +112,7 @@ export default function AboutPage() {
                 </Link>
                 <a href="#contact" className="ip-btn is-ghost">تواصل معنا</a>
               </div>
+              <ShareBar className="ip-share" text={`${name} — رحلات العمرة والحج`} />
             </div>
             <div className="ip-hero-art ip-reveal">
               <img src={hero.image} alt="المسجد الحرام" />
@@ -301,6 +303,26 @@ export default function AboutPage() {
         </section>
       </main>
 
+      {agency.agency_name ? (
+        <script
+          type="application/ld+json"
+          // Structured data so search engines show the agency's name, phone and address.
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'TravelAgency',
+              name: agency.agency_name,
+              description: hero.text,
+              url: typeof window !== 'undefined' ? window.location.origin : undefined,
+              logo: typeof window !== 'undefined' ? `${window.location.origin}/images/south_street_logo_trans.png` : undefined,
+              telephone: agency.phone,
+              email: agency.email,
+              address: address ? { '@type': 'PostalAddress', streetAddress: address, addressCountry: 'DZ' } : undefined,
+              openingHours: agency.opening_hours,
+            }).replace(/</g, '\\u003c'),
+          }}
+        />
+      ) : null}
       <Footer content={content} />
       <SakhrAgent />
     </div>
