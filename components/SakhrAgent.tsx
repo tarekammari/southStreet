@@ -249,13 +249,29 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
     } catch {
       /* closed by default */
     }
+    // Links like /sakhr or /?sakhr=1&q=… (e.g. from the agency's WhatsApp greeting)
+    // open the chat at once, with the question already typed.
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.has('sakhr')) {
+        setOpen(true);
+        const q = (params.get('q') || '').trim().slice(0, 500);
+        if (q) setDraft(q);
+        params.delete('sakhr');
+        params.delete('q');
+        const rest = params.toString();
+        window.history.replaceState(null, '', `${window.location.pathname}${rest ? `?${rest}` : ''}${window.location.hash}`);
+      }
+    } catch {
+      /* ignore */
+    }
     setMicReady(voiceInputSupported());
     try {
       setSpeakReplies(localStorage.getItem('ss_sakhr_speak') !== '0');
     } catch {
       /* default on */
     }
-  }, []);
+  }, [setOpen]);
 
   const readAloud = (id: string, text: string) => {
     if (speakingId === id) {

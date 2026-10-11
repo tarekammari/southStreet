@@ -281,6 +281,7 @@ function Kit({ social, origin, onToast }: { social: SocialLinks; origin: string;
 
   const rows = useMemo(
     () => [
+      { label: 'رابط صخر (لرسالة الترحيب في واتساب)', url: `${origin}/sakhr` },
       { label: 'رابط البايو (فيسبوك)', url: withUtm(linksPage, 'facebook', 'bio') },
       { label: 'رابط البايو (إنستغرام)', url: withUtm(linksPage, 'instagram', 'bio') },
       { label: 'رابط البايو (تيك توك)', url: withUtm(linksPage, 'tiktok', 'bio') },
@@ -291,6 +292,10 @@ function Kit({ social, origin, onToast }: { social: SocialLinks; origin: string;
     [linksPage, wa, origin]
   );
 
+  const greeting = `السلام عليكم 👋 مرحباً بكم في ساوث ستريت.
+للرد الفوري على مدار الساعة تحدّث مع صخر، مساعدنا الذكي:
+${origin}/sakhr
+أو اترك رسالتك وسيردّ عليك فريقنا قريباً إن شاء الله.`;
   const bio = `🕋 رحلات العمرة والحج من الجزائر\n✈️ برامج وأسعار واضحة · فنادق قريبة من الحرم\n🤝 مرافقة دينية طوال الرحلة\n💬 راسلونا على واتساب أو احجزوا من هنا 👇\n${linksPage}`;
 
   return (
@@ -318,6 +323,15 @@ function Kit({ social, origin, onToast }: { social: SocialLinks; origin: string;
             <button type="button" className={`${btn} border border-slate-200`} onClick={() => copyText(r.url, onToast)}><Copy className="w-4 h-4" /></button>
           </div>
         ))}
+      </div>
+
+      <div className="border border-slate-200 rounded-2xl p-4 bg-white">
+        <div className="flex justify-between items-center gap-2 mb-2">
+          <b className="text-slate-900">رسالة الترحيب في تطبيق واتساب للأعمال</b>
+          <button type="button" className={`${btn} border border-slate-200`} onClick={() => copyText(greeting, onToast)}><Copy className="w-4 h-4" /> نسخ</button>
+        </div>
+        <pre className="whitespace-pre-wrap text-sm leading-7 text-slate-700 font-[inherit]">{greeting}</pre>
+        <p className="text-[12.5px] text-slate-500 mt-2">في تطبيق WhatsApp Business: الإعدادات ← أدوات الأعمال ← رسالة الترحيب ← تفعيل، ثم الصق هذا النص. كل عميل جديد يصله الرابط فيفتح محادثة صخر في الموقع مباشرة.</p>
       </div>
 
       <div className="border border-slate-200 rounded-2xl p-4 bg-white">
