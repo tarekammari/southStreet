@@ -1,9 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { after, NextRequest, NextResponse } from 'next/server';
 import { connectSession } from '@/lib/connect/session';
 import { addIce, answerCall, busy, canTalk, finishCall, getCall, iceFor, startCall, userById } from '@/lib/connect/store';
 import { pushTo } from '@/lib/connect/push';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
  * Voice-call signalling (WebRTC). Audio itself goes directly between the two
@@ -42,7 +45,36 @@ export async function POST(req: NextRequest) {
     if (!offer.includes('v=0')) return NextResponse.json({ error: 'عرض اتصال غير صالح' }, { status: 400 });
     if (busy(peer.id)) return NextResponse.json({ error: 'الطرف الآخر في مكالمة الآن', code: 'BUSY' }, { status: 409 });
     const call = startCall(s.me, peer, offer);
-    void pushTo(peer.id, { kind: 'call', title: `📞 مكالمة من ${s.me.name}`, body: 'اضغط للرد', tag: `call-${call.id}`, url: `/connect?call=${call.id}` });
+    const me = s.me;
+    // A closed app "rings": the call notification is repeated (sound + vibration)
+    // every few seconds while it rings, then replaced when the call ends.
+    after(async () => {
+      for (let i = 0; i < 8; i++) {
+        const now = getCall(call.id);
+        if (!now || now.state !== 'ringing') break;
+        await pushTo(peer.id, {
+          kind: 'call',
+          title: `📞 ${me.name}`,
+          body: 'مكالمة صوتية واردة — South Street Connect',
+          tag: `call-${call.id}`,
+          url: `/connect?call=${call.id}`,
+          callId: call.id,
+        });
+        await sleep(6000);
+      }
+      const last = getCall(call.id);
+      // Answered calls need no follow-up (the app clears the notification); missed ones become a missed-call notice.
+      if (last && last.state !== 'ringing' && last.state !== 'active') {
+        await pushTo(peer.id, {
+          kind: 'call-end',
+          title: `مكالمة فائتة من ${me.name}`,
+          body: 'اضغط لمعاودة الاتصال',
+          tag: `call-${call.id}`,
+          url: `/connect?chat=${me.id}`,
+          callId: call.id,
+        });
+      }
+    });
     return NextResponse.json({ id: call.id });
   }
 
@@ -64,7 +96,7 @@ export async function POST(req: NextRequest) {
   }
   if (body.action === 'ice') {
     const candidate = typeof body.candidate === 'string' ? body.candidate : JSON.stringify(body.candidate || {});
-    if (candidate.length > 2 && (call.state === 'ringing' || call.state === 'active')) addIce(call.id, s.me.id, candidate);
+    if (candidate.length > 2 && (call.state === 'ringing' || call.state === 'active')) addIce(call, s.me.id, candidate);
     return NextResponse.json({ success: true });
   }
   return NextResponse.json({ error: 'إجراء غير معروف' }, { status: 400 });

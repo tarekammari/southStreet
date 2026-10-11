@@ -138,6 +138,46 @@ export class VoiceCall {
     this.startPolling();
   }
 
+  /** Live event from /api/connect/stream: applied at once (polling stays as a backup). */
+  async signal(e: { type: string; id: string; state?: string; answer?: string | null; candidate?: string; ts?: number }) {
+    if (!this.id || e.id !== this.id || this.finished) return;
+    if (e.type === 'ice' && e.candidate) {
+      this.iceSince = Math.max(this.iceSince, Number(e.ts) || 0);
+      await this.applyCandidate(e.candidate);
+    } else if (e.type === 'call') {
+      if (e.answer) await this.applyAnswer(e.answer);
+      if (e.state === 'declined') this.end('declined');
+      else if (e.state === 'missed') this.end('missed');
+      else if (e.state === 'ended') this.end('remote-ended');
+    }
+  }
+
+  private applying: Promise<void> | null = null;
+
+  private async applyAnswer(sdp: string) {
+    if (this.remoteSet || this.applying || !this.pc) return this.applying || undefined;
+    const pc = this.pc;
+    this.applying = (async () => {
+      await pc.setRemoteDescription({ type: 'answer', sdp });
+      this.remoteSet = true;
+      this.h.onPhase('connecting');
+      for (const c of this.pendingIce.splice(0)) await pc.addIceCandidate(c).catch(() => undefined);
+    })();
+    return this.applying;
+  }
+
+  private async applyCandidate(raw: string) {
+    let init: RTCIceCandidateInit;
+    try {
+      init = JSON.parse(raw);
+    } catch {
+      return;
+    }
+    if (!this.remoteSet && this.applying) await this.applying.catch(() => undefined);
+    if (this.remoteSet && this.pc) await this.pc.addIceCandidate(init).catch(() => undefined);
+    else this.pendingIce.push(init);
+  }
+
   static async decline(callId: string) {
     await api({ action: 'decline', id: callId }).catch(() => undefined);
   }
@@ -159,22 +199,10 @@ export class VoiceCall {
       try {
         const res = await fetch(`/api/connect/call?id=${encodeURIComponent(this.id)}&since=${this.iceSince}`, { headers: authHeaders(), cache: 'no-store' });
         const data = await res.json();
-        if (data.answer && !this.remoteSet && this.pc) {
-          await this.pc.setRemoteDescription({ type: 'answer', sdp: data.answer });
-          this.remoteSet = true;
-          this.h.onPhase('connecting');
-          for (const c of this.pendingIce.splice(0)) await this.pc.addIceCandidate(c).catch(() => undefined);
-        }
+        if (data.answer) await this.applyAnswer(data.answer);
         for (const c of data.candidates || []) {
           this.iceSince = Math.max(this.iceSince, Number(c.ts) || 0);
-          let init: RTCIceCandidateInit;
-          try {
-            init = JSON.parse(c.candidate);
-          } catch {
-            continue;
-          }
-          if (this.remoteSet && this.pc) await this.pc.addIceCandidate(init).catch(() => undefined);
-          else this.pendingIce.push(init);
+          await this.applyCandidate(c.candidate);
         }
         if (data.state === 'declined') return void this.end('declined');
         if (data.state === 'missed') return void this.end('missed');

@@ -37,6 +37,14 @@ function shortTime(ts: number) {
     : d.toLocaleDateString('ar-DZ', { day: 'numeric', month: 'short' });
 }
 
+/** Remove the ringing notification of a call once it is answered / declined in the app. */
+function clearCallNotifications(callId: string | null) {
+  if (!callId || !('serviceWorker' in navigator)) return;
+  void navigator.serviceWorker.getRegistration('/connect').then((reg) =>
+    reg?.getNotifications({ tag: `call-${callId}` }).then((list) => list.forEach((n) => n.close()))
+  ).catch(() => undefined);
+}
+
 function urlBase64ToUint8Array(base64: string) {
   const pad = '='.repeat((4 - (base64.length % 4)) % 4);
   const raw = atob((base64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
@@ -61,6 +69,8 @@ export default function ConnectApp() {
   const callRef = useRef<VoiceCall | null>(null);
   const incomingRef = useRef<Incoming | null>(null);
   const stamps = useRef<Record<string, number>>({});
+  const autoAnswer = useRef<string | null>(null);
+  const acceptRef = useRef<() => Promise<void>>(async () => undefined);
 
   /* ---------- start ---------- */
   useEffect(() => {
@@ -107,6 +117,7 @@ export default function ConnectApp() {
   /* ---------- calls ---------- */
   const endUi = useCallback((reason: CallEndReason) => {
     stopTone();
+    clearCallNotifications(incomingRef.current?.id || callRef.current?.id || null);
     setCallView((v) => (v ? { ...v, phase: 'ended', note: END_NOTE[reason] } : v));
     callRef.current = null;
     incomingRef.current = null;
@@ -145,6 +156,7 @@ export default function ConnectApp() {
     const inc = incomingRef.current;
     if (!inc) return;
     stopTone();
+    clearCallNotifications(inc.id);
     const call = new VoiceCall(iceServers, handlers);
     callRef.current = call;
     setCallView((v) => (v ? { ...v, phase: 'connecting' } : v));
@@ -155,6 +167,8 @@ export default function ConnectApp() {
     }
   };
 
+  acceptRef.current = acceptCall;
+
   const declineCall = async () => {
     const inc = incomingRef.current;
     stopTone();
@@ -162,48 +176,123 @@ export default function ConnectApp() {
     endUi('declined');
   };
 
-  /* ---------- polling ---------- */
+  /* ---------- live connection ---------- */
+  const showIncoming = useCallback((inc: Incoming) => {
+    if (callRef.current || incomingRef.current) return;
+    incomingRef.current = inc;
+    setCallView({ peerName: inc.caller.name, peerPhoto: inc.caller.photo, peerRole: inc.caller.roleLabel, phase: 'incoming', muted: false });
+    // Opened from the notification's "رد" button: answer straight away.
+    if (autoAnswer.current && autoAnswer.current === inc.id) {
+      autoAnswer.current = null;
+      void acceptRef.current();
+    } else {
+      startTone('ring');
+    }
+  }, []);
+
   useEffect(() => {
     if (!me) return;
     let alive = true;
-    let timer = 0;
-    const tick = async () => {
-      if (!alive) return;
-      if (document.visibilityState === 'visible') {
-        try {
-          const res = await fetch('/api/connect/poll', { headers: authHeaders(), cache: 'no-store' });
-          if (res.ok) {
-            const data = await res.json();
-            const changed = Object.entries(data.stamps || {}).some(([chat, ts]) => stamps.current[chat] !== ts);
-            stamps.current = data.stamps || {};
-            if (changed) {
-              void loadContacts();
-              setRefreshKey((k) => k + 1);
-            }
-            if (data.incoming && !callRef.current && !incomingRef.current) {
-              incomingRef.current = data.incoming;
-              setCallView({ peerName: data.incoming.caller.name, peerPhoto: data.incoming.caller.photo, peerRole: data.incoming.caller.roleLabel, phase: 'incoming', muted: false });
-              startTone('ring');
-            } else if (!data.incoming && incomingRef.current && !callRef.current) {
-              // The caller hung up before we answered.
-              endUi('missed');
-            }
-          }
-        } catch {
-          /* offline for a moment */
+    let es: EventSource | null = null;
+    let fallback = 0;
+    let failures = 0;
+
+    // Backup when the live stream is not available: ask every few seconds.
+    const pollOnce = async () => {
+      try {
+        const res = await fetch('/api/connect/poll', { headers: authHeaders(), cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json();
+        const changed = Object.entries(data.stamps || {}).some(([chat, ts]) => stamps.current[chat] !== ts);
+        stamps.current = data.stamps || {};
+        if (changed) {
+          void loadContacts();
+          setRefreshKey((k) => k + 1);
         }
+        if (data.incoming) showIncoming(data.incoming);
+        else if (incomingRef.current && !callRef.current) endUi('missed');
+      } catch {
+        /* offline for a moment */
       }
-      timer = window.setTimeout(tick, incomingRef.current || callRef.current ? 2000 : 3500);
     };
-    void tick();
-    const onVisible = () => document.visibilityState === 'visible' && void tick();
+    const startFallback = () => {
+      if (fallback) return;
+      fallback = window.setInterval(() => document.visibilityState === 'visible' && void pollOnce(), 3000);
+    };
+    const stopFallback = () => {
+      window.clearInterval(fallback);
+      fallback = 0;
+    };
+
+    const open = () => {
+      if (!alive || typeof EventSource === 'undefined') return startFallback();
+      es = new EventSource('/api/connect/stream');
+      es.addEventListener('hello', () => {
+        failures = 0;
+        stopFallback();
+        void pollOnce(); // catch up on anything missed while disconnected
+      });
+      es.addEventListener('chat', () => {
+        void loadContacts();
+        setRefreshKey((k) => k + 1);
+      });
+      es.addEventListener('incoming', (ev) => {
+        try {
+          showIncoming(JSON.parse((ev as MessageEvent).data));
+        } catch {
+          /* ignore */
+        }
+      });
+      const toCall = (ev: Event) => {
+        try {
+          const data = JSON.parse((ev as MessageEvent).data);
+          if (callRef.current) void callRef.current.signal(data);
+          else if (data.type === 'call' && incomingRef.current?.id === data.id && data.state !== 'ringing') endUi('missed');
+        } catch {
+          /* ignore */
+        }
+      };
+      es.addEventListener('call', toCall);
+      es.addEventListener('ice', toCall);
+      es.onerror = () => {
+        failures += 1;
+        // The browser reconnects by itself; after repeated failures use the backup.
+        if (failures >= 3) startFallback();
+      };
+    };
+    open();
+
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (!es || es.readyState === EventSource.CLOSED) {
+        es?.close();
+        open();
+      }
+      void pollOnce();
+    };
     document.addEventListener('visibilitychange', onVisible);
     return () => {
       alive = false;
-      window.clearTimeout(timer);
+      es?.close();
+      stopFallback();
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [me, loadContacts, endUi]);
+  }, [me, loadContacts, endUi, showIncoming]);
+
+  // Notification buttons: "رد" opens the app and answers; the worker may also message an open window.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('answer') === '1' && params.get('call')) autoAnswer.current = params.get('call');
+    const onMessage = (e: MessageEvent) => {
+      if (e.data?.type !== 'open') return;
+      if (e.data.answer && e.data.callId) {
+        if (incomingRef.current?.id === e.data.callId) void acceptRef.current();
+        else autoAnswer.current = e.data.callId;
+      }
+    };
+    navigator.serviceWorker?.addEventListener('message', onMessage);
+    return () => navigator.serviceWorker?.removeEventListener('message', onMessage);
+  }, []);
 
   /* ---------- push ---------- */
   const enablePush = async () => {

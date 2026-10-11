@@ -1,8 +1,10 @@
 /* South Street Connect — service worker (scope /connect).
- * Shows notifications for new messages and incoming calls, and opens the app
- * on tap. Network first: the app always shows live data; if the network is
- * down, the last loaded app screen is used. */
-const CACHE = 'ss-connect-v1';
+ * Notifications for new messages and incoming calls. A call notification is
+ * re-sent by the server every few seconds while it rings (sound + vibration,
+ * like a phone), with "رد" / "رفض" buttons; "رفض" declines without opening the
+ * app. Network first: the app always shows live data; offline, the last loaded
+ * screen is used. */
+const CACHE = 'ss-connect-v2';
 const SHELL = ['/connect', '/icons/connect-192.png'];
 
 self.addEventListener('install', (event) => {
@@ -18,7 +20,7 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const req = event.request;
-  if (req.method !== 'GET' || req.mode !== 'navigate') return; // API calls, audio, scripts: straight to the network
+  if (req.method !== 'GET' || req.mode !== 'navigate') return; // API calls, live stream, audio: straight to the network
   event.respondWith(
     fetch(req)
       .then((res) => {
@@ -30,6 +32,11 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
+async function closeTag(tag) {
+  const list = await self.registration.getNotifications({ tag });
+  list.forEach((n) => n.close());
+}
+
 self.addEventListener('push', (event) => {
   let data = {};
   try {
@@ -37,31 +44,85 @@ self.addEventListener('push', (event) => {
   } catch (e) {
     data = { title: 'South Street Connect', body: event.data ? event.data.text() : '' };
   }
-  const isCall = data.kind === 'call';
-  event.waitUntil(
-    self.registration.showNotification(data.title || 'South Street Connect', {
+
+  // If the app is open and visible, it rings by itself: no notification needed for messages.
+  const show = async () => {
+    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const visible = windows.some((w) => w.visibilityState === 'visible' && w.url.includes('/connect'));
+
+    if (data.kind === 'call-end') {
+      await closeTag(data.tag);
+      return self.registration.showNotification(data.title || 'مكالمة فائتة', {
+        body: data.body || '',
+        tag: `${data.tag}-missed`,
+        icon: '/icons/connect-192.png',
+        badge: '/icons/connect-192.png',
+        dir: 'rtl',
+        lang: 'ar',
+        data: { url: data.url || '/connect' },
+      });
+    }
+
+    if (data.kind === 'call') {
+      return self.registration.showNotification(data.title || 'مكالمة واردة', {
+        body: data.body || 'مكالمة صوتية واردة',
+        tag: data.tag,
+        renotify: true, // ring again on every repeat
+        requireInteraction: true,
+        silent: false,
+        vibrate: [700, 300, 700, 300, 700, 300, 700],
+        icon: '/icons/connect-192.png',
+        badge: '/icons/connect-192.png',
+        dir: 'rtl',
+        lang: 'ar',
+        actions: [
+          { action: 'answer', title: 'رد' },
+          { action: 'decline', title: 'رفض' },
+        ],
+        data: { url: data.url || '/connect', callId: data.callId || '' },
+      });
+    }
+
+    if (visible) return undefined;
+    return self.registration.showNotification(data.title || 'South Street Connect', {
       body: data.body || '',
       tag: data.tag || 'ss-connect',
       renotify: true,
-      requireInteraction: isCall,
-      vibrate: isCall ? [600, 300, 600, 300, 600] : [120],
+      vibrate: [120],
       icon: '/icons/connect-192.png',
       badge: '/icons/connect-192.png',
       dir: 'rtl',
       lang: 'ar',
       data: { url: data.url || '/connect' },
-    })
-  );
+    });
+  };
+  event.waitUntil(show());
 });
 
 self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-  const url = (event.notification.data && event.notification.data.url) || '/connect';
+  const n = event.notification;
+  const data = n.data || {};
+  n.close();
+
+  if (event.action === 'decline' && data.callId) {
+    event.waitUntil(
+      fetch('/api/connect/call', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'decline', id: data.callId }),
+      }).catch(() => undefined)
+    );
+    return;
+  }
+
+  let url = data.url || '/connect';
+  if (data.callId) url = `/connect?call=${encodeURIComponent(data.callId)}${event.action === 'answer' ? '&answer=1' : ''}`;
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
       for (const client of list) {
         if (client.url.includes('/connect') && 'focus' in client) {
-          client.navigate(url).catch(() => undefined);
+          client.postMessage({ type: 'open', url, callId: data.callId || '', answer: event.action === 'answer' });
           return client.focus();
         }
       }

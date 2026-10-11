@@ -22,7 +22,7 @@ function ready(): boolean {
   return configured;
 }
 
-export type PushPayload = { title: string; body: string; tag: string; url: string; kind: 'message' | 'call' };
+export type PushPayload = { title: string; body: string; tag: string; url: string; kind: 'message' | 'call' | 'call-end'; callId?: string };
 
 export async function pushTo(userId: string, payload: PushPayload): Promise<void> {
   if (!ready()) return;
@@ -31,7 +31,7 @@ export async function pushTo(userId: string, payload: PushPayload): Promise<void
     targets.map(async (t) => {
       try {
         await webpush.sendNotification(t.subscription, JSON.stringify(payload), {
-          TTL: payload.kind === 'call' ? 45 : 3600,
+          TTL: payload.kind === 'call' ? 10 : payload.kind === 'call-end' ? 120 : 3600,
           urgency: payload.kind === 'call' ? 'high' : 'normal',
         });
       } catch (err: any) {

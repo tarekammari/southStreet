@@ -13,6 +13,7 @@ import { getSqliteDb } from '../sqlite';
 import { buildDmChatId, parseDmChatId } from '../chat-utils';
 import { normalizeLoginRole, LOGIN_ROLE_LABELS, type LoginRole } from '../roles';
 import { isImageSource, resolveUserPhoto } from '../user-access-view';
+import { publish } from './bus';
 
 export type ConnectUser = { id: string; name: string; role: LoginRole; roleLabel: string; photo: string };
 export type ConnectContact = ConnectUser & { chatId: string; online: boolean; lastText: string; lastTs: number; unread: number };
@@ -191,7 +192,21 @@ export function saveConnectMessage(from: ConnectUser, chatId: string, msg: { kin
     new Date(ts).toLocaleTimeString('ar-DZ', { hour: '2-digit', minute: '2-digit' }),
     msg.kind, msg.mediaId || null, msg.duration ?? null, ts
   );
+  // Both sides' live connections learn about it at once.
+  const pair = parseDmChatId(chatId);
+  for (const uid of pair || []) publish(uid, { type: 'chat', chatId, ts });
   return { id, chatId, senderId: from.id, kind: msg.kind, text: msg.text, mediaId: msg.mediaId, duration: msg.duration, ts };
+}
+
+/** Newest message time in any of my conversations (cheap; for the live stream's fallback). */
+export function latestActivity(userId: string): number {
+  const d = db();
+  let max = 0;
+  for (const pattern of [`dm:${userId}:%`, `dm:%:${userId}`]) {
+    const r = d.prepare('SELECT MAX(ts) AS t FROM messages WHERE chatId LIKE ?').get(pattern) as { t?: number } | undefined;
+    max = Math.max(max, Number(r?.t) || 0);
+  }
+  return max;
 }
 
 export function saveVoice(chatId: string, data: Buffer, mime: string): string {
@@ -258,7 +273,9 @@ export function startCall(caller: ConnectUser, callee: ConnectUser, offer: strin
   const chatId = buildDmChatId(caller.id, callee.id);
   d.prepare('INSERT INTO connect_calls (call_id, chat_id, caller_id, callee_id, state_type, offer, created_ts) VALUES (?, ?, ?, ?, ?, ?, ?)')
     .run(id, chatId, caller.id, callee.id, 'ringing', offer.slice(0, 20000), Date.now());
-  return getCall(id)!;
+  const call = getCall(id)!;
+  publish(callee.id, { type: 'incoming', id, offer: call.offer, caller: { id: caller.id, name: caller.name, roleLabel: caller.roleLabel, photo: caller.photo } });
+  return call;
 }
 
 export function busy(userId: string): boolean {
@@ -269,7 +286,9 @@ export function busy(userId: string): boolean {
 export function answerCall(call: ConnectCall, answer: string): ConnectCall {
   db().prepare("UPDATE connect_calls SET state_type = 'active', answer = ?, answered_ts = ? WHERE call_id = ? AND state_type = 'ringing'")
     .run(answer.slice(0, 20000), Date.now(), call.id);
-  return getCall(call.id)!;
+  const updated = getCall(call.id)!;
+  publish(call.callerId, { type: 'call', id: call.id, state: updated.state, answer: updated.answer || null });
+  return updated;
 }
 
 export function finishCall(call: ConnectCall, state: 'ended' | 'declined' | 'missed'): ConnectCall {
@@ -284,7 +303,9 @@ export function finishCall(call: ConnectCall, state: 'ended' | 'declined' | 'mis
     if (caller) saveConnectMessage(caller, call.chatId, { kind: 'call', text, duration: seconds || undefined });
   }
   const r = d.prepare('SELECT * FROM connect_calls WHERE call_id = ?').get(call.id);
-  return toCall(r);
+  const done = toCall(r);
+  if (res.changes) for (const uid of [call.callerId, call.calleeId]) publish(uid, { type: 'call', id: call.id, state: done.state });
+  return done;
 }
 
 export function incomingFor(userId: string): ConnectCall | null {
@@ -293,9 +314,11 @@ export function incomingFor(userId: string): ConnectCall | null {
   return live.sort((a, b) => b.createdTs - a.createdTs)[0] || null;
 }
 
-export function addIce(callId: string, fromId: string, candidate: string) {
+export function addIce(call: ConnectCall, fromId: string, candidate: string) {
+  const ts = Date.now();
   db().prepare('INSERT INTO connect_ice (ice_id, call_id, from_id, candidate, ts) VALUES (?, ?, ?, ?, ?)')
-    .run(`${callId}_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`, callId, fromId, candidate.slice(0, 2000), Date.now());
+    .run(`${call.id}_${ts}_${crypto.randomBytes(3).toString('hex')}`, call.id, fromId, candidate.slice(0, 2000), ts);
+  publish(fromId === call.callerId ? call.calleeId : call.callerId, { type: 'ice', id: call.id, candidate: candidate.slice(0, 2000), ts });
 }
 
 export function iceFor(callId: string, notFrom: string, since: number): { candidate: string; ts: number }[] {
