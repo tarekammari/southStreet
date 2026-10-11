@@ -14,6 +14,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: '/hotels', priority: 0.7, freq: 'weekly' as const },
     { path: '/guide', priority: 0.7, freq: 'monthly' as const },
     { path: '/about', priority: 0.6, freq: 'monthly' as const },
+    { path: '/app', priority: 0.5, freq: 'monthly' as const },
     { path: '/links', priority: 0.4, freq: 'monthly' as const },
   ].map((p) => ({ url: `${SITE_URL}${p.path}`, lastModified: now, changeFrequency: p.freq, priority: p.priority }));
 }

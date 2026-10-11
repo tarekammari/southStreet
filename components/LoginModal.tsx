@@ -11,12 +11,14 @@ import SecurityKeyPrompt from '@/components/auth/SecurityKeyPrompt';
 interface LoginModalProps {
   onClose: () => void;
   onSelectRole?: (code: string, name: string) => void;
+  /** Stay on this page after signing in (e.g. the Connect app) instead of going to the portal. */
+  redirectTo?: string;
 }
 
 type Mode = 'password' | 'qr';
 type Screen = 'login' | 'register';
 
-export default function LoginModal({ onClose, onSelectRole }: LoginModalProps) {
+export default function LoginModal({ onClose, onSelectRole, redirectTo }: LoginModalProps) {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -42,13 +44,17 @@ export default function LoginModal({ onClose, onSelectRole }: LoginModalProps) {
   const streamRef = useRef<MediaStream | null>(null);
 
   const finishLogin = useCallback((data: any) => {
+    if (redirectTo) {
+      enterSessionAndReload(data.token, data.user, redirectTo);
+      return;
+    }
     const next = data.waitingBooking || data.user?.redirect === '/book'
       ? '/book'
       : data.appointment
         ? '/portal?tab=program'
         : (data.user.redirect || (data.user.role === 'SUPER_ADMIN' || data.user.role === 'AGENCY_MANAGER' ? '/admin' : '/portal'));
     enterSessionAndReload(data.token, data.user, next);
-  }, []);
+  }, [redirectTo]);
 
   const handlePending = useCallback(() => {
     setWaiting(true);

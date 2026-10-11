@@ -16,6 +16,7 @@ const PRODUCT_LINKS = [
   { label: 'البرامج', href: '/packages' },
   { label: 'الفنادق', href: '/hotels' },
   { label: 'دليل العمرة', href: '/guide' },
+  { label: 'تطبيق Connect', href: '/app' },
 ];
 
 const COMPANY_LINKS = [
