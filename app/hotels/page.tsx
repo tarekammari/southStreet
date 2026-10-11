@@ -9,6 +9,7 @@ import { Hotel } from '@/types';
 import { ArrowLeft, MapPin, Star } from 'lucide-react';
 import Link from 'next/link';
 import HotelGalleryDialog from '@/components/hotels/HotelGalleryDialog';
+import { publicList } from '@/lib/public-catalog';
 
 const FALLBACK = 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=900&auto=format&fit=crop';
 
@@ -35,8 +36,7 @@ export default function HotelsPage() {
   const ease = [0.22, 1, 0.36, 1] as const;
 
   useEffect(() => {
-    fetch('/api/admin/hotels?site=1', { cache: 'no-store' })
-      .then(res => res.json())
+    publicList<Hotel>('hotels')
       .then(data => {
         if (Array.isArray(data)) setHotels(data);
         setLoading(false);

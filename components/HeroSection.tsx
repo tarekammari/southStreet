@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { fetchJsonList } from '@/lib/fetch-json';
+import { publicList } from '@/lib/public-catalog';
 import { PageContentRow } from '@/lib/page-content';
 import { useIntroDone } from '@/lib/intro';
 import { isOpenPackageStatus } from '@/lib/package-status';
@@ -176,7 +176,7 @@ export default function HeroSection({ content: _content }: { content?: PageConte
 
   useEffect(() => {
     let cancelled = false;
-    fetchJsonList<any>('/api/admin/packages')
+    publicList<any>('packages')
       .then((data) => {
         if (cancelled) return;
         setOffer(pickNearestOffer(data));

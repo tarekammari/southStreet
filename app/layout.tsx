@@ -63,6 +63,8 @@ export default function RootLayout({
       <head>
         {/* Decides before first paint whether the intro splash plays (see lib/intro.ts). */}
         <script dangerouslySetInnerHTML={{ __html: INTRO_BOOT_SCRIPT }} />
+        {/* Programs, hotels, team, texts: start downloading with the page, not after the scripts run. */}
+        <link rel="preload" href="/api/public/catalog" as="fetch" crossOrigin="anonymous" />
       </head>
       <body className="bg-slate-app text-slate-darkBg antialiased flex flex-col min-h-screen">
         <IntroSplash />

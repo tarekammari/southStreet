@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { motion, useInView } from 'framer-motion';
-import { fetchJsonList } from '@/lib/fetch-json';
+import { publicList } from '@/lib/public-catalog';
 import { PageContentRow, pickPageContent } from '@/lib/page-content';
 import { SOCIAL_LABELS, waLink, withUtm } from '@/lib/social';
 import { useAgencyInfo } from '@/components/social/useAgencyInfo';
@@ -58,7 +58,7 @@ export default function Footer({ content }: { content?: PageContentRow[] }) {
       setRows(content);
       return;
     }
-    fetchJsonList<PageContentRow>('/api/admin/content').then(setRows);
+    publicList<PageContentRow>('content').then(setRows);
   }, [content]);
 
   useEffect(() => {

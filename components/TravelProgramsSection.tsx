@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
 import type { Package } from '@/types';
-import { fetchJsonList } from '@/lib/fetch-json';
+import { publicList } from '@/lib/public-catalog';
 import { parseTripDate } from '@/lib/booking-catalog';
 import { PageContentRow, pickPageContent } from '@/lib/page-content';
 import { isBookable, programAvailability } from '@/lib/program-display';
@@ -25,7 +25,7 @@ export default function TravelProgramsSection({ content }: { content?: PageConte
 
   useEffect(() => {
     let cancelled = false;
-    fetchJsonList<Package>('/api/admin/packages')
+    publicList<Package>('packages')
       .then((data) => {
         if (cancelled) return;
         const upcoming = data

@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { PhoneCall } from 'lucide-react';
 import { extractImageUrls } from '@/lib/table-cell-utils';
-import { fetchJsonList } from '@/lib/fetch-json';
+import { publicList } from '@/lib/public-catalog';
 import { StarRating } from '@/components/StarRating';
 import { PageContentRow, pickPageContent } from '@/lib/page-content';
 
@@ -100,7 +100,7 @@ export default function AboutSection({ content }: { content?: PageContentRow[] }
 
   useEffect(() => {
     let cancelled = false;
-    fetchJsonList<MorshidRow>('/api/admin/morshids').then((data) => {
+    publicList<MorshidRow>('staff').then((data) => {
       if (cancelled) return;
       setMembers(pickAboutMembers(data));
       setLoading(false);

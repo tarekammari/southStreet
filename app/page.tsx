@@ -15,7 +15,7 @@ import SessionHeartbeat from '@/components/SessionHeartbeat';
 import PendingRequestBanner from '@/components/booking/PendingRequestBanner';
 import WelcomeBanner from '@/components/WelcomeBanner';
 import { User } from '@/types';
-import { fetchJsonList } from '@/lib/fetch-json';
+import { publicList } from '@/lib/public-catalog';
 import { PageContentRow, pickPageContent } from '@/lib/page-content';
 import { logoutAndReload, syncSessionProfile } from '@/lib/client-session';
 
@@ -32,7 +32,7 @@ export default function HomePage() {
     void syncSessionProfile().then((user) => {
       if (user) setCurrentUser(user);
     });
-    fetchJsonList<PageContentRow>('/api/admin/content').then(setPageContent);
+    publicList<PageContentRow>('content').then(setPageContent);
   }, []);
 
   const handleLogout = () => {

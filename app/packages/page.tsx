@@ -8,6 +8,7 @@ import Footer from '@/components/Footer';
 import ProgramRow from '@/components/ProgramRow';
 import { Package } from '@/types';
 import { readWishlist } from '@/lib/wishlist';
+import { publicList } from '@/lib/public-catalog';
 import { parseTripDate } from '@/lib/booking-catalog';
 import {
   PROGRAM_TYPE_LABEL,
@@ -36,8 +37,7 @@ function PackagesPageInner() {
   const [saved, setSaved] = useState<string[]>([]);
 
   useEffect(() => {
-    fetch('/api/admin/packages')
-      .then((res) => (res.ok ? res.json() : Promise.reject()))
+    publicList<Package>('packages')
       .then((data) => {
         if (Array.isArray(data)) setPackages(data);
       })

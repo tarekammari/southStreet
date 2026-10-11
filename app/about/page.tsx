@@ -25,7 +25,7 @@ import TestimonialsSection from '@/components/TestimonialsSection';
 import ShareBar from '@/components/social/ShareBar';
 import { initialOf, photoOf, type MorshidRow } from '@/components/AboutSection';
 import { useReveal } from '@/components/info/useReveal';
-import { fetchJsonList } from '@/lib/fetch-json';
+import { publicAgency, publicList, publicReviews } from '@/lib/public-catalog';
 import type { PageContentRow } from '@/lib/page-content';
 import { readAboutContent } from '@/lib/about-content';
 import '@/app/info-pages.css';
@@ -50,14 +50,10 @@ export default function AboutPage() {
   const [stats, setStats] = useState({ programs: 0, hotels: 0, rating: 0, reviews: 0 });
 
   useEffect(() => {
-    fetchJsonList<PageContentRow>('/api/admin/content').then(setContent);
-    fetchJsonList<MorshidRow>('/api/admin/morshids').then(setTeam);
-    fetch('/api/agency-info', { cache: 'no-store' }).then((r) => r.json()).then(setAgency).catch(() => undefined);
-    Promise.all([
-      fetchJsonList<unknown>('/api/admin/packages'),
-      fetchJsonList<unknown>('/api/admin/hotels?site=1'),
-      fetch('/api/reviews?targetType=agency&targetId=main&limit=1').then((r) => r.json()).catch(() => ({})),
-    ]).then(([programs, hotels, reviews]) => {
+    publicList<PageContentRow>('content').then(setContent);
+    publicList<MorshidRow>('staff').then(setTeam);
+    publicAgency().then((a) => setAgency(a as AgencyInfo));
+    Promise.all([publicList<unknown>('packages'), publicList<unknown>('hotels'), publicReviews()]).then(([programs, hotels, reviews]) => {
       setStats({
         programs: programs.length,
         hotels: hotels.length,

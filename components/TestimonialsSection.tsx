@@ -1,5 +1,6 @@
 'use client';
 
+import { publicReviews } from '@/lib/public-catalog';
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { StarRating } from '@/components/StarRating';
@@ -36,7 +37,11 @@ export default function TestimonialsSection() {
   };
 
   useEffect(() => {
-    load();
+    // First paint from the shared (edge-cached) catalog; reloads after posting stay live.
+    void publicReviews().then((data) => {
+      if (data?.summary) setSummary(data.summary);
+      setReviews(data?.reviews || []);
+    });
   }, []);
 
   const maxBar = Math.max(1, ...Object.values(summary.histogram));

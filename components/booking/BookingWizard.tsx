@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { SESSION_MARKER } from '@/lib/session-token';
+import { publicList } from '@/lib/public-catalog';
 import { RefusedRequestStrip, dismissRefusal, latestRefusal } from '@/components/booking/PendingRequestBanner';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -97,8 +98,7 @@ export default function BookingWizard() {
   };
 
   useEffect(() => {
-    fetch('/api/admin/packages')
-      .then((res) => res.json())
+    (onBehalf ? fetch('/api/admin/packages').then((res) => res.json()) : publicList<Package>('packages'))
       .then((data) => {
         if (Array.isArray(data)) setPackages(data.filter(isAvailablePackage));
       })

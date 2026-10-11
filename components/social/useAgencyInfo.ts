@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { EMPTY_SOCIAL, type SocialLinks } from '@/lib/social';
+import { publicAgency } from '@/lib/public-catalog';
 
 export type AgencyInfo = Partial<Record<
   'agency_name' | 'legal_name' | 'description' | 'address' | 'city' | 'country' | 'phone' | 'whatsapp' | 'email' | 'website' | 'opening_hours',
@@ -12,8 +13,7 @@ let cache: Promise<AgencyInfo> | null = null;
 
 /** Public agency contact card + social links, fetched once per page load. */
 export function loadAgencyInfo(): Promise<AgencyInfo> {
-  cache ||= fetch('/api/agency-info', { cache: 'no-store' })
-    .then((r) => r.json())
+  cache ||= publicAgency()
     .then((d) => ({ ...d, social: { ...EMPTY_SOCIAL, ...(d?.social || {}) } }))
     .catch(() => ({ social: EMPTY_SOCIAL }));
   return cache;

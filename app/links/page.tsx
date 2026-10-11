@@ -11,7 +11,7 @@ import { BookOpen, CalendarCheck, ChevronLeft, Info, Phone, Plane } from 'lucide
 import { useAgencyInfo } from '@/components/social/useAgencyInfo';
 import { SOCIAL_ICON, WhatsAppIcon } from '@/components/social/SocialIcons';
 import { SOCIAL_LABELS, waLink, withUtm } from '@/lib/social';
-import { fetchJsonList } from '@/lib/fetch-json';
+import { publicList } from '@/lib/public-catalog';
 
 type Pkg = { package_id: string; name: string; start_date?: string };
 
@@ -27,7 +27,7 @@ export default function LinksPage() {
 
   useEffect(() => {
     setSource(sourceFromUrl());
-    fetchJsonList<Pkg>('/api/admin/packages').then((list) => {
+    publicList<Pkg>('packages').then((list) => {
       const today = new Date().toISOString().slice(0, 10);
       setPrograms(list.filter((p) => !p.start_date || p.start_date >= today).slice(0, 3));
     });
