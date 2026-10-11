@@ -12,7 +12,8 @@ export const dynamic = 'force-dynamic';
  * Everything the public pages show, in one response that Vercel's edge caches
  * (CDN-Cache-Control): visitors get it from a server near them in milliseconds,
  * without a cold start or a database round trip. Refreshed every 60 s in the
- * background. Each part comes from the same handler as before, called as an
+ * background (a visitor never waits: an old copy, up to a day, is served while
+ * the new one is prepared). Each part comes from the same handler as before, called as an
  * anonymous visitor, so nothing private can end up here.
  * Admins viewing the site add ?t=… to bypass the cache and see edits at once.
  */
@@ -53,7 +54,7 @@ export async function GET(req: NextRequest) {
       ? {
           // Browsers always ask again; the CDN answers from its copy.
           'Cache-Control': 'public, max-age=0, must-revalidate',
-          'CDN-Cache-Control': 'public, s-maxage=60, stale-while-revalidate=600',
+          'CDN-Cache-Control': 'public, s-maxage=60, stale-while-revalidate=86400',
         }
       : { 'Cache-Control': 'no-store' }, // a partial answer must never be cached
   });
