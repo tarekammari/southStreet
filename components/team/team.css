@@ -406,3 +406,8 @@
 .tm-switch.is-on { background: var(--tm-brand); }
 [dir='rtl'] .tm-switch.is-on span, .tm-root .tm-switch.is-on span { transform: translateX(-20px); }
 .tm-switch:disabled { opacity: 0.55; cursor: default; }
+
+/* Client trip label in the list (past clients live in the "معتمرون سابقون" tab) */
+.tm-trip-past, .tm-trip-now { display: block; margin-top: 4px; font-size: 11.5px; font-weight: 700; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tm-trip-past { color: #64748b; }
+.tm-trip-now { color: var(--tm-brand); }

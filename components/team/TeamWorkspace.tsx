@@ -217,7 +217,11 @@ export default function TeamWorkspace({
                         </div>
                       </div>
                     </td>
-                    <td className="is-hide-sm"><span className={`tm-role is-${roleTone(m.role)}`}>{roleLabel(m)}</span></td>
+                    <td className="is-hide-sm">
+                      <span className={`tm-role is-${roleTone(m.role)}`}>{roleLabel(m)}</span>
+                      {m.trip?.state === 'past' ? <small className="tm-trip-past" title={m.trip.lastTrip}>رحلة منتهية{m.trip.lastTrip ? ` · ${m.trip.lastTrip}` : ''}</small> : null}
+                      {m.trip?.state === 'current' ? <small className="tm-trip-now">رحلة قادمة</small> : null}
+                    </td>
                     <td><StateBadge member={m} /></td>
                     <td className="is-hide-sm" dir="ltr">{m.phone || <span className="tm-empty-value">—</span>}</td>
                     <td className="is-hide-md">{m.isOnline ? <span className="tm-online">متصل الآن</span> : <span className="tm-muted">{relativeTime(m.lastActive)}</span>}</td>

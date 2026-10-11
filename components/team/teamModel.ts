@@ -38,6 +38,8 @@ export type Member = {
   lastActive?: string | null;
   displayIp?: string;
   userAgent?: string | null;
+  /** Clients only: current trip, only finished trips (past), or no trip yet. */
+  trip?: { state: 'current' | 'past' | 'none'; lastTrip?: string; lastEnd?: string };
 };
 
 export type Viewer = { id?: string; role: LoginRole; assignableRoles: LoginRole[] };
@@ -88,7 +90,7 @@ export const CATEGORY_LABEL: Record<string, string> = {
   accountant: 'محاسب',
 };
 
-export type TabId = 'team' | 'admins' | 'guides' | 'finance' | 'staff' | 'clients' | 'pending' | 'suspended' | 'online';
+export type TabId = 'team' | 'admins' | 'guides' | 'finance' | 'staff' | 'clients' | 'alumni' | 'pending' | 'suspended' | 'online';
 
 export const TABS: { id: TabId; label: string }[] = [
   { id: 'team', label: 'الفريق' },
@@ -97,6 +99,7 @@ export const TABS: { id: TabId; label: string }[] = [
   { id: 'finance', label: 'المحاسبة' },
   { id: 'staff', label: 'الموظفون' },
   { id: 'clients', label: 'المعتمرون' },
+  { id: 'alumni', label: 'معتمرون سابقون' },
   { id: 'pending', label: 'بانتظار الموافقة' },
   { id: 'suspended', label: 'موقوفون' },
   { id: 'online', label: 'متصل الآن' },
@@ -115,7 +118,10 @@ export function inTab(m: Member, tab: TabId): boolean {
     case 'staff':
       return m.role === 'AGENCY_AGENT';
     case 'clients':
-      return m.role === 'PILGRIM_USER';
+      // Current and new clients; those whose trips are all over move to "سابقون".
+      return m.role === 'PILGRIM_USER' && m.trip?.state !== 'past';
+    case 'alumni':
+      return m.role === 'PILGRIM_USER' && m.trip?.state === 'past';
     case 'pending':
       return memberState(m) === 'pending';
     case 'suspended':

@@ -18,8 +18,10 @@ import {
   canSelfManageReservation,
   isActiveReservation,
   isAgencyConfirmed,
+  isTripOver,
   reservationStatusLabel,
 } from '@/lib/booking-catalog';
+import TripArchive from '@/components/dashboards/TripArchive';
 import { PilgrimHomeSection } from '@/lib/roles';
 import BookingPrintButton from '@/components/booking/BookingPrintButton';
 import TripStatusTimeline from '@/components/booking/TripStatusTimeline';
@@ -75,8 +77,15 @@ export default function PilgrimProgram({
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState('');
 
-  const active = reservation && isActiveReservation(reservation.status) ? reservation : null;
-  const completedPast = reservations.filter((r) => String(r.status || '').toUpperCase() === 'COMPLETED');
+  // A trip whose last day has passed is no longer "active", whatever its status says.
+  const active = reservation && isActiveReservation(reservation.status) && !isTripOver(reservation) ? reservation : null;
+  const finished = reservations.filter((r) => isTripOver(r) && String(r.status || '').toUpperCase() !== 'REJECTED' && String(r.status || '').toUpperCase() !== 'CANCELLED');
+  const completedPast = finished;
+
+  // Only finished trips: a read-only archive (no edit, cancel, payment or upload).
+  if (!active && finished.length) {
+    return <TripArchive trips={finished} receipts={receipts} />;
+  }
 
   if (!active) {
     return (
@@ -101,7 +110,7 @@ export default function PilgrimProgram({
   const appointments = active.appointments || [];
   const manage = canSelfManageReservation(active.status, program?.start_date);
   const confirmed = isAgencyConfirmed(active.status);
-  const past = reservations.filter((r) => r.reservation_id !== active.reservation_id);
+  const past = reservations.filter((r) => r.reservation_id !== active.reservation_id && !isTripOver(r));
 
   const cancelBooking = async () => {
     setCancelling(true);
@@ -261,6 +270,16 @@ export default function PilgrimProgram({
                 </button>
               </div>
             </div>
+          ) : null}
+
+          {finished.length ? (
+            <details className="trip-fold">
+              <summary>
+                أرشيف رحلاتك المنتهية ({finished.length})
+                <ChevronDown className="trip-fold-chevron" aria-hidden />
+              </summary>
+              <TripArchive trips={finished} receipts={receipts} />
+            </details>
           ) : null}
 
           {past.length ? (

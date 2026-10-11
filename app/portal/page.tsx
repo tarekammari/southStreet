@@ -7,7 +7,7 @@ import SakhrAgent from '@/components/lazy/LazySakhrAgent';
 import UmrahCounter from '@/components/UmrahCounter';
 import { User, Reservation, CustomerDocument, Receipt } from '@/types';
 import { toPortalRole, PORTAL_TABS, resolvePortalTab, pilgrimHomeSection } from '@/lib/roles';
-import { isActiveReservation } from '@/lib/booking-catalog';
+import { isCurrentReservation } from '@/lib/booking-catalog';
 import AgencyPendingBookings from '@/components/booking/AgencyPendingBookings';
 import ReviewComposer from '@/components/ReviewComposer';
 import WelcomeBanner from '@/components/WelcomeBanner';
@@ -377,7 +377,8 @@ function CustomerPortalContent() {
     return <div className="min-h-screen portal-shell flex items-center justify-center text-slate-500">جاري التحميل...</div>;
   }
 
-  const activeReservation = reservations.find((row) => isActiveReservation(row.status)) || null;
+  // The current trip: active status and not over yet (ended trips go to the read-only archive).
+  const activeReservation = reservations.find((row) => isCurrentReservation(row)) || null;
   const pendingLogin = currentUser?.status === 'PENDING_APPROVAL' || currentUser?.status === 'PENDING';
   const showPendingBanner = currentUser?.role === 'pilgrim' && pendingLogin && !activeReservation;
 

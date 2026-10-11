@@ -224,3 +224,31 @@ export function buildInvoice(roomLine: InvoiceLine, extras: BookingExtra[]): Boo
     currency: 'DZD',
   };
 }
+
+/**
+ * The trip is over: the agency marked it completed, or the program's last day
+ * (end date, or start date + duration) is behind us. An ended trip is shown to
+ * its client as a read-only archive; nothing in it can be changed any more.
+ */
+export function isTripOver(res: {
+  status?: string | null;
+  program?: { start_date?: string | null; end_date?: string | null; duration_days?: number | null } | null;
+}): boolean {
+  if (String(res.status || '').toUpperCase() === 'COMPLETED') return true;
+  const p = res.program;
+  if (!p) return false;
+  let end = parseTripDate(p.end_date);
+  if (!end) {
+    const start = parseTripDate(p.start_date);
+    if (start && Number(p.duration_days) > 0) end = new Date(start.getTime() + Number(p.duration_days) * 86_400_000);
+  }
+  if (!end) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return end.getTime() < today.getTime();
+}
+
+/** A reservation the client still lives with: active status and the trip not over. */
+export function isCurrentReservation(res: Parameters<typeof isTripOver>[0]): boolean {
+  return isActiveReservation(res.status) && !isTripOver(res);
+}
