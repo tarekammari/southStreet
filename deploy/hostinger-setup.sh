@@ -77,7 +77,8 @@ else
   echo "server database kept (not replaced)"
 fi
 if [ -f "$UP/uploads.tgz" ] && [ ! -f "$DATA/.uploads-imported" ]; then
-  sudo -u "$APP_USER" tar -xzf "$UP/uploads.tgz" -C "$APP_DIR"
+  tar -xzf "$UP/uploads.tgz" -C "$APP_DIR" --no-same-owner
+  chown -R "$APP_USER": "$APP_DIR/images" "$APP_DIR/public/images"
   touch "$DATA/.uploads-imported"
   echo "images imported"
 fi
