@@ -143,6 +143,28 @@ sed -e 's/ www\.example\.com//g' \
     -e 's/example\.com/'"$DOMAIN"'/g' \
     -e 's|# ssl_certificate|ssl_certificate|' \
     "$APP_DIR/deploy/nginx.conf" > "$SITE"
+# Moved to your own domain: the server's own name keeps working and forwards there.
+HOST_NAME="$(hostname -f 2>/dev/null || hostname)"
+if [ "$HOST_NAME" != "$DOMAIN" ] && [ -f "/etc/letsencrypt/live/$HOST_NAME/fullchain.pem" ]; then
+  cat >> "$SITE" <<EOF
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name $HOST_NAME;
+    return 301 https://$DOMAIN\$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name $HOST_NAME;
+    ssl_certificate     /etc/letsencrypt/live/$HOST_NAME/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/$HOST_NAME/privkey.pem;
+    return 301 https://$DOMAIN\$request_uri;
+}
+EOF
+fi
 ln -sf "$SITE" /etc/nginx/sites-enabled/south-street
 rm -f /etc/nginx/sites-enabled/default
 nginx -t && systemctl reload nginx
