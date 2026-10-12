@@ -89,6 +89,7 @@ git --no-pager log --oneline "${PREV_COMMIT}..${NEW_COMMIT}" | head -20 || true
 
 rollback_code() {
   printf '\n\033[1;33m↺ Restoring the previous code (%s)\033[0m\n' "${PREV_COMMIT:0:7}"
+  reset_build_files
   git checkout -q "$PREV_COMMIT"
   npm ci --no-audit --no-fund >/dev/null 2>&1 || true
 }
