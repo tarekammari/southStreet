@@ -26,7 +26,7 @@ idle_dir() { [ "$(active_dir)" = ".next-a" ] && echo .next-b || echo .next-a; }
 
 wait_healthy() {
   for _ in $(seq 1 45); do
-    if curl -fsS --max-time 3 "$HEALTH" | grep -q '"ok":true'; then return 0; fi
+    if curl -fsS -A "SouthStreet-HealthCheck/1.0" --max-time 3 "$HEALTH" | grep -q '"ok":true'; then return 0; fi
     sleep 2
   done
   return 1
@@ -101,7 +101,7 @@ switch_to "$NEW_DIR"
 step "6/6 Health check"
 if wait_healthy; then
   write_deploy_info
-  step "Updated to ${NEW_COMMIT:0:7}. $(curl -fsS "$HEALTH")"
+  step "Updated to ${NEW_COMMIT:0:7}. $(curl -fsS -A "SouthStreet-HealthCheck/1.0" "$HEALTH")"
 else
   printf '\n\033[1;31m✖ New version did not answer — rolling back automatically.\033[0m\n' >&2
   rollback_code

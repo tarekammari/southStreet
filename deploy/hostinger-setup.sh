@@ -14,6 +14,7 @@ APP_USER="southstreet"
 APP_DIR="/home/$APP_USER/app"
 DATA="/var/lib/south-street"
 UP="/root/upload"
+HC="SouthStreet-HealthCheck/1.0"   # the app blocks the plain curl user agent
 DOMAIN="${DOMAIN:-$(hostname -f 2>/dev/null || hostname)}"
 
 log() { printf '\n\033[1;32m==> %s\033[0m\n' "$*"; }
@@ -112,10 +113,10 @@ fi
 as_app "pm2 save"
 env PATH="$PATH" pm2 startup systemd -u "$APP_USER" --hp "/home/$APP_USER" >/dev/null
 for i in $(seq 1 60); do
-  curl -fsS http://127.0.0.1:3000/api/health >/dev/null 2>&1 && break
+  curl -fsS -A "$HC" http://127.0.0.1:3000/api/health >/dev/null 2>&1 && break
   sleep 2
 done
-curl -fsS http://127.0.0.1:3000/api/health >/dev/null || fail "The app does not answer. Look at: sudo -iu $APP_USER pm2 logs south-street"
+curl -fsS -A "$HC" http://127.0.0.1:3000/api/health >/dev/null || fail "The app does not answer. Look at: sudo -iu $APP_USER pm2 logs south-street"
 echo "app is running"
 
 log "7/8 Nginx and HTTPS for $DOMAIN"
@@ -143,7 +144,7 @@ sed -e 's/ www\.example\.com//g' \
 ln -sf "$SITE" /etc/nginx/sites-enabled/south-street
 rm -f /etc/nginx/sites-enabled/default
 nginx -t && systemctl reload nginx
-curl -fsS -o /dev/null "https://$DOMAIN/api/health" && echo "https://$DOMAIN answers"
+curl -fsS -A "$HC" -o /dev/null "https://$DOMAIN/api/health" && echo "https://$DOMAIN answers"
 
 log "8/8 Done"
 cat <<EOF
