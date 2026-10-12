@@ -50,10 +50,12 @@ log "3/8 App user and code"
 id "$APP_USER" >/dev/null 2>&1 || adduser --disabled-password --gecos "" "$APP_USER"
 mkdir -p "$DATA/backups" && chown -R "$APP_USER": "$DATA"
 if [ -d "$APP_DIR/.git" ]; then
+  sudo -u "$APP_USER" git -C "$APP_DIR" config core.fileMode false
   sudo -u "$APP_USER" git -C "$APP_DIR" pull --ff-only
 else
   sudo -u "$APP_USER" git clone "$REPO" "$APP_DIR"
 fi
+sudo -u "$APP_USER" git -C "$APP_DIR" config core.fileMode false   # file permissions are not code changes
 chmod +x "$APP_DIR/scripts/update.sh"
 
 log "4/8 Your data (.env, database, uploaded images)"
