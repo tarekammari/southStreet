@@ -54,3 +54,6 @@ backups/
 .deploy-state
 .deploy-info.json
 logs/
+
+# Data package for the VPS (secrets + database): never commit
+/deploy-upload/

@@ -7,6 +7,8 @@ in front, the SQLite database file, uploads and nightly backups.
 name pointing to the server (an `A` record). HTTPS is required: Windows Hello / security
 keys only work on `https://` sites.
 
+Using **Hostinger**? Follow [deploy/HOSTINGER.md](deploy/HOSTINGER.md) (one script does everything).
+
 Using a free **Oracle Cloud** server? Start with [deploy/ORACLE.md](deploy/ORACLE.md) — it creates
 the server and then sends you back here.
 
