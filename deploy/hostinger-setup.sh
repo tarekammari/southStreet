@@ -101,7 +101,7 @@ chown "$APP_USER": "$APP_DIR/.env" && chmod 600 "$APP_DIR/.env"
 
 log "5/8 Build the app (3-6 minutes)"
 if [ ! -f "$APP_DIR/.next-active" ]; then
-  as_app "npm ci && NEXT_DIST_DIR=.next-a npm run build && echo .next-a > .next-active"
+  as_app "npm ci && NEXT_DIST_DIR=.next-a npm run build && echo .next-a > .next-active && git checkout -q -- next-env.d.ts tsconfig.json"
 else
   echo "already built (later versions: ./scripts/update.sh)"
 fi

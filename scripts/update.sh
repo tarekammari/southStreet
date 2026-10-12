@@ -37,6 +37,11 @@ switch_to() { # $1 = build folder
   NEXT_DIST_DIR="$1" pm2 reload ecosystem.config.cjs --only "$APP" --update-env
 }
 
+# next build rewrites these two files for its build folder; they are not real changes.
+reset_build_files() {
+  git checkout -q -- next-env.d.ts tsconfig.json 2>/dev/null || true
+}
+
 write_deploy_info() {
   printf '{"commit":"%s","deployedAt":"%s"}\n' "$(git rev-parse HEAD)" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > .deploy-info.json
 }
@@ -46,6 +51,7 @@ if [ "${1:-}" = "--rollback" ]; then
   # shellcheck disable=SC1090
   . "$STATE"
   step "Rolling back to ${PREV_COMMIT:0:7} (${PREV_DIR})"
+  reset_build_files
   git checkout -q "$PREV_COMMIT"
   npm ci --no-audit --no-fund
   switch_to "$PREV_DIR"
@@ -65,6 +71,7 @@ npm run --silent db:backup -- --reason=pre-update
 
 step "2/6 Fetching the new version"
 git fetch --tags --quiet origin
+reset_build_files
 if [ -n "$TARGET" ]; then
   git checkout -q "$TARGET"
 else
