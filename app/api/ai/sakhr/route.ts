@@ -2,13 +2,17 @@ import { NextResponse } from 'next/server';
 import { requireSession } from '@/lib/staff-gate';
 import { toolGetAgencySettings } from '@/lib/ai-tools';
 import { resolveRequestIp } from '@/lib/security-threats';
-import { runSakhr, SakhrNotConfiguredError, type ChatTurn } from '@/lib/sakhr/agent';
+import { runSakhr, SakhrNotConfiguredError, type AgentReply, type ChatTurn } from '@/lib/sakhr/agent';
+import { cacheGet, cacheSet, normalizeQuestion, PUBLIC_TOOLS, recordMetric, SakhrBusyError, withSlot } from '@/lib/sakhr/capacity';
 import type { Who } from '@/lib/sakhr/tools';
 
 /**
  * Sakhr chat endpoint. Works for visitors (public tools only) and for every
  * signed-in role (tools matching that role). Changes are never made here —
  * they come back as confirmation cards handled by ./action.
+ * Capacity (lib/sakhr/capacity.ts): one message per user at a time and a fair
+ * queue for everyone; visitors' common first questions are answered from a
+ * 5-minute cache; every answer is measured (npm run sakhr:stats).
  */
 
 export const dynamic = 'force-dynamic';
@@ -55,9 +59,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'رسائل كثيرة في وقت قصير. انتظر قليلاً ثم أعد المحاولة.' }, { status: 429 });
   }
 
+  // A visitor's opening question ("which programmes are open?") is the same for everyone.
+  const cacheKey = role === 'ANON' && history.length === 0 ? `anon:${normalizeQuestion(message)}` : null;
+  if (cacheKey) {
+    const hit = cacheGet<Omit<AgentReply, 'meta'>>(cacheKey);
+    if (hit) {
+      recordMetric({ role, provider: 'cache', ms: 0, tokens: 0, rounds: 0, tools: [], cached: true, ok: true });
+      return NextResponse.json({ ...hit, role });
+    }
+  }
+
   const agency = toolGetAgencySettings();
+  const started = Date.now();
   try {
-    const result = await runSakhr({
+    const userKey = signedIn ? `u:${session.account.id}` : `ip:${ip}`;
+    const result = await withSlot(userKey, () => runSakhr({
       ctx: { req, role, userId: signedIn ? session.account.id : undefined },
       userName: signedIn ? session.account.name : undefined,
       agency: {
@@ -68,9 +84,36 @@ export async function POST(req: Request) {
       },
       history,
       message,
+    }));
+    const { meta, ...reply } = result;
+    recordMetric({
+      role,
+      provider: meta?.provider || 'unknown',
+      ms: Date.now() - started,
+      tokens: meta?.tokens || 0,
+      rounds: meta?.rounds || 0,
+      tools: meta?.tools || [],
+      cached: false,
+      ok: true,
     });
-    return NextResponse.json({ ...result, role });
+    if (cacheKey && reply.reply && !reply.actions.length && !reply.clientActions.length && (meta?.tools || []).every((t) => PUBLIC_TOOLS.has(t))) {
+      cacheSet(cacheKey, reply);
+    }
+    return NextResponse.json({ ...reply, role });
   } catch (error: any) {
+    if (error instanceof SakhrBusyError) {
+      return NextResponse.json(
+        {
+          error:
+            error.reason === 'same-user'
+              ? 'صخر ما زال يجيب على رسالتك السابقة، لحظة من فضلك…'
+              : 'صخر يخدم عدداً كبيراً من الزوار الآن. لحظة من فضلك ثم أعد الإرسال.',
+          busy: true,
+        },
+        { status: error.reason === 'same-user' ? 429 : 503 }
+      );
+    }
+    recordMetric({ role, provider: 'failed', ms: Date.now() - started, tokens: 0, rounds: 0, tools: [], cached: false, ok: false });
     if (error instanceof SakhrNotConfiguredError) {
       return NextResponse.json(
         { error: 'صخر غير مُفعَّل بعد: يلزم إضافة مفتاح GROQ_API_KEY أو GEMINI_API_KEY في إعدادات الخادم.' },

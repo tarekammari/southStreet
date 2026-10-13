@@ -31,8 +31,9 @@ const POLLINATIONS_DEFAULT_MODEL = 'openai';
 const POLLINATIONS_SOURCE = 'Pollinations';
 const POLLINATIONS_SOURCE_LABEL = "Pollinations — ذكاء اصطناعي خارجي";
 
-const GEMINI_MODEL = 'gemini-1.5-flash';
-const GEMINI_SOURCE = 'Google Gemini 1.5 Flash';
+/** Older Sakhr path (not used by the live chat, which is lib/sakhr/agent.ts). */
+const GEMINI_MODEL = process.env.GEMINI_MODEL?.trim() || 'gemini-3.5-flash';
+const GEMINI_SOURCE = 'Google Gemini';
 const GEMINI_SOURCE_LABEL = 'Google Gemini — ذكاء اصطناعي خارجي';
 
 /** xAI Grok — optional only when XAI_API_KEY / GROK_API_KEY is set. Model: docs.x.ai (2026). */

@@ -25,11 +25,17 @@ export const FALLBACK_GROQ_MODEL = 'openai/gpt-oss-20b';
 export const DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash';
 /** Used when the main Gemini model is overloaded (503) or out of free quota (429). */
 export const FALLBACK_GEMINI_MODEL = 'gemini-3.1-flash-lite';
-const MAX_ROUNDS = 6;
-/** Free tiers limit tokens per minute, so the history and tool results sent back are capped. */
-const MAX_HISTORY_TURNS = 10;
-const MAX_TURN_CHARS = 1200;
-const MAX_TOOL_RESULT_CHARS = 4000;
+/**
+ * Free tiers limit tokens per minute, and every tool round re-sends the whole
+ * conversation, so history and tool results are capped. Visitors and pilgrims
+ * (most of the traffic, short questions) get a leaner budget than staff, whose
+ * tasks need more context.
+ */
+type Budget = { rounds: number; turns: number; turnChars: number; toolChars: number };
+const STAFF_BUDGET: Budget = { rounds: 6, turns: 10, turnChars: 1200, toolChars: 4000 };
+const PUBLIC_BUDGET: Budget = { rounds: 4, turns: 6, turnChars: 600, toolChars: 3000 };
+const PUBLIC_ROLES = new Set<string>(['ANON', 'PILGRIM_USER']);
+const budgetFor = (role: Who): Budget => (PUBLIC_ROLES.has(role) ? PUBLIC_BUDGET : STAFF_BUDGET);
 /** Per-request limit so a stuck call fails fast instead of hanging the chat. */
 const CALL_TIMEOUT_MS = 12_000;
 export const ACTION_TTL = '10m';
@@ -42,7 +48,18 @@ export type AgentReply = {
   reply: string;
   actions: PendingAction[];
   clientActions: ClientAction[];
+  /** For metrics only (not sent to the browser). */
+  meta?: { provider: string; tokens: number; rounds: number; tools: string[] };
 };
+
+type Out = { actions: PendingAction[]; clientActions: ClientAction[]; tools: string[]; tokens: number; rounds: number };
+const newOut = (): Out => ({ actions: [], clientActions: [], tools: [], tokens: 0, rounds: 0 });
+const finish = (provider: string, reply: string, out: Out): AgentReply => ({
+  reply,
+  actions: out.actions,
+  clientActions: out.clientActions,
+  meta: { provider, tokens: out.tokens, rounds: out.rounds, tools: out.tools },
+});
 
 export type AgencyFacts = { name: string; phone?: string; email?: string; address?: string };
 
@@ -89,17 +106,17 @@ function systemPrompt(opts: { role: Who; userName?: string; agency: AgencyFacts 
 }
 
 /** Recent turns only, each clipped: older context costs tokens on every step. */
-function recentHistory(history: ChatTurn[]): ChatTurn[] {
+function recentHistory(history: ChatTurn[], b: Budget): ChatTurn[] {
   return history
     .filter((t) => t.text?.trim())
-    .slice(-MAX_HISTORY_TURNS)
-    .map((t) => ({ role: t.role, text: t.text.length > MAX_TURN_CHARS ? `${t.text.slice(0, MAX_TURN_CHARS)}…` : t.text }));
+    .slice(-b.turns)
+    .map((t) => ({ role: t.role, text: t.text.length > b.turnChars ? `${t.text.slice(0, b.turnChars)}…` : t.text }));
 }
 
 /** Tool output as sent back to the model, capped so later steps stay small. */
-function toolResultText(response: Record<string, unknown>): string {
+function toolResultText(response: Record<string, unknown>, b: Budget): string {
   const text = JSON.stringify(response);
-  return text.length > MAX_TOOL_RESULT_CHARS ? `${text.slice(0, MAX_TOOL_RESULT_CHARS)}…(truncated)` : text;
+  return text.length > b.toolChars ? `${text.slice(0, b.toolChars)}…(truncated)` : text;
 }
 
 /** Runs one tool call and returns what goes back to the model. */
@@ -107,9 +124,10 @@ async function handleCall(
   tool: SakhrTool | undefined,
   args: Record<string, unknown>,
   opts: RunOpts,
-  out: { actions: PendingAction[]; clientActions: ClientAction[] }
+  out: Out
 ): Promise<{ response: Record<string, unknown>; awaitingConfirmation: boolean }> {
   if (!tool) return { response: { error: 'This tool is not available for this user.' }, awaitingConfirmation: false };
+  out.tools.push(tool.name);
 
   if (tool.kind === 'write') {
     const token = signPurposeToken({ sub: opts.ctx.userId || 'anon', tool: tool.name, args }, 'sakhr-action', ACTION_TTL);
@@ -148,10 +166,14 @@ const exhaustedUntil = new Map<string, number>();
 function rememberQuota(key: string, error: unknown) {
   if (errorStatus(error) !== 429) return;
   const text = String((error as { message?: string })?.message || '');
-  const delay = Number(text.match(/"retryDelay"\s*:\s*"(\d+)s"/)?.[1] || 0);
+  // Gemini: "retryDelay":"23s". Groq: "try again in 1.4s" / "7m12.5s" / "1h2m3s".
+  const gemini = Number(text.match(/"retryDelay"\s*:\s*"(\d+)s"/)?.[1] || 0);
+  const g = text.match(/try again in (?:(\d+)h)?(?:(\d+)m)?([\d.]+)s/i);
+  const groq = g ? Number(g[1] || 0) * 3600 + Number(g[2] || 0) * 60 + Number(g[3] || 0) : 0;
+  const delay = Math.max(gemini, groq);
   const perDay = /PerDay|per day|daily/i.test(text);
-  // Short (per-minute) limits: skip for a minute. Daily limits: until reset.
-  const ms = perDay ? Math.max(delay, 3600) * 1000 : Math.max(delay, 60) * 1000;
+  // Daily limits: until reset. Per-minute: as long as the provider says (a minute if it does not).
+  const ms = perDay ? Math.max(delay, 3600) * 1000 : (delay > 0 ? delay : 60) * 1000;
   exhaustedUntil.set(key, Date.now() + ms);
 }
 
@@ -190,6 +212,8 @@ async function groqCreate<T>(call: () => Promise<T>): Promise<T> {
 }
 
 async function runOnGroq(client: Groq, model: string, opts: RunOpts): Promise<AgentReply> {
+  const b = budgetFor(opts.ctx.role);
+  const provider = `groq:${model}`;
   const tools = toolsFor(opts.ctx.role);
   const byName = new Map(tools.map((t) => [t.name, t]));
   const groqTools: ChatCompletionTool[] = tools.map((t) => ({
@@ -198,14 +222,15 @@ async function runOnGroq(client: Groq, model: string, opts: RunOpts): Promise<Ag
   }));
   const messages: ChatCompletionMessageParam[] = [
     { role: 'system', content: systemPrompt({ role: opts.ctx.role, userName: opts.userName, agency: opts.agency }) },
-    ...recentHistory(opts.history).map(
+    ...recentHistory(opts.history, b).map(
       (t): ChatCompletionMessageParam => (t.role === 'user' ? { role: 'user', content: t.text } : { role: 'assistant', content: t.text })
     ),
     { role: 'user', content: opts.message },
   ];
-  const out = { actions: [] as PendingAction[], clientActions: [] as ClientAction[] };
+  const out = newOut();
 
-  for (let round = 0; round < MAX_ROUNDS; round += 1) {
+  for (let round = 0; round < b.rounds; round += 1) {
+    out.rounds = round + 1;
     const completion = await groqCreate(() =>
       client.chat.completions.create({
         model,
@@ -216,10 +241,11 @@ async function runOnGroq(client: Groq, model: string, opts: RunOpts): Promise<Ag
         max_completion_tokens: 2048,
       })
     );
+    out.tokens += completion.usage?.total_tokens || 0;
     const message = completion.choices[0]?.message;
     const calls = message?.tool_calls || [];
     if (!message || calls.length === 0) {
-      return { reply: (message?.content || '').trim(), ...out };
+      return finish(provider, (message?.content || '').trim(), out);
     }
 
     messages.push({ role: 'assistant', content: message.content || '', tool_calls: calls });
@@ -235,17 +261,17 @@ async function runOnGroq(client: Groq, model: string, opts: RunOpts): Promise<Ag
       }
       const handled = await handleCall(byName.get(call.function.name), args, opts, out);
       awaiting ||= handled.awaitingConfirmation;
-      messages.push({ role: 'tool', tool_call_id: call.id, content: toolResultText(handled.response) });
+      messages.push({ role: 'tool', tool_call_id: call.id, content: toolResultText(handled.response, b) });
     }
 
     if (awaiting) {
       // The card already shows the details; skipping a wrap-up call saves a
       // quarter of the tokens against Groq's per-minute limit.
       const said = (message.content || '').trim();
-      return { reply: said || 'جهّزت العملية. راجع التفاصيل في البطاقة ثم اضغط «تأكيد».', ...out };
+      return finish(provider, said || 'جهّزت العملية. راجع التفاصيل في البطاقة ثم اضغط «تأكيد».', out);
     }
   }
-  return { reply: 'توقفت قبل الإكمال لأن الطلب احتاج خطوات كثيرة. جرّب صياغة أبسط.', ...out };
+  return finish(provider, 'توقفت قبل الإكمال لأن الطلب احتاج خطوات كثيرة. جرّب صياغة أبسط.', out);
 }
 
 /* ------------------------------------------------------------------ */
@@ -261,19 +287,22 @@ function gemini(): GoogleGenAI | null {
 }
 
 async function runOnGemini(ai: GoogleGenAI, model: string, opts: RunOpts): Promise<AgentReply> {
+  const b = budgetFor(opts.ctx.role);
+  const provider = `gemini:${model}`;
   const tools = toolsFor(opts.ctx.role);
   const byName = new Map(tools.map((t) => [t.name, t]));
   const declarations = [
     { functionDeclarations: tools.map((t) => ({ name: t.name, description: t.description, parametersJsonSchema: t.parameters })) },
   ];
   const systemInstruction = systemPrompt({ role: opts.ctx.role, userName: opts.userName, agency: opts.agency });
-  const contents: Content[] = recentHistory(opts.history).map((t) => ({ role: t.role, parts: [{ text: t.text }] }));
+  const contents: Content[] = recentHistory(opts.history, b).map((t) => ({ role: t.role, parts: [{ text: t.text }] }));
   contents.push({ role: 'user', parts: [{ text: opts.message }] });
   // Gemini expects the conversation to start with a user turn.
   while (contents.length && contents[0].role !== 'user') contents.shift();
-  const out = { actions: [] as PendingAction[], clientActions: [] as ClientAction[] };
+  const out = newOut();
 
-  for (let round = 0; round < MAX_ROUNDS; round += 1) {
+  for (let round = 0; round < b.rounds; round += 1) {
+    out.rounds = round + 1;
     const response = await ai.models.generateContent({
       model,
       contents,
@@ -287,10 +316,11 @@ async function runOnGemini(ai: GoogleGenAI, model: string, opts: RunOpts): Promi
       },
     });
 
+    out.tokens += response.usageMetadata?.totalTokenCount || 0;
     const modelContent = response.candidates?.[0]?.content;
     const calls: FunctionCall[] = response.functionCalls || [];
     if (!modelContent || calls.length === 0) {
-      return { reply: (response.text || '').trim(), ...out };
+      return finish(provider, (response.text || '').trim(), out);
     }
 
     // Keep the model turn exactly as returned (thought signatures included).
@@ -301,7 +331,7 @@ async function runOnGemini(ai: GoogleGenAI, model: string, opts: RunOpts): Promi
     for (const call of calls) {
       const handled = await handleCall(call.name ? byName.get(call.name) : undefined, (call.args || {}) as Record<string, unknown>, opts, out);
       awaiting ||= handled.awaitingConfirmation;
-      const text = toolResultText(handled.response);
+      const text = toolResultText(handled.response, b);
       const response = text.endsWith('(truncated)') ? { output: text } : handled.response;
       results.push({ functionResponse: { id: call.id, name: call.name, response } });
     }
@@ -320,10 +350,11 @@ async function runOnGemini(ai: GoogleGenAI, model: string, opts: RunOpts): Promi
           abortSignal: AbortSignal.timeout(CALL_TIMEOUT_MS),
         },
       });
-      return { reply: (wrap.text || 'جهّزت العملية، راجعها ثم أكّد.').trim(), ...out };
+      out.tokens += wrap.usageMetadata?.totalTokenCount || 0;
+      return finish(provider, (wrap.text || 'جهّزت العملية، راجعها ثم أكّد.').trim(), out);
     }
   }
-  return { reply: 'توقفت قبل الإكمال لأن الطلب احتاج خطوات كثيرة. جرّب صياغة أبسط.', ...out };
+  return finish(provider, 'توقفت قبل الإكمال لأن الطلب احتاج خطوات كثيرة. جرّب صياغة أبسط.', out);
 }
 
 /* ------------------------------------------------------------------ */
@@ -355,21 +386,34 @@ export async function runSakhr(opts: RunOpts): Promise<AgentReply> {
 
   if (attempts.length === 0) throw new SakhrNotConfiguredError();
 
-  // Exhausted ones go last rather than being dropped, in case the quota has reset.
-  const ordered = [...attempts.filter((a) => !isExhausted(a.key)), ...attempts.filter((a) => isExhausted(a.key))];
-
   let lastError: unknown;
-  for (const attempt of ordered) {
-    try {
-      return await attempt.run();
-    } catch (error) {
-      lastError = error;
-      const status = errorStatus(error);
-      console.warn(`[sakhr] ${attempt.key} failed (${status ?? 'network'})`);
-      rememberQuota(attempt.key, error);
-      // Any failure (overload, quota, bad key, a request one provider rejects)
-      // is a reason to try the next one; the last error is reported if all fail.
+  // Second pass: when every model hit a per-minute limit that clears within a
+  // few seconds, wait for the first one instead of failing the user.
+  for (let pass = 0; pass < 2; pass += 1) {
+    // Exhausted ones go last rather than being dropped, in case the quota has reset.
+    const ordered = [...attempts.filter((a) => !isExhausted(a.key)), ...attempts.filter((a) => isExhausted(a.key))];
+    let allRateLimited = true;
+    for (const attempt of ordered) {
+      try {
+        return await attempt.run();
+      } catch (error) {
+        lastError = error;
+        const status = errorStatus(error);
+        if (status !== 429) allRateLimited = false;
+        console.warn(`[sakhr] ${attempt.key} failed (${status ?? 'network'})`);
+        rememberQuota(attempt.key, error);
+        // Any failure (overload, quota, bad key, a request one provider rejects)
+        // is a reason to try the next one; the last error is reported if all fail.
+      }
     }
+    const soonest = Math.min(...attempts.map((a) => exhaustedUntil.get(a.key) || Date.now()));
+    const wait = soonest - Date.now();
+    if (pass > 0 || !allRateLimited || wait > RETRY_WAIT_MAX_MS) break;
+    await new Promise((resolve) => setTimeout(resolve, Math.max(wait, 1500)));
+    for (const a of attempts) exhaustedUntil.delete(a.key);
   }
   throw lastError;
 }
+
+/** Longest wait for a per-minute limit to clear before telling the user to retry. */
+const RETRY_WAIT_MAX_MS = 15_000;
