@@ -171,7 +171,14 @@ export function middleware(request: NextRequest, event: NextFetchEvent) {
   const isAuthPath =
     url.pathname.startsWith('/api/admin/auth') ||
     (url.pathname.startsWith('/api/auth') && url.pathname !== '/api/auth/config');
-  const counters = countHit(s, ip, isAuthPath);
+  // Pictures, fonts and icons are not counted towards the flood limit: one page
+  // load fetches dozens of them, and a reload or two on a phone is not an attack.
+  // They are still checked for scanners and attacks below.
+  const staticAsset =
+    /^\/(images|fonts|icons|og|uploads|videos)\//.test(url.pathname) ||
+    url.pathname.startsWith('/api/staff-image/') ||
+    /\.(png|jpe?g|webp|avif|gif|svg|ico|woff2?|ttf|otf|mp4|webm|mp3|css|js|map|webmanifest)$/i.test(url.pathname);
+  const counters = staticAsset ? { count: 0, auth: 0 } : countHit(s, ip, isAuthPath);
   const query = url.search.replace(/^\?/, '').slice(0, 400);
 
   const verdict = classifyRequest({

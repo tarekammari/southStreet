@@ -240,7 +240,10 @@ export default function Footer({ content }: { content?: PageContentRow[] }) {
               alt=""
               className="ss-footer-logo"
               onError={(e) => {
-                (e.target as HTMLImageElement).src = '/images/south_street_logo_trans.png';
+                // Fall back once only: a second failure must not retry in a loop.
+                const img = e.currentTarget;
+                img.onerror = null;
+                if (!img.src.endsWith('/images/south_street_logo_trans.png')) img.src = '/images/south_street_logo_trans.png';
               }}
             />
           </Link>

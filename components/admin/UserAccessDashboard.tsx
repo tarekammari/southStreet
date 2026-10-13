@@ -680,7 +680,9 @@ export default function UserAccessDashboard({
                   src={me?.photo || DEFAULT_USER_PHOTO}
                   alt=""
                   onError={(e) => {
-                    e.currentTarget.src = DEFAULT_USER_PHOTO;
+                    // Once only: if the default photo fails too, do not retry in a loop.
+                    e.currentTarget.onerror = null;
+                    if (!e.currentTarget.src.endsWith(DEFAULT_USER_PHOTO)) e.currentTarget.src = DEFAULT_USER_PHOTO;
                   }}
                 />
               </span>
