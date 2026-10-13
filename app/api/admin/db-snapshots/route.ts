@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
   const data = fs.readFileSync(file);
   return new NextResponse(data, {
     headers: {
-      'Content-Type': 'application/gzip',
+      'Content-Type': name.endsWith('.enc') ? 'application/octet-stream' : 'application/gzip',
       'Content-Disposition': `attachment; filename="${name}"`,
       'Content-Length': String(data.length),
       'Cache-Control': 'no-store',

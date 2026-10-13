@@ -153,11 +153,19 @@ Database changes need nothing extra: the app adds new tables / columns itself at
 * **Manual / download:** Super Admin dashboard → *النسخ الاحتياطية*, or `npm run db:backup`.
 * **Off-server copy (strongly recommended):** copy `/var/lib/south-street/backups` to another
   place every day, e.g. with `rclone` to Google Drive / Backblaze, or download from the dashboard.
+* **Encrypted backups (recommended):** on your PC run `npm run backup:key -- generate --out <safe folder>`.
+  Put `backup-public-key.pem` on the server (e.g. `/etc/south-street/backup-public.pem`) and set
+  `BACKUP_PUBLIC_KEY_FILE` in `.env`. Backups then become `*.db.gz.enc`: the server can write them but
+  not read them, and `recovery-kit-<id>.env.enc` next to them seals the database secrets. Keep
+  `backup-private-key.pem` **offline, in two places**: it alone opens every backup and kit.
+  Open one on the PC: `npm run backup:key -- open <file.enc> --key backup-private-key.pem`.
 * **Restore:**
 
 ```bash
 pm2 stop south-street
 npm run db:restore -- south_street-YYYYMMDD-HHMMSS-auto.db.gz   # current DB is saved first
+# encrypted backup: bring the private key for the restore only, then delete it
+npm run db:restore -- south_street-YYYYMMDD-HHMMSS-auto.db.gz.enc --key /root/backup-private-key.pem
 pm2 start south-street
 ```
 

@@ -10,6 +10,7 @@
  */
 import crypto from 'crypto';
 import { getSqliteDb } from '../sqlite';
+import { decryptBytes, encryptBytes } from '../db-crypto';
 import { buildDmChatId, parseDmChatId } from '../chat-utils';
 import { normalizeLoginRole, LOGIN_ROLE_LABELS, type LoginRole } from '../roles';
 import { isImageSource, resolveUserPhoto } from '../user-access-view';
@@ -212,7 +213,8 @@ export function latestActivity(userId: string): number {
 export function saveVoice(chatId: string, data: Buffer, mime: string): string {
   db();
   const id = `${Date.now().toString(36)}${crypto.randomBytes(6).toString('hex')}`;
-  raw().prepare('INSERT INTO connect_media (media_id, chat_id, mime_type, data, ts) VALUES (?, ?, ?, ?, ?)').run(id, chatId, mime, data, Date.now());
+  // Voice is private: stored encrypted, like the other sensitive data.
+  raw().prepare('INSERT INTO connect_media (media_id, chat_id, mime_type, data, ts) VALUES (?, ?, ?, ?, ?)').run(id, chatId, mime, encryptBytes(data), Date.now());
   return id;
 }
 
@@ -221,7 +223,7 @@ export function loadVoice(id: string): { chatId: string; mime: string; data: Buf
   db();
   const r = raw().prepare('SELECT chat_id, mime_type, data FROM connect_media WHERE media_id = ?').get(id) as any;
   if (!r?.data) return null;
-  return { chatId: String(r.chat_id), mime: String(r.mime_type), data: Buffer.isBuffer(r.data) ? r.data : Buffer.from(r.data) };
+  return { chatId: String(r.chat_id), mime: String(r.mime_type), data: decryptBytes(Buffer.isBuffer(r.data) ? r.data : Buffer.from(r.data)) };
 }
 
 /** Last activity per chat for one user (the app polls this to know what changed). */

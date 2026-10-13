@@ -35,6 +35,28 @@ function fromB64url(value: string): Buffer {
   return Buffer.from(value, 'base64url');
 }
 
+/** Binary values (Connect voice messages): "SSB1" | iv(12) | tag(16) | ciphertext, same key. */
+const BLOB_MAGIC = Buffer.from('SSB1');
+
+export function isEncryptedBytes(value: unknown): value is Buffer {
+  return Buffer.isBuffer(value) && value.length > 32 && value.subarray(0, 4).equals(BLOB_MAGIC);
+}
+
+export function encryptBytes(data: Buffer): Buffer {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', getAesKey(), iv);
+  const enc = Buffer.concat([cipher.update(data), cipher.final()]);
+  return Buffer.concat([BLOB_MAGIC, iv, cipher.getAuthTag(), enc]);
+}
+
+/** Older plain blobs are returned as they are. */
+export function decryptBytes(stored: Buffer): Buffer {
+  if (!isEncryptedBytes(stored)) return stored;
+  const decipher = crypto.createDecipheriv('aes-256-gcm', getAesKey(), stored.subarray(4, 16));
+  decipher.setAuthTag(stored.subarray(16, 32));
+  return Buffer.concat([decipher.update(stored.subarray(32)), decipher.final()]);
+}
+
 export function isEncryptedValue(value: unknown): boolean {
   return typeof value === 'string' && value.startsWith(PREFIX);
 }

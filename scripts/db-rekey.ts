@@ -11,15 +11,21 @@
  *   - every encrypted value: decrypt with the old key, encrypt with the new one
  *     (a value the old key cannot open aborts everything: wrong old key);
  *   - users' username / email / code lookup hashes: recomputed with the new key.
+ *   - encrypted binary values (Connect voice messages): same, with the new key;
+ *   - WhatsApp conversation keys (phone hashes): recomputed with the new key.
  * What cannot be recomputed (only a one-way hash is stored) and must be reissued:
  *   staff QR codes, Super Admin recovery codes, unused activation links.
+ * With BACKUP_PUBLIC_KEY_FILE set, the safety backup is encrypted to the backup key
+ * and the old secrets are sealed in a recovery kit, so older backups stay openable.
  */
 import 'dotenv/config';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import Database from 'better-sqlite3';
+import zlib from 'zlib';
 import { LEGACY_DB_SECRET } from '../lib/secrets';
+import { backupPublicKey, encryptBuffer, fingerprint } from '../lib/backup-crypto';
 
 const PREFIX = 'SSENC1.';
 const generate = process.argv.includes('--generate');
@@ -71,6 +77,17 @@ function encryptNew(text: string): string {
   return `${PREFIX}${iv.toString('base64url')}.${c.getAuthTag().toString('base64url')}.${enc.toString('base64url')}`;
 }
 
+const BLOB_MAGIC = Buffer.from('SSB1');
+function reencryptBlob(b: Buffer): Buffer {
+  const d = crypto.createDecipheriv('aes-256-gcm', oldKey, b.subarray(4, 16));
+  d.setAuthTag(b.subarray(16, 32));
+  const plain = Buffer.concat([d.update(b.subarray(32)), d.final()]);
+  const iv = crypto.randomBytes(12);
+  const c = crypto.createCipheriv('aes-256-gcm', newKey, iv);
+  const enc = Buffer.concat([c.update(plain), c.final()]);
+  return Buffer.concat([BLOB_MAGIC, iv, c.getAuthTag(), enc]);
+}
+
 function isLegacyCbc(v: string): boolean {
   if (!v.includes(':')) return false;
   const [ivHex, rest] = v.split(':');
@@ -86,11 +103,25 @@ const lookup = (value: string) => {
   const db = new Database(dbPath);
   db.pragma('busy_timeout = 5000');
 
-  const backupDir = path.join(path.dirname(dbPath), 'backups');
-  fs.mkdirSync(backupDir, { recursive: true });
+  const backupDir = process.env.BACKUP_DIR?.trim() || path.join(path.dirname(dbPath), 'backups');
+  fs.mkdirSync(backupDir, { recursive: true, mode: 0o700 });
   const backupFile = path.join(backupDir, `pre-rekey-${new Date().toISOString().replace(/[:.]/g, '-')}.db`);
   await db.backup(backupFile);
-  console.log(`Backup: ${backupFile}`);
+  const sealKey = backupPublicKey();
+  if (sealKey) {
+    // Encrypted to the owner's backup key, plus the OLD secrets it needs, sealed the same way.
+    const oldKid = fingerprint(oldEnc);
+    fs.writeFileSync(`${backupFile}.gz.enc`, encryptBuffer(sealKey, oldKid, zlib.gzipSync(fs.readFileSync(backupFile))), { mode: 0o600 });
+    fs.rmSync(backupFile);
+    const kit = path.join(backupDir, `recovery-kit-${oldKid}.env.enc`);
+    if (!fs.existsSync(kit)) {
+      fs.writeFileSync(kit, encryptBuffer(sealKey, oldKid, Buffer.from(`DB_ENCRYPTION_SECRET=${oldEnc}\nDB_LOOKUP_SECRET=${oldLookup}\n`)), { mode: 0o600 });
+    }
+    console.log(`Backup (encrypted): ${backupFile}.gz.enc`);
+  } else {
+    fs.chmodSync(backupFile, 0o600);
+    console.log(`Backup: ${backupFile}`);
+  }
 
   const tables = (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'").all() as { name: string }[]).map((t) => t.name);
   let values = 0;
@@ -100,9 +131,17 @@ const lookup = (value: string) => {
       const cols = (db.prepare(`PRAGMA table_info("${table}")`).all() as { name: string }[]).map((c) => c.name);
       const rows = db.prepare(`SELECT rowid AS __rowid, * FROM "${table}"`).all() as Record<string, unknown>[];
       for (const row of rows) {
-        const changes: Record<string, string> = {};
+        const changes: Record<string, string | Buffer> = {};
         for (const col of cols) {
           const v = row[col];
+          if (Buffer.isBuffer(v) && v.length > 32 && v.subarray(0, 4).equals(BLOB_MAGIC)) {
+            try {
+              changes[col] = reencryptBlob(v);
+            } catch {
+              throw new Error(`Cannot decrypt ${table}.${col} (rowid ${row.__rowid}) with the OLD key — nothing was changed.`);
+            }
+            continue;
+          }
           if (typeof v !== 'string' || !v) continue;
           if (!v.startsWith(PREFIX) && !isLegacyCbc(v)) continue;
           let plain: string;
@@ -145,6 +184,21 @@ const lookup = (value: string) => {
       set('qrSecretHash', '');
       set('qr_secret_hash', '');
       if (sets.length) db.prepare(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`).run(...vals, u.id);
+    }
+
+    // WhatsApp conversations are keyed by a phone hash: recompute it (messages follow).
+    if (tables.includes('wa_conversations')) {
+      const convs = db.prepare('SELECT phone_hash, phone FROM wa_conversations').all() as { phone_hash: string; phone: string }[];
+      for (const c of convs) {
+        // Same normalisation as lib/whatsapp/store.ts normalizePhone.
+        let phone = open(c.phone).replace(/[^0-9]/g, '');
+        if (phone.startsWith('00')) phone = phone.slice(2);
+        if (phone.length === 10 && phone.startsWith('0')) phone = `213${phone.slice(1)}`;
+        if (!phone) continue;
+        const next = lookup(`wa:${phone}`);
+        db.prepare('UPDATE wa_conversations SET phone_hash = ? WHERE phone_hash = ?').run(next, c.phone_hash);
+        if (tables.includes('wa_messages')) db.prepare('UPDATE wa_messages SET phone_hash = ? WHERE phone_hash = ?').run(next, c.phone_hash);
+      }
     }
 
     // One-way hashes made with the old key: remove so the app asks for new ones.

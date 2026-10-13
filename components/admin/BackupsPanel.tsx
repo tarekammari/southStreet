@@ -1,11 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Archive, Download, Loader2, RefreshCw, ShieldAlert, Terminal } from 'lucide-react';
+import { Archive, Download, Loader2, Lock, RefreshCw, ShieldAlert, Terminal } from 'lucide-react';
 import { authHeaders } from '@/lib/api-client';
 import { adminFetch, keyErrorMessage } from '@/lib/webauthn-client';
 
-type Backup = { name: string; size: number; createdAt: string; reason: string };
+type Backup = { name: string; size: number; createdAt: string; reason: string; encrypted?: boolean };
 
 const REASON: Record<string, string> = {
   manual: 'يدوية',
@@ -152,7 +152,13 @@ export default function BackupsPanel() {
               {list.map((b) => (
                 <tr key={b.name} className="border-t border-slate-100">
                   <td className="px-4 py-2.5 font-bold">{when(b.createdAt)}</td>
-                  <td className="px-4 py-2.5"><span className="inline-flex h-6 items-center px-2.5 rounded-full bg-slate-100 text-slate-700 text-xs font-bold">{REASON[b.reason] || b.reason}</span></td>
+                  <td className="px-4 py-2.5"><span className="inline-flex h-6 items-center px-2.5 rounded-full bg-slate-100 text-slate-700 text-xs font-bold">{REASON[b.reason] || b.reason}</span>
+                    {b.encrypted ? (
+                      <span className="ms-1.5 inline-flex h-6 items-center gap-1 px-2.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold" title="مشفّرة بمفتاح النسخ الاحتياطي: لا تُفتح إلا بالمفتاح الخاص لدى المالك">
+                        <Lock className="w-3 h-3" /> مشفّرة
+                      </span>
+                    ) : null}
+                  </td>
                   <td className="px-4 py-2.5 text-slate-500" dir="ltr">{size(b.size)}</td>
                   <td className="px-4 py-2.5 text-left">
                     <button
