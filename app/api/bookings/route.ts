@@ -3,6 +3,7 @@ import { SESSION_COOKIE, sessionCookieOptions } from '@/lib/session-token';
 import { getSqliteDb } from '@/lib/sqlite';
 import { getAuthUser } from '@/lib/request-auth';
 import { attachGoogleId, ensureUserAccount, findUserByGoogleId, findUserForLogin, queueAccessRequest, saveUserPhoto } from '@/lib/accounts';
+import { forgetPhoneIndex } from '@/lib/account-lookup';
 import { findDevMultiAccountPersona, isDevMultiAccountEmail, normalizeDevPhone } from '@/lib/dev-multi-account';
 import { verifyGoogleCredential } from '@/lib/google-id-token';
 import { upsertUserSession } from '@/lib/presence';
@@ -364,6 +365,7 @@ export async function POST(req: NextRequest) {
         }
       }
       if (!account) {
+        forgetPhoneIndex();
         const issued = ensureUserAccount({
           name,
           email: email && email.includes('@') ? email : undefined,
@@ -431,7 +433,8 @@ export async function POST(req: NextRequest) {
           account = db.prepare('SELECT * FROM users WHERE id = ?').get(existing.id);
         } else {
           const signupStatus = pilgrimSignupStatus();
-          const issued = ensureUserAccount({
+          forgetPhoneIndex();
+        const issued = ensureUserAccount({
             name,
             email,
             phone,

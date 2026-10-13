@@ -40,6 +40,9 @@ export default function LoginModal({ onClose, onSelectRole, redirectTo }: LoginM
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regPhone, setRegPhone] = useState('');
+  /** "You already have an account": email = sign in instead; phone = maybe a family member. */
+  const [accountHint, setAccountHint] = useState<null | { field: 'email'; google: boolean } | { field: 'phone' }>(null);
+  const [phoneConfirmed, setPhoneConfirmed] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
@@ -144,6 +147,39 @@ export default function LoginModal({ onClose, onSelectRole, redirectTo }: LoginM
     }
   };
 
+  /** Asks the server whether the email / phone already has an account (on leaving the field). */
+  const checkExisting = async (field: 'email' | 'phone') => {
+    const value = field === 'email' ? regEmail.trim() : regPhone.trim();
+    if (field === 'email' ? !value.includes('@') : value.replace(/\D/g, '').length < 8) return;
+    if (field === 'phone' && phoneConfirmed) return;
+    try {
+      const res = await fetch('/api/auth/check-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [field]: value }),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (field === 'email' && data.email?.exists) setAccountHint({ field: 'email', google: Boolean(data.email.google) });
+      else if (field === 'phone' && data.phone?.exists) setAccountHint((h) => (h?.field === 'email' ? h : { field: 'phone' }));
+    } catch {
+      /* the server checks again on submit */
+    }
+  };
+
+  const goToSignIn = () => {
+    setScreen('login');
+    setMode('password');
+    setError('');
+    if (accountHint?.field === 'email') {
+      setIdentifier(regEmail.trim());
+      setInfo(accountHint.google ? 'حسابك مرتبط بـ Google: اضغط «المتابعة باستخدام Google».' : 'أدخل كلمة المرور للدخول إلى حسابك.');
+    } else {
+      setInfo('سجّل الدخول ببريدك أو اسم المستخدم، أو عبر Google.');
+    }
+    setAccountHint(null);
+  };
+
   const processRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -159,10 +195,19 @@ export default function LoginModal({ onClose, onSelectRole, redirectTo }: LoginM
           password: regPassword,
           email: regEmail,
           phone: regPhone,
+          phoneConfirmed,
           website_hp: '',
         }),
       });
       const data = await res.json();
+      if (res.status === 409 && data.code === 'ACCOUNT_EXISTS') {
+        setAccountHint({ field: 'email', google: Boolean(data.google) });
+        return;
+      }
+      if (res.status === 409 && data.code === 'PHONE_IN_USE') {
+        setAccountHint({ field: 'phone' });
+        return;
+      }
       if (!res.ok) {
         setError(data.error || 'تعذر إنشاء الحساب');
         return;
@@ -311,10 +356,51 @@ export default function LoginModal({ onClose, onSelectRole, redirectTo }: LoginM
                 {googleBlock()}
                 <input type="text" name="website_hp" tabIndex={-1} autoComplete="off" className="hidden" />
                 <label>الاسم<input required value={regName} onChange={(e) => setRegName(e.target.value)} /></label>
-                <label>الهاتف<input value={regPhone} onChange={(e) => setRegPhone(e.target.value)} dir="ltr" /></label>
-                <label>البريد<input type="email" value={regEmail} onChange={(e) => setRegEmail(e.target.value)} dir="ltr" /></label>
+                <label>الهاتف<input
+                  value={regPhone}
+                  inputMode="tel"
+                  autoComplete="tel"
+                  onChange={(e) => {
+                    setRegPhone(e.target.value);
+                    setPhoneConfirmed(false);
+                    if (accountHint?.field === 'phone') setAccountHint(null);
+                  }}
+                  onBlur={() => void checkExisting('phone')}
+                  dir="ltr"
+                /></label>
+                <label>البريد<input
+                  type="email"
+                  value={regEmail}
+                  autoComplete="email"
+                  onChange={(e) => {
+                    setRegEmail(e.target.value);
+                    if (accountHint?.field === 'email') setAccountHint(null);
+                  }}
+                  onBlur={() => void checkExisting('email')}
+                  dir="ltr"
+                /></label>
                 <label>كلمة المرور<input type="password" required minLength={8} maxLength={128} autoComplete="new-password" dir="ltr" value={regPassword} onChange={(e) => setRegPassword(e.target.value)} /></label>
-                <button type="submit" disabled={loading} className="login-simple-submit">{loading ? 'جاري الإنشاء...' : 'إنشاء الحساب'}</button>
+                {accountHint ? (
+                  <div className="login-account-hint" role="status">
+                    <strong>{accountHint.field === 'email' ? 'لديك حساب مسجّل بهذا البريد' : 'يوجد حساب مسجّل بهذا الرقم'}</strong>
+                    <p>
+                      {accountHint.field === 'email'
+                        ? accountHint.google
+                          ? 'أنشأته سابقاً عبر Google: ادخل بزر «المتابعة باستخدام Google» أعلاه.'
+                          : 'ادخل إلى حسابك بدلاً من إنشاء حساب جديد.'
+                        : 'إن كان حسابك فادخل إليه. وإن كان لفرد آخر من العائلة يستعمل نفس الرقم، فتابع إنشاء حساب جديد.'}
+                    </p>
+                    <div className="login-account-hint-actions">
+                      <button type="button" onClick={goToSignIn}>تسجيل الدخول</button>
+                      {accountHint.field === 'phone' ? (
+                        <button type="button" className="is-ghost" onClick={() => { setPhoneConfirmed(true); setAccountHint(null); }}>
+                          ليس حسابي، تابع
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+                <button type="submit" disabled={loading || Boolean(accountHint)} className="login-simple-submit">{loading ? 'جاري الإنشاء...' : 'إنشاء الحساب'}</button>
                 <button type="button" className="login-simple-switch" onClick={() => { setScreen('login'); setError(''); }}>لديك حساب؟ دخول</button>
               </form>
             ) : mode === 'qr' ? (

@@ -7,7 +7,8 @@ import { getSqliteDb } from './sqlite';
 import { lookupHash } from './db-crypto';
 
 /** Flip to false (or delete usages) when testing is done. */
-export const DEV_MULTI_ACCOUNT_ENABLED = true;
+/** Off since 2026-10-13: every email (the owner's too) now has one account, like real clients. */
+export const DEV_MULTI_ACCOUNT_ENABLED = false;
 
 export const DEV_MULTI_ACCOUNT_EMAIL = 'tarekammari1@gmail.com';
 

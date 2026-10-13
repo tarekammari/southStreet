@@ -7,6 +7,7 @@ import { normalizeLoginRole, postLoginPath, LOGIN_ROLE_LABELS, isPrivilegedRole 
 import { signToken } from '@/lib/auth';
 import { pilgrimAppointment, pilgrimWaitingRedirect } from '@/lib/booking';
 import { tokenVersionOf } from '@/lib/webauthn';
+import { checkContact, forgetPhoneIndex } from '@/lib/account-lookup';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,6 +22,23 @@ export async function POST(req: Request) {
     const userAgent = req.headers.get('user-agent') || '';
     const { pcPrint } = generateDeviceFingerprint(ip, userAgent, req.headers.get('accept-language') || '');
 
+    // Already a client? Point to sign-in instead of opening a second account.
+    // Email: one account only. Phone: may be shared by a family, so the form asks
+    // "is it yours?" and sends phoneConfirmed once the user says it is a new person.
+    const known = checkContact({ email: body.email, phone: body.phone });
+    if (known.email?.exists) {
+      return NextResponse.json(
+        { error: 'لديك حساب مسجّل بهذا البريد. سجّل الدخول بدلاً من إنشاء حساب جديد.', code: 'ACCOUNT_EXISTS', field: 'email', google: known.email.google },
+        { status: 409 }
+      );
+    }
+    if (known.phone?.exists && !body.phoneConfirmed) {
+      return NextResponse.json(
+        { error: 'يوجد حساب مسجّل بهذا الرقم. هل هو حسابك؟', code: 'PHONE_IN_USE', field: 'phone' },
+        { status: 409 }
+      );
+    }
+
     const created = registerSelfAccount({
       name: String(body.name || ''),
       username: String(body.username || ''),
@@ -32,6 +50,7 @@ export async function POST(req: Request) {
       userAgent,
     });
 
+    forgetPhoneIndex();
     notifySignup({
       userId: created.userId,
       name: String(body.name || ''),
