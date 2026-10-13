@@ -333,6 +333,9 @@ function PostcardCoverFlow() {
   const count = POSTCARDS.length;
   const pointerId = useRef<number | null>(null);
   const dragStartX = useRef(0);
+  const dragStartT = useRef(0);
+  /** True once the finger/mouse moved: the click that follows is not a tap. */
+  const moved = useRef(false);
   const shiftRef = useRef(0);
   const stageRef = useRef<HTMLDivElement>(null);
 
@@ -375,7 +378,10 @@ function PostcardCoverFlow() {
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (pointerId.current === e.pointerId) {
       const dx = e.clientX - dragStartX.current;
-      if (Math.abs(dx) > 4) setDragging(true);
+      if (Math.abs(dx) > 6) {
+        moved.current = true;
+        setDragging(true);
+      }
       const next = dx / unitFor();
       shiftRef.current = next;
       setShift(next);
@@ -390,14 +396,26 @@ function PostcardCoverFlow() {
     setShift(next);
   };
 
+  /**
+   * Touch works like a phone gallery: a quick flick (over 14 px) or a 30 px drag moves one picture
+   * in the finger's direction, a long drag moves as many as it covered. When the
+   * browser takes the gesture for vertical scrolling (pointercancel), the cards
+   * just return to their place.
+   */
   const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     if (pointerId.current !== e.pointerId) return;
     pointerId.current = null;
-    snapShift(shiftRef.current);
+    if (e.type === 'pointercancel') return snapShift(0);
+    if (e.pointerType === 'mouse') return snapShift(shiftRef.current);
+    const dx = e.clientX - dragStartX.current;
+    const velocity = dx / Math.max(1, performance.now() - dragStartT.current); // px per ms
+    const covered = shiftRef.current;
+    const steps = Math.abs(covered) >= 1.5 ? Math.round(covered) : Math.abs(dx) > 30 || (Math.abs(dx) > 14 && Math.abs(velocity) > 0.3) ? Math.sign(dx) : 0;
+    snapShift(steps);
   };
 
   const onCardActivate = (index: number, isFront: boolean) => {
-    if (dragging) return;
+    if (dragging || moved.current) return;
     if (isFront) {
       if (isMobile) stepAlbum(-1);
       return;
@@ -426,6 +444,8 @@ function PostcardCoverFlow() {
           onPointerDown={(e) => {
             pointerId.current = e.pointerId;
             dragStartX.current = e.clientX;
+            dragStartT.current = performance.now();
+            moved.current = false;
             setDragging(false);
             (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
           }}

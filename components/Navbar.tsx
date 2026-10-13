@@ -16,12 +16,18 @@ import {
   Plane,
   LayoutDashboard,
   MessageSquare,
+  Home,
+  Info,
+  Compass,
+  BedDouble,
+  BookOpen,
+  ChevronLeft,
 } from 'lucide-react';
 import { User } from '@/types';
 import LoginModal from './LoginModal';
 import DemandBag from '@/components/booking/DemandBag';
 import { logoutAndReload, profilePhotoSrc, readStoredUser, syncSessionProfile } from '@/lib/client-session';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { toPortalRole } from '@/lib/roles';
 import { isImageSource } from '@/lib/user-access-view';
 
@@ -48,6 +54,17 @@ const BASE_NAV_LINKS: NavLink[] = [
   { label: 'البرامج', href: '/packages' },
   { label: 'الفنادق', href: '/hotels' },
 ];
+
+/** Icon for each entry in the mobile menu. */
+function navIcon(href: string) {
+  const path = href.split('?')[0];
+  if (path === '/') return Home;
+  if (path === '/about') return Info;
+  if (path === '/packages') return Compass;
+  if (path === '/hotels') return BedDouble;
+  if (path === '/guide') return BookOpen;
+  return Plane;
+}
 
 function isPilgrimClient(user?: User | null): boolean {
   if (!user) return false;
@@ -209,10 +226,26 @@ export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 
     };
   }, []);
 
-  // Close the slide-down list after navigating to one of its entries.
+  // Close the slide-down list and the mobile menu after navigating.
   useEffect(() => {
     setNavGroupOpen(false);
+    setMobileOpen(false);
   }, [pathname, portalTab]);
+
+  // Mobile menu open: the page behind does not scroll; Escape closes it.
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMobileOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = previous;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [mobileOpen]);
 
   const closeMenu = () => setMobileOpen(false);
   const navUser = currentUser ?? sessionUser;
@@ -260,33 +293,21 @@ export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 
 
     if (mobile) {
       return (
-        <div key={link.href} className="border-b border-slate-200/80">
+        <div key={link.href} className="nav-sheet-group">
           <button
             type="button"
             onClick={() => setMobileGroupOpen((v) => !v)}
             aria-expanded={open}
-            className={`w-full flex items-center justify-between gap-2 py-3 text-sm font-bold cursor-pointer ${
-              groupActive ? 'text-emerald-main' : isLight ? 'text-slate-700' : 'text-white/85'
-            }`}
+            className={`nav-sheet-link is-featured${groupActive ? ' is-active' : ''}`}
           >
-            <span className="flex items-center gap-2">
-              <Plane className="w-4 h-4" aria-hidden /> {link.label}
-            </span>
-            <ChevronDown className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`} />
+            <span className="nav-sheet-icon"><Plane aria-hidden /></span>
+            <span className="nav-sheet-text">{link.label}</span>
+            <ChevronDown className={`nav-sheet-chevron transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden />
           </button>
           {open && (
-            <div className="pb-2 space-y-1">
+            <div className="nav-sheet-sub">
               {children.map((c) => (
-                <Link
-                  key={c.href}
-                  href={c.href}
-                  onClick={closeMenu}
-                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold no-underline ${
-                    isActive(c.href)
-                      ? 'bg-emerald-soft text-emerald-main'
-                      : isLight ? 'text-slate-700 hover:bg-slate-50' : 'text-slate-200 hover:bg-slate-800'
-                  }`}
-                >
+                <Link key={c.href} href={c.href} onClick={closeMenu} className={`nav-sheet-sublink${isActive(c.href) ? ' is-active' : ''}`}>
                   {childIcon(c.icon)}
                   <span>{c.label}</span>
                 </Link>
@@ -344,14 +365,19 @@ export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 
     const active = isActive(link.href);
     const featured = Boolean(link.featured);
     const cls = mobile
-      ? featured
-        ? `nav-link-trip is-mobile ${active ? 'is-active' : ''}`
-        : `block py-3 text-sm border-b ${isLight ? 'border-slate-200' : 'border-white/10'} ${active ? 'text-emerald-main font-bold' : isLight ? 'text-slate-700' : 'text-white/85'}`
+      ? `nav-sheet-link${featured ? ' is-featured' : ''}${active ? ' is-active' : ''}`
       : featured
         ? `nav-link-trip ${active ? 'is-active' : ''}`
         : `${linkClass} ${active ? 'active' : ''}`;
 
-    const inner = featured ? (
+    const Icon = navIcon(link.href);
+    const inner = mobile ? (
+      <>
+        <span className="nav-sheet-icon"><Icon aria-hidden /></span>
+        <span className="nav-sheet-text">{link.label}</span>
+        <ChevronLeft className="nav-sheet-chevron" aria-hidden />
+      </>
+    ) : featured ? (
       <>
         <Plane className="nav-link-trip-icon" aria-hidden />
         <span>{link.label}</span>
@@ -456,7 +482,7 @@ export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 
             </button>
           )}
 
-          <button onClick={() => setMobileOpen(!mobileOpen)} className={`p-2 lg:hidden ${isLight ? 'text-slate-700' : 'text-white'}`} aria-label="فتح القائمة">
+          <button onClick={() => setMobileOpen(!mobileOpen)} className={`p-2 lg:hidden ${isLight ? 'text-slate-700' : 'text-white'}`} aria-label={mobileOpen ? 'إغلاق القائمة' : 'فتح القائمة'} aria-expanded={mobileOpen}>
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
         </div>
@@ -468,22 +494,81 @@ export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 
       )}
       </motion.div>
 
-      {mobileOpen && (
-        <nav className={`nav-mobile-panel fixed inset-x-0 z-[199] border-b px-6 py-4 backdrop-blur-xl lg:hidden space-y-1 ${isLight ? 'border-slate-200 bg-white/98' : 'border-white/10 bg-slate-950/98'}`}>
-          {pilgrim || isStaff ? (
-            <div className="py-3 border-b border-slate-200/80 flex items-center justify-between">
-              <span className="text-sm font-bold text-slate-700">{pilgrim ? 'طلباتي' : 'طلبات المعتمرين'}</span>
-              <DemandBag user={navUser} isLight={isLight} />
-            </div>
-          ) : null}
-          {links.map(link => renderLink(link, true))}
-          {isAdmin && (
-            <Link href="/admin" onClick={closeMenu} className="flex items-center gap-2 py-3 text-emerald-400 font-bold text-sm">
-              <ShieldCheck className="w-4 h-4" /> لوحة التحكم
-            </Link>
-          )}
-        </nav>
-      )}
+      {/* Mobile menu: a side sheet over a dimmed page. */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <>
+            <motion.div
+              key="nav-scrim"
+              className="nav-sheet-scrim lg:hidden"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.22 }}
+              onClick={closeMenu}
+              aria-hidden
+            />
+            <motion.nav
+              key="nav-sheet"
+              className={`nav-sheet lg:hidden ${isLight ? 'is-light' : 'is-dark'}`}
+              role="dialog"
+              aria-modal="true"
+              aria-label="القائمة"
+              dir="rtl"
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', stiffness: 420, damping: 40 }}
+            >
+              <div className="nav-sheet-head">
+                <BrandLogo tone={isLight ? 'dark' : 'light'} />
+                <button type="button" className="nav-sheet-close" onClick={closeMenu} aria-label="إغلاق القائمة">
+                  <X aria-hidden />
+                </button>
+              </div>
+
+              {navUser ? (
+                <div className="nav-sheet-user">
+                  <ProfileFace user={navUser} size={44} />
+                  <div>
+                    <b>{navUser.name}</b>
+                    <small>{navUser.roleName || 'مستخدم معتمد'}</small>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="nav-sheet-links">
+                {links.map((link) => renderLink(link, true))}
+                {isAdmin && (
+                  <Link href="/admin" onClick={closeMenu} className="nav-sheet-link is-admin">
+                    <span className="nav-sheet-icon"><ShieldCheck aria-hidden /></span>
+                    <span className="nav-sheet-text">لوحة التحكم</span>
+                    <ChevronLeft className="nav-sheet-chevron" aria-hidden />
+                  </Link>
+                )}
+                {pilgrim || isStaff ? (
+                  <div className="nav-sheet-demands">
+                    <span>{pilgrim ? 'طلباتي' : 'طلبات المعتمرين'}</span>
+                    <DemandBag user={navUser} isLight={isLight} />
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="nav-sheet-foot">
+                {navUser ? (
+                  <button type="button" className="nav-sheet-logout" onClick={() => { closeMenu(); void logoutAndReload(); }}>
+                    <LogOut aria-hidden /> تسجيل الخروج
+                  </button>
+                ) : (
+                  <button type="button" className="btn-pro-primary nav-sheet-cta" onClick={() => { closeMenu(); setIsLoginOpen(true); }}>
+                    <Sparkles className="w-4 h-4" aria-hidden /> بوابة الوكالة
+                  </button>
+                )}
+              </div>
+            </motion.nav>
+          </>
+        )}
+      </AnimatePresence>
 
       {isLoginOpen && (
         <LoginModal
