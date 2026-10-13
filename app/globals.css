@@ -9799,3 +9799,24 @@ body.modal-open .sakhr-panel-shell {
 .login-account-hint-actions button.is-ghost { background: #fff; color: #065f46; border: 1px solid #a7f3d0; }
 
 .login-simple-submit:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* QR code: open the site on a phone (PhoneQr) */
+.phone-qr { position: relative; display: inline-block; background: #fff; border-radius: 14px; padding: 6px; box-shadow: 0 6px 18px rgba(6, 78, 59, 0.14); box-sizing: content-box; }
+.phone-qr > img { display: block; width: 100%; height: 100%; border-radius: 8px; }
+.phone-qr-placeholder { display: block; width: 100%; height: 100%; border-radius: 8px; background: linear-gradient(90deg, #f1f5f9, #e2e8f0, #f1f5f9); }
+.phone-qr-logo { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 24%; height: 24%; border-radius: 22%; background: #fff; display: grid; place-items: center; box-shadow: 0 0 0 3px #fff; }
+.phone-qr-logo img { width: 82%; height: 82%; object-fit: contain; mix-blend-mode: multiply; } /* the mark's light background melts into white */
+
+.ss-footer-cols.has-qr { grid-template-columns: repeat(3, minmax(0, 1fr)) auto; }
+.ss-footer-qr { display: flex; flex-direction: column; align-items: flex-start; gap: 0.6rem; max-width: 190px; }
+.ss-footer-qr h3 { display: flex; align-items: center; gap: 0.4rem; }
+.ss-footer-qr p { margin: 0; font-size: 0.78rem; line-height: 1.6; opacity: 0.75; }
+.ss-footer-qr-link { font-size: 0.8rem; font-weight: 800; color: #047857; text-decoration: none; }
+/* Scanning your own phone screen makes no sense: phones get the normal columns. */
+@media (max-width: 767px) {
+  .ss-footer-cols.has-qr { grid-template-columns: 1fr; }
+  .ss-footer-qr { display: none; }
+}
+@media (min-width: 768px) and (max-width: 1023px) {
+  .ss-footer-cols.has-qr { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

@@ -10,6 +10,8 @@ import { SOCIAL_LABELS, waLink, withUtm } from '@/lib/social';
 import { useAgencyInfo } from '@/components/social/useAgencyInfo';
 import { SOCIAL_ICON, WhatsAppIcon } from '@/components/social/SocialIcons';
 import { toPortalRole } from '@/lib/roles';
+import PhoneQr from '@/components/PhoneQr';
+import { Smartphone } from 'lucide-react';
 
 const PRODUCT_LINKS = [
   { label: 'حجز العمرة', href: '/book' },
@@ -169,7 +171,7 @@ export default function Footer({ content }: { content?: PageContentRow[] }) {
           </motion.form>
 
           <motion.div
-            className="ss-footer-cols"
+            className="ss-footer-cols has-qr"
             variants={containerVariants}
             initial="hidden"
             whileInView="visible"
@@ -210,6 +212,13 @@ export default function Footer({ content }: { content?: PageContentRow[] }) {
                 </div>
               ) : null}
             </motion.nav>
+            {/* Desktop / tablet: continue on the phone by scanning (hidden on phones). */}
+            <motion.div className="ss-footer-qr" variants={itemVariants}>
+              <h3><Smartphone className="w-4 h-4" aria-hidden /> على هاتفك</h3>
+              <PhoneQr source="footer" size={124} />
+              <p>امسح الرمز بكاميرا هاتفك لتفتح الموقع وتتابع الحجز من هناك.</p>
+              <Link href="/app" className="ss-footer-qr-link">أو ثبّت تطبيق Connect ←</Link>
+            </motion.div>
           </motion.div>
         </div>
 

@@ -300,6 +300,13 @@ ${origin}/sakhr
 
   return (
     <div className="space-y-5">
+      <div className="border border-emerald-200 rounded-2xl p-4 bg-emerald-50 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <b className="block text-emerald-900 text-sm">ملصق QR جاهز للطباعة (A4)</b>
+          <small className="block text-emerald-800 text-[12.5px]">للمكتب والمطويات والمعارض: يمسحه الزبون بهاتفه فيصل إلى الموقع أو البرامج أو تطبيق Connect.</small>
+        </div>
+        <a href="/qr" target="_blank" rel="noreferrer" className={`${btn} bg-emerald-700 text-white`}>فتح الملصق للطباعة</a>
+      </div>
       <div className="grid gap-4 md:grid-cols-2">
         {[{ title: 'QR واتساب (للملصقات والمكتب)', src: qrWa, name: 'whatsapp-qr.png', hint: wa ? 'يفتح محادثة واتساب مع الوكالة مباشرة' : 'أضيفوا رقم واتساب في «القنوات» أولاً' },
           { title: 'QR صفحة الروابط (للمطويات والبطاقات)', src: qrLinks, name: 'links-qr.png', hint: 'يفتح صفحة: واتساب، البرامج، الحجز، الدليل' }].map((q) => (
