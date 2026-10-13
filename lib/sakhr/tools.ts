@@ -14,6 +14,7 @@ import { GET as treasuryGET } from '@/app/api/finance/treasury/route';
 import { getSqliteDb } from '@/lib/sqlite';
 import { reservationStatusLabel } from '@/lib/booking-catalog';
 import { sanitizeVisual, type VisualSpec } from '@/lib/sakhr/visual';
+import { trustedWebSearch } from '@/lib/sakhr/trusted-search';
 
 /**
  * Sakhr's tools. Each one runs through the app's own API handler with the
@@ -399,6 +400,29 @@ export const SAKHR_TOOLS: SakhrTool[] = [
       const hit = toolSearchKnowledge(String(a.question || ''));
       if (!hit) return { ok: true, data: { found: false } };
       return { ok: true, data: { found: true, title: hit.rule.title_ar, answer: clip(hit.rule.response_ar, 1500) } };
+    },
+  },
+  {
+    name: 'trusted_web_search',
+    description:
+      'Search the internet, ONLY on official trusted sources (Saudi Ministry of Hajj and Umrah, Nusuk, Saudi Ministry of Health, Saudi visas, the Two Holy Mosques authority, Saudi Press Agency, GACA, Algerian ONPO, Algerian Ministry of Religious Affairs, APS, Air Algerie). Use for current Hajj/Umrah news, rules, seasons and dates, permits, visas, health requirements and official announcements that are not in the agency data. Returns facts with their source links; always cite them. If found is false, say that no trusted official source was found; never fill the gap from memory.',
+    parameters: {
+      type: 'object',
+      properties: { question: { type: 'string', description: 'What to look up, in Arabic or English, specific (topic + season/year).' } },
+      required: ['question'],
+    },
+    roles: [...STAFF, 'GUIDE_MURSHID'],
+    kind: 'read',
+    run: async (_ctx, a) => {
+      try {
+        return { ok: true, data: await trustedWebSearch(String(a.question || '')) };
+      } catch (error) {
+        // Free-tier limits are normal, not a fault: say so plainly.
+        if ((error as { status?: number })?.status === 429) {
+          return { ok: true, data: { found: false, reason: 'The free AI search limit is reached for now. Try again later, or check the official sites directly.' } };
+        }
+        return { ok: false, error: `Internet search failed: ${(error as Error)?.message || 'error'}` };
+      }
     },
   },
   {
