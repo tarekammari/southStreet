@@ -37,7 +37,7 @@ fi
 command -v pm2 >/dev/null || npm install -g pm2
 echo "node $(node -v), pm2 $(pm2 -v)"
 
-log "2/8 Firewall and swap"
+log "2/8 Firewall, swap, SSH keys only, fail2ban"
 ufw allow OpenSSH >/dev/null
 ufw allow 'Nginx Full' >/dev/null
 ufw --force enable
@@ -45,6 +45,45 @@ if ! swapon --show | grep -q .; then
   fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile >/dev/null && swapon /swapfile
   grep -q '^/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
 fi
+
+# SSH keys only + fail2ban. Only when root already has a key, so nobody is locked out.
+if [ -s /root/.ssh/authorized_keys ]; then
+  cat > /etc/ssh/sshd_config.d/00-hardening.conf <<'EOF'
+# South Street hardening: SSH keys only, no passwords.
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitRootLogin prohibit-password
+PermitEmptyPasswords no
+MaxAuthTries 3
+LoginGraceTime 30
+X11Forwarding no
+EOF
+  sshd -t && systemctl reload ssh && echo "ssh: keys only"
+else
+  echo "ssh: no key in /root/.ssh/authorized_keys yet, password login left on (see deploy/HOSTINGER.md)"
+fi
+apt-get install -y fail2ban >/dev/null
+cat > /etc/fail2ban/jail.d/south-street.local <<'EOF'
+# Ban repeated SSH break-in attempts; repeat offenders for a week.
+[DEFAULT]
+bantime  = 1h
+findtime = 10m
+maxretry = 3
+backend  = systemd
+banaction = ufw
+
+[sshd]
+enabled = true
+
+[recidive]
+enabled  = true
+backend  = auto
+logpath  = /var/log/fail2ban.log
+bantime  = 1w
+findtime = 1d
+maxretry = 3
+EOF
+systemctl enable --now fail2ban >/dev/null 2>&1 && systemctl restart fail2ban && echo "fail2ban: on"
 
 log "3/8 App user and code"
 id "$APP_USER" >/dev/null 2>&1 || adduser --disabled-password --gecos "" "$APP_USER"

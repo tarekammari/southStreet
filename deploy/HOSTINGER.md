@@ -29,6 +29,12 @@ It installs the system, downloads the app, then stops and prints the upload comm
 
 ## 3. Upload the data (PowerShell on the PC)
 
+The setup turns SSH password login **off** as soon as root has a key, so use a key, never the root password.
+Once on the PC (Git Bash or PowerShell): `ssh-keygen -t ed25519`, then in the Hostinger web terminal add the
+contents of `~/.ssh/id_ed25519.pub` to `/root/.ssh/authorized_keys`. Keep a backup of the private key
+(`~/.ssh/id_ed25519`) somewhere safe: without it, only the Hostinger web terminal can reach the server.
+
+
 ```powershell
 cd D:\data\south_street\deploy-upload
 scp .env south_street.db uploads.tgz root@SERVER-IP:/root/upload/
