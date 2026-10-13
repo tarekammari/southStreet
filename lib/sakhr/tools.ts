@@ -15,6 +15,7 @@ import { getSqliteDb } from '@/lib/sqlite';
 import { reservationStatusLabel } from '@/lib/booking-catalog';
 import { sanitizeVisual, type VisualSpec } from '@/lib/sakhr/visual';
 import { trustedWebSearch } from '@/lib/sakhr/trusted-search';
+import { findOfficialUpdates } from '@/lib/sakhr/official-updates';
 
 /**
  * Sakhr's tools. Each one runs through the app's own API handler with the
@@ -403,9 +404,27 @@ export const SAKHR_TOOLS: SakhrTool[] = [
     },
   },
   {
+    name: 'official_updates',
+    description:
+      'Official Hajj/Umrah information collected every 3 days from trusted official sites: Umrah season and instructions, Umrah visa and permit, health requirements and vaccines, Saudi Hajj instructions, Hajj for Algerians (ONPO), Hajj/Umrah flight programmes, the Two Holy Mosques and Rawdah visits. Use it first for such questions. In the answer, name the publisher, give the link and say the date it was collected. Live flight status is not included.',
+    parameters: { type: 'object', properties: { question: { type: 'string', description: 'The topic or question.' } } },
+    roles: EVERYONE,
+    kind: 'read',
+    run: async (_ctx, a) => {
+      const found = findOfficialUpdates(String(a?.question || '')).map((u) => ({
+        topic: u.title,
+        info: clip(u.answer, 1200),
+        sources: u.sources.slice(0, 3),
+        collected_on: u.fetchedAt?.slice(0, 10) || null,
+        up_to_date: u.status === 'fresh',
+      }));
+      return { ok: true, data: found.length ? { updates: found } : { updates: [], note: 'Nothing collected yet on this topic.' } };
+    },
+  },
+  {
     name: 'trusted_web_search',
     description:
-      'Search the internet, ONLY on official trusted sources (Saudi Ministry of Hajj and Umrah, Nusuk, Saudi Ministry of Health, Saudi visas, the Two Holy Mosques authority, Saudi Press Agency, GACA, Algerian ONPO, Algerian Ministry of Religious Affairs, APS, Air Algerie). Use for current Hajj/Umrah news, rules, seasons and dates, permits, visas, health requirements and official announcements that are not in the agency data. Returns facts with their source links; always list them (publisher + link) under your answer. If found is false: say the official sources do not answer it directly, list related_sources as links when there are any, and never fill the gap from memory.',
+      'Search the internet, ONLY on official trusted sources (Saudi Ministry of Hajj and Umrah, Nusuk, Saudi Ministry of Health, Saudi visas, the Two Holy Mosques authority, Saudi Press Agency, GACA, Algerian ONPO, Algerian Ministry of Religious Affairs, APS, Air Algerie). Use for current Hajj/Umrah news, rules, seasons and dates, permits, visas, health requirements and official announcements that official_updates does not cover. Returns facts with their source links; always list them (publisher + link) under your answer. If found is false: say the official sources do not answer it directly, list related_sources as links when there are any, and never fill the gap from memory.',
     parameters: {
       type: 'object',
       properties: { question: { type: 'string', description: 'What to look up, in Arabic or English, specific (topic + season/year).' } },

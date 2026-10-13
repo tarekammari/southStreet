@@ -99,13 +99,17 @@ function takeSearch(): boolean {
   return true;
 }
 
-export async function trustedWebSearch(question: string): Promise<TrustedSearchResult> {
+/**
+ * opts.scheduled: the every-3-days refresh (lib/sakhr/official-updates.ts) always
+ * searches afresh and does not use staff's daily allowance.
+ */
+export async function trustedWebSearch(question: string, opts: { scheduled?: boolean } = {}): Promise<TrustedSearchResult> {
   const q = question.trim().slice(0, 400);
   if (!q) return { found: false, reason: 'empty question' };
   const key = `web:${normalizeQuestion(q)}`;
-  const cached = remembered(key);
+  const cached = opts.scheduled ? null : remembered(key);
   if (cached) return cached;
-  if (!takeSearch()) {
+  if (!opts.scheduled && !takeSearch()) {
     return { found: false, reason: "Today's internet search limit is reached (free AI plan). Try again tomorrow, or check the official sites directly." };
   }
 
@@ -145,7 +149,7 @@ const TOPICS: { match: RegExp; domains: string[] }[] = [
 ];
 const DEFAULT_DOMAINS = ['haj.gov.sa', 'nusuk.sa', 'spa.gov.sa', 'onpo.dz', 'marw.dz'];
 
-function domainsFor(q: string): string[] {
+export function domainsFor(q: string): string[] {
   const picked = new Set<string>();
   for (const t of TOPICS) if (t.match.test(q)) t.domains.forEach((d) => picked.add(d));
   const list = picked.size ? [...picked] : DEFAULT_DOMAINS;

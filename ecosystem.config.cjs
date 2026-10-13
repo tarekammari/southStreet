@@ -4,6 +4,8 @@
  *   south-street         the web app (one process: SQLite has a single writer, and
  *                        login lockouts / presence are kept per process)
  *   south-street-backup  nightly database backup at 03:00 (runs, then exits)
+ *   south-street-official-updates  nightly 02:00 check; refreshes official Hajj/Umrah
+ *                        updates for Sakhr when the last refresh is ~3 days old
  *
  * NEXT_DIST_DIR is the build folder the app serves; scripts/update.sh builds the
  * next version into the other folder and switches to it with a reload.
@@ -40,6 +42,19 @@ module.exports = {
       env: { NODE_ENV: 'production' },
       out_file: path.join(__dirname, 'logs', 'backup.log'),
       error_file: path.join(__dirname, 'logs', 'backup.log'),
+      time: true,
+    },
+    {
+      // Official Hajj/Umrah updates for Sakhr: checks nightly, refreshes when ~3 days old.
+      name: 'south-street-official-updates',
+      cwd: __dirname,
+      script: 'node_modules/.bin/tsx',
+      args: 'scripts/official-updates.ts refresh --if-due',
+      cron_restart: '0 2 * * *',
+      autorestart: false,
+      env: { NODE_ENV: 'production' },
+      out_file: path.join(__dirname, 'logs', 'official-updates.log'),
+      error_file: path.join(__dirname, 'logs', 'official-updates.log'),
       time: true,
     },
   ],

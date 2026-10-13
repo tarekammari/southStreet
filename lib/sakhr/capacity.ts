@@ -57,7 +57,7 @@ export async function withSlot<T>(userKey: string, fn: () => Promise<T>): Promis
 /* --------------------------- common answers cache --------------------------- */
 
 /** Only tools whose answers are the same for every visitor make a reply cacheable. */
-export const PUBLIC_TOOLS = new Set(['search_programs', 'list_hotels', 'agency_knowledge', 'agency_team']);
+export const PUBLIC_TOOLS = new Set(['search_programs', 'list_hotels', 'agency_knowledge', 'agency_team', 'official_updates']);
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const CACHE_MAX = 500;
