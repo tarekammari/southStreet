@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { after, NextRequest, NextResponse } from 'next/server';
+import { alertManagers } from '@/lib/staff-alerts';
 import {
   agencySummary,
   computeSummary,
@@ -45,6 +46,15 @@ export async function POST(req: NextRequest) {
       title: body.title,
       body: body.body,
     });
+    // Tell the agency there is a testimonial to approve.
+    after(() =>
+      alertManagers({
+        title: `⭐ تقييم جديد (${review.stars}/5) بانتظار الموافقة`,
+        body: `${review.reviewerName || 'معتمر'}: ${String(review.body || '').slice(0, 90)}`,
+        url: '/admin',
+        tag: 'reviews-pending',
+      })
+    );
     return NextResponse.json({
       success: true,
       review: { ...review, status: 'PENDING' },

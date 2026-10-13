@@ -5,6 +5,8 @@ import AppVersionBadge from '@/components/admin/AppVersionBadge';
 import BackupsPanel from '@/components/admin/BackupsPanel';
 import AboutPageEditor from '@/components/admin/AboutPageEditor';
 import WhatsAppHub from '@/components/admin/WhatsAppHub';
+import ReviewsModeration, { REVIEWS_UPDATED } from '@/components/admin/ReviewsModeration';
+import { authHeaders } from '@/lib/api-client';
 import { WhatsAppIcon } from '@/components/social/SocialIcons';
 import TeamWorkspace from '@/components/team/TeamWorkspace';
 import Link from 'next/link';
@@ -111,7 +113,7 @@ const EMPTY_STATS: DashboardStats = {
 const HEARTBEAT_MS = 45000;
 const REFRESH_MS = 20000;
 
-type DashSection = 'users' | 'security' | 'google' | 'server' | 'bookings' | 'keys' | 'backups' | 'about' | 'whatsapp';
+type DashSection = 'users' | 'security' | 'google' | 'server' | 'bookings' | 'keys' | 'backups' | 'about' | 'whatsapp' | 'reviews';
 type FilterKey = 'all' | 'online' | 'active' | 'pending' | 'suspended';
 type RoleFilter = 'all' | LoginRole;
 type FlyoutKey = 'accounts' | 'sessions' | 'types' | null;
@@ -287,6 +289,7 @@ export default function UserAccessDashboard({
   const isSuperAdmin = String(currentUser?.role || '').toUpperCase() === 'SUPER_ADMIN';
   const [section, setSection] = useState<DashSection>(isSuperAdmin ? 'users' : 'bookings');
   const [demandCount, setDemandCount] = useState(0);
+  const [reviewsPending, setReviewsPending] = useState(0);
   const [profileId, setProfileId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [viewer, setViewer] = useState<{ role: LoginRole; assignableRoles: LoginRole[] }>({ role: 'AGENCY_MANAGER', assignableRoles: [] });
@@ -380,6 +383,19 @@ export default function UserAccessDashboard({
     refreshDemands();
     window.addEventListener('southstreet:bookings-updated', refreshDemands);
     return () => window.removeEventListener('southstreet:bookings-updated', refreshDemands);
+  }, [section]);
+
+  // Testimonials waiting for the agency's approval (sidebar badge).
+  useEffect(() => {
+    const refreshReviews = () => {
+      fetch('/api/admin/reviews?status=PENDING', { headers: authHeaders(), cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => setReviewsPending(Number(data?.pending) || 0))
+        .catch(() => {});
+    };
+    refreshReviews();
+    window.addEventListener(REVIEWS_UPDATED, refreshReviews);
+    return () => window.removeEventListener(REVIEWS_UPDATED, refreshReviews);
   }, [section]);
 
   const toggleSide = useCallback(() => {
@@ -643,7 +659,9 @@ export default function UserAccessDashboard({
             ? 'صفحة عن الوكالة'
             : section === 'whatsapp'
               ? 'واتساب والتواصل'
-              : 'إدارة الحسابات';
+              : section === 'reviews'
+                ? 'تقييمات المعتمرين'
+                : 'إدارة الحسابات';
   const roleFilterLabel = roleFilter === 'all' ? '' : LOGIN_ROLE_LABELS[roleFilter];
   const filterCount = (id: FilterKey) => {
     if (id === 'online') return onlineCount;
@@ -775,6 +793,11 @@ export default function UserAccessDashboard({
               <WhatsAppHub />
             </div>
           ) : null}
+          {section === 'reviews' ? (
+            <div key="reviews" className="inn-stage-pane is-active inn-swap">
+              <ReviewsModeration />
+            </div>
+          ) : null}
 
           {section === 'users' ? (
             <div key={`users-${filter}`} className="inn-stage-pane is-active inn-swap">
@@ -852,6 +875,16 @@ export default function UserAccessDashboard({
                   <ShoppingBag className="w-4 h-4" />
                   <span className="inn-side-label">طلبات العمرة</span>
                   {demandCount > 0 ? <span className="inn-side-badge">{demandCount}</span> : null}
+                </button>
+                <button
+                  type="button"
+                  className={`inn-side-link${section === 'reviews' ? ' is-active' : ''}`}
+                  onClick={() => goSection('reviews')}
+                  title="تقييمات المعتمرين"
+                >
+                  <Star className="w-4 h-4" />
+                  <span className="inn-side-label">تقييمات المعتمرين</span>
+                  {reviewsPending > 0 ? <span className="inn-side-badge">{reviewsPending}</span> : null}
                 </button>
                 <button
                   type="button"

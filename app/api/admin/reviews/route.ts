@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { after, NextRequest, NextResponse } from 'next/server';
+import { alertUser } from '@/lib/staff-alerts';
 import { listAdminReviews, moderateReview, ReviewStatus } from '@/lib/reviews';
+import { getSqliteDb } from '@/lib/sqlite';
 import { getAuthUser } from '@/lib/request-auth';
 import { requireRole, ADMINS } from '@/lib/staff-gate';
 
@@ -24,6 +26,7 @@ export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
     if (!body.id) return NextResponse.json({ error: 'معرّف التقييم مطلوب' }, { status: 400 });
+    const before = getSqliteDb().prepare('SELECT status FROM reviews WHERE id = ?').get(body.id) as { status?: string } | undefined;
     const review = moderateReview({
       id: body.id,
       status: body.status,
@@ -31,6 +34,17 @@ export async function PATCH(req: NextRequest) {
       adminReply: body.adminReply,
       actorName: gate.account.name || 'الإدارة',
     });
+    // Thank the client when the testimonial goes live.
+    if (review.status === 'APPROVED' && before?.status !== 'APPROVED' && review.reviewerUserId) {
+      after(() =>
+        alertUser(review.reviewerUserId, {
+          title: 'شكراً لك! نُشر تقييمك',
+          body: 'أصبح تقييمك ظاهراً في موقع الوكالة.',
+          url: '/',
+          tag: `review-${review.id}`,
+        })
+      );
+    }
     return NextResponse.json({ success: true, review });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'تعذر تحديث التقييم' }, { status: 400 });
