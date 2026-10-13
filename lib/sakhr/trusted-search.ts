@@ -211,7 +211,7 @@ async function searchWithGroq(q: string): Promise<TrustedSearchResult | null> {
 
   if (!withText.length) {
     return sources.length
-      ? { found: false, reason: 'Official pages were found but their text could not be read; share these links instead.', related_sources: sources }
+      ? { found: false, reason: 'Official pages were found but their text could not be read. Share these official links with the user.', related_sources: sources }
       : { found: false, reason: 'No trusted official source answered this question.' };
   }
 
@@ -229,14 +229,14 @@ async function searchWithGroq(q: string): Promise<TrustedSearchResult | null> {
       {
         role: 'system',
         content:
-          'You answer only from the official excerpts given. Arabic, brief, dates and numbers exactly as written. Mention when an excerpt looks old. If the excerpts do not answer the question, reply exactly: NOT_FOUND',
+          'You answer only from the official excerpts given, in Arabic, briefly, with dates and numbers exactly as written. Give everything the excerpts DO say that relates to the question, even if it answers only part of it, and say plainly which part the official pages do not cover. Mention when an excerpt looks old. Reply exactly NOT_FOUND only when the excerpts contain nothing related.',
       },
       { role: 'user', content: `Question: ${q}\n\nOfficial excerpts:\n${excerpts}` },
     ],
   });
   const text = String(answer?.choices?.[0]?.message?.content || '').replace(/【[^】]*】/g, '').trim();
   if (!text || text.includes('NOT_FOUND')) {
-    return { found: false, reason: 'The official pages found do not answer this question.', related_sources: sources };
+    return { found: false, reason: 'The official pages found do not answer this exactly. Share these official links with the user.', related_sources: sources };
   }
   return { found: true, answer: text.slice(0, 2500), sources, searched_at: new Date().toISOString() };
 }

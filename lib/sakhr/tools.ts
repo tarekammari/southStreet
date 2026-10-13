@@ -405,7 +405,7 @@ export const SAKHR_TOOLS: SakhrTool[] = [
   {
     name: 'trusted_web_search',
     description:
-      'Search the internet, ONLY on official trusted sources (Saudi Ministry of Hajj and Umrah, Nusuk, Saudi Ministry of Health, Saudi visas, the Two Holy Mosques authority, Saudi Press Agency, GACA, Algerian ONPO, Algerian Ministry of Religious Affairs, APS, Air Algerie). Use for current Hajj/Umrah news, rules, seasons and dates, permits, visas, health requirements and official announcements that are not in the agency data. Returns facts with their source links; always cite them. If found is false, say that no trusted official source was found; never fill the gap from memory.',
+      'Search the internet, ONLY on official trusted sources (Saudi Ministry of Hajj and Umrah, Nusuk, Saudi Ministry of Health, Saudi visas, the Two Holy Mosques authority, Saudi Press Agency, GACA, Algerian ONPO, Algerian Ministry of Religious Affairs, APS, Air Algerie). Use for current Hajj/Umrah news, rules, seasons and dates, permits, visas, health requirements and official announcements that are not in the agency data. Returns facts with their source links; always list them (publisher + link) under your answer. If found is false: say the official sources do not answer it directly, list related_sources as links when there are any, and never fill the gap from memory.',
     parameters: {
       type: 'object',
       properties: { question: { type: 'string', description: 'What to look up, in Arabic or English, specific (topic + season/year).' } },
