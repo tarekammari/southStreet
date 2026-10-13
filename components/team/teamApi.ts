@@ -106,3 +106,15 @@ export async function uploadPhoto(file: File): Promise<ApiResult<{ url: string }
     return { ok: false, error: 'تعذّر رفع الصورة' };
   }
 }
+
+export type { GuideProgram } from '@/lib/guide-programs';
+import type { GuideProgram } from '@/lib/guide-programs';
+
+export const loadGuidePrograms = (staffId: string) =>
+  send<{ programs: GuideProgram[] }>(`/api/admin/morshids/programs?id=${encodeURIComponent(staffId)}`);
+
+export const saveGuidePrograms = (staffId: string, packageIds: string[]) =>
+  send<{ programs: GuideProgram[]; added: number; removed: number }>('/api/admin/morshids/programs', {
+    method: 'PUT',
+    json: { id: staffId, package_ids: packageIds },
+  });

@@ -46,6 +46,7 @@ import {
   type Activity,
 } from './teamApi';
 import { ConfirmDialog, CopyField, MemberAvatar, StateBadge, type Secret } from './TeamBits';
+import GuidePrograms from './GuidePrograms';
 
 type Tab = 'profile' | 'access' | 'activity';
 
@@ -465,6 +466,9 @@ export default function MemberDrawer({
                 </div>
               ) : canHaveProfile && canEditProfile ? (
                 <p className="tm-note">لا يملك هذا العضو ملفاً تعريفياً بعد. اضغط «تعديل» لإضافة صورته ونبذة عنه ومهاراته وخبراته، ليظهر في صفحات الموقع.</p>
+              ) : null}
+              {isStaff && member.staffId && member.role === 'GUIDE_MURSHID' ? (
+                <GuidePrograms staffId={member.staffId} canEdit={canManage} onToast={(text, tone) => onToast(text, tone === 'error' ? 'error' : 'ok')} />
               ) : null}
             </section>
           ) : null}
