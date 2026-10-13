@@ -1,0 +1,126 @@
+/* "Record a payment" window (ClientPaymentModal): self-contained, so it looks the
+   same from the Super Admin dashboard and from the accountant workspace. */
+.cpm-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.5);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  animation: cpm-fade 0.18s ease;
+}
+.cpm {
+  --cpm-brand: #047857;
+  --cpm-brand-soft: #ecfdf5;
+  --cpm-line: #e5e7eb;
+  --cpm-muted: #64748b;
+  --cpm-field: #f8fafc;
+  width: 100%;
+  max-width: 520px;
+  max-height: min(92vh, 860px);
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  color: #0f172a;
+  border-radius: 22px;
+  box-shadow: 0 30px 80px rgba(15, 23, 42, 0.35);
+  overflow: hidden;
+  font-family: var(--font-cairo, inherit);
+  animation: cpm-rise 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes cpm-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes cpm-rise { from { opacity: 0; transform: translateY(14px) scale(0.98); } to { opacity: 1; transform: none; } }
+
+.cpm-head { display: flex; align-items: center; gap: 12px; padding: 18px 20px; border-bottom: 1px solid var(--cpm-line); }
+.cpm-head-icon { width: 42px; height: 42px; border-radius: 13px; display: grid; place-items: center; background: var(--cpm-brand-soft); color: var(--cpm-brand); flex: none; }
+.cpm-head-icon svg { width: 21px; height: 21px; }
+.cpm-head div { flex: 1; min-width: 0; }
+.cpm-head h4 { margin: 0; font-size: 1.05rem; font-weight: 900; }
+.cpm-head small { color: var(--cpm-muted); font-size: 0.78rem; }
+.cpm-close { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; background: #f1f5f9; color: #334155; flex: none; }
+.cpm-close svg { width: 18px; height: 18px; }
+
+.cpm-body { padding: 18px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
+.cpm-error { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; border-radius: 12px; padding: 10px 12px; font-size: 0.85rem; font-weight: 700; }
+.cpm-loading { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 28px 0; color: var(--cpm-muted); font-size: 0.88rem; }
+.cpm-loading svg { width: 18px; height: 18px; }
+
+.cpm-client { border: 1px solid var(--cpm-line); border-radius: 18px; padding: 14px; background: linear-gradient(180deg, #ffffff, #f8fafc); }
+.cpm-client-top { display: flex; align-items: center; gap: 12px; }
+.cpm-avatar { width: 46px; height: 46px; border-radius: 50%; overflow: hidden; display: grid; place-items: center; background: var(--cpm-brand-soft); color: var(--cpm-brand); font-weight: 900; flex: none; border: 2px solid #fff; box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12); }
+.cpm-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.cpm-client-name { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.cpm-client-name strong { font-size: 0.98rem; font-weight: 900; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cpm-client-name small { color: var(--cpm-muted); font-size: 0.78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cpm-ref { font-size: 0.72rem; font-weight: 800; color: #475569; background: #f1f5f9; border-radius: 999px; padding: 4px 9px; flex: none; }
+.cpm-notice { margin: 12px 0 0; background: #fffbeb; border: 1px solid #fde68a; color: #92400e; border-radius: 12px; padding: 9px 11px; font-size: 0.8rem; font-weight: 700; line-height: 1.6; }
+.cpm-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+.cpm-stats div { background: #fff; border: 1px solid var(--cpm-line); border-radius: 12px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; }
+.cpm-stats span { font-size: 0.72rem; color: var(--cpm-muted); font-weight: 700; }
+.cpm-stats b { font-size: 0.88rem; font-weight: 900; direction: ltr; text-align: right; white-space: nowrap; }
+.cpm-stats .is-remaining { background: var(--cpm-brand-soft); border-color: #a7f3d0; }
+.cpm-stats .is-remaining b { color: var(--cpm-brand); }
+.cpm-progress { height: 7px; border-radius: 999px; background: #e2e8f0; margin-top: 12px; overflow: hidden; }
+.cpm-progress span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #10b981, #047857); transition: width 0.3s ease; }
+.cpm-progress-label { display: block; margin-top: 5px; font-size: 0.72rem; color: var(--cpm-muted); font-weight: 700; }
+
+.cpm-field { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.cpm-field label { font-size: 0.8rem; font-weight: 800; color: #334155; }
+.cpm-field select,
+.cpm-field input:not([type="range"]) {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid var(--cpm-line);
+  border-radius: 12px;
+  background: var(--cpm-field);
+  padding: 0 12px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #0f172a;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.cpm-field select:focus,
+.cpm-field input:focus { border-color: #10b981; box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18); background: #fff; }
+.cpm-segment { display: grid; grid-template-columns: repeat(var(--cpm-n, 3), 1fr); gap: 4px; padding: 4px; background: #f1f5f9; border-radius: 14px; }
+.cpm-segment button { min-height: 38px; padding: 0 4px; line-height: 1.2; border-radius: 10px; font-size: 0.82rem; font-weight: 800; color: #475569; transition: background 0.15s ease, color 0.15s ease; }
+.cpm-segment button.is-on { background: #fff; color: var(--cpm-brand); box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12); }
+.cpm-chips { display: flex; gap: 6px; }
+.cpm-chips button { flex: 1; min-height: 36px; border-radius: 10px; border: 1px solid var(--cpm-line); font-weight: 800; font-size: 0.82rem; color: #334155; background: #fff; }
+.cpm-chips button.is-on { border-color: #10b981; background: var(--cpm-brand-soft); color: var(--cpm-brand); }
+.cpm-range { width: 100%; accent-color: #10b981; }
+.cpm-amount { display: flex; align-items: center; border: 1px solid var(--cpm-line); border-radius: 14px; background: #fff; padding: 0 14px; min-height: 58px; gap: 8px; }
+.cpm-amount:focus-within { border-color: #10b981; box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18); }
+.cpm-field .cpm-amount input { flex: 1; border: 0; background: transparent; box-shadow: none; min-height: 56px; padding: 0; font-size: 1.35rem; font-weight: 900; text-align: left; }
+.cpm-amount.is-readonly { background: var(--cpm-brand-soft); border-color: #a7f3d0; }
+.cpm-field .cpm-amount.is-readonly input { color: var(--cpm-brand); background: transparent; }
+.cpm-amount-value { flex: 1; font-size: 1.35rem; font-weight: 900; color: var(--cpm-brand); direction: ltr; text-align: left; }
+.cpm-amount small { color: var(--cpm-muted); font-size: 0.75rem; font-weight: 700; }
+.cpm-currency { font-weight: 900; color: var(--cpm-muted); font-size: 0.9rem; }
+.cpm-hint { color: var(--cpm-muted); font-size: 0.75rem; }
+.cpm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+.cpm-foot { display: flex; gap: 10px; padding: 14px 20px calc(14px + env(safe-area-inset-bottom)); border-top: 1px solid var(--cpm-line); background: inherit; }
+.cpm-cancel { flex: 1; min-height: 50px; border-radius: 14px; background: #f1f5f9; color: #334155; font-weight: 800; font-size: 0.92rem; }
+.cpm-submit { flex: 2; min-height: 50px; white-space: nowrap; padding: 0 12px; border-radius: 14px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: linear-gradient(135deg, #059669, #047857); color: #fff; font-weight: 900; font-size: 0.95rem; box-shadow: 0 8px 20px rgba(4, 120, 87, 0.28); }
+.cpm-submit svg { width: 19px; height: 19px; }
+.cpm-submit:disabled { opacity: 0.55; cursor: not-allowed; box-shadow: none; }
+
+/* Phones: a bottom sheet, one column. */
+@media (max-width: 560px) {
+  .cpm-scrim { align-items: flex-end; padding: 0; }
+  .cpm { max-width: none; max-height: 94vh; border-radius: 22px 22px 0 0; animation-name: cpm-up; }
+  .cpm-grid { grid-template-columns: 1fr; }
+  .cpm-stats { gap: 6px; }
+  .cpm-stats div { padding: 7px 8px; }
+  .cpm-stats b { font-size: 0.74rem; }
+  .cpm-cancel { flex: 0 0 92px; }
+  .cpm-submit { font-size: 0.86rem; }
+}
+@keyframes cpm-up { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) { .cpm, .cpm-scrim { animation: none; } }

@@ -1,9 +1,11 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { CheckCircle2, Loader2, Wallet, X } from 'lucide-react';
 import { fmtMoney, PAY_METHODS } from './money';
-import { EntityNameCell } from './EntityAvatar';
 import { resolveClientAvatarFromIndex } from '@/lib/entity-avatar-display';
+import './client-payment.css';
 
 export type Collectible = {
   reservation_id: string;
@@ -23,7 +25,7 @@ export type Collectible = {
   awaiting_deposit?: boolean;
 };
 
-type AmountMode = 'full' | 'partial' | 'percent';
+type AmountMode = 'deposit' | 'full' | 'partial' | 'percent';
 
 export default function ClientPaymentModal({
   onClose,
@@ -73,8 +75,10 @@ export default function ClientPaymentModal({
             ? Math.min(mine.deposit_due, mine.remaining)
             : mine.remaining;
           setAmount(cap);
-          setPercent(100);
-          setAmountMode('full');
+          // A booking waiting for its deposit starts on "deposit", otherwise on the full remainder.
+          const depositFirst = Boolean(mine.awaiting_deposit && mine.deposit_due && mine.deposit_due < mine.remaining);
+          setPercent(depositFirst ? Math.round((cap / mine.remaining) * 100) : 100);
+          setAmountMode(depositFirst ? 'deposit' : 'full');
         }
       })
       .catch((e) => setErr(e.message || 'خطأ'));
@@ -92,11 +96,14 @@ export default function ClientPaymentModal({
   }, [onClose]);
 
   const ceiling = selected ? selected.remaining : null;
+  const depositDue =
+    selected?.awaiting_deposit && selected.deposit_due && selected.deposit_due < selected.remaining ? selected.deposit_due : null;
 
   const handleModeChange = (mode: AmountMode) => {
     setAmountMode(mode);
     if (!ceiling) return;
     if (mode === 'full') { setAmount(ceiling); setPercent(100); }
+    else if (mode === 'deposit' && depositDue) { setAmount(depositDue); setPercent(Math.round((depositDue / ceiling) * 100)); }
     else if (mode === 'percent') { setAmount(Math.round((percent / 100) * ceiling)); }
   };
 
@@ -148,227 +155,157 @@ export default function ClientPaymentModal({
     ? Math.round((selected.paid / selected.total) * 100)
     : 0;
 
-  return (
-    <div
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4"
-      style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)' }}
-      onClick={onClose}
-    >
-      <form
-        className="acct-card rounded-2xl w-full max-w-md acct-modal"
-        style={{ maxHeight: '90vh', overflowY: 'auto' }}
-        onClick={(e) => e.stopPropagation()}
-        onSubmit={submit}
-        dir="rtl"
-      >
-        {/* Header */}
-        <div style={{ padding: '20px 20px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <h4 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>تحصيل</h4>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, opacity: 0.4, lineHeight: 1, padding: '0 4px' }}
-          >×</button>
-        </div>
+  const avatar = selected
+    ? selected.customer_avatar || resolveClientAvatarFromIndex(avatarIndex, selected.customer_code, selected.customer_name)
+    : '';
+  const quickPercents = [25, 50, 75, 100];
 
-        <div style={{ padding: '0 20px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+  // Rendered on <body>: the window looks the same from any dashboard (it no longer
+  // depends on the accountant workspace's styles, which other pages do not have).
+  if (typeof document === 'undefined') return null;
+  return createPortal(
+    <div className="cpm-scrim" onClick={onClose}>
+      <form className="cpm" onClick={(e) => e.stopPropagation()} onSubmit={submit} dir="rtl" role="dialog" aria-modal="true" aria-labelledby="cpm-title">
+        <header className="cpm-head">
+          <span className="cpm-head-icon"><Wallet aria-hidden /></span>
+          <div>
+            <h4 id="cpm-title">تسجيل دفعة</h4>
+            <small>تحصيل مبلغ من العميل على حجزه</small>
+          </div>
+          <button type="button" className="cpm-close" onClick={onClose} aria-label="إغلاق"><X aria-hidden /></button>
+        </header>
 
-          {/* Error */}
-          {err && (
-            <div style={{
-              background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.2)',
-              borderRadius: 10, padding: '8px 12px', fontSize: 12, color: '#dc2626', fontWeight: 600,
-            }}>
-              {err}
-            </div>
-          )}
+        <div className="cpm-body">
+          {err ? <div className="cpm-error" role="alert">{err}</div> : null}
 
-          {/* Client / booking card */}
           {selected ? (
-            <div style={{ background: 'var(--acct-input)', borderRadius: 12, padding: 14 }}>
-              {selected.awaiting_deposit && (
-                <div style={{
-                  fontSize: 11, fontWeight: 600, color: '#92400e',
-                  background: 'rgba(251,191,36,0.15)', borderRadius: 8,
-                  padding: '6px 10px', marginBottom: 10,
-                }}>
-                  ملاحظة: العربون ({fmtMoney(selected.deposit_due || 0)}) غير مدفوع — تسجيل هذه الدفعة يُكمِل التأكيد النهائي.
-                </div>
-              )}
-              <EntityNameCell
-                variant="client"
-                name={selected.customer_name}
-                imageUrl={
-                  selected.customer_avatar ||
-                  resolveClientAvatarFromIndex(avatarIndex, selected.customer_code, selected.customer_name)
-                }
-                meta={selected.package_name}
-              />
-              {/* Progress bar */}
-              <div style={{ marginTop: 12 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, opacity: 0.55, marginBottom: 4 }}>
-                  <span>المدفوع · {paidPercent}%</span>
-                  <span>{fmtMoney(selected.paid)}</span>
-                </div>
-                <div style={{ height: 5, borderRadius: 5, background: 'var(--acct-border, rgba(0,0,0,0.1))' }}>
-                  <div style={{
-                    height: '100%', borderRadius: 5,
-                    background: 'var(--acct-emerald, #10b981)',
-                    width: `${paidPercent}%`, transition: 'width 0.3s ease',
-                  }} />
-                </div>
-              </div>
-              {/* Remaining badge */}
-              <div style={{
-                marginTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                padding: '8px 10px', background: 'rgba(16,185,129,0.08)',
-                borderRadius: 8, border: '1px solid rgba(16,185,129,0.2)',
-              }}>
-                <span style={{ fontSize: 11, fontWeight: 600, opacity: 0.75 }}>المتبقي</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--acct-emerald, #10b981)' }}>
-                  {fmtMoney(selected.remaining)}
+            <section className="cpm-client">
+              <div className="cpm-client-top">
+                <span className="cpm-avatar">
+                  {avatar ? <img src={avatar} alt="" /> : <b>{(selected.customer_name || '؟').charAt(0)}</b>}
                 </span>
+                <div className="cpm-client-name">
+                  <strong>{selected.customer_name}</strong>
+                  <small>{selected.package_name}</small>
+                </div>
+                {selected.reference ? <span className="cpm-ref" dir="ltr">{selected.reference}</span> : null}
               </div>
-            </div>
+
+              {selected.awaiting_deposit ? (
+                <p className="cpm-notice">
+                  العربون ({fmtMoney(selected.deposit_due || 0)}) غير مدفوع بعد. تسجيل هذه الدفعة يُكمل تأكيد الحجز.
+                </p>
+              ) : null}
+
+              <div className="cpm-stats">
+                <div><span>الإجمالي</span><b>{fmtMoney(selected.total)}</b></div>
+                <div><span>المدفوع</span><b>{fmtMoney(selected.paid)}</b></div>
+                <div className="is-remaining"><span>المتبقي</span><b>{fmtMoney(selected.remaining)}</b></div>
+              </div>
+              <div className="cpm-progress" aria-label={`المدفوع ${paidPercent}%`}>
+                <span style={{ width: `${paidPercent}%` }} />
+              </div>
+              <small className="cpm-progress-label">مدفوع {paidPercent}%</small>
+            </section>
           ) : (
-            <div style={{ textAlign: 'center', padding: '20px 0', opacity: 0.5, fontSize: 12 }}>
-              جاري التحميل…
-            </div>
+            <div className="cpm-loading"><Loader2 className="animate-spin" aria-hidden /> جارٍ تحميل الحجز…</div>
           )}
 
-          {/* Amount */}
-          {ceiling !== null && (
-            <div>
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, opacity: 0.6, marginBottom: 8 }}>المبلغ</label>
-
-              {/* Mode toggle */}
-              <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+          {ceiling !== null ? (
+            <section className="cpm-field">
+              <label>المبلغ المُحصَّل</label>
+              <div className="cpm-segment" role="tablist" style={{ ['--cpm-n' as string]: depositDue ? 4 : 3 }}>
                 {([
-                  { id: 'full', label: 'الكل' },
+                  ...(depositDue ? [{ id: 'deposit', label: 'العربون' }] : []),
+                  { id: 'full', label: 'المتبقي كاملاً' },
                   { id: 'partial', label: 'مبلغ محدد' },
                   { id: 'percent', label: 'نسبة %' },
                 ] as { id: AmountMode; label: string }[]).map((m) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => handleModeChange(m.id)}
-                    style={{
-                      flex: 1, padding: '7px 4px', borderRadius: 8, fontSize: 11, fontWeight: 600,
-                      border: '1px solid var(--acct-border, rgba(0,0,0,0.1))',
-                      cursor: 'pointer', transition: 'all 0.15s',
-                      background: amountMode === m.id ? 'var(--acct-emerald, #10b981)' : 'var(--acct-input)',
-                      color: amountMode === m.id ? '#fff' : 'inherit',
-                    }}
-                  >
+                  <button key={m.id} type="button" role="tab" aria-selected={amountMode === m.id} className={amountMode === m.id ? 'is-on' : ''} onClick={() => handleModeChange(m.id)}>
                     {m.label}
                   </button>
                 ))}
               </div>
 
               {amountMode === 'percent' ? (
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <input
-                      type="number" min={1} max={100}
-                      className="acct-input"
-                      style={{ width: 64, textAlign: 'center' }}
-                      value={percent}
-                      onChange={(e) => handlePercentChange(Number(e.target.value))}
-                    />
-                    <span style={{ fontSize: 16, fontWeight: 700, opacity: 0.4 }}>%</span>
-                    <input
-                      type="range" min={1} max={100} value={percent}
-                      onChange={(e) => handlePercentChange(Number(e.target.value))}
-                      style={{ flex: 1, accentColor: 'var(--acct-emerald, #10b981)' }}
-                    />
+                <>
+                  <div className="cpm-chips">
+                    {quickPercents.map((p) => (
+                      <button key={p} type="button" className={percent === p ? 'is-on' : ''} onClick={() => handlePercentChange(p)}>{p}%</button>
+                    ))}
                   </div>
-                  <p style={{ fontSize: 12, fontWeight: 600, marginTop: 6, opacity: 0.65 }}>= {fmtMoney(amount)}</p>
-                </div>
+                  <input
+                    type="range"
+                    min={1}
+                    max={100}
+                    value={percent}
+                    onChange={(e) => handlePercentChange(Number(e.target.value))}
+                    className="cpm-range"
+                    aria-label="النسبة"
+                  />
+                  <div className="cpm-amount is-readonly">
+                    <span className="cpm-amount-value">{fmtMoney(amount)}</span>
+                    <small>{percent}% من المتبقي</small>
+                  </div>
+                </>
               ) : (
-                <input
-                  type="number" required min={1} max={ceiling}
-                  className="acct-input w-full"
-                  value={amount}
-                  readOnly={amountMode === 'full'}
-                  onChange={(e) => {
-                    if (amountMode === 'full') setAmountMode('partial');
-                    handleAmountChange(Number(e.target.value));
-                  }}
-                />
+                <div className={`cpm-amount${amountMode === 'full' || amountMode === 'deposit' ? ' is-readonly' : ''}`}>
+                  <input
+                    type="number"
+                    required
+                    min={1}
+                    max={ceiling}
+                    inputMode="decimal"
+                    value={amount}
+                    readOnly={amountMode === 'full' || amountMode === 'deposit'}
+                    onChange={(e) => {
+                      if (amountMode === 'full' || amountMode === 'deposit') setAmountMode('partial');
+                      handleAmountChange(Number(e.target.value));
+                    }}
+                    aria-label="المبلغ"
+                    dir="ltr"
+                  />
+                  <span className="cpm-currency">دج</span>
+                </div>
               )}
+              {amountMode === 'partial' ? <small className="cpm-hint">الحد الأقصى {fmtMoney(ceiling)}</small> : null}
+            </section>
+          ) : null}
 
-              {amountMode !== 'full' && (
-                <p style={{ fontSize: 11, opacity: 0.4, marginTop: 4 }}>الحد الأقصى {fmtMoney(ceiling)}</p>
-              )}
-            </div>
-          )}
-
-          {/* Date */}
-          <div>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, opacity: 0.6, marginBottom: 6 }}>التاريخ</label>
-            <input
-              type="date"
-              className="acct-input w-full"
-              value={entryDate}
-              onChange={(e) => setEntryDate(e.target.value)}
-            />
-          </div>
-
-          {/* Method + Treasury */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <div>
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, opacity: 0.6, marginBottom: 6 }}>طريقة الدفع</label>
-              <select className="acct-input w-full" value={method} onChange={(e) => setMethod(e.target.value)}>
+          <div className="cpm-grid">
+            <section className="cpm-field">
+              <label htmlFor="cpm-method">طريقة الدفع</label>
+              <select id="cpm-method" value={method} onChange={(e) => setMethod(e.target.value)}>
                 {PAY_METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
               </select>
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, opacity: 0.6, marginBottom: 6 }}>الخزينة</label>
-              <select className="acct-input w-full" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+            </section>
+            <section className="cpm-field">
+              <label htmlFor="cpm-account">الخزينة</label>
+              <select id="cpm-account" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
                 <option value="">غير محدد</option>
                 {accounts.map((a) => <option key={a.id} value={a.id}>{a.name_ar}</option>)}
               </select>
-            </div>
-          </div>
-
-          {/* Note */}
-          <div>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, opacity: 0.6, marginBottom: 6 }}>ملاحظة</label>
-            <input
-              className="acct-input w-full"
-              placeholder="اختياري"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-            />
-          </div>
-
-          {/* Actions */}
-          <div style={{ display: 'flex', gap: 8, paddingTop: 2 }}>
-            <button
-              type="button"
-              className="acct-muted"
-              style={{ flex: 1, padding: '11px 0', borderRadius: 10, fontWeight: 700, fontSize: 13, cursor: 'pointer', border: 'none' }}
-              onClick={onClose}
-            >
-              إلغاء
-            </button>
-            <button
-              type="submit"
-              disabled={busy || !selected}
-              style={{
-                flex: 2, padding: '11px 0', borderRadius: 10,
-                background: 'var(--acct-emerald, #10b981)', color: '#fff',
-                fontWeight: 700, fontSize: 13, border: 'none',
-                cursor: busy || !selected ? 'not-allowed' : 'pointer',
-                opacity: busy || !selected ? 0.6 : 1, transition: 'opacity 0.15s',
-              }}
-            >
-              {busy ? '…' : `تسجيل${amount > 0 ? ' · ' + fmtMoney(amount) : ''}`}
-            </button>
+            </section>
+            <section className="cpm-field">
+              <label htmlFor="cpm-date">تاريخ الدفع</label>
+              <input id="cpm-date" type="date" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} />
+            </section>
+            <section className="cpm-field">
+              <label htmlFor="cpm-note">ملاحظة</label>
+              <input id="cpm-note" placeholder="اختياري: رقم الوصل…" value={note} onChange={(e) => setNote(e.target.value)} />
+            </section>
           </div>
         </div>
+
+        <footer className="cpm-foot">
+          <button type="button" className="cpm-cancel" onClick={onClose}>إلغاء</button>
+          <button type="submit" className="cpm-submit" disabled={busy || !selected || amount <= 0}>
+            {busy ? <Loader2 className="animate-spin" aria-hidden /> : <CheckCircle2 aria-hidden />}
+            {busy ? 'جارٍ التسجيل…' : `تسجيل الدفعة${amount > 0 ? ` · ${fmtMoney(amount)}` : ''}`}
+          </button>
+        </footer>
       </form>
-    </div>
+    </div>,
+    document.body
   );
 }
-
