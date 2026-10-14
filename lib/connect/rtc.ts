@@ -274,20 +274,96 @@ function burst(freqs: number[], seconds: number, volume: number) {
   });
 }
 
-/** Ringback for the caller (440+480 Hz, 2 s on / 4 s off) or ringer for the callee (louder, with vibration). */
-export function startTone(kind: 'ringback' | 'ring') {
-  stopTone();
+/* ---------------- ringtone: "South Street" melody (synthesised, no audio file) ----------------
+ * A bright marimba phrase answered by two bird-like chirps. It starts soft and
+ * swells to full volume over ~10 s (like a phone that "rings louder"), through a
+ * compressor so it is loud on small speakers without crackling. */
+
+const NOTE = { E5: 659.25, G5: 783.99, A5: 880, C6: 1046.5, D6: 1174.66, E6: 1318.51 } as const;
+const PHRASE: [number, keyof typeof NOTE, number][] = [
+  [0.0, 'E5', 0.8], [0.16, 'G5', 0.7], [0.32, 'A5', 0.75], [0.48, 'C6', 0.9],
+  [0.8, 'A5', 0.7], [0.96, 'C6', 0.75], [1.12, 'D6', 0.8], [1.28, 'E6', 1],
+  [1.6, 'D6', 0.7], [1.76, 'C6', 0.7], [1.92, 'A5', 0.75], [2.08, 'G5', 0.85],
+];
+const RING_LOOP_S = 3.4;
+
+let ringBus: GainNode | null = null;
+
+function marimba(c: AudioContext, bus: AudioNode, freq: number, at: number, vel: number) {
+  // Woody body: fundamental + a quick, bright 4th partial (the mallet "tock").
+  const parts: [number, number, number][] = [[1, vel * 0.55, 0.9], [2, vel * 0.08, 0.35], [4, vel * 0.16, 0.09]];
+  for (const [mul, peak, decay] of parts) {
+    const o = c.createOscillator();
+    const g = c.createGain();
+    o.type = 'sine';
+    o.frequency.value = freq * mul;
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(peak, at + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + decay);
+    o.connect(g).connect(bus);
+    o.start(at);
+    o.stop(at + decay + 0.05);
+  }
+}
+
+function chirp(c: AudioContext, bus: AudioNode, at: number, from: number, to: number, dur: number) {
+  const o = c.createOscillator();
+  const g = c.createGain();
+  o.type = 'sine';
+  o.frequency.setValueAtTime(from, at);
+  o.frequency.exponentialRampToValueAtTime(to, at + dur * 0.7);
+  o.frequency.exponentialRampToValueAtTime(from * 1.1, at + dur);
+  g.gain.setValueAtTime(0.0001, at);
+  g.gain.exponentialRampToValueAtTime(0.22, at + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+  o.connect(g).connect(bus);
+  o.start(at);
+  o.stop(at + dur + 0.02);
+}
+
+function playRingPhrase(c: AudioContext, bus: AudioNode) {
+  const t = c.currentTime + 0.05;
+  PHRASE.forEach(([dt, n, v]) => marimba(c, bus, NOTE[n], t + dt, v));
+  chirp(c, bus, t + 2.42, 2600, 3900, 0.11);
+  chirp(c, bus, t + 2.56, 2800, 4300, 0.1);
+  chirp(c, bus, t + 2.74, 3000, 4600, 0.14);
+}
+
+function startRingtone() {
+  const c = ctx();
+  const now = c.currentTime;
+  const comp = c.createDynamicsCompressor();
+  comp.threshold.value = -20;
+  comp.knee.value = 10;
+  comp.ratio.value = 5;
+  comp.attack.value = 0.003;
+  comp.release.value = 0.25;
+  const bus = c.createGain();
+  bus.gain.setValueAtTime(0.0001, now);
+  bus.gain.exponentialRampToValueAtTime(0.35, now + 0.6); // soft start
+  bus.gain.linearRampToValueAtTime(1, now + 10); // then swell to full volume
+  const makeup = c.createGain();
+  makeup.gain.value = 1.6;
+  bus.connect(comp).connect(makeup).connect(c.destination);
+  ringBus = bus;
   const play = () => {
-    if (kind === 'ring') {
-      burst([440, 480], 1, 0.22);
-      window.setTimeout(() => burst([440, 480], 1, 0.22), 1200);
-      navigator.vibrate?.([800, 400, 800]);
-    } else {
-      burst([440, 480], 2, 0.08);
-    }
+    playRingPhrase(c, bus);
+    navigator.vibrate?.([350, 150, 350, 150, 900]);
   };
   play();
-  toneTimer = window.setInterval(play, kind === 'ring' ? 3500 : 6000);
+  toneTimer = window.setInterval(play, RING_LOOP_S * 1000);
+}
+
+/** Ringback for the caller (440+480 Hz, 2 s on / 4 s off), or the melodic ringtone for the callee. */
+export function startTone(kind: 'ringback' | 'ring') {
+  stopTone();
+  if (kind === 'ring') {
+    startRingtone();
+    return;
+  }
+  const play = () => burst([440, 480], 2, 0.08);
+  play();
+  toneTimer = window.setInterval(play, 6000);
 }
 
 export function stopTone() {
@@ -300,5 +376,15 @@ export function stopTone() {
     }
   });
   toneNodes = [];
+  if (ringBus && toneCtx) {
+    // Quick fade instead of a click, then cut the chain (silences notes already scheduled).
+    const bus = ringBus;
+    ringBus = null;
+    const g = bus.gain as AudioParam & { cancelAndHoldAtTime?: (t: number) => void };
+    if (g.cancelAndHoldAtTime) g.cancelAndHoldAtTime(toneCtx.currentTime);
+    else g.cancelScheduledValues(toneCtx.currentTime);
+    bus.gain.setTargetAtTime(0.0001, toneCtx.currentTime, 0.03);
+    window.setTimeout(() => bus.disconnect(), 200);
+  }
   navigator.vibrate?.(0);
 }

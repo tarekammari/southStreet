@@ -5,6 +5,7 @@
  * Chats, voice notes and voice calls between clients and the agency team.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import dynamic from 'next/dynamic';
 import { Bell, BellOff, Download, Info, Loader2, RefreshCw, MessageCircle, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Search, Users } from 'lucide-react';
 import { authHeaders, jsonAuthHeaders } from '@/lib/api-client';
@@ -13,7 +14,8 @@ import type { ConnectContact, ConnectUser } from '@/lib/connect/store';
 import ChatView from './ChatView';
 import AboutSheet from './AboutSheet';
 import { versionLabel } from '@/lib/connect/version';
-import CallOverlay, { type CallView } from './CallOverlay';
+import CallOverlay, { CallMini, type CallView } from './CallOverlay';
+import { usePipWindow } from './usePipWindow';
 import './connect.css';
 
 const LoginModal = dynamic(() => import('@/components/LoginModal'), { ssr: false });
@@ -74,6 +76,9 @@ export default function ConnectApp() {
   const [updateReady, setUpdateReady] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [live, setLive] = useState(false);
+  const [minimized, setMinimized] = useState(false);
+  const pip = usePipWindow();
+  const { close: closePip, open: openPip, supported: pipSupported } = pip;
   const callRef = useRef<VoiceCall | null>(null);
   const incomingRef = useRef<Incoming | null>(null);
   const stamps = useRef<Record<string, number>>({});
@@ -185,10 +190,57 @@ export default function ConnectApp() {
     endUi('declined');
   };
 
+  const hangupCall = () => (callRef.current ? callRef.current.hangup('hangup') : declineCall());
+
+  const toggleMute = () =>
+    setCallView((v) => {
+      if (!v) return v;
+      callRef.current?.setMuted(!v.muted);
+      return { ...v, muted: !v.muted };
+    });
+
+  const popOutCall = async () => {
+    if (await pip.open()) setMinimized(true);
+  };
+
+  const expandCall = () => {
+    pip.close();
+    setMinimized(false);
+    window.focus();
+  };
+
+  // Call over: close the floating window and reset the minimised state.
+  useEffect(() => {
+    if (callView) return;
+    closePip();
+    setMinimized(false);
+  }, [callView, closePip]);
+
+  // Chrome / Edge open the floating window by themselves when the user switches
+  // away from the app during a call (automatic Picture-in-Picture).
+  const inCall = callView?.phase === 'active' || callView?.phase === 'connecting';
+  useEffect(() => {
+    if (!inCall || !pipSupported || !('mediaSession' in navigator)) return;
+    const ms = navigator.mediaSession as unknown as { setActionHandler(action: string, handler: (() => void) | null): void };
+    try {
+      ms.setActionHandler('enterpictureinpicture', () => void openPip().then((w) => w && setMinimized(true)));
+    } catch {
+      return; // not supported by this browser version
+    }
+    return () => {
+      try {
+        ms.setActionHandler('enterpictureinpicture', null);
+      } catch {
+        /* ignore */
+      }
+    };
+  }, [inCall, pipSupported, openPip]);
+
   /* ---------- live connection ---------- */
   const showIncoming = useCallback((inc: Incoming) => {
     if (callRef.current || incomingRef.current) return;
     incomingRef.current = inc;
+    setMinimized(false);
     setCallView({ peerName: inc.caller.name, peerPhoto: inc.caller.photo, peerRole: inc.caller.roleLabel, phase: 'incoming', muted: false });
     // Opened from the notification's "رد" button: answer straight away.
     if (autoAnswer.current && autoAnswer.current === inc.id) {
@@ -528,19 +580,28 @@ export default function ConnectApp() {
         <AboutSheet onClose={() => setAboutOpen(false)} live={live} serverPush={Boolean(vapid)} pushState={pushState} onEnablePush={enablePush} />
       ) : null}
 
-      {callView ? (
+      {callView && !minimized ? (
         <CallOverlay
           view={callView}
           onAccept={() => void acceptCall()}
           onDecline={declineCall}
-          onHangup={() => (callRef.current ? callRef.current.hangup('hangup') : declineCall())}
-          onMute={() => setCallView((v) => {
-            if (!v) return v;
-            callRef.current?.setMuted(!v.muted);
-            return { ...v, muted: !v.muted };
-          })}
+          onHangup={hangupCall}
+          onMute={toggleMute}
+          onMinimize={() => setMinimized(true)}
+          canPopOut={pip.supported}
+          onPopOut={() => void popOutCall()}
         />
       ) : null}
+
+      {/* Minimised: a floating card in the page (when no Picture-in-Picture window is open). */}
+      {callView && minimized && !pip.win ? (
+        <CallMini view={callView} onHangup={hangupCall} onMute={toggleMute} onExpand={expandCall} />
+      ) : null}
+
+      {/* Windows / desktop: the same card in an always-on-top window over every app. */}
+      {callView && pip.win
+        ? createPortal(<CallMini inPip view={callView} onHangup={hangupCall} onMute={toggleMute} onExpand={expandCall} />, pip.win.document.body)
+        : null}
     </div>
   );
 }

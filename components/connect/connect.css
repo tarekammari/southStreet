@@ -102,29 +102,94 @@
 .cn-rec-label { flex: 1; color: var(--cn-muted); font-size: 0.86rem; }
 @keyframes cn-pulse { 50% { opacity: 0.3; } }
 
-/* ---------- call screen ---------- */
+/* ---------- call screen (phone-style) ---------- */
 .cn-call {
   position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: space-between;
-  padding: calc(env(safe-area-inset-top) + 64px) 24px calc(env(safe-area-inset-bottom) + 48px);
-  background: radial-gradient(700px 400px at 50% 0%, rgba(16, 185, 129, 0.35), transparent 70%), linear-gradient(180deg, #053d2e, #0b1f19 70%);
-  color: #fff; animation: cn-fade 0.2s ease;
+  padding: calc(env(safe-area-inset-top) + 14px) 24px calc(env(safe-area-inset-bottom) + 44px);
+  background: radial-gradient(700px 420px at 50% 0%, rgba(16, 185, 129, 0.38), transparent 70%), linear-gradient(180deg, #053d2e, #0b1f19 72%);
+  color: #fff; animation: cn-fade 0.25s ease; overflow: hidden; isolation: isolate;
+  font-family: var(--font-tajawal), 'Tajawal', system-ui, sans-serif;
 }
 @keyframes cn-fade { from { opacity: 0; } }
-.cn-call-top { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
-.cn-call-avatar { display: grid; place-items: center; width: 120px; height: 120px; border-radius: 50%; background: rgba(255, 255, 255, 0.12); font-size: 2.8rem; font-weight: 900; overflow: hidden; box-shadow: 0 0 0 10px rgba(255, 255, 255, 0.05), 0 0 0 22px rgba(255, 255, 255, 0.03); }
-.cn-call.is-incoming .cn-call-avatar, .cn-call.is-ringing .cn-call-avatar, .cn-call.is-calling .cn-call-avatar { animation: cn-ring 1.6s ease-in-out infinite; }
-@keyframes cn-ring { 50% { box-shadow: 0 0 0 16px rgba(255, 255, 255, 0.08), 0 0 0 34px rgba(255, 255, 255, 0.03); } }
+.cn-call.is-incoming { animation: cn-rise 0.35s cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes cn-rise { from { opacity: 0; transform: translateY(24px) scale(0.98); } }
+.cn-call-backdrop {
+  position: absolute; inset: -40px; z-index: -2; background-size: cover; background-position: center;
+  filter: blur(38px) saturate(1.25) brightness(0.45); transform: scale(1.1);
+}
+.cn-call::after { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgba(5, 61, 46, 0.35), rgba(11, 31, 25, 0.75)); pointer-events: none; }
+.cn-call-bar { width: 100%; max-width: 520px; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; }
+.cn-call-brand { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 700; color: rgba(255, 255, 255, 0.75); direction: ltr; }
+.cn-call-brand img { width: 18px; height: 18px; border-radius: 5px; }
+.cn-call-chip { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; color: #fff !important; background: rgba(255, 255, 255, 0.12); backdrop-filter: blur(10px); transition: background 0.15s; }
+.cn-call-chip:hover { background: rgba(255, 255, 255, 0.22); }
+
+.cn-call-top { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; margin-top: -4vh; }
+.cn-call-halo { position: relative; display: grid; place-items: center; width: 220px; height: 220px; margin-bottom: 6px; }
+.cn-ripple { position: absolute; inset: 48px; border-radius: 50%; border: 2px solid rgba(167, 243, 208, 0.55); animation: cn-ripple 2.4s cubic-bezier(0.2, 0.6, 0.35, 1) infinite; }
+.cn-ripple:nth-child(2) { animation-delay: 0.8s; }
+.cn-ripple:nth-child(3) { animation-delay: 1.6s; }
+@keyframes cn-ripple { from { transform: scale(1); opacity: 0.9; } to { transform: scale(1.9); opacity: 0; } }
+.cn-call-avatar { position: relative; display: grid; place-items: center; width: 124px; height: 124px; border-radius: 50%; background: linear-gradient(145deg, #10b981, #065f46); font-size: 3rem; font-weight: 900; overflow: hidden; box-shadow: 0 18px 50px -12px rgba(0, 0, 0, 0.6), 0 0 0 4px rgba(255, 255, 255, 0.12); }
 .cn-call-avatar img { width: 100%; height: 100%; object-fit: cover; }
-.cn-call h2 { font-family: var(--font-cairo), 'Cairo', sans-serif; font-size: 1.6rem; font-weight: 900; color: #fff; margin-top: 10px; }
-.cn-call-role { color: rgba(255, 255, 255, 0.7); font-size: 0.9rem; }
-.cn-call-status { color: #a7f3d0; font-size: 1.05rem; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 4px; }
+.cn-call h2 { font-family: var(--font-cairo), 'Cairo', sans-serif; font-size: 1.85rem; font-weight: 900; color: #fff; line-height: 1.3; }
+.cn-call-role { color: rgba(255, 255, 255, 0.72); font-size: 0.92rem; }
+.cn-call-status { display: inline-flex; align-items: center; gap: 6px; color: #a7f3d0; font-size: 1.05rem; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 6px; }
+.cn-shake { animation: cn-shake 1.2s ease-in-out infinite; }
+@keyframes cn-shake { 0%, 50%, 100% { transform: rotate(0); } 10%, 30% { transform: rotate(-14deg); } 20%, 40% { transform: rotate(14deg); } }
+
 .cn-call-actions { display: flex; gap: 56px; }
-.cn-call-btn { display: flex; flex-direction: column; align-items: center; gap: 8px; color: #fff !important; font-size: 0.82rem; font-weight: 700; }
-.cn-call-btn > svg { box-sizing: content-box; padding: 20px; border-radius: 50%; }
+.cn-call-actions.is-incoming { width: 100%; max-width: 360px; justify-content: space-between; gap: 24px; }
+.cn-call-btn { display: flex; flex-direction: column; align-items: center; gap: 10px; color: #fff !important; font-size: 0.86rem; font-weight: 700; }
+.cn-call-btn > svg { box-sizing: content-box; padding: 20px; border-radius: 50%; transition: transform 0.15s; }
+.cn-call-btn:active > svg { transform: scale(0.92); }
+.cn-call-actions.is-incoming .cn-call-btn > svg { padding: 22px; }
 .cn-call-btn.is-accept > svg { background: #22c55e; box-shadow: 0 10px 30px -8px rgba(34, 197, 94, 0.9); }
+.cn-call.is-incoming .cn-call-btn.is-accept > svg { animation: cn-nudge 1.4s ease-in-out infinite; }
+@keyframes cn-nudge { 0%, 60%, 100% { transform: translateY(0); } 15% { transform: translateY(-8px); } 30% { transform: translateY(0); } 45% { transform: translateY(-4px); } }
 .cn-call-btn.is-decline > svg { background: #ef4444; box-shadow: 0 10px 30px -8px rgba(239, 68, 68, 0.9); }
-.cn-call-btn.is-soft > svg { background: rgba(255, 255, 255, 0.14); }
+.cn-call-btn.is-soft > svg { background: rgba(255, 255, 255, 0.14); backdrop-filter: blur(10px); }
 .cn-call-btn.is-soft.is-on > svg { background: #fff; color: #0b1f19; }
+
+/* Desktop: the call screen is a centred phone-like card over the app. */
+@media (min-width: 900px) and (hover: hover) {
+  .cn-call { padding: 32px; justify-content: center; gap: 40px; background: rgba(4, 20, 15, 0.55); backdrop-filter: blur(6px); }
+  .cn-call::after, .cn-call-backdrop { display: none; }
+  .cn-call::before {
+    content: ''; position: absolute; z-index: -1; width: 440px; height: 620px; border-radius: 32px;
+    background: radial-gradient(500px 300px at 50% 0%, rgba(16, 185, 129, 0.38), transparent 70%), linear-gradient(180deg, #053d2e, #0b1f19 75%);
+    box-shadow: 0 40px 90px -30px rgba(0, 0, 0, 0.7);
+  }
+  .cn-call-bar { max-width: 400px; }
+  .cn-call-top { margin-top: 0; }
+}
+
+/* ---------- minimised call: floating card / Picture-in-Picture window ---------- */
+.cn-mini {
+  position: fixed; z-index: 55; inset-inline: 12px; top: calc(env(safe-area-inset-top) + 10px);
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 20px;
+  background: linear-gradient(135deg, #065f46, #0b1f19); color: #fff;
+  box-shadow: 0 18px 40px -14px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  font-family: var(--font-tajawal), 'Tajawal', system-ui, sans-serif; animation: cn-rise 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@media (min-width: 760px) { .cn-mini { inset-inline: auto 20px; top: auto; bottom: 20px; width: 340px; } }
+.cn-mini.is-pip { position: static; width: 100%; height: 100%; box-sizing: border-box; border-radius: 0; box-shadow: none; animation: none; padding: 10px 12px; }
+.cn-mini-who { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; color: #fff !important; background: none; border: 0; padding: 0; cursor: pointer; text-align: start; font: inherit; }
+.cn-mini-avatar { flex: none; width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; overflow: hidden; background: linear-gradient(145deg, #10b981, #065f46); font-weight: 900; font-size: 1.15rem; box-shadow: 0 0 0 2px rgba(167, 243, 208, 0.5); }
+.cn-mini.is-active .cn-mini-avatar { animation: cn-talk 2s ease-in-out infinite; }
+@keyframes cn-talk { 50% { box-shadow: 0 0 0 5px rgba(167, 243, 208, 0.25); } }
+.cn-mini-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.cn-mini-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.cn-mini-text b { font-size: 0.95rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cn-mini-text small { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; color: #a7f3d0; font-weight: 700; font-variant-numeric: tabular-nums; }
+.cn-mini-dot { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; animation: cn-pulse 1.2s ease-in-out infinite; }
+.cn-mini-actions { display: flex; gap: 6px; flex: none; }
+.cn-mini-btn { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; border: 0; cursor: pointer; color: #fff !important; background: rgba(255, 255, 255, 0.14); transition: background 0.15s, transform 0.12s; }
+.cn-mini-btn:hover { background: rgba(255, 255, 255, 0.24); }
+.cn-mini-btn:active { transform: scale(0.92); }
+.cn-mini-btn.is-on { background: #fff; color: #0b1f19 !important; }
+.cn-mini-btn.is-end { background: #ef4444; }
+.cn-mini-btn.is-end:hover { background: #dc2626; }
 
 /* ---------- login ---------- */
 .cn-login { align-items: flex-start; justify-content: center; padding-top: calc(env(safe-area-inset-top) + 32px); }
@@ -141,7 +206,7 @@
   .cn-app.has-chat .cn-main { display: flex; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .cn-call-avatar, .cn-rec-dot { animation: none !important; }
+  .cn-call-avatar, .cn-rec-dot, .cn-ripple, .cn-shake, .cn-call-btn > svg, .cn-mini, .cn-mini-avatar, .cn-mini-dot { animation: none !important; }
 }
 
 .cn-banner.cn-update { background: #e8f5ee !important; color: #0f5132 !important; }
