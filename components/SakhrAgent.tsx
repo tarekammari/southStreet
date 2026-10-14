@@ -8,9 +8,6 @@ import { LOGIN_ROLE_LABELS, normalizeLoginRole } from '@/lib/roles';
 import { adminFetch, keyErrorMessage } from '@/lib/webauthn-client';
 import type { SakhrAgentProps } from '@/components/sakhr/SakhrAgentHelpers';
 import type { VisualSpec } from '@/lib/sakhr/visual';
-import { useAgencyInfo } from '@/components/social/useAgencyInfo';
-import { WhatsAppIcon } from '@/components/social/SocialIcons';
-import { waLink, withUtm } from '@/lib/social';
 import { speak, stopSpeaking, unlockAudio, useArabicVoice, useVoiceRecorder, voiceInputSupported } from '@/components/sakhr/voice';
 
 const TableBrowser = dynamic(() => import('@/components/sakhr/TableBrowser'), { ssr: false });
@@ -284,8 +281,6 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
   };
   const [role, setRole] = useState<string>('ANON');
   // Visitors may prefer WhatsApp: same help, on the app they already use.
-  const agencyInfo = useAgencyInfo();
-  const waHref = agencyInfo?.social.whatsapp ? withUtm(waLink(agencyInfo.social.whatsapp, agencyInfo.social.welcome), 'website', 'sakhr') : '';
   const [table, setTable] = useState<string | null>(null);
   const closeTable = useCallback(() => setTable(null), []);
   const tableNotice = useCallback((text: string) => {
@@ -527,9 +522,9 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
               <div className="skr-empty">
                 <span className="skr-avatar is-big" aria-hidden>ص</span>
                 <p>كيف أقدر نعاونك؟</p>
-                {waHref && role === 'ANON' ? (
-                  <a href={waHref} target="_blank" rel="noreferrer" className="ss-wa-btn is-small is-outline skr-wa">
-                    <WhatsAppIcon /> أو تابع المحادثة على واتساب
+                {role === 'ANON' ? (
+                  <a href="/connect" className="ss-wa-btn is-small is-outline skr-wa">
+                    أو تحدّث مع فريق الوكالة عبر Connect
                   </a>
                 ) : null}
               </div>

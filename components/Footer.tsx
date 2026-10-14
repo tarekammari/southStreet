@@ -1,60 +1,44 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
-import { motion, useInView } from 'framer-motion';
+import { motion } from 'framer-motion';
+import { ArrowLeft, Mail, MapPin, MessageCircle, Phone, PhoneCall, Smartphone } from 'lucide-react';
 import { publicList } from '@/lib/public-catalog';
 import { PageContentRow, pickPageContent } from '@/lib/page-content';
-import { SOCIAL_LABELS, waLink, withUtm } from '@/lib/social';
+import { SOCIAL_LABELS } from '@/lib/social';
 import { useAgencyInfo } from '@/components/social/useAgencyInfo';
-import { SOCIAL_ICON, WhatsAppIcon } from '@/components/social/SocialIcons';
+import { SOCIAL_ICON } from '@/components/social/SocialIcons';
 import { toPortalRole } from '@/lib/roles';
 import PhoneQr from '@/components/PhoneQr';
-import { Smartphone } from 'lucide-react';
+import '@/app/footer.css';
 
 const PRODUCT_LINKS = [
   { label: 'حجز العمرة', href: '/book' },
   { label: 'البرامج', href: '/packages' },
   { label: 'الفنادق', href: '/hotels' },
   { label: 'دليل العمرة', href: '/guide' },
-  { label: 'تطبيق Connect', href: '/app' },
 ];
 
 const COMPANY_LINKS = [
   { label: 'عن الوكالة', href: '/about' },
   { label: 'بوابة الوكالة', href: '/portal' },
+  { label: 'تطبيق Connect', href: '/app' },
   { label: 'لوحة التحكم', href: '/admin' },
-  { label: 'تواصل معنا', href: '#contact' },
 ];
 
-/** Shown until the agency settings load. */
-const CONTACT_FALLBACK = [{ label: 'الجزائر العاصمة', href: '/about#contact' }];
-
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.08, delayChildren: 0.15 },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 14 },
-  visible: {
+const rise = {
+  hidden: { opacity: 0, y: 16 },
+  visible: (i: number) => ({
     opacity: 1,
     y: 0,
-    transition: { duration: 0.45, ease: [0.16, 1, 0.3, 1] as const },
-  },
+    transition: { duration: 0.5, delay: i * 0.07, ease: [0.16, 1, 0.3, 1] as const },
+  }),
 };
 
 export default function Footer({ content }: { content?: PageContentRow[] }) {
-  const [email, setEmail] = useState('');
-  const [sent, setSent] = useState(false);
   const [rows, setRows] = useState<PageContentRow[]>(content || []);
   const [pilgrim, setPilgrim] = useState(false);
-  const footerRef = useRef<HTMLElement>(null);
-  const footerInView = useInView(footerRef, { once: true, amount: 0.12 });
 
   useEffect(() => {
     if (content && content.length > 0) {
@@ -77,190 +61,112 @@ export default function Footer({ content }: { content?: PageContentRow[] }) {
 
   const agency = useAgencyInfo();
   const social = agency?.social;
-  const wa = social?.whatsapp ? waLink(social.whatsapp, social.welcome) : '';
-  const contactLinks = agency
-    ? [
-        agency.phone && { label: agency.phone, href: `tel:${agency.phone.replace(/\s+/g, '')}`, ltr: true },
-        agency.email && { label: agency.email, href: `mailto:${agency.email}`, ltr: true },
-        (agency.address || agency.city) && { label: agency.city || agency.address || '', href: '/about#contact' },
-      ].filter(Boolean) as { label: string; href: string; ltr?: boolean }[]
-    : CONTACT_FALLBACK;
   const profiles = social
     ? (Object.keys(SOCIAL_LABELS) as (keyof typeof SOCIAL_LABELS)[]).filter((k) => social[k]).map((k) => ({ key: k, url: social[k], label: SOCIAL_LABELS[k] }))
     : [];
 
-  const news = pickPageContent(rows, 'footer_newsletter', {
-    title: 'لا تفوّتوا جديدنا',
-    content: 'أدخلوا بريدكم الإلكتروني للأخبار وتحديثات الرحلات',
+  const about = pickPageContent(rows, 'footer_about', {
+    title: 'ساوث ستريت للأسفار والعمرة',
+    content: 'رحلات عمرة وحج منظّمة من الجزائر، بمرافقة دينية وفنادق قريبة من الحرم ومتابعة يومية حتى العودة.',
   });
 
-  // The Umrah guide is public now, so every visitor (pilgrims too) keeps it.
-  const productLinks = PRODUCT_LINKS;
+  const contacts = [
+    agency?.phone && { icon: Phone, label: agency.phone, href: `tel:${agency.phone.replace(/\s+/g, '')}`, ltr: true },
+    agency?.email && { icon: Mail, label: agency.email, href: `mailto:${agency.email}`, ltr: true },
+    { icon: MapPin, label: agency?.city || agency?.address || 'الجزائر العاصمة', href: '/about#contact' },
+  ].filter(Boolean) as { icon: typeof Phone; label: string; href: string; ltr?: boolean }[];
+
   const companyLinks = COMPANY_LINKS.map((link) =>
-    pilgrim && link.href === '/portal'
-      ? { label: 'برنامجي', href: '/portal?tab=program' }
-      : link
+    pilgrim && link.href === '/portal' ? { label: 'برنامجي', href: '/portal?tab=program' } : link
   );
 
   return (
-    <motion.footer
-      ref={footerRef}
-      id="contact"
-      className="ss-footer"
-      initial={{ opacity: 0, y: 36 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.15 }}
-      transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-    >
-      <div className="ss-footer-bg" aria-hidden="true">
-        <span className="ss-footer-orb ss-footer-orb--1" />
-        <span className="ss-footer-orb ss-footer-orb--2" />
-        <span className="ss-footer-orb ss-footer-orb--3" />
-      </div>
+    <footer id="contact" className="sf" dir="rtl">
+      <div className="sf-wrap">
+        {/* Contact goes through Connect: messages and calls with the agency team. */}
+        <motion.div
+          className="sf-cta"
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.4 }}
+          variants={rise}
+          custom={0}
+        >
+          <span className="sf-cta-icon" aria-hidden><MessageCircle /></span>
+          <div className="sf-cta-text">
+            <h2>تحدّث مع فريق الوكالة مباشرة</h2>
+            <p>رسائل ومكالمات صوتية مع مستشاريك ومرشدك عبر تطبيق South Street Connect.</p>
+          </div>
+          <div className="sf-cta-actions">
+            <Link href="/connect" className="sf-btn is-primary">
+              <PhoneCall size={17} /> تواصل عبر Connect
+            </Link>
+            <Link href="/app" className="sf-btn is-ghost">ثبّت التطبيق</Link>
+          </div>
+        </motion.div>
 
-      <div className="ss-footer-card">
-        <div className="ss-footer-top">
-          <motion.form
-            className="ss-footer-news"
-            variants={containerVariants}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, amount: 0.3 }}
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!email.trim()) return;
-              setSent(true);
-            }}
-          >
-            <motion.h2 className="ss-footer-news-title" variants={itemVariants}>
-              {news.title}
-            </motion.h2>
-            <motion.p className="ss-footer-news-copy" variants={itemVariants}>
-              {news.content}
-            </motion.p>
-            {sent ? (
-              <motion.p
-                className="ss-footer-thanks"
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.4 }}
-              >
-                تم تسجيل بريدكم. سنوافيكم بأقرب العروض.
-              </motion.p>
-            ) : (
-              <motion.label className="ss-footer-field" variants={itemVariants}>
-                <span className="sr-only">البريد الإلكتروني</span>
-                <input
-                  type="email"
-                  required
-                  dir="ltr"
-                  placeholder="Enter your email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-                <motion.button
-                  type="submit"
-                  aria-label="إرسال"
-                  whileHover={{ scale: 1.08 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                </motion.button>
-              </motion.label>
-            )}
-          </motion.form>
+        <div className="sf-grid">
+          <motion.div className="sf-brand" initial="hidden" whileInView="visible" viewport={{ once: true }} variants={rise} custom={1}>
+            <Link href="/" aria-label="South Street">
+              <img src="/images/south_street_logo_trans.png" alt="South Street" className="sf-logo" />
+            </Link>
+            <p>{about.content}</p>
+            {profiles.length ? (
+              <div className="sf-socials">
+                {profiles.map((p) => {
+                  const Icon = SOCIAL_ICON[p.key];
+                  return (
+                    <a key={p.key} href={p.url} target="_blank" rel="noreferrer" className="sf-social" aria-label={p.label} title={p.label}>
+                      <Icon />
+                    </a>
+                  );
+                })}
+              </div>
+            ) : null}
+          </motion.div>
 
-          <motion.div
-            className="ss-footer-cols has-qr"
-            variants={containerVariants}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, amount: 0.2 }}
-          >
-            <motion.nav aria-label="البرامج" variants={itemVariants}>
-              <h3>البرامج</h3>
-              {productLinks.map((link) => (
-                <Link key={link.href} href={link.href}>{link.label}</Link>
-              ))}
-            </motion.nav>
-            <motion.nav aria-label="الوكالة" variants={itemVariants}>
-              <h3>الوكالة</h3>
-              {companyLinks.map((link) => (
-                <Link key={link.href} href={link.href}>{link.label}</Link>
-              ))}
-            </motion.nav>
-            <motion.nav aria-label="التواصل" variants={itemVariants}>
-              <h3>التواصل</h3>
-              {contactLinks.map((link) => (
-                <a key={link.href} href={link.href} dir={'ltr' in link && link.ltr ? 'ltr' : undefined}>{link.label}</a>
-              ))}
-              {wa ? (
-                <a href={withUtm(wa, 'website', 'footer')} target="_blank" rel="noreferrer" className="ss-wa-btn is-small" style={{ marginTop: 6, width: 'fit-content' }}>
-                  <WhatsAppIcon /> راسلنا على واتساب
-                </a>
-              ) : null}
-              {profiles.length ? (
-                <div className="ss-socials" style={{ marginTop: 8 }}>
-                  {profiles.map((p) => {
-                    const Icon = SOCIAL_ICON[p.key];
-                    return (
-                      <a key={p.key} href={p.url} target="_blank" rel="noreferrer" className="ss-social" aria-label={p.label} title={p.label}>
-                        <Icon />
-                      </a>
-                    );
-                  })}
-                </div>
-              ) : null}
-            </motion.nav>
-            {/* Desktop / tablet: continue on the phone by scanning (hidden on phones). */}
-            <motion.div className="ss-footer-qr" variants={itemVariants}>
-              <h3><Smartphone className="w-4 h-4" aria-hidden /> على هاتفك</h3>
-              <PhoneQr source="footer" size={124} />
-              <p>امسح الرمز بكاميرا هاتفك لتفتح الموقع وتتابع الحجز من هناك.</p>
-              <Link href="/app" className="ss-footer-qr-link">أو ثبّت تطبيق Connect ←</Link>
-            </motion.div>
+          <motion.nav aria-label="الخدمات" initial="hidden" whileInView="visible" viewport={{ once: true }} variants={rise} custom={2}>
+            <h3>الخدمات</h3>
+            {PRODUCT_LINKS.map((l) => <Link key={l.href} href={l.href}>{l.label}</Link>)}
+          </motion.nav>
+
+          <motion.nav aria-label="الوكالة" initial="hidden" whileInView="visible" viewport={{ once: true }} variants={rise} custom={3}>
+            <h3>الوكالة</h3>
+            {companyLinks.map((l) => <Link key={l.href} href={l.href}>{l.label}</Link>)}
+          </motion.nav>
+
+          <motion.nav aria-label="التواصل" initial="hidden" whileInView="visible" viewport={{ once: true }} variants={rise} custom={4}>
+            <h3>التواصل</h3>
+            {contacts.map((c) => (
+              <a key={c.href} href={c.href} className="sf-contact">
+                <c.icon size={15} aria-hidden />
+                <span dir={c.ltr ? 'ltr' : undefined}>{c.label}</span>
+              </a>
+            ))}
+          </motion.nav>
+
+          {/* Desktop / tablet: continue on the phone by scanning (hidden on phones). */}
+          <motion.div className="sf-qr" initial="hidden" whileInView="visible" viewport={{ once: true }} variants={rise} custom={5}>
+            <PhoneQr source="footer" size={96} />
+            <div>
+              <b><Smartphone size={14} aria-hidden /> على هاتفك</b>
+              <span>امسح الرمز لتتابع من الهاتف</span>
+            </div>
           </motion.div>
         </div>
 
-        <div className="ss-footer-bottom">
-          <motion.p
-            className="ss-footer-legal"
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-          >
-            <a href="#contact">شروط الخدمة</a>
-            <a href="#contact">سياسة الخصوصية</a>
-          </motion.p>
+        <div className="sf-bottom">
+          <span>© 2026 وكالة ساوث ستريت · جميع الحقوق محفوظة</span>
+          <span className="sf-status">الخدمة متاحة</span>
+          <nav aria-label="روابط قانونية">
+            <Link href="/about">شروط الخدمة</Link>
+            <Link href="/about">سياسة الخصوصية</Link>
+            <a href="#top" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="sf-top">
+              للأعلى <ArrowLeft size={14} style={{ transform: 'rotate(90deg)' }} />
+            </a>
+          </nav>
         </div>
       </div>
-
-      <motion.div
-        className="ss-footer-strip"
-        initial={{ opacity: 0, y: 22 }}
-        animate={footerInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 22 }}
-        transition={{ duration: 0.9, delay: 0.5, ease: [0.16, 1, 0.3, 1] }}
-      >
-        <div className="ss-footer-strip-inner">
-          <Link href="/" className="ss-footer-meta-logo" aria-label="South Street Home">
-            <img
-              src="/images/south_street_logo.png"
-              alt=""
-              className="ss-footer-logo"
-              onError={(e) => {
-                // Fall back once only: a second failure must not retry in a loop.
-                const img = e.currentTarget;
-                img.onerror = null;
-                if (!img.src.endsWith('/images/south_street_logo_trans.png')) img.src = '/images/south_street_logo_trans.png';
-              }}
-            />
-          </Link>
-          <span className="ss-footer-meta-sep" aria-hidden="true" />
-          <span className="ss-footer-status">الخدمة متاحة</span>
-          <span className="ss-footer-copy">© 2026 وكالة ساوث ستريت</span>
-        </div>
-      </motion.div>
-    </motion.footer>
+    </footer>
   );
 }

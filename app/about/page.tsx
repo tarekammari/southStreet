@@ -38,11 +38,6 @@ type AgencyInfo = Partial<Record<
 /** Icons for the "why us" cards, in order (repeats when there are more cards). */
 const VALUE_ICONS = [HeartHandshake, BedDouble, ReceiptText, ShieldCheck, Star, Users];
 
-function whatsappHref(raw: string): string {
-  const digits = raw.replace(/[^\d]/g, '').replace(/^00/, '');
-  return `https://wa.me/${digits}`;
-}
-
 export default function AboutPage() {
   const [content, setContent] = useState<PageContentRow[]>([]);
   const [agency, setAgency] = useState<AgencyInfo>({});
@@ -84,7 +79,7 @@ export default function AboutPage() {
       : agency.address || agency.city || '';
   const contacts = [
     agency.phone && { icon: Phone, label: 'الهاتف', value: agency.phone, href: `tel:${agency.phone.replace(/\s+/g, '')}` },
-    agency.whatsapp && { icon: MessageCircle, label: 'واتساب', value: agency.whatsapp, href: whatsappHref(agency.whatsapp) },
+    { icon: MessageCircle, label: 'تطبيق Connect', value: 'رسائل ومكالمات مع فريق الوكالة', href: '/connect' },
     agency.email && { icon: Mail, label: 'البريد الإلكتروني', value: agency.email, href: `mailto:${agency.email}` },
     address && { icon: MapPin, label: 'العنوان', value: address, href: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}` },
     agency.opening_hours && { icon: Clock, label: 'أوقات العمل', value: agency.opening_hours },

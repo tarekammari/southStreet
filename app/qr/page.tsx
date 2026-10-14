@@ -1,10 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Printer } from 'lucide-react';
+import { Phone, Printer } from 'lucide-react';
 import PhoneQr from '@/components/PhoneQr';
 import { useAgencyInfo } from '@/components/social/useAgencyInfo';
-import { WhatsAppIcon } from '@/components/social/SocialIcons';
 import './qr-poster.css';
 
 /**
@@ -66,9 +65,9 @@ export default function QrPoster() {
           <li><b>3</b> اضغط على الرابط الظاهر</li>
         </ol>
 
-        {agency?.whatsapp || agency?.phone ? (
+        {agency?.phone ? (
           <p className="qrp-contact">
-            <WhatsAppIcon /> <span dir="ltr">{agency.whatsapp || agency.phone}</span>
+            <Phone /> <span dir="ltr">{agency.phone}</span>
           </p>
         ) : null}
       </article>

@@ -2,15 +2,15 @@
 
 /**
  * "Link in bio" page for Facebook / Instagram / TikTok profiles: one link that
- * leads to WhatsApp, the programs, booking and the guide. Every button carries
+ * leads to Connect (chat with the agency), the programs, booking and the guide. Every button carries
  * UTM tags so the team can see which network brought the visit.
  */
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { BookOpen, CalendarCheck, ChevronLeft, Info, Phone, Plane } from 'lucide-react';
+import { BookOpen, CalendarCheck, ChevronLeft, Info, MessageCircle, Phone, Plane } from 'lucide-react';
 import { useAgencyInfo } from '@/components/social/useAgencyInfo';
-import { SOCIAL_ICON, WhatsAppIcon } from '@/components/social/SocialIcons';
-import { SOCIAL_LABELS, waLink, withUtm } from '@/lib/social';
+import { SOCIAL_ICON } from '@/components/social/SocialIcons';
+import { SOCIAL_LABELS, withUtm } from '@/lib/social';
 import { publicList } from '@/lib/public-catalog';
 
 type Pkg = { package_id: string; name: string; start_date?: string };
@@ -35,7 +35,6 @@ export default function LinksPage() {
 
   const social = agency?.social;
   const tag = (path: string) => (typeof window === 'undefined' ? path : withUtm(`${window.location.origin}${path}`, source, 'links'));
-  const wa = social?.whatsapp ? withUtm(waLink(social.whatsapp, social.welcome), source, 'links') : '';
   const profiles = social
     ? (Object.keys(SOCIAL_LABELS) as (keyof typeof SOCIAL_LABELS)[]).filter((k) => social[k]).map((k) => ({ key: k, url: social[k], label: SOCIAL_LABELS[k] }))
     : [];
@@ -54,15 +53,13 @@ export default function LinksPage() {
         <h1>{agency?.agency_name || 'ساوث ستريت للأسفار والعمرة'}</h1>
         <p className="ssl-tag">رحلات العمرة والحج من الجزائر · مرافقة دينية · فنادق قريبة من الحرم</p>
 
-        {wa ? (
-          <a href={wa} target="_blank" rel="noreferrer" className="ssl-wa">
-            <WhatsAppIcon className="w-5 h-5" />
-            <span>
-              <b>راسلنا على واتساب</b>
-              <small>ردّ سريع من صخر، مساعدنا الذكي، أو من فريق الوكالة</small>
-            </span>
-          </a>
-        ) : null}
+        <a href={tag('/connect')} className="ssl-wa">
+          <MessageCircle className="w-5 h-5" />
+          <span>
+            <b>تحدّث معنا عبر Connect</b>
+            <small>رسائل ومكالمات مباشرة مع فريق الوكالة</small>
+          </span>
+        </a>
 
         {programs.length ? (
           <section className="ssl-programs" aria-label="أقرب البرامج">
