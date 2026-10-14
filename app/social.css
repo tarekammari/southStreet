@@ -65,3 +65,40 @@
 .ssl-socials { justify-content: center; margin-top: 4px; }
 .ssl-site { color: #047857; font-weight: 800; font-size: 0.85rem; margin-top: 6px; }
 @media (prefers-reduced-motion: reduce) { .ssl-wa, .ssl-link { transition: none; } }
+
+/* Social profiles in the home hero */
+.hero-socials {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+@media (max-width: 980px) {
+  .hero-socials { order: 4; justify-content: center; margin: 1rem auto 0; position: relative; z-index: 3; }
+}
+.hero-socials-label { font-size: 0.8rem; font-weight: 700; color: #64748b; }
+.hero-socials-row { display: flex; gap: 0.45rem; }
+.hero-social {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #334155;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 4px 14px -6px rgba(15, 23, 42, 0.18);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), color 0.2s, background 0.2s;
+}
+.hero-social svg { width: 18px; height: 18px; }
+.hero-social:hover { transform: translateY(-3px); color: #fff; }
+.hero-social.is-facebook:hover { background: #1877f2; }
+.hero-social.is-instagram:hover { background: linear-gradient(45deg, #f58529, #dd2a7b 50%, #8134af); }
+.hero-social.is-tiktok:hover { background: #000; }
+.hero-social.is-youtube:hover { background: #ff0000; }
+.hero-social.is-telegram:hover { background: #229ed9; }
+.hero-social.is-x:hover { background: #0f172a; }
+@media (prefers-reduced-motion: reduce) { .hero-social { transition: none; } .hero-social:hover { transform: none; } }

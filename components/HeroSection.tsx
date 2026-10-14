@@ -7,6 +7,9 @@ import { publicList } from '@/lib/public-catalog';
 import { PageContentRow } from '@/lib/page-content';
 import { useIntroDone } from '@/lib/intro';
 import { isOpenPackageStatus } from '@/lib/package-status';
+import { SOCIAL_LABELS } from '@/lib/social';
+import { useAgencyInfo } from '@/components/social/useAgencyInfo';
+import { SOCIAL_ICON } from '@/components/social/SocialIcons';
 
 type HeroOffer = {
   id: string;
@@ -189,6 +192,11 @@ export default function HeroSection({ content: _content }: { content?: PageConte
     };
   }, []);
 
+  const social = useAgencyInfo()?.social;
+  const profiles = social
+    ? (Object.keys(SOCIAL_LABELS) as (keyof typeof SOCIAL_LABELS)[]).filter((k) => social[k]).map((k) => ({ key: k, url: social[k], label: SOCIAL_LABELS[k] }))
+    : [];
+
   const scrollToAgency = () => {
     const el = document.getElementById('agency-section');
     if (el) el.scrollIntoView({ behavior: 'smooth' });
@@ -263,6 +271,28 @@ export default function HeroSection({ content: _content }: { content?: PageConte
               >
                 جميع الرحلات و العروض
               </button>
+            </motion.div>
+          ) : null}
+
+          {profiles.length ? (
+            <motion.div
+              variants={heroFadeUp}
+              initial="hidden"
+              animate={introDone ? 'show' : 'hidden'}
+              className="hero-socials"
+              dir="rtl"
+            >
+              <span className="hero-socials-label">تابعونا</span>
+              <div className="hero-socials-row">
+                {profiles.map((p) => {
+                  const Icon = SOCIAL_ICON[p.key];
+                  return (
+                    <a key={p.key} href={p.url} target="_blank" rel="noreferrer" className={`hero-social is-${p.key}`} aria-label={p.label} title={p.label}>
+                      <Icon />
+                    </a>
+                  );
+                })}
+              </div>
             </motion.div>
           ) : null}
         </div>
