@@ -700,3 +700,183 @@
   .prow-cta svg { transition: none; transform: none; }
   .prow.is-skeleton { animation: none; }
 }
+
+/* ── Programme product cards (/packages) ── */
+.pcat-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+}
+@media (min-width: 680px) { .pcat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1040px) { .pcat-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+.pcard {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 1.5rem;
+  background: #fff;
+  border: 1px solid #e8edf2;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 10px 30px -18px rgba(15, 23, 42, 0.18);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s;
+}
+.pcard:hover { transform: translateY(-4px); box-shadow: 0 2px 4px rgba(15, 23, 42, 0.04), 0 24px 44px -20px rgba(15, 23, 42, 0.28); }
+.pcard.is-target { box-shadow: 0 0 0 3px rgba(4, 120, 87, 0.3), 0 24px 44px -20px rgba(15, 23, 42, 0.28); }
+.pcard.is-skeleton {
+  min-height: 30rem;
+  border: 0;
+  background: linear-gradient(100deg, #eef2f6 30%, #f8fafc 50%, #eef2f6 70%);
+  background-size: 200% 100%;
+  animation: prog-shimmer 1.4s linear infinite;
+}
+
+/* Photo: the hero of the card */
+.pcard-media { position: relative; aspect-ratio: 4 / 3.1; background: #e2e8f0; overflow: hidden; }
+.pcard-media > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.pcard:hover .pcard-media > img { transform: scale(1.06); }
+.pcard-top {
+  position: absolute;
+  inset: 0.85rem 0.85rem auto;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  z-index: 1;
+}
+.pcard-type, .pcard-status {
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  backdrop-filter: blur(8px);
+}
+.pcard-type { background: rgba(255, 255, 255, 0.92); color: #065f46; }
+.pcard-status { background: rgba(15, 23, 42, 0.7); color: #fff; }
+.pcard-status.is-few { background: #f59e0b; color: #1f1300; }
+.pcard-status.is-full { background: #dc2626; }
+.pcard-heart { margin-inline-start: auto; }
+
+.pcard-date {
+  position: absolute;
+  z-index: 1;
+  inset-inline-end: 0.85rem;
+  top: 3.3rem;
+  width: 3.6rem;
+  padding: 0.4rem 0 0.35rem;
+  border-radius: 0.9rem;
+  text-align: center;
+  background: #fff;
+  color: #0f172a;
+  box-shadow: 0 8px 20px -8px rgba(0, 0, 0, 0.45);
+  line-height: 1.1;
+}
+.pcard-date b { display: block; font-size: 1.45rem; font-weight: 900; color: #047857; }
+.pcard-date span { display: block; font-size: 0.7rem; font-weight: 700; color: #475569; }
+
+.pcard-shade {
+  position: absolute;
+  inset: auto 0 0;
+  padding: 3.5rem 1.1rem 0.95rem;
+  color: #fff;
+  background: linear-gradient(180deg, transparent 0%, rgba(2, 20, 12, 0.55) 40%, rgba(2, 20, 12, 0.9) 100%);
+}
+.pcard-shade h2 { font-size: 1.2rem; font-weight: 800; line-height: 1.4; text-shadow: 0 1px 8px rgba(0, 0, 0, 0.3); }
+.pcard-shade p {
+  margin-top: 0.35rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.4rem;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
+}
+.pcard-days {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-inline-start: 0.25rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  font-size: 0.75rem;
+}
+
+/* Trip facts */
+.pcard-body { display: flex; flex-direction: column; flex: 1; padding: 1rem 1.1rem 1.1rem; }
+.pcard-facts { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.7rem; }
+.pcard-facts li { display: flex; align-items: center; gap: 0.7rem; min-width: 0; }
+.pcard-facts li > div { display: flex; flex-direction: column; min-width: 0; line-height: 1.35; }
+.pcard-facts small { font-size: 0.7rem; font-weight: 700; color: #94a3b8; }
+.pcard-facts b { font-size: 0.9rem; font-weight: 800; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pcard-facts em { font-style: normal; font-size: 0.72rem; color: #64748b; display: inline-flex; align-items: center; gap: 0.2rem; }
+.pcard-ico {
+  flex: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.8rem;
+  display: grid;
+  place-items: center;
+  object-fit: cover;
+}
+.pcard-ico svg { width: 1.1rem; height: 1.1rem; }
+.pcard-ico.is-hotel { background: #ecfdf5; color: #047857; }
+.pcard-ico.is-flight { background: #eff6ff; color: #2563eb; }
+.pcard-ico.is-guide { background: #fef3c7; color: #92400e; font-weight: 900; font-size: 0.85rem; }
+.pcard-ico.is-photo { border-radius: 50%; box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px #d1fae5; }
+.pcard-ico.is-logo { object-fit: contain; background: #fff; border: 1px solid #e2e8f0; padding: 0.2rem; }
+
+.pcard-seats { margin-top: 1rem; }
+.pcard-seats > div { display: flex; justify-content: space-between; font-size: 0.74rem; font-weight: 700; color: #64748b; margin-bottom: 0.35rem; }
+.pcard-seats i { display: block; height: 6px; border-radius: 999px; background: #eef2f6; overflow: hidden; }
+.pcard-seats s { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #10b981, #047857); }
+.pcard.is-few .pcard-seats s { background: linear-gradient(90deg, #fbbf24, #f59e0b); }
+
+.pcard-foot {
+  margin-top: auto;
+  padding-top: 1rem;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-top: 1px dashed #e2e8f0;
+}
+.pcard-seats + .pcard-foot, .pcard-facts + .pcard-foot { margin-top: 1rem; }
+.pcard-price { display: flex; flex-direction: column; line-height: 1.2; }
+.pcard-price small { font-size: 0.72rem; font-weight: 700; color: #94a3b8; }
+.pcard-price strong { font-size: 1.4rem; font-weight: 900; color: #047857; letter-spacing: -0.01em; }
+.pcard-price strong em { font-style: normal; font-size: 0.85rem; font-weight: 800; }
+.pcard-price .is-ask { font-size: 1rem; color: #0f172a; }
+.pcard-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: 2.75rem;
+  padding: 0 1.15rem;
+  border-radius: 0.9rem;
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(135deg, #059669, #047857);
+  box-shadow: 0 10px 20px -10px rgba(4, 120, 87, 0.7);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: transform 0.15s;
+}
+.pcard-cta:hover { transform: translateY(-1px); }
+.pcard-cta:hover svg { transform: translateX(-3px); }
+.pcard-cta svg { transition: transform 0.2s; }
+.pcard-cta.is-off { background: #f1f5f9; color: #64748b; box-shadow: none; }
+.pcard-hint { margin-top: 0.55rem; font-size: 0.72rem; color: #94a3b8; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pcard, .pcard-media > img, .pcard-cta svg { transition: none; }
+  .pcard:hover, .pcard:hover .pcard-media > img { transform: none; }
+  .pcard.is-skeleton { animation: none; }
+}

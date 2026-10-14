@@ -6,6 +6,7 @@ import Navbar from '@/components/Navbar';
 import SakhrAgent from '@/components/lazy/LazySakhrAgent';
 import Footer from '@/components/Footer';
 import ProgramRow from '@/components/ProgramRow';
+import ProgramProductCard from '@/components/ProgramProductCard';
 import { Package } from '@/types';
 import { readWishlist } from '@/lib/wishlist';
 import { publicList } from '@/lib/public-catalog';
@@ -227,8 +228,8 @@ function PackagesPageInner() {
         </div>
 
         {loading ? (
-          <div className="pcat-list" aria-busy="true">
-            {[0, 1].map((i) => <div key={i} className="prow is-skeleton" />)}
+          <div className="pcat-grid" aria-busy="true">
+            {[0, 1, 2].map((i) => <div key={i} className="pcard is-skeleton" />)}
           </div>
         ) : failed ? (
           <div className="pcat-empty">
@@ -253,9 +254,9 @@ function PackagesPageInner() {
                 {filtersOn ? <button type="button" onClick={resetFilters}>عرض كل البرامج</button> : null}
               </div>
             ) : (
-              <div className="pcat-list">
+              <div className="pcat-grid">
                 {active.map((pkg, index) => (
-                  <ProgramRow key={pkg.package_id} pkg={pkg} index={index} />
+                  <ProgramProductCard key={pkg.package_id} pkg={pkg} index={index} />
                 ))}
               </div>
             )}
