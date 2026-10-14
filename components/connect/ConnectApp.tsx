@@ -13,6 +13,7 @@ import { VoiceCall, startTone, stopTone, type CallEndReason, type CallPhase } fr
 import type { ConnectContact, ConnectUser } from '@/lib/connect/store';
 import ChatView from './ChatView';
 import AboutSheet from './AboutSheet';
+import NotifyGate from './NotifyGate';
 import { versionLabel } from '@/lib/connect/version';
 import CallOverlay, { CallMini, type CallView } from './CallOverlay';
 import { usePipWindow } from './usePipWindow';
@@ -39,6 +40,44 @@ function shortTime(ts: number) {
   return d.toDateString() === new Date().toDateString()
     ? d.toLocaleTimeString('ar-DZ', { hour: '2-digit', minute: '2-digit' })
     : d.toLocaleDateString('ar-DZ', { day: 'numeric', month: 'short' });
+}
+
+/**
+ * The app is open but minimised / in another tab: raise the same phone-style call
+ * notification the server push would (رد / رفض), mark the app icon and blink the
+ * window title until the call is picked up.
+ */
+function ringWhileHidden(inc: { id: string; caller: { name: string } }) {
+  void navigator.serviceWorker?.getRegistration('/connect').then((reg) =>
+    reg?.showNotification(`📞 ${inc.caller.name}`, {
+      body: 'مكالمة صوتية واردة — South Street Connect',
+      tag: `call-${inc.id}`,
+      requireInteraction: true,
+      icon: '/icons/connect-192.png',
+      badge: '/icons/connect-192.png',
+      dir: 'rtl',
+      lang: 'ar',
+      data: { url: `/connect?call=${inc.id}`, callId: inc.id },
+      // Not in the TS lib yet, but supported by Chrome / Edge / Android.
+      ...({ renotify: true, vibrate: [700, 300, 700, 300, 700], actions: [{ action: 'answer', title: 'رد' }, { action: 'decline', title: 'رفض' }] } as object),
+    })
+  ).catch(() => undefined);
+  void (navigator as Navigator & { setAppBadge?: (n?: number) => Promise<void> }).setAppBadge?.(1).catch(() => undefined);
+  const title = document.title;
+  let on = false;
+  const blink = window.setInterval(() => {
+    on = !on;
+    document.title = on ? `📞 ${inc.caller.name} يتصل…` : title;
+  }, 900);
+  const stop = () => {
+    if (document.visibilityState !== 'visible') return;
+    window.clearInterval(blink);
+    document.title = title;
+    void (navigator as Navigator & { clearAppBadge?: () => Promise<void> }).clearAppBadge?.().catch(() => undefined);
+    document.removeEventListener('visibilitychange', stop);
+  };
+  document.addEventListener('visibilitychange', stop);
+  window.setTimeout(() => { window.clearInterval(blink); document.title = title; }, 60_000);
 }
 
 /** Remove the ringing notification of a call once it is answered / declined in the app. */
@@ -70,7 +109,9 @@ export default function ConnectApp() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [callView, setCallView] = useState<CallView | null>(null);
-  const [pushState, setPushState] = useState<'unknown' | 'on' | 'off' | 'unsupported'>('unknown');
+  const [pushState, setPushState] = useState<'unknown' | 'on' | 'off' | 'denied' | 'unsupported'>('unknown');
+  const [pushFailed, setPushFailed] = useState(false);
+  const [gateLater, setGateLater] = useState(false);
   const [installEvt, setInstallEvt] = useState<any>(null);
   const [standalone, setStandalone] = useState(true);
   const [updateReady, setUpdateReady] = useState(false);
@@ -108,7 +149,7 @@ export default function ConnectApp() {
 
   useEffect(() => {
     if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) return setPushState('unsupported');
-    setPushState(Notification.permission === 'granted' ? 'on' : 'off');
+    setPushState(Notification.permission === 'granted' ? 'on' : Notification.permission === 'denied' ? 'denied' : 'off');
   }, []);
 
   const loadContacts = useCallback(async () => {
@@ -248,6 +289,7 @@ export default function ConnectApp() {
       void acceptRef.current();
     } else {
       startTone('ring');
+      if (document.visibilityState !== 'visible') ringWhileHidden(inc);
     }
   }, []);
 
@@ -403,14 +445,18 @@ export default function ConnectApp() {
     try {
       if (!vapid) throw new Error('no key');
       const permission = await Notification.requestPermission();
-      if (permission !== 'granted') return setPushState('off');
+      if (permission !== 'granted') return setPushState(permission === 'denied' ? 'denied' : 'off');
       const reg = await navigator.serviceWorker.register('/connect-sw.js', { scope: '/connect' });
       await navigator.serviceWorker.ready;
       const sub = (await reg.pushManager.getSubscription()) || (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(vapid) }));
-      await fetch('/api/connect/push', { method: 'POST', headers: jsonAuthHeaders(), body: JSON.stringify({ subscription: sub.toJSON() }) });
+      // Only "on" once the server really stored this device — otherwise calls cannot reach it.
+      const res = await fetch('/api/connect/push', { method: 'POST', headers: jsonAuthHeaders(), body: JSON.stringify({ subscription: sub.toJSON() }) });
+      if (!res.ok) throw new Error(`push ${res.status}`);
+      setPushFailed(false);
       setPushState('on');
     } catch {
-      setPushState('off');
+      setPushFailed(true);
+      setPushState(typeof Notification !== 'undefined' && Notification.permission === 'denied' ? 'denied' : 'off');
     }
   };
 
@@ -494,7 +540,7 @@ export default function ConnectApp() {
           </button>
         ) : null}
 
-        {pushState === 'off' && vapid ? (
+        {(pushState === 'off' || pushState === 'denied') && vapid ? (
           <button type="button" className="cn-banner" onClick={() => void enablePush()}>
             <Bell className="w-4 h-4" /> فعّل الإشعارات لتصلك الرسائل والمكالمات والتطبيق مغلق
           </button>
@@ -577,7 +623,11 @@ export default function ConnectApp() {
       </main>
 
       {aboutOpen ? (
-        <AboutSheet onClose={() => setAboutOpen(false)} live={live} serverPush={Boolean(vapid)} pushState={pushState} onEnablePush={enablePush} />
+        <AboutSheet onClose={() => setAboutOpen(false)} live={live} serverPush={Boolean(vapid)} pushState={pushState === 'denied' ? 'off' : pushState} onEnablePush={enablePush} />
+      ) : null}
+
+      {me && vapid && (pushState === 'off' || pushState === 'denied') && !gateLater && !callView ? (
+        <NotifyGate denied={pushState === 'denied'} failed={pushFailed} onEnable={enablePush} onLater={() => setGateLater(true)} />
       ) : null}
 
       {callView && !minimized ? (

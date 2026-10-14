@@ -232,3 +232,20 @@
 .cn-sheet-btn:disabled { opacity: 0.5; }
 .cn-sheet-note { margin: 0; font-size: 0.82rem; text-align: center; color: #0f5132; }
 .cn-sheet-note.is-error { color: #b91c1c; }
+
+/* ---------- "turn on call ringing" step ---------- */
+.cn-gate { position: fixed; inset: 0; z-index: 45; display: grid; place-items: center; padding: 20px; background: rgba(4, 20, 15, 0.55); backdrop-filter: blur(8px); animation: cn-fade 0.25s ease; }
+.cn-gate-card { width: 100%; max-width: 400px; background: #fff; color: #0f172a; border-radius: 26px; padding: 28px 22px 18px; text-align: center; box-shadow: 0 40px 80px -30px rgba(0, 0, 0, 0.6); animation: cn-rise 0.35s cubic-bezier(0.16, 1, 0.3, 1); }
+.cn-gate-icon { position: relative; display: grid; place-items: center; width: 76px; height: 76px; margin: 0 auto 14px; border-radius: 50%; color: #fff; background: linear-gradient(145deg, #10b981, #047857); box-shadow: 0 14px 30px -12px rgba(4, 120, 87, 0.8); }
+.cn-gate-icon svg { animation: cn-shake 1.2s ease-in-out infinite; }
+.cn-gate-icon i { position: absolute; inset: 0; border-radius: 50%; border: 2px solid rgba(16, 185, 129, 0.6); animation: cn-ripple 2s cubic-bezier(0.2, 0.6, 0.35, 1) infinite; }
+.cn-gate-card h2 { font-family: var(--font-cairo), 'Cairo', sans-serif; font-size: 1.35rem; font-weight: 900; }
+.cn-gate-card > p { margin-top: 6px; color: #64748b; font-size: 0.9rem; line-height: 1.8; }
+.cn-gate-steps { margin-top: 14px; padding: 12px 14px; border-radius: 14px; background: #fff7e6; color: #7c2d12; text-align: start; }
+.cn-gate-steps b { display: flex; align-items: center; gap: 6px; font-size: 0.86rem; }
+.cn-gate-steps ol { margin: 8px 0 0; padding-inline-start: 18px; font-size: 0.8rem; line-height: 1.8; }
+.cn-gate-error { margin-top: 10px !important; color: #b91c1c !important; font-size: 0.82rem !important; }
+.cn-gate-main { width: 100%; height: 52px; margin-top: 18px; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 16px; font-size: 1rem; font-weight: 800; color: #fff !important; background: linear-gradient(135deg, #059669, #047857) !important; box-shadow: 0 12px 24px -12px rgba(4, 120, 87, 0.8); }
+.cn-gate-main:disabled { opacity: 0.7; }
+.cn-gate-later { margin-top: 8px; padding: 8px 16px; color: #64748b !important; font-size: 0.86rem; font-weight: 700; }
+@media (prefers-reduced-motion: reduce) { .cn-gate-icon svg, .cn-gate-icon i { animation: none !important; } }

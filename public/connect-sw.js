@@ -4,7 +4,7 @@
  * like a phone), with "رد" / "رفض" buttons; "رفض" declines without opening the
  * app. Network first: the app always shows live data; offline, the last loaded
  * screen is used. */
-const CACHE = 'ss-connect-v3';
+const CACHE = 'ss-connect-v4'; // v4: drops a cached error page
 const SHELL = ['/connect', '/icons/connect-192.png'];
 
 self.addEventListener('install', (event) => {
@@ -23,10 +23,14 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET' || req.mode !== 'navigate') return; // API calls, live stream, audio: straight to the network
   event.respondWith(
     fetch(req)
-      .then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put('/connect', copy)).catch(() => undefined);
-        return res;
+      .then(async (res) => {
+        // Only a good page is kept; on an error (firewall, server restart) show the last good one.
+        if (res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put('/connect', copy)).catch(() => undefined);
+          return res;
+        }
+        return (await caches.match('/connect')) || res;
       })
       .catch(() => caches.match('/connect'))
   );
@@ -70,7 +74,8 @@ self.addEventListener('push', (event) => {
         renotify: true, // ring again on every repeat
         requireInteraction: true,
         silent: false,
-        vibrate: [700, 300, 700, 300, 700, 300, 700],
+        vibrate: [700, 300, 700, 300, 700, 300, 700, 300, 700],
+        timestamp: Date.now(),
         icon: '/icons/connect-192.png',
         badge: '/icons/connect-192.png',
         dir: 'rtl',

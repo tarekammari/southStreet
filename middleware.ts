@@ -127,6 +127,17 @@ async function flush(origin: string, s: EdgeState) {
   }
 }
 
+function blockedPage(banned: boolean): string {
+  const msg = banned
+    ? 'تم إيقاف الوصول من هذه الشبكة مؤقتاً لأسباب أمنية. إن كان ذلك خطأً فتواصل مع الوكالة.'
+    : 'طلبات كثيرة من هذه الشبكة في وقت قصير. ستُعاد المحاولة تلقائياً خلال لحظات…';
+  return `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${
+    banned ? '' : '<meta http-equiv="refresh" content="30">'
+  }<title>ساوث ستريت</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f4f7f5;font-family:Tajawal,system-ui,sans-serif;color:#0f172a}main{max-width:360px;margin:16px;padding:28px 24px;text-align:center;background:#fff;border:1px solid #e2e8f0;border-radius:20px;box-shadow:0 20px 40px -24px rgba(15,23,42,.25)}h1{font-size:1.15rem;margin:12px 0 6px}p{color:#64748b;line-height:1.8;margin:0}i{display:block;width:34px;height:34px;margin:0 auto;border-radius:50%;border:3px solid #d1fae5;border-top-color:#047857;animation:s 1s linear infinite}@keyframes s{to{transform:rotate(360deg)}}</style></head><body><main>${
+    banned ? '' : '<i></i>'
+  }<h1>لحظة من فضلك</h1><p>${msg}</p></main></body></html>`;
+}
+
 export function middleware(request: NextRequest, event: NextFetchEvent) {
   const s = edge();
   const url = request.nextUrl;
@@ -178,7 +189,13 @@ export function middleware(request: NextRequest, event: NextFetchEvent) {
     /^\/(images|fonts|icons|og|uploads|videos)\//.test(url.pathname) ||
     url.pathname.startsWith('/api/staff-image/') ||
     /\.(png|jpe?g|webp|avif|gif|svg|ico|woff2?|ttf|otf|mp4|webm|mp3|css|js|map|webmanifest)$/i.test(url.pathname);
-  const counters = staticAsset ? { count: 0, auth: 0 } : countHit(s, ip, isAuthPath);
+  // A signed-in visitor (session cookie / bearer token) gets a wider allowance:
+  // families and hotel groups share one Wi-Fi address. The Connect app's own API
+  // traffic (messages, live stream, call set-up) is authenticated by its routes
+  // and is not counted at all — a call must never trip the flood limit.
+  const signedIn = Boolean(request.cookies.get('south_street_token')?.value || request.headers.get('authorization'));
+  const uncounted = staticAsset || (signedIn && url.pathname.startsWith('/api/connect/')) || url.pathname === '/api/public/catalog';
+  const counters = uncounted ? { count: 0, auth: 0 } : countHit(s, ip, isAuthPath);
   const query = url.search.replace(/^\?/, '').slice(0, 400);
 
   const verdict = classifyRequest({
@@ -192,7 +209,7 @@ export function middleware(request: NextRequest, event: NextFetchEvent) {
     origin,
     recentHits: counters.count,
     recentAuthHits: counters.auth,
-    floodThreshold: s.floodLimit,
+    floodThreshold: signedIn ? s.floodLimit * 4 : s.floodLimit,
   });
 
   const blocked = shouldBlock(s, ip, verdict);
@@ -260,6 +277,15 @@ export function middleware(request: NextRequest, event: NextFetchEvent) {
   }
 
   if (blocked) {
+    // A page opened in the browser / installed app gets a readable page that
+    // retries by itself (flood limits clear within a minute), not raw JSON.
+    const isPage = request.method === 'GET' && (request.headers.get('sec-fetch-mode') === 'navigate' || accept.includes('text/html'));
+    if (isPage) {
+      return new NextResponse(blockedPage(s.blocked.has(ip)), {
+        status: 429,
+        headers: { 'Content-Type': 'text/html; charset=utf-8', 'Retry-After': '30', 'Cache-Control': 'no-store' },
+      });
+    }
     return new NextResponse(
       JSON.stringify({ error: 'تم رفض الطلب من جدار الحماية', code: 'FIREWALL_BLOCK' }),
       { status: 403, headers: { 'Content-Type': 'application/json; charset=utf-8' } }
