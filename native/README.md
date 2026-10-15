@@ -28,6 +28,24 @@ ssh root@45.9.190.236 'su - builder -c "cd ~/connect-android && echo sdk.dir=/op
 
 Raise `SS_VERSION_CODE` on every build (phones only update to a higher number).
 
+## Updates (from 1.6.0 the apps update themselves)
+
+Each time an app opens (and every 6 hours) it asks `/api/connect/app-version`
+for the newest version. Android downloads the APK in the background, checks it
+is this app with a higher version code, then asks once «تحديث الآن» (Android
+always shows its own "Install" confirmation for apps outside the Play Store).
+Windows downloads the installer and installs it silently while in the tray, or
+after one question while the window is open. Never during a call.
+
+To release a new version:
+
+1. Build with higher numbers (Android `SS_VERSION_CODE` / `SS_VERSION_NAME`,
+   Windows `version` in `windows/package.json`) and upload the files to `/downloads`.
+2. Then set the same numbers in `NATIVE_RELEASES` (`lib/connect/version.ts`) and deploy.
+
+Apps older than 1.6.0 cannot update themselves: the Connect page shows them a
+banner that downloads the new app in the browser (install it once by hand).
+
 **Signing key**: `/home/builder/keys/connect.p12` + `pass` on the VPS. Keep a copy
 somewhere safe: an update must be signed with the same key, or phones refuse it.
 

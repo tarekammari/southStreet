@@ -18,7 +18,7 @@ import AndroidSetup from './AndroidSetup';
 import NotifyGate from './NotifyGate';
 import { AddPersonSheet, EMPTY_PEOPLE, PersonMenu, RequestList, SentAndBlocked, Suggestions, peopleAction, type PeopleData } from './People';
 import type { PeopleAction } from '@/lib/connect/people';
-import { androidChecks, androidInBackground, nativePlatform, onAndroidToken, onNativeCallAction, openAndroidSettings, sendCallState } from '@/lib/connect/native-bridge';
+import { androidChecks, androidInBackground, downloadNewApp, nativeNeedsManualUpdate, nativePlatform, onAndroidToken, onNativeCallAction, openAndroidSettings, sendCallState } from '@/lib/connect/native-bridge';
 import { versionLabel } from '@/lib/connect/version';
 import CallOverlay, { CallMini, type CallView } from './CallOverlay';
 import { usePipWindow } from './usePipWindow';
@@ -112,6 +112,9 @@ export default function ConnectApp() {
   const [addOpen, setAddOpen] = useState(false);
   const [toast, setToast] = useState('');
   const [setupDone, setSetupDone] = useState(false);
+  // Apps before 1.6.0 cannot update themselves: offer the new installer.
+  const [oldApp, setOldApp] = useState(false);
+  useEffect(() => setOldApp(nativeNeedsManualUpdate()), []);
   const [calls, setCalls] = useState<CallLog[]>([]);
   const [tab, setTab] = useState<Tab>('chats');
   const [query, setQuery] = useState('');
@@ -639,6 +642,12 @@ export default function ConnectApp() {
         {updateReady && !callView ? (
           <button type="button" className="cn-banner cn-update" onClick={() => void applyUpdate()}>
             <RefreshCw className="w-4 h-4" /> نسخة جديدة من التطبيق جاهزة — اضغط للتحديث
+          </button>
+        ) : null}
+
+        {oldApp && !callView ? (
+          <button type="button" className="cn-banner cn-update" onClick={downloadNewApp}>
+            <Download className="w-4 h-4" /> إصدار جديد من التطبيق — اضغط للتنزيل ثم ثبّته (بعده يتحدّث التطبيق وحده)
           </button>
         ) : null}
 

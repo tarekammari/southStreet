@@ -8,3 +8,14 @@ export const CONNECT_VERSION = '1.6.0';
 export const BUILD_CODE = (process.env.APP_VERSION || '').slice(0, 7);
 
 export const versionLabel = () => (BUILD_CODE ? `${CONNECT_VERSION} (${BUILD_CODE})` : CONNECT_VERSION);
+
+/**
+ * Latest native apps on the server (/downloads). The apps compare these with
+ * their own version each time they open and update themselves when older.
+ * Raise them together with the build numbers in native/README.md, AFTER the
+ * new files are uploaded (an app never installs a file that is not newer).
+ */
+export const NATIVE_RELEASES = {
+  android: { versionCode: 4, versionName: '1.6.0', url: '/downloads/SouthStreetConnect.apk' },
+  windows: { version: '1.6.0', url: '/downloads/SouthStreetConnect-Setup.exe' },
+} as const;

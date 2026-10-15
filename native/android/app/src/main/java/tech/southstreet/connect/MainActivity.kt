@@ -178,6 +178,8 @@ class MainActivity : AppCompatActivity() {
         visible = true
         // Back from a settings screen of the setup: continue with the next step.
         if (::web.isInitialized) setupChanged()
+        // Each time the app is opened: is there a newer version? (downloads it, then asks once)
+        Updater.check(this)
     }
 
     override fun onPause() {
@@ -221,6 +223,7 @@ class MainActivity : AppCompatActivity() {
         /** {phase, name, ...} on every call change: keeps the call alive with the screen off. */
         @JavascriptInterface fun callState(json: String) {
             val s = try { JSONObject(json) } catch (_: Exception) { return }
+            inCall = s.optString("phase") !in listOf("", "ended")
             when (s.optString("phase")) {
                 "active", "connecting", "calling", "ringing" -> CallService.ongoing(this@MainActivity, s.optString("name"))
                 "ended", "" -> CallService.stop(this@MainActivity)
@@ -273,6 +276,8 @@ class MainActivity : AppCompatActivity() {
         private const val REQ_SETUP = 42
 
         @Volatile var visible = false
+        /** A call is ringing or going on: no update dialog now. */
+        @Volatile var inCall = false
         private var instance: WeakReference<MainActivity>? = null
 
         /** Sends a call button (hang up…) from a notification to the page. Returns false if the app is gone. */

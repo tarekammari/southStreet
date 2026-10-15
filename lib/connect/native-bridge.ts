@@ -154,3 +154,46 @@ export function onAndroidSetupChange(cb: () => void): () => void {
   window.addEventListener('ss-native-setup', cb);
   return () => window.removeEventListener('ss-native-setup', cb);
 }
+
+/* ---------- app updates ---------- */
+
+/** First app version that updates itself; older apps get a banner from the page. */
+const SELF_UPDATING = '1.6.0';
+
+const older = (a: string, b: string) => {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) < (pb[i] || 0);
+  }
+  return false;
+};
+
+/** Version of the app shell around this page ('' when unknown, null in a browser). */
+export function nativeVersion(): string | null {
+  const w = win() as unknown as { version?: string } | undefined;
+  if (w) return String(w.version || '');
+  const a = droid() as unknown as { version?: () => string } | undefined;
+  if (!a) return null;
+  try {
+    return String(a.version?.() || '');
+  } catch {
+    return '';
+  }
+}
+
+/** An app too old to update itself: the page offers the new one. */
+export function nativeNeedsManualUpdate(): boolean {
+  const v = nativeVersion();
+  return v !== null && (!v || older(v, SELF_UPDATING));
+}
+
+/** Download the newest app in the real browser (old apps cannot download inside). */
+export function downloadNewApp() {
+  const platform = nativePlatform();
+  const url = `${window.location.origin}/downloads/${platform === 'windows' ? 'SouthStreetConnect-Setup.exe' : 'SouthStreetConnect.apk'}`;
+  const w = window as unknown as { SSAndroid?: { openSignIn?: (u: string) => void }; ssNative?: { openSignIn?: (u: string) => void } };
+  const open = w.SSAndroid?.openSignIn || w.ssNative?.openSignIn;
+  if (open) open(url);
+  else window.open(url, '_blank');
+}

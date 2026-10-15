@@ -8,10 +8,16 @@
  *  - an incoming call opens a call card above every window, bottom-right, with
  *    the ringtone looping and Answer / Decline buttons;
  *  - during a call, the same card (timer, mute, hang up) floats above every
- *    window whenever the main window is minimised or hidden.
+ *    window whenever the main window is minimised or hidden;
+ *  - updates itself: on start, when opened again and every few hours it asks
+ *    the server for a newer version, downloads it and installs it (silently
+ *    while in the tray, after one question while the window is open; never
+ *    during a call).
  */
-const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, screen, session, shell, Notification } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, screen, session, shell, Notification, dialog, net } = require('electron');
 const path = require('node:path');
+const fs = require('node:fs');
+const { spawn } = require('node:child_process');
 
 const ORIGIN = process.env.SS_CONNECT_ORIGIN || 'https://southstreet.1zayd1.tech';
 const START_URL = `${ORIGIN}/connect`;
@@ -51,6 +57,9 @@ if (!app.requestSingleInstanceLock()) {
   let tray = null;
   let quitting = false;
   let call = null; // { phase, id, name, photo, role, connectedAt, muted }
+  let update = null; // { version, file } — downloaded installer waiting for a quiet moment
+  let updateChecking = false;
+  let updateAsking = false;
 
   const showMain = () => {
     if (!main) return;
@@ -63,7 +72,87 @@ if (!app.requestSingleInstanceLock()) {
     const url = signInUrl(argv);
     if (url && main) main.loadURL(url);
     showMain();
+    void checkForUpdate(); // opened again: a good moment to look for a new version
   });
+
+  /* ---------------- self-update ---------------- */
+
+  const UPDATE_EVERY_MS = 6 * 60 * 60 * 1000;
+  const attemptFile = () => path.join(app.getPath('userData'), 'update-attempt.json');
+
+  /** "1.10.0" > "1.9.2" */
+  const isNewer = (a, b) => {
+    const pa = String(a).split('.').map(Number);
+    const pb = String(b).split('.').map(Number);
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+      if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) > (pb[i] || 0);
+    }
+    return false;
+  };
+
+  async function checkForUpdate() {
+    if (!app.isPackaged || updateChecking) return;
+    if (update) return installWhenQuiet();
+    updateChecking = true;
+    try {
+      const res = await net.fetch(`${ORIGIN}/api/connect/app-version`, { cache: 'no-store' });
+      const latest = (await res.json()).windows;
+      if (!latest || !isNewer(latest.version, app.getVersion())) return;
+      // An installer that did not lead to the new version is not retried for a day.
+      try {
+        const last = JSON.parse(fs.readFileSync(attemptFile(), 'utf8'));
+        if (last.version === latest.version && Date.now() - last.ts < 24 * 60 * 60 * 1000) return;
+      } catch {
+        /* no earlier attempt */
+      }
+      const file = path.join(app.getPath('temp'), `SouthStreetConnect-Setup-${latest.version}.exe`);
+      if (!fs.existsSync(file)) {
+        const dl = await net.fetch(new URL(latest.url, ORIGIN).href, { cache: 'no-store' });
+        if (!dl.ok) return;
+        const part = `${file}.part`;
+        fs.writeFileSync(part, Buffer.from(await dl.arrayBuffer()));
+        fs.renameSync(part, file);
+      }
+      update = { version: latest.version, file };
+      installWhenQuiet();
+    } catch {
+      /* offline: next check */
+    } finally {
+      updateChecking = false;
+    }
+  }
+
+  /** In the tray: install at once. Window open: ask once. In a call: wait for it to end. */
+  async function installWhenQuiet() {
+    if (!update || call || updateAsking) return;
+    if (main && main.isVisible() && !main.isMinimized()) {
+      updateAsking = true;
+      const { response } = await dialog.showMessageBox(main, {
+        type: 'info',
+        title: 'South Street Connect',
+        message: `تحديث جديد جاهز (${update.version})`,
+        detail: 'يُغلق التطبيق لثوانٍ ثم يعود بالإصدار الجديد. حسابك ومحادثاتك تبقى كما هي.',
+        buttons: ['تحديث الآن', 'لاحقاً'],
+        defaultId: 0,
+        cancelId: 1,
+      });
+      updateAsking = false;
+      if (response !== 0 || call) return; // "later": asked again at the next check
+    }
+    runInstaller();
+  }
+
+  function runInstaller() {
+    try {
+      fs.writeFileSync(attemptFile(), JSON.stringify({ version: update.version, ts: Date.now() }));
+      // Silent install, then the installer starts the new version (--force-run).
+      spawn(update.file, ['/S', '--force-run'], { detached: true, stdio: 'ignore' }).unref();
+      quitting = true;
+      app.quit();
+    } catch {
+      update = null;
+    }
+  }
 
   function createMain(hidden) {
     main = new BrowserWindow({
@@ -78,6 +167,8 @@ if (!app.requestSingleInstanceLock()) {
       autoHideMenuBar: true,
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
+        // The page learns this app's version (apps from 1.6.0 update themselves).
+        additionalArguments: [`--ss-version=${app.getVersion()}`],
         contextIsolation: true,
         sandbox: false,
         // Keep the live connection and timers running while hidden in the tray.
@@ -214,6 +305,7 @@ if (!app.requestSingleInstanceLock()) {
     }
     if (!call) main.flashFrame(false);
     syncCard();
+    if (!call && update) setTimeout(installWhenQuiet, 3000); // the call that delayed an update is over
   });
 
   ipcMain.on('ss:open-signin', (_e, url) => {
@@ -239,6 +331,8 @@ if (!app.requestSingleInstanceLock()) {
     }
     createMain(process.argv.includes('--hidden'));
     createTray();
+    setTimeout(() => void checkForUpdate(), 8000);
+    setInterval(() => void checkForUpdate(), UPDATE_EVERY_MS);
   });
 
   app.on('before-quit', () => { quitting = true; });
