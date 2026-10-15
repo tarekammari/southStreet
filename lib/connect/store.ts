@@ -339,11 +339,13 @@ export function callHistory(userId: string, limit = 40): ConnectCall[] {
 
 /* ---------------- push subscriptions ---------------- */
 
+/** A web-push subscription ({endpoint, keys}) or a native app token ({fcm, platform}). */
 export function savePush(userId: string, subscription: unknown) {
   const json = JSON.stringify(subscription);
-  const endpoint = String((subscription as any)?.endpoint || '');
-  if (!endpoint.startsWith('https://')) throw new Error('bad subscription');
-  const key = crypto.createHash('sha256').update(endpoint).digest('hex').slice(0, 40);
+  const fcm = String((subscription as any)?.fcm || '');
+  const endpoint = fcm ? '' : String((subscription as any)?.endpoint || '');
+  if (fcm ? !/^[\w:.-]{20,400}$/.test(fcm) : !endpoint.startsWith('https://')) throw new Error('bad subscription');
+  const key = crypto.createHash('sha256').update(fcm ? `fcm:${fcm}` : endpoint).digest('hex').slice(0, 40);
   db().prepare('INSERT INTO connect_push (endpoint_key, user_id, subscription, ts) VALUES (?, ?, ?, ?) ON CONFLICT(endpoint_key) DO UPDATE SET user_id = excluded.user_id, subscription = excluded.subscription, ts = excluded.ts')
     .run(key, userId, json.slice(0, 4000), Date.now());
 }

@@ -6,6 +6,7 @@
  */
 import webpush from 'web-push';
 import { dropPush, pushTargets } from './store';
+import { fcmReady, sendFcm } from './fcm';
 
 let configured: boolean | null = null;
 
@@ -22,16 +23,40 @@ function ready(): boolean {
   return configured;
 }
 
-export type PushPayload = { title: string; body: string; tag: string; url: string; kind: 'message' | 'call' | 'call-end'; callId?: string };
+export type PushPayload = {
+  title: string;
+  body: string;
+  tag: string;
+  url: string;
+  kind: 'message' | 'call' | 'call-end';
+  callId?: string;
+  /** Native call screen: caller details and how the call ended. */
+  caller?: string;
+  photo?: string;
+  role?: string;
+  outcome?: 'answered' | 'missed' | 'declined' | 'ended';
+};
+
+export const pushReady = () => ready() || fcmReady();
 
 export async function pushTo(userId: string, payload: PushPayload): Promise<void> {
-  if (!ready()) return;
   const targets = pushTargets(userId);
   await Promise.all(
     targets.map(async (t) => {
+      // Native Android app: a data message its own code turns into a call screen.
+      if (t.subscription?.fcm) {
+        const data: Record<string, string> = {};
+        for (const [k, v] of Object.entries(payload)) if (v !== undefined && v !== null) data[k] = String(v);
+        const result = await sendFcm(t.subscription.fcm, data, payload.kind === 'call' ? 45 : payload.kind === 'call-end' ? 120 : 3600);
+        if (result === 'gone') dropPush(t.key);
+        return;
+      }
+      if (!ready()) return;
+      // A web notice that the call was answered elsewhere is not needed.
+      if (payload.kind === 'call-end' && payload.outcome === 'answered') return;
       try {
         await webpush.sendNotification(t.subscription, JSON.stringify(payload), {
-          TTL: payload.kind === 'call' ? 10 : payload.kind === 'call-end' ? 120 : 3600,
+          TTL: payload.kind === 'call' ? 45 : payload.kind === 'call-end' ? 120 : 3600,
           urgency: payload.kind === 'call' ? 'high' : 'normal',
         });
       } catch (err: any) {

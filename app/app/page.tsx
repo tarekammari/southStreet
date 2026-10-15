@@ -28,7 +28,7 @@ const STEPS: Record<Platform, { label: string; icon: typeof Smartphone; steps: s
   android: {
     label: 'أندرويد',
     icon: Smartphone,
-    steps: ['افتح هذه الصفحة في متصفح Chrome على هاتفك.', 'اضغط زر «تثبيت التطبيق» أدناه، أو من قائمة ⋮ اختر «تثبيت التطبيق».', 'يظهر Connect في شاشتك الرئيسية مثل أي تطبيق.'],
+    steps: ['اضغط «تحميل تطبيق أندرويد» أدناه (3.6 ميغابايت).', 'افتح الملف المحمَّل؛ إن طُلب منك اسمح بـ«التثبيت من هذا المصدر» ثم «تثبيت».', 'افتح SS Connect وسجّل الدخول، واسمح بالإشعارات والميكروفون.', 'لشاشة المكالمة الكاملة: إن ظهر تنبيه في التطبيق اضغطه وفعّل «عرض بملء الشاشة».'],
   },
   ios: {
     label: 'آيفون',
@@ -38,8 +38,14 @@ const STEPS: Record<Platform, { label: string; icon: typeof Smartphone; steps: s
   windows: {
     label: 'ويندوز',
     icon: Monitor,
-    steps: ['افتح هذه الصفحة في Microsoft Edge أو Google Chrome.', 'اضغط زر «تثبيت التطبيق» أدناه، أو أيقونة التثبيت في شريط العنوان.', 'يُضاف Connect إلى قائمة ابدأ وشريط المهام.'],
+    steps: ['اضغط «تحميل تطبيق ويندوز» أدناه.', 'شغّل الملف. إن ظهرت رسالة «Windows protected your PC» اضغط «More info» ثم «Run anyway».', 'يعمل Connect مع تشغيل ويندوز ويبقى بجانب الساعة: تصلك المكالمة في نافذة فوق كل البرامج.'],
   },
+};
+
+/** Native apps (real call screen and ringtone). iPhone keeps the web app for now. */
+const NATIVE: Partial<Record<Platform, { href: string; label: string }>> = {
+  android: { href: '/downloads/SouthStreetConnect.apk', label: 'تحميل تطبيق أندرويد' },
+  windows: { href: '/downloads/SouthStreetConnect-Setup.exe', label: 'تحميل تطبيق ويندوز' },
 };
 
 function detect(): Platform {
@@ -92,9 +98,11 @@ export default function DownloadPage() {
               <span className="ip-eyebrow"><Download className="w-4 h-4" /> تطبيق مجاني</span>
               <h1>South Street <em>Connect</em></h1>
               <p className="ip-lead" dir="ltr" style={{ fontSize: '0.8rem', opacity: 0.7, marginTop: 0 }}>v{versionLabel()}</p>
-              <p className="ip-lead">رسائل ومكالمات صوتية واضحة بينك وبين فريق الوكالة ومرشدك، على أندرويد والآيفون وويندوز. بدون متجر تطبيقات: ثبّته من هنا في ثوانٍ.</p>
+              <p className="ip-lead">رسائل ومكالمات صوتية واضحة بينك وبين فريق الوكالة ومرشدك، على أندرويد وويندوز (تطبيق كامل برنين وشاشة مكالمة مثل الهاتف) والآيفون. بدون متجر تطبيقات: ثبّته من هنا في ثوانٍ.</p>
               <div className="ip-actions">
-                {installed ? (
+                {NATIVE[platform] ? (
+                  <a href={NATIVE[platform]!.href} download className="ip-btn is-primary"><Download className="w-4 h-4" /> {NATIVE[platform]!.label}</a>
+                ) : installed ? (
                   <span className="ip-btn is-primary"><CheckCircle2 className="w-4 h-4" /> تم التثبيت</span>
                 ) : installEvt ? (
                   <button type="button" className="ip-btn is-primary" onClick={() => void install()}><Download className="w-4 h-4" /> تثبيت التطبيق</button>
@@ -147,7 +155,9 @@ export default function DownloadPage() {
                 {current.steps.map((s, i) => (
                   <li key={s}><span>{i + 1}</span><p>{s}</p></li>
                 ))}
-                {platform === 'ios' ? (
+                {NATIVE[platform] ? (
+                  <li className="ap-ios-hint"><a href={NATIVE[platform]!.href} download className="ip-btn is-primary"><Download className="w-4 h-4" /> {NATIVE[platform]!.label}</a></li>
+                ) : platform === 'ios' ? (
                   <li className="ap-ios-hint"><Share className="w-4 h-4" /> ثم <SquarePlus className="w-4 h-4" /> «إضافة إلى الشاشة الرئيسية»</li>
                 ) : installEvt ? (
                   <li className="ap-ios-hint"><button type="button" className="ip-btn is-primary" onClick={() => void install()}><Download className="w-4 h-4" /> تثبيت الآن</button></li>

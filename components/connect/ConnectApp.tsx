@@ -14,6 +14,7 @@ import type { ConnectContact, ConnectUser } from '@/lib/connect/store';
 import ChatView from './ChatView';
 import AboutSheet from './AboutSheet';
 import NotifyGate from './NotifyGate';
+import { androidChecks, nativePlatform, onAndroidToken, onNativeCallAction, openAndroidSettings, sendCallState } from '@/lib/connect/native-bridge';
 import { versionLabel } from '@/lib/connect/version';
 import CallOverlay, { CallMini, type CallView } from './CallOverlay';
 import { usePipWindow } from './usePipWindow';
@@ -148,6 +149,8 @@ export default function ConnectApp() {
   }, []);
 
   useEffect(() => {
+    // Inside the Windows / Android apps the shell rings, not web push.
+    if (nativePlatform()) return setPushState('unsupported');
     if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) return setPushState('unsupported');
     setPushState(Notification.permission === 'granted' ? 'on' : Notification.permission === 'denied' ? 'denied' : 'off');
   }, []);
@@ -287,10 +290,57 @@ export default function ConnectApp() {
     if (autoAnswer.current && autoAnswer.current === inc.id) {
       autoAnswer.current = null;
       void acceptRef.current();
-    } else {
+    } else if (nativePlatform() !== 'windows') {
+      // On Windows the floating call card rings (and stays above every window).
       startTone('ring');
-      if (document.visibilityState !== 'visible') ringWhileHidden(inc);
+      if (!nativePlatform() && document.visibilityState !== 'visible') ringWhileHidden(inc);
     }
+  }, []);
+
+  /* ---------- native apps (Windows / Android) ---------- */
+  // Every call change goes to the app shell: floating card, ongoing-call service…
+  useEffect(() => {
+    if (!nativePlatform()) return;
+    sendCallState(
+      callView
+        ? {
+            phase: callView.phase,
+            id: incomingRef.current?.id || callRef.current?.id || undefined,
+            name: callView.peerName,
+            photo: callView.peerPhoto,
+            role: callView.peerRole,
+            connectedAt: callView.connectedAt,
+            muted: callView.muted,
+          }
+        : null
+    );
+  }, [callView]);
+
+  const nativeActions = useRef<Record<string, () => void>>({});
+  nativeActions.current = {
+    answer: () => void acceptRef.current(),
+    decline: () => declineCall(),
+    hangup: () => hangupCall(),
+    mute: () => toggleMute(),
+    open: () => setMinimized(false),
+  };
+  useEffect(() => onNativeCallAction((action) => nativeActions.current[action]?.()), []);
+
+  // Android: tie this phone's push token to the signed-in account.
+  useEffect(() => {
+    if (!me) return;
+    return onAndroidToken((token) => {
+      void fetch('/api/connect/push', { method: 'POST', headers: jsonAuthHeaders(), body: JSON.stringify({ subscription: { fcm: token, platform: 'android' } }) });
+    });
+  }, [me]);
+
+  const [droidChecks, setDroidChecks] = useState<ReturnType<typeof androidChecks>>(null);
+  useEffect(() => {
+    if (nativePlatform() !== 'android') return;
+    const check = () => setDroidChecks(androidChecks());
+    check();
+    document.addEventListener('visibilitychange', check);
+    return () => document.removeEventListener('visibilitychange', check);
   }, []);
 
   useEffect(() => {
@@ -537,6 +587,16 @@ export default function ConnectApp() {
         {updateReady && !callView ? (
           <button type="button" className="cn-banner cn-update" onClick={() => void applyUpdate()}>
             <RefreshCw className="w-4 h-4" /> نسخة جديدة من التطبيق جاهزة — اضغط للتحديث
+          </button>
+        ) : null}
+
+        {droidChecks && !droidChecks.notifications ? (
+          <button type="button" className="cn-banner" onClick={() => openAndroidSettings('notifications')}>
+            <Bell className="w-4 h-4" /> الإشعارات متوقفة — اضغط لتفعيلها حتى يرنّ الهاتف عند الاتصال
+          </button>
+        ) : droidChecks && !droidChecks.fullScreen ? (
+          <button type="button" className="cn-banner" onClick={() => openAndroidSettings('fullscreen')}>
+            <Phone className="w-4 h-4" /> اسمح بشاشة المكالمة الكاملة — اضغط ثم فعّل «عرض بملء الشاشة»
           </button>
         ) : null}
 

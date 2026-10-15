@@ -46,38 +46,33 @@ export async function POST(req: NextRequest) {
     if (busy(peer.id)) return NextResponse.json({ error: 'الطرف الآخر في مكالمة الآن', code: 'BUSY' }, { status: 409 });
     const call = startCall(s.me, peer, offer);
     const me = s.me;
-    // A closed app "rings": the call notification is repeated (sound + vibration)
-    // every few seconds while it rings, then replaced when the call ends.
+    // A closed app rings with ONE call notification: the native Android app turns
+    // it into a full-screen call screen with a looping ringtone; browsers keep a
+    // persistent notification with رد / رفض. When the call stops ringing, the
+    // device is told how it ended so it stops ringing / shows a missed call.
     after(async () => {
-      for (let i = 0; i < 8; i++) {
-        const now = getCall(call.id);
-        if (!now || now.state !== 'ringing') break;
-        await pushTo(peer.id, {
-          kind: 'call',
-          title: `📞 ${me.name}`,
-          body: 'مكالمة صوتية واردة — South Street Connect',
-          tag: `call-${call.id}`,
-          url: `/connect?call=${call.id}`,
-          callId: call.id,
-        });
-        // Wait for the next ring, but stop at once when the call is answered / cancelled.
-        for (let t = 0; t < 12; t++) {
-          await sleep(500);
-          if (getCall(call.id)?.state !== 'ringing') break;
-        }
+      const common = { tag: `call-${call.id}`, callId: call.id, caller: me.name, photo: me.photo || '', role: me.roleLabel || '' };
+      await pushTo(peer.id, {
+        ...common,
+        kind: 'call',
+        title: `📞 ${me.name}`,
+        body: 'مكالمة صوتية واردة — South Street Connect',
+        url: `/connect?call=${call.id}`,
+      });
+      for (let t = 0; t < 100; t++) {
+        await sleep(500);
+        if (getCall(call.id)?.state !== 'ringing') break; // getCall also turns a 45 s ring into "missed"
       }
       const last = getCall(call.id);
-      // Answered calls need no follow-up (the app clears the notification); missed ones become a missed-call notice.
-      if (last && last.state !== 'ringing' && last.state !== 'active') {
-        await pushTo(peer.id, {
-          kind: 'call-end',
-          title: `مكالمة فائتة من ${me.name}`,
-          body: 'اضغط لمعاودة الاتصال',
-          tag: `call-${call.id}`,
-          url: `/connect?chat=${me.id}`,
-          callId: call.id,
-        });
-      }
+      const outcome = !last || last.state === 'active' ? 'answered' : last.state === 'missed' ? 'missed' : last.state === 'declined' ? 'declined' : 'ended';
+      await pushTo(peer.id, {
+        ...common,
+        kind: 'call-end',
+        outcome,
+        title: outcome === 'answered' ? 'تم الرد على المكالمة' : `مكالمة فائتة من ${me.name}`,
+        body: outcome === 'answered' ? '' : 'اضغط لمعاودة الاتصال',
+        url: `/connect?chat=${me.id}`,
+      });
     });
     return NextResponse.json({ id: call.id });
   }

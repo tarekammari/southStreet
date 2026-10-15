@@ -1,0 +1,55 @@
+# South Street Connect — native apps
+
+The apps show the Connect web app (`/connect`, always the latest version from
+the server) and add what a website cannot do: a real call screen, a looping
+ringtone and running in the background.
+
+| App | Folder | Built on | Download |
+|---|---|---|---|
+| Android | `android/` (Kotlin, no framework) | the VPS (command-line Android SDK, no Android Studio) | `/downloads/SouthStreetConnect.apk` |
+| Windows | `windows/` (Electron) | this PC | `/downloads/SouthStreetConnect-Setup.exe` |
+
+`assets/ringtone.wav` is rendered by `node scripts/render-ringtone.mjs native/assets/ringtone.wav`
+(same melody as the web ringtone) and copied into both apps.
+
+## Android
+
+What it does: full-screen incoming call over the lock screen (wakes the phone),
+CallStyle notification with Answer / Decline, the ringtone looping with rising
+volume (follows ring / vibrate / silent), an "ongoing call" notification with
+Hang up that keeps the call alive with the screen off.
+
+**Build** (from the project folder on this PC):
+
+```bash
+cd native && tar -czf - --exclude=build --exclude=.gradle android | ssh root@45.9.190.236 'rm -rf /home/builder/connect-android && mkdir -p /tmp/up && tar -xzf - -C /tmp/up && mv /tmp/up/android /home/builder/connect-android && cp /home/builder/google-services.json /home/builder/connect-android/app/ 2>/dev/null; chown -R builder:builder /home/builder/connect-android'
+ssh root@45.9.190.236 'su - builder -c "cd ~/connect-android && echo sdk.dir=/opt/android-sdk > local.properties && SS_KEYSTORE=~/keys/connect.p12 SS_KEYSTORE_PASSWORD=\$(cat ~/keys/pass) SS_VERSION_CODE=2 SS_VERSION_NAME=1.5.1 /opt/gradle-8.11.1/bin/gradle --no-daemon -q assembleRelease" && cp /home/builder/connect-android/app/build/outputs/apk/release/app-release.apk /var/www/connect-downloads/SouthStreetConnect.apk'
+```
+
+Raise `SS_VERSION_CODE` on every build (phones only update to a higher number).
+
+**Signing key**: `/home/builder/keys/connect.p12` + `pass` on the VPS. Keep a copy
+somewhere safe: an update must be signed with the same key, or phones refuse it.
+
+**Firebase (ringing while the app is closed)** — needed once:
+
+1. https://console.firebase.google.com → Add project → name it "South Street Connect" (Analytics: off).
+2. Add app → Android → package name `tech.southstreet.connect` → Register → download `google-services.json`.
+3. Project settings → Service accounts → Generate new private key (a JSON file).
+4. Put `google-services.json` at `/home/builder/google-services.json` on the VPS and rebuild.
+5. Server: add `FIREBASE_SERVICE_ACCOUNT_B64=<base64 of the private-key JSON>` to `~southstreet/app/.env`, then `./scripts/update.sh`.
+
+## Windows
+
+What it does: starts with Windows and stays in the tray (closing the window keeps
+it running), keeps the live connection open, shows an always-on-top call card
+with the ringtone and Answer / Decline when a call comes in, and the same card
+(timer, mute, hang up) during a call while the main window is out of sight.
+
+```bash
+cd native/windows && npm install && npx electron-builder --win nsis --x64 --publish never
+scp dist/SouthStreetConnect-Setup-*.exe root@45.9.190.236:/var/www/connect-downloads/SouthStreetConnect-Setup.exe
+```
+
+The installer is not code-signed: Windows SmartScreen shows "More info → Run anyway"
+until a code-signing certificate is bought.

@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; media-src 'self'">
+<title>مكالمة — South Street Connect</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; background: transparent; overflow: hidden; font-family: 'Segoe UI', Tahoma, sans-serif; user-select: none; }
+  .card {
+    position: absolute; inset: 6px; border-radius: 22px; padding: 16px 16px 14px;
+    color: #fff; display: flex; flex-direction: column; justify-content: space-between;
+    background: radial-gradient(260px 120px at 85% 0%, rgba(16,185,129,.45), transparent 70%), linear-gradient(160deg, #065f46, #0b1f19 75%);
+    box-shadow: 0 14px 34px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.08);
+    -webkit-app-region: drag; animation: in .35s cubic-bezier(.16,1,.3,1);
+  }
+  @keyframes in { from { opacity: 0; transform: translateY(18px) scale(.97); } }
+  .top { display: flex; align-items: center; gap: 12px; }
+  .brand { position: absolute; top: 10px; left: 16px; font-size: 11px; color: rgba(255,255,255,.6); direction: ltr; }
+  .av { position: relative; flex: none; width: 58px; height: 58px; border-radius: 50%; display: grid; place-items: center; font-size: 24px; font-weight: 800; background: linear-gradient(145deg,#10b981,#065f46); overflow: visible; }
+  .av img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+  .av::before, .av::after { content: ''; position: absolute; inset: 0; border-radius: 50%; border: 2px solid rgba(167,243,208,.6); animation: ripple 2s infinite; }
+  .av::after { animation-delay: 1s; }
+  .is-live .av::before, .is-live .av::after { display: none; }
+  @keyframes ripple { from { transform: scale(1); opacity: .9; } to { transform: scale(1.7); opacity: 0; } }
+  .who { min-width: 0; }
+  .who b { display: block; font-size: 17px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .who small { display: block; font-size: 12.5px; color: #a7f3d0; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .actions { display: flex; gap: 10px; -webkit-app-region: no-drag; }
+  button { flex: 1; height: 42px; border: 0; border-radius: 13px; font: 700 14px 'Segoe UI', Tahoma, sans-serif; color: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 7px; transition: transform .1s, filter .15s; }
+  button:hover { filter: brightness(1.1); }
+  button:active { transform: scale(.96); }
+  .accept { background: #22c55e; box-shadow: 0 8px 18px -8px rgba(34,197,94,.9); animation: nudge 1.4s infinite; }
+  .decline, .hangup { background: #ef4444; box-shadow: 0 8px 18px -8px rgba(239,68,68,.9); }
+  .soft { background: rgba(255,255,255,.14); }
+  .soft.on { background: #fff; color: #0b1f19; }
+  @keyframes nudge { 0%,60%,100% { transform: translateY(0); } 15% { transform: translateY(-4px); } 30% { transform: translateY(0); } }
+  svg { width: 18px; height: 18px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="card" id="card">
+  <span class="brand">South Street Connect</span>
+  <div class="top">
+    <span class="av" id="av"></span>
+    <div class="who"><b id="name"></b><small id="status">مكالمة صوتية واردة</small></div>
+  </div>
+  <div class="actions" id="ringing">
+    <button class="decline" data-a="decline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M10.7 13.3a16 16 0 0 0 2.6 2.1l1.3-1.3a2 2 0 0 1 2.1-.4 12.8 12.8 0 0 0 2.8.7 2 2 0 0 1 1.7 2v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 3 4.2 2 2 0 0 1 5 2h3a2 2 0 0 1 2 1.7 12.8 12.8 0 0 0 .7 2.8 2 2 0 0 1-.4 2.1L9 9.9"/><path d="m22 2-20 20"/></svg>رفض</button>
+    <button class="accept" data-a="answer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.9.7 2.8a2 2 0 0 1-.4 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.9.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg>رد</button>
+  </div>
+  <div class="actions" id="live" hidden>
+    <button class="soft" data-a="open">فتح</button>
+    <button class="soft" id="mute" data-a="mute">كتم</button>
+    <button class="hangup" data-a="hangup">إنهاء</button>
+  </div>
+</div>
+<audio id="ring" src="assets/ringtone.wav" loop preload="auto"></audio>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const ring = $('ring');
+  let state = null;
+  let timer = 0;
+  const LABEL = { calling: 'جارٍ الاتصال…', ringing: 'يرنّ…', connecting: 'جارٍ الوصل…' };
+
+  function clock() {
+    if (!state || state.phase !== 'active' || !state.connectedAt) return;
+    const s = Math.max(0, Math.floor((Date.now() - state.connectedAt) / 1000));
+    $('status').textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  }
+
+  window.card.onCall((call) => {
+    state = call;
+    if (!call) { ring.pause(); clearInterval(timer); return; }
+    $('name').textContent = call.name || '';
+    const av = $('av');
+    av.textContent = '';
+    if (call.photo) {
+      const img = document.createElement('img');
+      img.src = call.photo;
+      img.onerror = () => { av.textContent = (call.name || '؟').charAt(0); };
+      av.appendChild(img);
+    } else av.textContent = (call.name || '؟').charAt(0);
+
+    const incoming = call.phase === 'incoming';
+    $('card').classList.toggle('is-live', !incoming);
+    $('ringing').hidden = !incoming;
+    $('live').hidden = incoming;
+    $('mute').classList.toggle('on', Boolean(call.muted));
+    $('mute').textContent = call.muted ? 'مكتوم' : 'كتم';
+    $('status').textContent = incoming ? 'مكالمة صوتية واردة' : LABEL[call.phase] || '';
+
+    if (incoming) {
+      if (ring.paused) {
+        // Start soft, then swell to full volume over ~8 s.
+        ring.volume = 0.35;
+        ring.currentTime = 0;
+        ring.play().catch(() => {});
+        const swell = setInterval(() => {
+          if (ring.paused) return clearInterval(swell);
+          ring.volume = Math.min(1, ring.volume + 0.04);
+          if (ring.volume >= 1) clearInterval(swell);
+        }, 500);
+      }
+    } else {
+      ring.pause();
+    }
+    clearInterval(timer);
+    if (call.phase === 'active') { clock(); timer = setInterval(clock, 1000); }
+  });
+
+  document.querySelectorAll('[data-a]').forEach((b) =>
+    b.addEventListener('click', () => {
+      if (b.dataset.a === 'answer' || b.dataset.a === 'decline') ring.pause();
+      window.card.act(b.dataset.a);
+    })
+  );
+</script>
+</body>
+</html>

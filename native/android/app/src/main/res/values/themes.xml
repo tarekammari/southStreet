@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Connect" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="colorPrimary">#047857</item>
+        <item name="colorPrimaryDark">#065F46</item>
+        <item name="android:statusBarColor">#065F46</item>
+        <item name="android:navigationBarColor">#F4F6F5</item>
+        <item name="android:windowBackground">@android:color/white</item>
+    </style>
+    <style name="Theme.Connect.Call" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">@drawable/bg_call</item>
+        <item name="android:statusBarColor">#065F46</item>
+        <item name="android:navigationBarColor">#0B1F19</item>
+    </style>
+</resources>

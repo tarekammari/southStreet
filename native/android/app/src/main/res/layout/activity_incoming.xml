@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_call">
+
+    <ImageView
+        android:id="@+id/backdrop"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:alpha="0.28"
+        android:scaleType="centerCrop"
+        android:importantForAccessibility="no" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center_horizontal"
+        android:layoutDirection="rtl"
+        android:orientation="vertical"
+        android:paddingStart="28dp"
+        android:paddingEnd="28dp"
+        android:paddingTop="56dp"
+        android:paddingBottom="56dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="South Street Connect"
+            android:textColor="#B3FFFFFF"
+            android:textSize="13sp" />
+
+        <Space android:layout_width="1dp" android:layout_height="0dp" android:layout_weight="1" />
+
+        <FrameLayout
+            android:layout_width="220dp"
+            android:layout_height="220dp">
+
+            <View android:id="@+id/ring1" android:layout_width="124dp" android:layout_height="124dp" android:layout_gravity="center" android:background="@drawable/ripple_ring" />
+            <View android:id="@+id/ring2" android:layout_width="124dp" android:layout_height="124dp" android:layout_gravity="center" android:background="@drawable/ripple_ring" />
+
+            <TextView
+                android:id="@+id/initial"
+                android:layout_width="124dp"
+                android:layout_height="124dp"
+                android:layout_gravity="center"
+                android:background="@drawable/avatar_bg"
+                android:gravity="center"
+                android:textColor="#FFFFFF"
+                android:textSize="46sp"
+                android:textStyle="bold" />
+
+            <ImageView
+                android:id="@+id/photo"
+                android:layout_width="124dp"
+                android:layout_height="124dp"
+                android:layout_gravity="center"
+                android:scaleType="centerCrop"
+                android:visibility="gone"
+                android:importantForAccessibility="no" />
+        </FrameLayout>
+
+        <TextView
+            android:id="@+id/name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:gravity="center"
+            android:textColor="#FFFFFF"
+            android:textSize="30sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/role"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="#B8FFFFFF"
+            android:textSize="15sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="@string/incoming"
+            android:textColor="#A7F3D0"
+            android:textSize="17sp" />
+
+        <Space android:layout_width="1dp" android:layout_height="0dp" android:layout_weight="1.4" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layoutDirection="rtl"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:orientation="vertical">
+                <ImageButton
+                    android:id="@+id/decline"
+                    android:layout_width="76dp"
+                    android:layout_height="76dp"
+                    android:background="@drawable/btn_decline"
+                    android:contentDescription="@string/decline"
+                    android:src="@drawable/ic_call_end" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:text="@string/decline" android:textColor="#FFFFFF" android:textSize="15sp" android:textStyle="bold" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:orientation="vertical">
+                <ImageButton
+                    android:id="@+id/answer"
+                    android:layout_width="76dp"
+                    android:layout_height="76dp"
+                    android:background="@drawable/btn_accept"
+                    android:contentDescription="@string/answer"
+                    android:src="@drawable/ic_call" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:text="@string/answer" android:textColor="#FFFFFF" android:textSize="15sp" android:textStyle="bold" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

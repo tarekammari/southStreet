@@ -1,0 +1,33 @@
+{
+  "name": "south-street-connect",
+  "productName": "South Street Connect",
+  "version": "1.5.0",
+  "description": "South Street Connect for Windows — messages and calls with the agency team.",
+  "author": "South Street",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis --x64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "33.2.1",
+    "electron-builder": "25.1.8"
+  },
+  "build": {
+    "appId": "tech.southstreet.connect",
+    "productName": "South Street Connect",
+    "artifactName": "SouthStreetConnect-Setup-${version}.exe",
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": ["main.js", "preload.js", "call.html", "call-preload.js", "assets/**"],
+    "win": { "icon": "build/icon.png", "target": "nsis" },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "South Street Connect",
+      "runAfterFinish": true
+    }
+  }
+}
