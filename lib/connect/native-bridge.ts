@@ -102,3 +102,23 @@ export const openAndroidSettings = (what: 'notifications' | 'fullscreen') => {
   if (what === 'fullscreen') a.openFullScreenSettings();
   else a.openNotificationSettings();
 };
+
+/**
+ * Inside the apps, sign-in steps the embedded browser cannot do (Google,
+ * security keys) continue in the real browser, which hands the session back
+ * (see /app-signin). Returns false in a normal browser.
+ */
+export function openSignInInBrowser(): boolean {
+  if (typeof window === 'undefined') return false;
+  const w = window as unknown as { SSAndroid?: { openSignIn?: (u: string) => void }; ssNative?: { openSignIn?: (u: string) => void } };
+  const platform = w.SSAndroid?.openSignIn ? 'android' : w.ssNative?.openSignIn ? 'windows' : null;
+  if (!platform) return false;
+  const url = `${window.location.origin}/app-signin?platform=${platform}`;
+  if (platform === 'android') w.SSAndroid!.openSignIn!(url);
+  else w.ssNative!.openSignIn!(url);
+  return true;
+}
+
+export const insideNativeApp = (): boolean =>
+  typeof window !== 'undefined' &&
+  Boolean((window as unknown as { SSAndroid?: unknown; ssNative?: unknown }).SSAndroid || (window as unknown as { ssNative?: unknown }).ssNative);

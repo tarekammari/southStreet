@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { KeyRound, Loader2, ShieldCheck } from 'lucide-react';
 import { assertWithKey, keyErrorMessage, securityKeysSupported } from '@/lib/webauthn-client';
+import { insideNativeApp, openSignInInBrowser } from '@/lib/connect/native-bridge';
 
 type LoginSuccess = { token: string; user: any; recoveryCodesLeft?: number; [k: string]: unknown };
 
@@ -31,6 +32,11 @@ export default function SecurityKeyPrompt({
   const [code, setCode] = useState('');
   const started = useRef(false);
   const supported = securityKeysSupported();
+  // The Connect apps' embedded browser cannot reach security keys: that step
+  // continues in the real browser, which hands the session back to the app.
+  const [inApp, setInApp] = useState(false);
+  const [handedOff, setHandedOff] = useState(false);
+  useEffect(() => setInApp(insideNativeApp()), []);
 
   const finish = async (payload: Record<string, unknown>) => {
     const res = await fetch('/api/auth/webauthn/login', {
@@ -70,7 +76,7 @@ export default function SecurityKeyPrompt({
   };
 
   useEffect(() => {
-    if (started.current || !supported) return;
+    if (started.current || !supported || insideNativeApp()) return;
     started.current = true;
     void tapKey();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -89,7 +95,22 @@ export default function SecurityKeyPrompt({
 
       {error ? <p className="skp-error" role="alert">{error}</p> : null}
 
-      {!recovery ? (
+      {!recovery && inApp ? (
+        <>
+          <button type="button" className="skp-primary" onClick={() => setHandedOff(openSignInInBrowser())}>
+            <ShieldCheck className="w-4 h-4" aria-hidden />
+            المتابعة بمفتاح الأمان في المتصفح
+          </button>
+          <p className="skp-text" style={{ marginTop: 8 }}>
+            {handedOff
+              ? 'أكمل الدخول في المتصفح (كلمة المرور ثم مفتاح الأمان)، ثم يعود التطبيق تلقائياً وأنت مسجّل.'
+              : 'مفاتيح الأمان تعمل في المتصفح فقط: يُفتح المتصفح لإكمال الدخول ثم يعود التطبيق مسجّلاً.'}
+          </p>
+          <button type="button" className="skp-link" onClick={() => { setRecovery(true); setError(''); }}>
+            فقدت المفتاح؟ استعمل رمز استرداد
+          </button>
+        </>
+      ) : !recovery ? (
         <>
           <button type="button" className="skp-primary" onClick={tapKey} disabled={busy || !supported}>
             <ShieldCheck className="w-4 h-4" aria-hidden />
