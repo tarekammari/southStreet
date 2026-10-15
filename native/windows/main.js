@@ -188,7 +188,10 @@ if (!app.requestSingleInstanceLock()) {
       skipTaskbar: true,
       alwaysOnTop: true,
       show: false,
-      transparent: true,
+      // The window itself is the card (transparent windows render as a grey
+      // box on some PCs); Windows 11 rounds its corners.
+      backgroundColor: '#0b1f19',
+      roundedCorners: true,
       hasShadow: true,
       icon: ICON,
       webPreferences: { preload: path.join(__dirname, 'call-preload.js'), contextIsolation: true, sandbox: false },
