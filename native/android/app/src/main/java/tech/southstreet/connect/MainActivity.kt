@@ -85,7 +85,8 @@ class MainActivity : AppCompatActivity() {
 
         web.loadUrl(signInUrl(intent) ?: urlFrom(intent) ?: "${Net.origin}/connect")
         applyCallWindow(intent)
-        askPermissionsOnce()
+        // Permissions are asked by the page's one-tap setup ("موافق — أكمل الإعداد"),
+        // after sign-in, all in one go — not as surprise prompts at launch.
         ListenerService.start(this)
         Prefs.fetchToken(this) { token ->
             runOnUiThread { js("window.dispatchEvent(new CustomEvent('ss-native-token',{detail:${Net.quote(token)}}))") }
@@ -123,33 +124,49 @@ class MainActivity : AppCompatActivity() {
 
     private fun hasMic() = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
 
-    private fun askPermissionsOnce() {
+    private fun notificationsOn() = androidx.core.app.NotificationManagerCompat.from(this).areNotificationsEnabled()
+
+    private fun batteryOk() = getSystemService(android.os.PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
+
+    private fun fullScreenOk(): Boolean =
+        Build.VERSION.SDK_INT < 34 || getSystemService(NotificationManager::class.java).canUseFullScreenIntent()
+
+    /** Setup step 1: notifications + microphone, in one system prompt. */
+    private fun askRuntimePermissions() {
         val want = mutableListOf<String>()
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) want += Manifest.permission.POST_NOTIFICATIONS
         if (!hasMic()) want += Manifest.permission.RECORD_AUDIO
-        if (want.isNotEmpty()) ActivityCompat.requestPermissions(this, want.toTypedArray(), REQ_START)
-        else askBatteryOnce()
+        if (want.isNotEmpty()) ActivityCompat.requestPermissions(this, want.toTypedArray(), REQ_SETUP)
+        else setupChanged()
     }
 
-    /** Once: ask Android not to put the app to sleep, or calls cannot ring while it is closed. */
-    private fun askBatteryOnce() {
-        val prefs = getSharedPreferences("connect", MODE_PRIVATE)
-        if (prefs.getBoolean("askedBattery", false)) return
-        val pm = getSystemService(android.os.PowerManager::class.java)
-        if (pm.isIgnoringBatteryOptimizations(packageName)) return
-        prefs.edit().putBoolean("askedBattery", true).apply()
+    /** Setup step 2: Android must not put the app to sleep, or calls cannot ring while it is closed. */
+    private fun askBattery() {
+        if (batteryOk()) return setupChanged()
         try {
             @SuppressLint("BatteryLife")
             val i = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName"))
             startActivity(i)
-        } catch (_: Exception) { }
+        } catch (_: Exception) { setupChanged() }
     }
+
+    private fun openFullScreen() {
+        val i = if (Build.VERSION.SDK_INT >= 34) {
+            Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, Uri.parse("package:$packageName"))
+        } else {
+            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+        }
+        try { startActivity(i) } catch (_: Exception) { setupChanged() }
+    }
+
+    /** Tells the page to look again (it moves on to the next setup step by itself). */
+    private fun setupChanged() = js("window.dispatchEvent(new Event('ss-native-setup'))")
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQ_START) askBatteryOnce()
+        if (requestCode == REQ_SETUP) setupChanged()
         pendingMic?.let { req ->
             if (hasMic()) req.grant(req.resources) else req.deny()
             pendingMic = null
@@ -159,6 +176,8 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         visible = true
+        // Back from a settings screen of the setup: continue with the next step.
+        if (::web.isInitialized) setupChanged()
     }
 
     override fun onPause() {
@@ -210,24 +229,33 @@ class MainActivity : AppCompatActivity() {
         }
 
         /** Android 14+: may this app show the full-screen call screen? */
-        @JavascriptInterface fun canFullScreen(): Boolean {
-            if (Build.VERSION.SDK_INT < 34) return true
-            return getSystemService(NotificationManager::class.java).canUseFullScreenIntent()
-        }
+        @JavascriptInterface fun canFullScreen(): Boolean = fullScreenOk()
 
-        @JavascriptInterface fun openFullScreenSettings() {
+        @JavascriptInterface fun openFullScreenSettings() = runOnUiThread { openFullScreen() }
+
+        @JavascriptInterface fun notificationsOn(): Boolean = this@MainActivity.notificationsOn()
+
+        /** One-tap setup: what is still missing for calls to ring like a phone. */
+        @JavascriptInterface fun setupStatus(): String = JSONObject()
+            .put("notifications", this@MainActivity.notificationsOn())
+            .put("mic", hasMic())
+            .put("battery", batteryOk())
+            .put("fullScreen", fullScreenOk())
+            .toString()
+
+        /** One-tap setup: ask for one step — permissions | battery | fullscreen | app (app info screen). */
+        @JavascriptInterface fun setupStep(step: String) {
             runOnUiThread {
-                val i = if (Build.VERSION.SDK_INT >= 34) {
-                    Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, Uri.parse("package:$packageName"))
-                } else {
-                    Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                when (step) {
+                    "permissions" -> askRuntimePermissions()
+                    "battery" -> askBattery()
+                    "fullscreen" -> openFullScreen()
+                    "app" -> try {
+                        startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+                    } catch (_: Exception) { }
                 }
-                try { startActivity(i) } catch (_: Exception) { }
             }
         }
-
-        @JavascriptInterface fun notificationsOn(): Boolean =
-            androidx.core.app.NotificationManagerCompat.from(this@MainActivity).areNotificationsEnabled()
 
         @JavascriptInterface fun openNotificationSettings() {
             runOnUiThread {
@@ -242,7 +270,7 @@ class MainActivity : AppCompatActivity() {
         const val EXTRA_URL = "url"
         const val EXTRA_ANSWER = "answer"
         private const val REQ_MIC = 41
-        private const val REQ_START = 42
+        private const val REQ_SETUP = 42
 
         @Volatile var visible = false
         private var instance: WeakReference<MainActivity>? = null

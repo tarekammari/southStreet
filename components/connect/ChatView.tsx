@@ -65,6 +65,7 @@ export default function ChatView({
   onCall,
   refreshKey,
   onChanged,
+  menu,
 }: {
   me: { id: string };
   peer: ConnectContact;
@@ -72,6 +73,8 @@ export default function ChatView({
   onCall: () => void;
   refreshKey: number;
   onChanged: () => void;
+  /** Extra header control (⋮ remove / block for another client). */
+  menu?: React.ReactNode;
 }) {
   const [messages, setMessages] = useState<ConnectMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -208,9 +211,10 @@ export default function ChatView({
         <span className="cn-avatar">{peer.photo ? <img src={peer.photo} alt="" /> : peer.name.charAt(0)}{online ? <i className="cn-dot" /> : null}</span>
         <div className="cn-chat-title">
           <b>{peer.name}</b>
-          <small>{online ? 'متصل الآن' : peer.roleLabel}</small>
+          <small>{online ? 'متصل الآن' : peer.friend ? 'من المفضّلين' : peer.roleLabel}</small>
         </div>
         <button type="button" className="cn-icon is-call" onClick={onCall} aria-label="اتصال صوتي"><Phone className="w-5 h-5" /></button>
+        {menu}
       </header>
 
       <div className="cn-messages">

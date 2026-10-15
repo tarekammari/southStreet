@@ -122,3 +122,35 @@ export function openSignInInBrowser(): boolean {
 export const insideNativeApp = (): boolean =>
   typeof window !== 'undefined' &&
   Boolean((window as unknown as { SSAndroid?: unknown; ssNative?: unknown }).SSAndroid || (window as unknown as { ssNative?: unknown }).ssNative);
+
+/* ---------- Android one-tap setup ---------- */
+
+export type AndroidSetup = { notifications: boolean; mic: boolean; battery: boolean; fullScreen: boolean };
+export type AndroidSetupStep = 'permissions' | 'battery' | 'fullscreen' | 'app';
+
+type SetupBridge = { setupStatus?: () => string; setupStep?: (step: string) => void };
+
+/** What is still missing for calls to ring (null outside the app, or in an app too old for the setup). */
+export function androidSetupStatus(): AndroidSetup | null {
+  const a = droid() as unknown as SetupBridge | undefined;
+  if (!a?.setupStatus) return null;
+  try {
+    return JSON.parse(a.setupStatus()) as AndroidSetup;
+  } catch {
+    return null;
+  }
+}
+
+export function androidSetupStep(step: AndroidSetupStep) {
+  try {
+    (droid() as unknown as SetupBridge | undefined)?.setupStep?.(step);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** The app asks the page to look again (permission answered, back from settings). */
+export function onAndroidSetupChange(cb: () => void): () => void {
+  window.addEventListener('ss-native-setup', cb);
+  return () => window.removeEventListener('ss-native-setup', cb);
+}

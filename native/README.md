@@ -23,7 +23,7 @@ Hang up that keeps the call alive with the screen off.
 
 ```bash
 cd native && tar -czf - --exclude=build --exclude=.gradle android | ssh root@45.9.190.236 'rm -rf /home/builder/connect-android && mkdir -p /tmp/up && tar -xzf - -C /tmp/up && mv /tmp/up/android /home/builder/connect-android && cp /home/builder/google-services.json /home/builder/connect-android/app/ 2>/dev/null; chown -R builder:builder /home/builder/connect-android'
-ssh root@45.9.190.236 'su - builder -c "cd ~/connect-android && echo sdk.dir=/opt/android-sdk > local.properties && SS_KEYSTORE=~/keys/connect.p12 SS_KEYSTORE_PASSWORD=\$(cat ~/keys/pass) SS_VERSION_CODE=2 SS_VERSION_NAME=1.5.1 /opt/gradle-8.11.1/bin/gradle --no-daemon -q assembleRelease" && cp /home/builder/connect-android/app/build/outputs/apk/release/app-release.apk /var/www/connect-downloads/SouthStreetConnect.apk'
+ssh root@45.9.190.236 'su - builder -c "cd ~/connect-android && echo sdk.dir=/opt/android-sdk > local.properties && SS_KEYSTORE=~/keys/connect.p12 SS_KEYSTORE_PASSWORD=\$(cat ~/keys/pass) SS_VERSION_CODE=4 SS_VERSION_NAME=1.6.0 /opt/gradle-8.11.1/bin/gradle --no-daemon -q assembleRelease" && cp /home/builder/connect-android/app/build/outputs/apk/release/app-release.apk /var/www/connect-downloads/SouthStreetConnect.apk'
 ```
 
 Raise `SS_VERSION_CODE` on every build (phones only update to a higher number).

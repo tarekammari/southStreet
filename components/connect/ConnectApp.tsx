@@ -2,18 +2,22 @@
 
 /**
  * South Street Connect — the installable messenger (Android, iPhone, Windows).
- * Chats, voice notes and voice calls between clients and the agency team.
+ * Chats, voice notes and voice calls between clients and the agency team, and
+ * between clients who accepted each other (requests, favourites, suggestions).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import dynamic from 'next/dynamic';
-import { Bell, BellOff, Download, Info, Loader2, RefreshCw, MessageCircle, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Search, Users } from 'lucide-react';
+import { Bell, BellOff, Download, Info, Loader2, RefreshCw, MessageCircle, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Search, Star, UserPlus, Users } from 'lucide-react';
 import { authHeaders, jsonAuthHeaders } from '@/lib/api-client';
 import { VoiceCall, startTone, stopTone, type CallEndReason, type CallPhase } from '@/lib/connect/rtc';
 import type { ConnectContact, ConnectUser } from '@/lib/connect/store';
 import ChatView from './ChatView';
 import AboutSheet from './AboutSheet';
+import AndroidSetup from './AndroidSetup';
 import NotifyGate from './NotifyGate';
+import { AddPersonSheet, EMPTY_PEOPLE, PersonMenu, RequestList, SentAndBlocked, Suggestions, peopleAction, type PeopleData } from './People';
+import type { PeopleAction } from '@/lib/connect/people';
 import { androidChecks, androidInBackground, nativePlatform, onAndroidToken, onNativeCallAction, openAndroidSettings, sendCallState } from '@/lib/connect/native-bridge';
 import { versionLabel } from '@/lib/connect/version';
 import CallOverlay, { CallMini, type CallView } from './CallOverlay';
@@ -104,6 +108,10 @@ export default function ConnectApp() {
   const [iceServers, setIceServers] = useState<RTCIceServer[]>([]);
   const [vapid, setVapid] = useState<string | null>(null);
   const [contacts, setContacts] = useState<ConnectContact[]>([]);
+  const [people, setPeople] = useState<PeopleData>(EMPTY_PEOPLE);
+  const [addOpen, setAddOpen] = useState(false);
+  const [toast, setToast] = useState('');
+  const [setupDone, setSetupDone] = useState(false);
   const [calls, setCalls] = useState<CallLog[]>([]);
   const [tab, setTab] = useState<Tab>('chats');
   const [query, setQuery] = useState('');
@@ -124,6 +132,7 @@ export default function ConnectApp() {
   const callRef = useRef<VoiceCall | null>(null);
   const incomingRef = useRef<Incoming | null>(null);
   const stamps = useRef<Record<string, number>>({});
+  const peopleStamp = useRef(0);
   const autoAnswer = useRef<string | null>(null);
   const acceptRef = useRef<() => Promise<void>>(async () => undefined);
 
@@ -163,13 +172,42 @@ export default function ConnectApp() {
     setCalls(data.calls || []);
   }, []);
 
+  // Requests, sent requests and suggestions (clients only; the team sees everyone).
+  const isClient = me?.role === 'PILGRIM_USER';
+  const loadPeople = useCallback(async () => {
+    if (!isClient) return;
+    const res = await fetch('/api/connect/people', { headers: authHeaders(), cache: 'no-store' });
+    if (res.ok) setPeople({ ...EMPTY_PEOPLE, ...(await res.json()) });
+  }, [isClient]);
+
+  const onPeopleAction = useCallback(
+    async (id: string, action: PeopleAction) => {
+      const r = await peopleAction(id, action);
+      if (r.error) setToast(r.error);
+      else if (action === 'accept') setToast('تمت الإضافة إلى المفضّلين — يمكنكما المراسلة والاتصال الآن');
+      else if (action === 'request' && r.state === 'friend') setToast('أصبحتما على تواصل');
+      else if (action === 'request') setToast('تم إرسال الطلب');
+      if (action === 'remove' || action === 'block') setOpenId((o) => (o === id ? null : o));
+      await Promise.all([loadPeople(), loadContacts()]);
+    },
+    [loadPeople, loadContacts]
+  );
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = window.setTimeout(() => setToast(''), 3200);
+    return () => window.clearTimeout(t);
+  }, [toast]);
+
   useEffect(() => {
     if (!me) return;
     void loadContacts();
+    void loadPeople();
     const params = new URLSearchParams(window.location.search);
     const chat = params.get('chat');
     if (chat) setOpenId(chat);
-  }, [me, loadContacts]);
+    if (params.get('tab') === 'contacts') setTab('contacts');
+  }, [me, loadContacts, loadPeople]);
 
   /* ---------- calls ---------- */
   const endUi = useCallback((reason: CallEndReason) => {
@@ -358,6 +396,11 @@ export default function ConnectApp() {
         const data = await res.json();
         const changed = Object.entries(data.stamps || {}).some(([chat, ts]) => stamps.current[chat] !== ts);
         stamps.current = data.stamps || {};
+        if (data.people && data.people !== peopleStamp.current) {
+          peopleStamp.current = data.people;
+          void loadPeople();
+          void loadContacts();
+        }
         if (changed) {
           void loadContacts();
           setRefreshKey((k) => k + 1);
@@ -395,6 +438,10 @@ export default function ConnectApp() {
       es.addEventListener('chat', () => {
         void loadContacts();
         setRefreshKey((k) => k + 1);
+      });
+      es.addEventListener('people', () => {
+        void loadPeople();
+        void loadContacts();
       });
       es.addEventListener('incoming', (ev) => {
         try {
@@ -440,7 +487,7 @@ export default function ConnectApp() {
       stopFallback();
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [me, loadContacts, endUi, showIncoming]);
+  }, [me, loadContacts, loadPeople, endUi, showIncoming]);
 
   /* ---------- updates ---------- */
   // A newer version is online: apply it at a quiet moment (never during a call or
@@ -520,6 +567,9 @@ export default function ConnectApp() {
   const chats = filtered.filter((c) => c.lastTs);
   const team = filtered.filter((c) => c.role !== 'PILGRIM_USER');
   const clients = filtered.filter((c) => c.role === 'PILGRIM_USER');
+  // Favourites: the clients I accepted, the ones I talk to most (lately) first.
+  const favourites = clients.filter((c) => c.friend).sort((a, b) => b.affinity - a.affinity || Number(b.online) - Number(a.online) || a.name.localeCompare(b.name, 'ar'));
+  const requestCount = people.requests.length;
 
   if (needLogin) {
     return (
@@ -622,7 +672,24 @@ export default function ConnectApp() {
               </div>
             )
           ) : null}
-          {tab === 'contacts' ? (
+          {tab === 'contacts' && isClient ? (
+            <>
+              <button type="button" className="cn-add" onClick={() => setAddOpen(true)}>
+                <span><UserPlus className="w-5 h-5" /></span>
+                <b>إضافة شخص</b>
+                <small>برقم الهاتف أو البريد</small>
+              </button>
+              <RequestList people={people.requests} onAction={onPeopleAction} />
+              {favourites.length ? (<><h3 className="cn-group"><Star className="w-3.5 h-3.5" aria-hidden /> المفضّلون</h3><ul>{favourites.map((c) => row(c, false))}</ul></>) : null}
+              {team.length ? (<><h3 className="cn-group">فريق الوكالة</h3><ul>{team.map((c) => row(c, false))}</ul></>) : null}
+              {!q ? <Suggestions people={people.suggestions} onAction={onPeopleAction} /> : null}
+              {!q && !favourites.length && !people.suggestions.length && !requestCount ? (
+                <p className="cn-tip">أضف رفاق رحلتك ليظهروا هنا في «المفضّلون» — يقبلون طلبك ثم تتراسلون وتتصلون مجاناً.</p>
+              ) : null}
+              <SentAndBlocked sent={people.sent} blocked={people.blocked} onAction={onPeopleAction} />
+            </>
+          ) : null}
+          {tab === 'contacts' && !isClient ? (
             <>
               {team.length ? (<><h3 className="cn-group">فريق الوكالة</h3><ul>{team.map((c) => row(c, false))}</ul></>) : null}
               {clients.length ? (<><h3 className="cn-group">المعتمرون</h3><ul>{clients.map((c) => row(c, false))}</ul></>) : null}
@@ -659,7 +726,7 @@ export default function ConnectApp() {
           <button type="button" className={tab === 'chats' ? 'is-on' : ''} onClick={() => setTab('chats')}>
             <MessageCircle className="w-5 h-5" /> المحادثات{totalUnread ? <em className="cn-badge">{totalUnread}</em> : null}
           </button>
-          <button type="button" className={tab === 'contacts' ? 'is-on' : ''} onClick={() => setTab('contacts')}><Users className="w-5 h-5" /> جهات الاتصال</button>
+          <button type="button" className={tab === 'contacts' ? 'is-on' : ''} onClick={() => setTab('contacts')}><Users className="w-5 h-5" /> جهات الاتصال{requestCount ? <em className="cn-badge">{requestCount}</em> : null}</button>
           <button type="button" className={tab === 'calls' ? 'is-on' : ''} onClick={() => setTab('calls')}><Phone className="w-5 h-5" /> المكالمات</button>
         </nav>
       </aside>
@@ -673,6 +740,7 @@ export default function ConnectApp() {
             onCall={() => void placeCall(open)}
             refreshKey={refreshKey}
             onChanged={() => void loadContacts()}
+            menu={isClient && open.friend ? <PersonMenu name={open.name} onAction={(a) => onPeopleAction(open.id, a)} /> : null}
           />
         ) : (
           <div className="cn-welcome">
@@ -683,6 +751,20 @@ export default function ConnectApp() {
           </div>
         )}
       </main>
+
+      {addOpen ? (
+        <AddPersonSheet
+          onClose={() => setAddOpen(false)}
+          onAction={onPeopleAction}
+          onOpenChat={(id) => { setOpenId(id); void loadContacts(); }}
+        />
+      ) : null}
+
+      {me && !setupDone && !callView && nativePlatform() === 'android' ? (
+        <AndroidSetup onDone={() => { setSetupDone(true); setDroidChecks(androidChecks()); }} />
+      ) : null}
+
+      {toast ? <div className="cn-toast" role="status">{toast}</div> : null}
 
       {aboutOpen ? (
         <AboutSheet onClose={() => setAboutOpen(false)} live={live} serverPush={Boolean(vapid)} pushState={pushState === 'denied' ? 'off' : pushState} onEnablePush={enablePush} />

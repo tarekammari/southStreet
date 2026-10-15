@@ -1,6 +1,7 @@
 import { connectSession } from '@/lib/connect/session';
 import { subscribe, type ConnectEvent } from '@/lib/connect/bus';
 import { incomingFor, latestActivity, touchPresence, userById } from '@/lib/connect/store';
+import { linksStamp } from '@/lib/connect/links';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -38,12 +39,18 @@ export async function GET(req: Request) {
       // Fallback for other server instances: look at the database about once a second.
       let lastActivity = latestActivity(me.id);
       let lastIncoming = '';
+      let lastPeople = linksStamp(me.id);
       const check = () => {
         try {
           const act = latestActivity(me.id);
           if (act > lastActivity) {
             lastActivity = act;
             send('chat', { type: 'chat', chatId: '', ts: act });
+          }
+          const people = linksStamp(me.id);
+          if (people !== lastPeople) {
+            lastPeople = people;
+            send('people', { type: 'people', ts: people });
           }
           const call = incomingFor(me.id);
           if (call && call.id !== lastIncoming) {

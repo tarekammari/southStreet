@@ -4,7 +4,8 @@
  * portal chat, so a conversation is the same everywhere.
  *
  * Who talks to whom: clients ↔ the agency team (and their guide); the team ↔
- * everyone. Two clients never see each other.
+ * everyone. Two clients talk only once one asked and the other accepted (see
+ * links.ts / people.ts).
  *
  * Tables / columns are added on first use (not in the start-up setup).
  */
@@ -15,9 +16,11 @@ import { buildDmChatId, parseDmChatId } from '../chat-utils';
 import { normalizeLoginRole, LOGIN_ROLE_LABELS, type LoginRole } from '../roles';
 import { isImageSource, resolveUserPhoto } from '../user-access-view';
 import { publish } from './bus';
+import { areFriends, friendIds } from './links';
 
 export type ConnectUser = { id: string; name: string; role: LoginRole; roleLabel: string; photo: string };
-export type ConnectContact = ConnectUser & { chatId: string; online: boolean; lastText: string; lastTs: number; unread: number };
+/** `friend`: a client I accepted (or who accepted me); `affinity`: how much we talk lately (orders favourites). */
+export type ConnectContact = ConnectUser & { chatId: string; online: boolean; lastText: string; lastTs: number; unread: number; friend: boolean; affinity: number };
 export type ConnectMessage = {
   id: string;
   chatId: string;
@@ -90,12 +93,13 @@ function toUser(u: any): ConnectUser {
 
 export const isTeam = (role: LoginRole) => role !== 'PILGRIM_USER';
 
-/** Clients and team members may talk; two clients may not. */
+/** Clients and team members may talk; two clients only once they are linked (accepted). */
 export function canTalk(a: ConnectUser, b: ConnectUser): boolean {
-  return a.id !== b.id && (isTeam(a.role) || isTeam(b.role));
+  if (a.id === b.id) return false;
+  return isTeam(a.role) || isTeam(b.role) || areFriends(a.id, b.id);
 }
 
-function activeUsers(): ConnectUser[] {
+export function activeUsers(): ConnectUser[] {
   return (db().prepare('SELECT id, name, role, avatar, loginEnabled, status FROM users').all() as any[])
     .filter((u) => u.loginEnabled !== 0 && !['SUSPENDED', 'REJECTED'].includes(String(u.status || '').toUpperCase()))
     .map(toUser);
@@ -125,6 +129,20 @@ export function markRead(chatId: string, userId: string) {
 
 const msgTs = (m: any) => Number(m.ts) || 0;
 
+const HALF_LIFE_MS = 14 * 86_400_000;
+/**
+ * How close two people are lately: every message and call counts, recent ones
+ * far more (half the weight after two weeks), calls three times a message.
+ */
+function affinityOf(list: any[], now: number): number {
+  let score = 0;
+  for (const m of list) {
+    const age = Math.max(0, now - msgTs(m));
+    score += (m.kind_type === 'call' ? 3 : 1) * Math.pow(0.5, age / HALF_LIFE_MS);
+  }
+  return Math.round(score * 100) / 100;
+}
+
 export function contactsFor(me: ConnectUser): ConnectContact[] {
   const d = db();
   const presence = presenceMap();
@@ -135,8 +153,9 @@ export function contactsFor(me: ConnectUser): ConnectContact[] {
     if (!byChat.has(r.chatId)) byChat.set(r.chatId, []);
     byChat.get(r.chatId)!.push(r);
   }
+  const friends = isTeam(me.role) ? new Set<string>() : friendIds(me.id);
   return activeUsers()
-    .filter((u) => canTalk(me, u))
+    .filter((u) => u.id !== me.id && (isTeam(me.role) || isTeam(u.role) || friends.has(u.id)))
     .map((u) => {
       const chatId = buildDmChatId(me.id, u.id);
       const list = (byChat.get(chatId) || []).sort((a, b) => msgTs(a) - msgTs(b) || a.rowid - b.rowid);
@@ -149,6 +168,8 @@ export function contactsFor(me: ConnectUser): ConnectContact[] {
         lastText: last ? (last.kind_type === 'voice' ? '🎤 رسالة صوتية' : String(last.text || '')) : '',
         lastTs: last ? msgTs(last) : 0,
         unread: list.filter((m) => m.senderId !== me.id && msgTs(m) > seen).length,
+        friend: friends.has(u.id),
+        affinity: affinityOf(list, now),
       };
     })
     .sort((a, b) => b.lastTs - a.lastTs || Number(b.online) - Number(a.online) || a.name.localeCompare(b.name, 'ar'));

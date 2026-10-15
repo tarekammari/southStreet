@@ -249,3 +249,60 @@
 .cn-gate-main:disabled { opacity: 0.7; }
 .cn-gate-later { margin-top: 8px; padding: 8px 16px; color: #64748b !important; font-size: 0.86rem; font-weight: 700; }
 @media (prefers-reduced-motion: reduce) { .cn-gate-icon svg, .cn-gate-icon i { animation: none !important; } }
+
+/* ---------- people: requests, favourites, suggestions (clients ↔ clients) ---------- */
+.cn-group { display: flex; align-items: center; gap: 6px; }
+.cn-group .cn-badge { height: 18px; min-width: 18px; font-size: 0.68rem; }
+.cn-add { display: grid; grid-template-columns: 46px 1fr; grid-template-rows: auto auto; column-gap: 12px; align-items: center; width: calc(100% - 24px); margin: 4px 12px 2px; padding: 10px 12px; border-radius: 16px; text-align: right; background: var(--cn-brand-soft) !important; transition: transform 0.15s ease; }
+.cn-add:active { transform: scale(0.98); }
+.cn-add span { grid-row: span 2; display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; background: var(--cn-brand); color: #fff; }
+.cn-add b { font-size: 0.95rem; color: var(--cn-brand-2); }
+.cn-add small { color: var(--cn-muted); font-size: 0.78rem; }
+.cn-request { animation: cn-rise 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+.cn-req-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.cn-chip { display: inline-flex; align-items: center; justify-content: center; gap: 5px; height: 34px; padding: 0 14px; border-radius: 999px; font-size: 0.82rem; font-weight: 800; background: #eef2f1 !important; color: var(--cn-ink) !important; white-space: nowrap; flex: none; transition: transform 0.12s ease, opacity 0.12s ease; }
+.cn-chip:active { transform: scale(0.96); }
+.cn-chip:disabled { opacity: 0.6; }
+.cn-chip.is-main { background: var(--cn-brand) !important; color: #fff !important; }
+.cn-chip.is-done { background: var(--cn-brand-soft) !important; color: var(--cn-brand-2) !important; }
+.cn-chip.is-quiet { background: transparent !important; color: var(--cn-muted) !important; padding: 0 8px; }
+.cn-chip.is-danger { background: #fee2e2 !important; color: #b91c1c !important; }
+.cn-avatar.is-big { width: 64px; height: 64px; font-size: 1.4rem; }
+.cn-suggest { display: flex; gap: 10px; overflow-x: auto; padding: 4px 12px 12px; scroll-snap-type: x mandatory; scrollbar-width: none; }
+.cn-suggest::-webkit-scrollbar { display: none; }
+.cn-suggest-card { position: relative; flex: none; width: 148px; scroll-snap-align: start; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 10px 12px; border-radius: 18px; border: 1px solid var(--cn-line); background: var(--cn-panel); text-align: center; box-shadow: 0 6px 18px -14px rgba(15, 23, 42, 0.35); }
+.cn-suggest-card b { font-size: 0.88rem; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 4px; }
+.cn-suggest-card small { color: var(--cn-muted); font-size: 0.72rem; line-height: 1.4; min-height: 2.8em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.cn-suggest-card .cn-chip { width: 100%; margin-top: 4px; }
+.cn-suggest-x { position: absolute; top: 6px; inset-inline-start: 6px; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; color: var(--cn-muted) !important; }
+.cn-suggest-x:hover { background: #f1f5f4 !important; }
+.cn-tip { margin: 8px 16px; padding: 12px 14px; border-radius: 14px; background: #f8faf9; color: var(--cn-muted); font-size: 0.84rem; line-height: 1.7; }
+.cn-more { margin: 6px 0; }
+.cn-more summary { cursor: pointer; padding: 10px 16px; font-size: 0.78rem; font-weight: 800; color: var(--cn-muted); list-style: none; }
+.cn-more summary::-webkit-details-marker { display: none; }
+.cn-find { display: flex; align-items: center; gap: 8px; height: 48px; padding: 0 6px 0 12px; border-radius: 14px; background: #f1f4f3; color: var(--cn-muted); }
+.cn-find input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font: inherit; font-size: 1rem; color: var(--cn-ink); }
+.cn-found { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 16px; background: var(--cn-brand-soft); animation: cn-rise 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+.cn-found > div { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.cn-found b { font-size: 1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cn-found small { color: var(--cn-muted); font-size: 0.8rem; }
+.cn-sheet-hint { margin: 0; font-size: 0.78rem; line-height: 1.7; color: var(--cn-muted); text-align: center; }
+.cn-gate-icon.is-small { width: 44px; height: 44px; margin: 0; flex: none; }
+.cn-gate-icon.is-small svg { animation: none; }
+.cn-menu-wrap { position: relative; }
+.cn-menu { position: absolute; top: 44px; inset-inline-end: 0; z-index: 20; min-width: 220px; display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 14px; background: var(--cn-panel); box-shadow: 0 18px 40px -16px rgba(15, 23, 42, 0.45); border: 1px solid var(--cn-line); animation: cn-fade 0.15s ease; }
+.cn-menu > button[role='menuitem'] { display: flex; align-items: center; gap: 8px; padding: 10px; border-radius: 10px; font-size: 0.88rem; font-weight: 700; text-align: right; }
+.cn-menu > button[role='menuitem']:hover { background: #f4f6f5 !important; }
+.cn-menu > button.is-danger { color: #b91c1c !important; }
+.cn-menu p { margin: 2px 4px 4px; font-size: 0.84rem; line-height: 1.6; }
+.cn-toast { position: fixed; top: calc(env(safe-area-inset-top) + 14px); left: 50%; transform: translateX(-50%); z-index: 70; max-width: calc(100% - 32px); padding: 10px 16px; border-radius: 14px; background: #0f172a; color: #fff; font-size: 0.86rem; font-weight: 700; text-align: center; box-shadow: 0 16px 30px -14px rgba(0, 0, 0, 0.6); animation: cn-rise 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
+
+/* Android one-tap setup */
+.cn-setup { list-style: none; margin: 16px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; text-align: start; }
+.cn-setup li { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; background: #f6f8f7; transition: background 0.25s ease; }
+.cn-setup li.is-ok { background: #e7f6ef; }
+.cn-setup-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: #fff; color: #64748b; flex: none; }
+.cn-setup li.is-ok .cn-setup-icon { background: #047857; color: #fff; }
+.cn-setup-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.cn-setup-text b { font-size: 0.88rem; }
+.cn-setup-text small { color: #64748b; font-size: 0.76rem; }

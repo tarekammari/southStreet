@@ -13,7 +13,9 @@ export type ConnectEvent =
   | { type: 'chat'; chatId: string; ts: number }
   | { type: 'incoming'; id: string; offer?: string; caller: { id: string; name: string; roleLabel: string; photo: string } }
   | { type: 'call'; id: string; state: string; answer?: string | null }
-  | { type: 'ice'; id: string; candidate: string; ts: number };
+  | { type: 'ice'; id: string; candidate: string; ts: number }
+  /** A contact request was sent, accepted, declined or removed: reload the people lists. */
+  | { type: 'people'; ts: number };
 
 const g = globalThis as unknown as { __ssConnectBus?: EventEmitter };
 const bus = (g.__ssConnectBus ||= (() => {
