@@ -60,6 +60,7 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageFinished(view: WebView, url: String) {
                 android.webkit.CookieManager.getInstance().flush()
+                ListenerService.start(this@MainActivity) // (re)connects with the fresh sign-in
                 Prefs.registerToken(this@MainActivity) // signed in now? tie this phone to the account
             }
         }
@@ -85,6 +86,7 @@ class MainActivity : AppCompatActivity() {
         web.loadUrl(signInUrl(intent) ?: urlFrom(intent) ?: "${Net.origin}/connect")
         applyCallWindow(intent)
         askPermissionsOnce()
+        ListenerService.start(this)
         Prefs.fetchToken(this) { token ->
             runOnUiThread { js("window.dispatchEvent(new CustomEvent('ss-native-token',{detail:${Net.quote(token)}}))") }
             Prefs.registerToken(this)
@@ -128,10 +130,26 @@ class MainActivity : AppCompatActivity() {
         ) want += Manifest.permission.POST_NOTIFICATIONS
         if (!hasMic()) want += Manifest.permission.RECORD_AUDIO
         if (want.isNotEmpty()) ActivityCompat.requestPermissions(this, want.toTypedArray(), REQ_START)
+        else askBatteryOnce()
+    }
+
+    /** Once: ask Android not to put the app to sleep, or calls cannot ring while it is closed. */
+    private fun askBatteryOnce() {
+        val prefs = getSharedPreferences("connect", MODE_PRIVATE)
+        if (prefs.getBoolean("askedBattery", false)) return
+        val pm = getSystemService(android.os.PowerManager::class.java)
+        if (pm.isIgnoringBatteryOptimizations(packageName)) return
+        prefs.edit().putBoolean("askedBattery", true).apply()
+        try {
+            @SuppressLint("BatteryLife")
+            val i = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName"))
+            startActivity(i)
+        } catch (_: Exception) { }
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQ_START) askBatteryOnce()
         pendingMic?.let { req ->
             if (hasMic()) req.grant(req.resources) else req.deny()
             pendingMic = null
@@ -162,6 +180,9 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface fun version() = BuildConfig.VERSION_NAME
         @JavascriptInterface fun token() = Prefs.token(this@MainActivity)
         @JavascriptInterface fun firebase() = BuildConfig.HAS_FIREBASE
+
+        /** False while the app is in the background: then the phone's call screen rings, not the page. */
+        @JavascriptInterface fun inForeground() = visible
 
         /** Google sign-in runs in a Chrome tab (Google blocks it inside apps). */
         @JavascriptInterface fun openSignIn(url: String) {

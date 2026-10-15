@@ -10,6 +10,7 @@ import kotlin.concurrent.thread
 /** Small network helpers that reuse the WebView's sign-in cookie. */
 object Net {
     val origin: String = BuildConfig.ORIGIN
+    val userAgent = "Mozilla/5.0 (Linux; Android ${android.os.Build.VERSION.RELEASE}) SSConnectAndroid/${BuildConfig.VERSION_NAME}"
 
     fun absolute(path: String?): String? {
         if (path.isNullOrBlank()) return null
@@ -26,6 +27,7 @@ object Net {
                 conn.readTimeout = 8000
                 conn.doOutput = true
                 conn.setRequestProperty("Content-Type", "application/json")
+                conn.setRequestProperty("User-Agent", userAgent)
                 conn.setRequestProperty("Origin", origin) // the site's CSRF check
                 CookieManager.getInstance().getCookie(origin)?.let { conn.setRequestProperty("Cookie", it) }
                 conn.outputStream.use { it.write(json.toByteArray()) }

@@ -17,6 +17,11 @@ const ORIGIN = process.env.SS_CONNECT_ORIGIN || 'https://southstreet.1zayd1.tech
 const START_URL = `${ORIGIN}/connect`;
 const ICON = path.join(__dirname, 'assets', 'icon.png');
 
+// Security suites (FortiClient, exploit protection…) kill Chromium's sandboxed
+// processes when the app runs from its install folder: blank window, then the
+// app closes. The app only ever shows our own site (navigation is locked to
+// it below), so it runs without that sandbox.
+app.commandLine.appendSwitch('no-sandbox');
 // Ringtone may play without a click (the call card is not clicked yet).
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 app.setAppUserModelId('tech.southstreet.connect');
@@ -71,12 +76,24 @@ if (!app.requestSingleInstanceLock()) {
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
         contextIsolation: true,
-        sandbox: true,
+        sandbox: false,
         // Keep the live connection and timers running while hidden in the tray.
         backgroundThrottling: false,
       },
     });
     main.loadURL(signInUrl(process.argv) || START_URL);
+
+    // Only our own site is shown inside the app; anything else opens in the browser.
+    main.webContents.on('will-navigate', (e, url) => {
+      if (!url.startsWith(`${ORIGIN}/`) && url !== ORIGIN) {
+        e.preventDefault();
+        shell.openExternal(url);
+      }
+    });
+    // If the page process still dies, show it again instead of a blank window.
+    main.webContents.on('render-process-gone', (_e, details) => {
+      if (details.reason !== 'clean-exit') setTimeout(() => main && main.loadURL(START_URL), 1500);
+    });
 
     // Links to other sites open in the normal browser.
     main.webContents.setWindowOpenHandler(({ url }) => {
@@ -162,7 +179,7 @@ if (!app.requestSingleInstanceLock()) {
       transparent: true,
       hasShadow: true,
       icon: ICON,
-      webPreferences: { preload: path.join(__dirname, 'call-preload.js'), contextIsolation: true, sandbox: true },
+      webPreferences: { preload: path.join(__dirname, 'call-preload.js'), contextIsolation: true, sandbox: false },
     });
     card.loadFile(path.join(__dirname, 'call.html'));
     card.webContents.on('did-finish-load', () => call && card.webContents.send('call', call));

@@ -14,7 +14,7 @@ import type { ConnectContact, ConnectUser } from '@/lib/connect/store';
 import ChatView from './ChatView';
 import AboutSheet from './AboutSheet';
 import NotifyGate from './NotifyGate';
-import { androidChecks, nativePlatform, onAndroidToken, onNativeCallAction, openAndroidSettings, sendCallState } from '@/lib/connect/native-bridge';
+import { androidChecks, androidInBackground, nativePlatform, onAndroidToken, onNativeCallAction, openAndroidSettings, sendCallState } from '@/lib/connect/native-bridge';
 import { versionLabel } from '@/lib/connect/version';
 import CallOverlay, { CallMini, type CallView } from './CallOverlay';
 import { usePipWindow } from './usePipWindow';
@@ -290,7 +290,7 @@ export default function ConnectApp() {
     if (autoAnswer.current && autoAnswer.current === inc.id) {
       autoAnswer.current = null;
       void acceptRef.current();
-    } else if (nativePlatform() !== 'windows') {
+    } else if (nativePlatform() !== 'windows' && !androidInBackground()) {
       // On Windows the floating call card rings (and stays above every window).
       startTone('ring');
       if (!nativePlatform() && document.visibilityState !== 'visible') ringWhileHidden(inc);

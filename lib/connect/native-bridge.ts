@@ -26,6 +26,7 @@ type AndroidBridge = {
   platform: () => string;
   token: () => string;
   firebase: () => boolean;
+  inForeground?: () => boolean;
   callState: (json: string) => void;
   canFullScreen: () => boolean;
   openFullScreenSettings: () => void;
@@ -73,6 +74,16 @@ export function onAndroidToken(cb: (token: string) => void): () => void {
   const onEvent = (e: Event) => cb(String((e as CustomEvent).detail || ''));
   window.addEventListener('ss-native-token', onEvent);
   return () => window.removeEventListener('ss-native-token', onEvent);
+}
+
+/** Android app in the background: its own call screen rings, so the page stays quiet. */
+export function androidInBackground(): boolean {
+  const a = droid();
+  try {
+    return Boolean(a?.inForeground && !a.inForeground());
+  } catch {
+    return false;
+  }
 }
 
 export function androidChecks(): { notifications: boolean; fullScreen: boolean; firebase: boolean } | null {
