@@ -7,6 +7,7 @@
  */
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import QRCode from 'qrcode';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
@@ -31,7 +32,11 @@ import {
 } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
-import { CONNECT_VERSION } from '@/lib/connect/version';
+import { CONNECT_VERSION, NATIVE_RELEASES } from '@/lib/connect/version';
+import { authHeaders } from '@/lib/api-client';
+import { checkAppUpdate, insideNativeApp, nativeVersion, type UpdateCheck } from '@/lib/connect/native-bridge';
+
+const LoginModal = dynamic(() => import('@/components/LoginModal'), { ssr: false });
 import '@/app/app-page.css';
 
 type Platform = 'android' | 'windows' | 'ios';
@@ -43,11 +48,11 @@ const PLATFORMS: Record<
   android: {
     label: 'أندرويد',
     icon: Smartphone,
-    href: '/downloads/SouthStreetConnect.apk',
+    href: NATIVE_RELEASES.android.url,
     cta: 'تحميل لأندرويد',
     size: 'APK · 4 ميغابايت',
     steps: [
-      'اضغط «تحميل لأندرويد» ثم افتح الملف واضغط «تثبيت».',
+      'سجّل الدخول بحسابك ثم اضغط «تحميل لأندرويد» وافتح الملف واضغط «تثبيت».',
       'افتح SS Connect وسجّل الدخول.',
       'اضغط «موافق» مرة واحدة — يكمل التطبيق الإعداد بنفسه.',
     ],
@@ -55,11 +60,11 @@ const PLATFORMS: Record<
   windows: {
     label: 'ويندوز',
     icon: Monitor,
-    href: '/downloads/SouthStreetConnect-Setup.exe',
+    href: NATIVE_RELEASES.windows.url,
     cta: 'تحميل لويندوز',
     size: 'Windows 10 / 11 · 80 ميغابايت',
     steps: [
-      'اضغط «تحميل لويندوز» ثم شغّل الملف.',
+      'سجّل الدخول بحسابك ثم اضغط «تحميل لويندوز» وشغّل الملف.',
       'إن ظهرت «Windows protected your PC»: اضغط «More info» ثم «Run anyway».',
       'سجّل الدخول. يعمل Connect مع تشغيل ويندوز ويبقى بجانب الساعة.',
     ],
@@ -189,6 +194,27 @@ export default function DownloadPage() {
   const [detected, setDetected] = useState<Platform>('android');
   const [qr, setQr] = useState('');
   const [open, setOpen] = useState<number | null>(0);
+  // The apps are for account holders only: download after signing in.
+  const [account, setAccount] = useState<'unknown' | 'in' | 'out'>('unknown');
+  const [loginOpen, setLoginOpen] = useState(false);
+  // Opened inside the installed app: never offer to install it again, only updates.
+  const [inApp, setInApp] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [update, setUpdate] = useState<UpdateCheck | null>(null);
+
+  useEffect(() => {
+    setInApp(insideNativeApp());
+    void fetch('/api/connect/config', { headers: authHeaders(), cache: 'no-store' })
+      .then((r) => setAccount(r.ok ? 'in' : 'out'))
+      .catch(() => setAccount('out'));
+    if (new URLSearchParams(window.location.search).get('login') === '1') setLoginOpen(true);
+  }, []);
+
+  const checkUpdates = async () => {
+    setChecking(true);
+    setUpdate(await checkAppUpdate(process.env.APP_VERSION || ''));
+    setChecking(false);
+  };
 
   useEffect(() => {
     const p = detect();
@@ -202,7 +228,24 @@ export default function DownloadPage() {
   const others = (Object.keys(PLATFORMS) as Platform[]).filter((p) => p !== detected);
 
   const primary = (p: Platform, className: string) =>
-    PLATFORMS[p].href ? (
+    inApp ? (
+      <button type="button" className={className} disabled={checking} onClick={() => void checkUpdates()}>
+        <ShieldCheck />{' '}
+        {checking
+          ? 'جارٍ التحقق…'
+          : update?.state === 'latest'
+            ? `التطبيق مثبّت · أحدث إصدار ${nativeVersion() || ''}`
+            : update?.state === 'ready'
+              ? 'تحديث جاهز — وافق على التثبيت'
+              : update?.state === 'error'
+                ? 'تعذّر التحقق — أعد المحاولة'
+                : 'التطبيق مثبّت · التحقق من التحديثات'}
+      </button>
+    ) : PLATFORMS[p].href && account !== 'in' ? (
+      <button type="button" className={className} onClick={() => setLoginOpen(true)}>
+        <Lock /> سجّل الدخول للتنزيل
+      </button>
+    ) : PLATFORMS[p].href ? (
       <a href={PLATFORMS[p].href} download className={className}>
         <Download /> {PLATFORMS[p].cta}
       </a>
@@ -395,12 +438,13 @@ export default function DownloadPage() {
               ))}
             </div>
             <p className="cx-signin">
-              تسجيل الدخول بحسابك في ساوث ستريت. ليس لديك حساب؟ <Link href="/book">احجز رحلتك</Link> أو تواصل مع الوكالة.
+              التطبيق لأصحاب الحسابات فقط: سجّل الدخول بحسابك في ساوث ستريت ثم نزّله. ليس لديك حساب؟ <Link href="/book">احجز رحلتك</Link> أو تواصل مع الوكالة.
             </p>
           </div>
         </section>
       </main>
       <Footer />
+      {loginOpen ? <LoginModal onClose={() => setLoginOpen(false)} redirectTo="/app#install" /> : null}
     </div>
   );
 }

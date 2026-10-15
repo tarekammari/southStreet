@@ -4,7 +4,8 @@
  *  - Requests: a client asks, the other accepts / declines / blocks. Asking
  *    someone who already asked you simply connects you both.
  *  - Lookup: a client is found only by an exact phone number, email or client
- *    code — never by browsing everyone (clients' details stay private).
+ *    code — never by browsing everyone (clients' details stay private). Staff
+ *    are never found this way: clients see only the Super Admin and the guides.
  *  - Suggestions ("قد تعرفهم"): a light ranking of the clients you most likely
  *    know — same trip, same departure dates, same guide, contacts in common.
  */
@@ -168,11 +169,12 @@ export function lookup(me: ConnectUser, query: string): PersonCard | null {
     return qDigits.length >= 9 && phone.length >= 9 && phone.slice(-9) === qDigits.slice(-9);
   });
   const u = hit ? userById(String(hit.id)) : null;
-  if (!u) return null;
+  // Only clients are found this way; the team a client may reach is already in the list.
+  if (!u || !isClient(u)) return null;
   // Someone who blocked me is simply "not found".
   const link = getLink(me.id, u.id);
   if (link?.state === 'blocked' && link.actorId !== me.id) return null;
-  return card(me, u, isClient(u) ? '' : u.roleLabel);
+  return card(me, u);
 }
 
 /* ---------------- actions ---------------- */

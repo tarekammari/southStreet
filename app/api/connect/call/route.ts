@@ -42,7 +42,11 @@ export async function POST(req: NextRequest) {
     const peer = userById(String(body.to || ''));
     if (!peer) return NextResponse.json({ error: 'غير متاح' }, { status: 403 });
     // Two clients call each other only after one accepted the other's request.
-    if (!canTalk(s.me, peer)) return NextResponse.json({ error: 'أرسل طلب تواصل أولاً — يمكنكما الاتصال بعد قبوله', code: 'NOT_CONNECTED' }, { status: 403 });
+    if (!canTalk(s.me, peer)) {
+      return peer.role === 'PILGRIM_USER'
+        ? NextResponse.json({ error: 'أرسل طلب تواصل أولاً — يمكنكما الاتصال بعد قبوله', code: 'NOT_CONNECTED' }, { status: 403 })
+        : NextResponse.json({ error: 'غير متاح' }, { status: 403 });
+    }
     const offer = String(body.offer || '');
     if (!offer.includes('v=0')) return NextResponse.json({ error: 'عرض اتصال غير صالح' }, { status: 400 });
     if (busy(peer.id)) return NextResponse.json({ error: 'الطرف الآخر في مكالمة الآن', code: 'BUSY' }, { status: 409 });

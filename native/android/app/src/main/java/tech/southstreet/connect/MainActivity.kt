@@ -238,6 +238,15 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface fun notificationsOn(): Boolean = this@MainActivity.notificationsOn()
 
+        /** "التحقق من التحديثات" in the info sheet; the answer comes back as the ss-native-update event. */
+        @JavascriptInterface fun checkUpdate() {
+            runOnUiThread {
+                Updater.check(this@MainActivity, force = true) { state, version ->
+                    js("window.dispatchEvent(new CustomEvent('ss-native-update',{detail:{state:${Net.quote(state)},version:${Net.quote(version)}}}))")
+                }
+            }
+        }
+
         /** One-tap setup: what is still missing for calls to ring like a phone. */
         @JavascriptInterface fun setupStatus(): String = JSONObject()
             .put("notifications", this@MainActivity.notificationsOn())

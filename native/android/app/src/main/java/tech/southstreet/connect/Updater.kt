@@ -35,34 +35,50 @@ object Updater {
     private var waitingForPermission = false
     private var dialog: AlertDialog? = null
 
-    /** Called when the app opens and comes back to the front. */
-    fun check(activity: Activity) {
+    /**
+     * Called when the app opens and comes back to the front ([force] = false), or
+     * from "التحقق من التحديثات" ([force] = true). [result]: latest | ready | busy | error.
+     */
+    fun check(activity: Activity, force: Boolean = false, result: ((state: String, version: String) -> Unit)? = null) {
         if (waitingForPermission && canInstall(activity)) {
             waitingForPermission = false
             ready?.let { return install(activity, it) }
         }
-        ready?.let { return offer(activity) }
+        ready?.let {
+            if (force) dialog?.dismiss()
+            offer(activity)
+            return result?.invoke("ready", readyName) ?: Unit
+        }
         val now = System.currentTimeMillis()
-        if (checking || now - lastCheck < CHECK_EVERY_MS) return
+        if (checking) return result?.invoke("busy", "") ?: Unit
+        if (!force && now - lastCheck < CHECK_EVERY_MS) return
         checking = true
         lastCheck = now
         val app = activity.applicationContext
+        val report = { state: String, version: String -> activity.runOnUiThread { result?.invoke(state, version) } }
         thread {
             try {
                 val latest = JSONObject(get("${Net.origin}/api/connect/app-version")).getJSONObject("android")
                 val code = latest.optLong("versionCode")
+                val name = latest.optString("versionName")
                 if (code > BuildConfig.VERSION_CODE) {
-                    val file = download(app, Net.absolute(latest.optString("url")) ?: return@thread)
+                    val url = Net.absolute(latest.optString("url"))
+                    val file = url?.let { download(app, it) }
                     if (file != null && isNewer(app, file)) {
                         ready = file
-                        readyName = latest.optString("versionName")
+                        readyName = name
                         activity.runOnUiThread { offer(activity) }
+                        report("ready", name)
+                    } else {
+                        report("error", name)
                     }
                 } else {
                     File(app.cacheDir, FILE).delete() // installed already: clean up
+                    report("latest", BuildConfig.VERSION_NAME)
                 }
             } catch (_: Exception) {
                 lastCheck = 0L // offline: try again next time
+                report("error", "")
             } finally {
                 checking = false
             }
@@ -120,6 +136,8 @@ object Updater {
         conn.connectTimeout = 10_000
         conn.readTimeout = 30_000
         conn.setRequestProperty("User-Agent", Net.userAgent)
+        // The app is only for account holders: download as the signed-in user.
+        android.webkit.CookieManager.getInstance().getCookie(Net.origin)?.let { conn.setRequestProperty("Cookie", it) }
         return try {
             if (conn.responseCode !in 200..299) return null
             conn.inputStream.use { input -> part.outputStream().use { input.copyTo(it) } }

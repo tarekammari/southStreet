@@ -3,8 +3,8 @@
  * installable app (/connect). Messages live in the same `messages` table as the
  * portal chat, so a conversation is the same everywhere.
  *
- * Who talks to whom: clients ↔ the agency team (and their guide); the team ↔
- * everyone. Two clients talk only once one asked and the other accepted (see
+ * Who talks to whom: the team ↔ everyone; a client sees the Super Admin and
+ * the guides (other staff only once they wrote to that client). Two clients talk only once one asked and the other accepted (see
  * links.ts / people.ts).
  *
  * Tables / columns are added on first use (not in the start-up setup).
@@ -93,10 +93,23 @@ function toUser(u: any): ConnectUser {
 
 export const isTeam = (role: LoginRole) => role !== 'PILGRIM_USER';
 
-/** Clients and team members may talk; two clients only once they are linked (accepted). */
-export function canTalk(a: ConnectUser, b: ConnectUser): boolean {
-  if (a.id === b.id) return false;
-  return isTeam(a.role) || isTeam(b.role) || areFriends(a.id, b.id);
+/** The team members a client sees and may call first: the Super Admin and the guides. */
+const CLIENT_SEES: LoginRole[] = ['SUPER_ADMIN', 'GUIDE_MURSHID'];
+
+function hasConversation(chatId: string): boolean {
+  return Boolean(db().prepare('SELECT 1 AS x FROM messages WHERE chatId = ? LIMIT 1').get(chatId));
+}
+
+/**
+ * `me` may message / call `peer`: the team reaches everyone; a client reaches the
+ * Super Admin and the guides, any staff member who already wrote to them (to
+ * reply), and other clients only once linked (accepted).
+ */
+export function canTalk(me: ConnectUser, peer: ConnectUser): boolean {
+  if (me.id === peer.id) return false;
+  if (isTeam(me.role)) return true;
+  if (isTeam(peer.role)) return CLIENT_SEES.includes(peer.role) || hasConversation(buildDmChatId(me.id, peer.id));
+  return areFriends(me.id, peer.id);
 }
 
 export function activeUsers(): ConnectUser[] {
@@ -155,7 +168,7 @@ export function contactsFor(me: ConnectUser): ConnectContact[] {
   }
   const friends = isTeam(me.role) ? new Set<string>() : friendIds(me.id);
   return activeUsers()
-    .filter((u) => u.id !== me.id && (isTeam(me.role) || isTeam(u.role) || friends.has(u.id)))
+    .filter((u) => u.id !== me.id && (isTeam(me.role) || friends.has(u.id) || (isTeam(u.role) && (CLIENT_SEES.includes(u.role) || byChat.has(buildDmChatId(me.id, u.id))))))
     .map((u) => {
       const chatId = buildDmChatId(me.id, u.id);
       const list = (byChat.get(chatId) || []).sort((a, b) => msgTs(a) - msgTs(b) || a.rowid - b.rowid);

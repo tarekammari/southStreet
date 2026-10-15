@@ -1,5 +1,7 @@
 'use client';
 
+import { jsonAuthHeaders } from '@/lib/api-client';
+
 /**
  * The Connect page running inside the native apps:
  *  - Windows (Electron):  window.ssNative  — floating call card, tray, ringtone;
@@ -188,12 +190,55 @@ export function nativeNeedsManualUpdate(): boolean {
   return v !== null && (!v || older(v, SELF_UPDATING));
 }
 
-/** Download the newest app in the real browser (old apps cannot download inside). */
-export function downloadNewApp() {
-  const platform = nativePlatform();
-  const url = `${window.location.origin}/downloads/${platform === 'windows' ? 'SouthStreetConnect-Setup.exe' : 'SouthStreetConnect.apk'}`;
+/**
+ * Download the newest app in the real browser (old apps cannot download inside).
+ * The browser is not signed in, so the signed-in page first gets a 15-minute link.
+ */
+export async function downloadNewApp() {
+  const platform = nativePlatform() === 'windows' ? 'windows' : 'android';
+  const res = await fetch('/api/connect/download', {
+    method: 'POST',
+    headers: jsonAuthHeaders(),
+    body: JSON.stringify({ platform }),
+  }).catch(() => null);
+  const link = res?.ok ? String((await res.json()).url || '') : '';
+  const url = `${window.location.origin}${link || '/app'}`;
   const w = window as unknown as { SSAndroid?: { openSignIn?: (u: string) => void }; ssNative?: { openSignIn?: (u: string) => void } };
   const open = w.SSAndroid?.openSignIn || w.ssNative?.openSignIn;
   if (open) open(url);
   else window.open(url, '_blank');
+}
+
+export type UpdateCheck = { state: 'latest' | 'ready' | 'busy' | 'error' | 'old-app' | 'web-ready'; version: string };
+
+/**
+ * "التحقق من التحديثات": the app shell checks itself (and shows its own
+ * "update now" question when a newer version is downloaded); in a browser the
+ * deployed web build is compared with the one on screen.
+ */
+export async function checkAppUpdate(currentWeb: string): Promise<UpdateCheck> {
+  const w = win() as unknown as { checkUpdate?: () => Promise<UpdateCheck> } | undefined;
+  const a = droid() as unknown as { checkUpdate?: () => void } | undefined;
+  if (w || a) {
+    if (nativeNeedsManualUpdate() || (w && !w.checkUpdate) || (a && !a.checkUpdate)) return { state: 'old-app', version: '' };
+    if (w?.checkUpdate) return w.checkUpdate().catch(() => ({ state: 'error' as const, version: '' }));
+    return new Promise((resolve) => {
+      const done = (r: UpdateCheck) => {
+        window.removeEventListener('ss-native-update', onEvent);
+        window.clearTimeout(timer);
+        resolve(r);
+      };
+      const onEvent = (e: Event) => done((e as CustomEvent).detail as UpdateCheck);
+      const timer = window.setTimeout(() => done({ state: 'error', version: '' }), 120_000);
+      window.addEventListener('ss-native-update', onEvent);
+      a!.checkUpdate!();
+    });
+  }
+  try {
+    const res = await fetch('/api/connect/app-version', { cache: 'no-store' });
+    const web = String((await res.json()).web || '');
+    return web && currentWeb && web !== currentWeb ? { state: 'web-ready', version: web.slice(0, 7) } : { state: 'latest', version: '' };
+  } catch {
+    return { state: 'error', version: '' };
+  }
 }

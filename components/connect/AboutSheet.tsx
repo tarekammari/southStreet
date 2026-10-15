@@ -1,28 +1,57 @@
 'use client';
 
 import { useState } from 'react';
-import { BellRing, CheckCircle2, Loader2, X, XCircle } from 'lucide-react';
+import { BellRing, CheckCircle2, Download, Loader2, RefreshCw, X, XCircle } from 'lucide-react';
 import { jsonAuthHeaders } from '@/lib/api-client';
 import { versionLabel } from '@/lib/connect/version';
+import { checkAppUpdate, downloadNewApp, nativePlatform, nativeVersion, type UpdateCheck } from '@/lib/connect/native-bridge';
+
+const APP_VERSION = process.env.APP_VERSION || '';
+
+const UPDATE_NOTE: Record<UpdateCheck['state'], string> = {
+  latest: 'لديك أحدث إصدار ✓',
+  ready: 'تحديث جديد جاهز — وافق على «تحديث الآن» ثم «تثبيت»',
+  busy: 'جارٍ البحث عن تحديث…',
+  error: 'تعذّر التحقق الآن — تأكد من الاتصال وحاول مرة أخرى',
+  'old-app': 'هذا الإصدار لا يتحدّث وحده — نزّل الإصدار الجديد مرة واحدة',
+  'web-ready': 'نسخة جديدة متوفرة — جارٍ التحديث…',
+};
 
 type Check = { label: string; ok: boolean; hint?: string };
 
-/** "حول التطبيق": version, what works on this phone, and a ringing test. */
+/** "حول التطبيق": versions, check for updates, what works on this device, and a ringing test. */
 export default function AboutSheet({
   onClose,
   live,
   serverPush,
   pushState,
   onEnablePush,
+  onApplyWebUpdate,
 }: {
   onClose: () => void;
   live: boolean;
   serverPush: boolean;
   pushState: 'unknown' | 'on' | 'off' | 'unsupported';
   onEnablePush: () => Promise<void>;
+  /** Reload onto the newer web build (never during a call). */
+  onApplyWebUpdate: () => void;
 }) {
   const [testing, setTesting] = useState<'idle' | 'busy' | 'sent'>('idle');
   const [error, setError] = useState('');
+  const [checking, setChecking] = useState(false);
+  const [update, setUpdate] = useState<UpdateCheck | null>(null);
+  const platform = nativePlatform();
+  const shell = nativeVersion();
+  const appLabel = platform ? `${platform === 'android' ? 'أندرويد' : 'ويندوز'} ${shell || 'قديم'}` : 'تطبيق الويب';
+
+  const checkUpdates = async () => {
+    setChecking(true);
+    setUpdate(null);
+    const r = await checkAppUpdate(APP_VERSION);
+    setUpdate(r);
+    setChecking(false);
+    if (r.state === 'web-ready') window.setTimeout(onApplyWebUpdate, 900);
+  };
 
   const checks: Check[] = [
     { label: 'الاتصال المباشر', ok: live, hint: 'الرسائل والمكالمات تصل فورًا. إن لم يعمل يُستعمل التحديث الدوري.' },
@@ -59,6 +88,26 @@ export default function AboutSheet({
           </div>
           <button type="button" className="cn-icon" onClick={onClose} aria-label="إغلاق"><X className="w-5 h-5" /></button>
         </header>
+
+        <dl className="cn-versions">
+          <div><dt>التطبيق</dt><dd><bdi dir="ltr">{appLabel}</bdi></dd></div>
+          <div><dt>الخدمة</dt><dd><bdi dir="ltr">{versionLabel()}</bdi></dd></div>
+        </dl>
+
+        <button type="button" className="cn-sheet-btn" disabled={checking} onClick={() => void checkUpdates()}>
+          {checking ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />} التحقق من التحديثات
+        </button>
+        {update ? (
+          <p className={`cn-sheet-note${update.state === 'error' || update.state === 'old-app' ? ' is-error' : ''}`}>
+            {UPDATE_NOTE[update.state]}
+            {update.version && update.state !== 'latest' ? <> · <bdi dir="ltr">{update.version}</bdi></> : null}
+          </p>
+        ) : null}
+        {update?.state === 'old-app' ? (
+          <button type="button" className="cn-sheet-btn is-main" onClick={() => void downloadNewApp()}>
+            <Download className="w-5 h-5" /> تنزيل الإصدار الجديد
+          </button>
+        ) : null}
 
         <ul className="cn-checks">
           {checks.map((c) => (

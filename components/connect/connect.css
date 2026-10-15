@@ -306,3 +306,9 @@
 .cn-setup-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .cn-setup-text b { font-size: 0.88rem; }
 .cn-setup-text small { color: #64748b; font-size: 0.76rem; }
+
+/* About sheet: versions */
+.cn-versions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0; }
+.cn-versions > div { padding: 10px 12px; border-radius: 12px; background: #f6f8f7; }
+.cn-versions dt { font-size: 0.72rem; font-weight: 800; color: var(--cn-muted); }
+.cn-versions dd { margin: 2px 0 0; font-size: 0.9rem; font-weight: 800; }

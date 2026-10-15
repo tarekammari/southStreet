@@ -580,12 +580,8 @@ export default function ConnectApp() {
         <div className="cn-login-card">
           <img src="/icons/connect-192.png" alt="" />
           <h1>South Street Connect</h1>
-          <p>رسائل ومكالمات صوتية بين المعتمرين وفريق الوكالة. سجّل الدخول بحسابك في ساوث ستريت.</p>
-          {!standalone && installEvt ? (
-            <button type="button" className="cn-pill" style={{ margin: '12px auto 0' }} onClick={async () => { installEvt.prompt(); await installEvt.userChoice; setInstallEvt(null); }}>
-              <Download className="w-4 h-4" /> تثبيت التطبيق
-            </button>
-          ) : null}
+          {/* No install before sign-in: the app is for account holders only. */}
+          <p>رسائل ومكالمات صوتية بين المعتمرين وفريق الوكالة. سجّل الدخول بحسابك في ساوث ستريت لاستعمال التطبيق وتثبيته.</p>
         </div>
         <LoginModal onClose={() => undefined} redirectTo="/connect" />
       </div>
@@ -646,7 +642,7 @@ export default function ConnectApp() {
         ) : null}
 
         {oldApp && !callView ? (
-          <button type="button" className="cn-banner cn-update" onClick={downloadNewApp}>
+          <button type="button" className="cn-banner cn-update" onClick={() => void downloadNewApp()}>
             <Download className="w-4 h-4" /> إصدار جديد من التطبيق — اضغط للتنزيل ثم ثبّته (بعده يتحدّث التطبيق وحده)
           </button>
         ) : null}
@@ -776,7 +772,7 @@ export default function ConnectApp() {
       {toast ? <div className="cn-toast" role="status">{toast}</div> : null}
 
       {aboutOpen ? (
-        <AboutSheet onClose={() => setAboutOpen(false)} live={live} serverPush={Boolean(vapid)} pushState={pushState === 'denied' ? 'off' : pushState} onEnablePush={enablePush} />
+        <AboutSheet onClose={() => setAboutOpen(false)} live={live} serverPush={Boolean(vapid)} pushState={pushState === 'denied' ? 'off' : pushState} onEnablePush={enablePush} onApplyWebUpdate={() => void applyUpdate()} />
       ) : null}
 
       {me && vapid && (pushState === 'off' || pushState === 'denied') && !gateLater && !callView ? (

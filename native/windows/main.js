@@ -90,33 +90,43 @@ if (!app.requestSingleInstanceLock()) {
     return false;
   };
 
-  async function checkForUpdate() {
-    if (!app.isPackaged || updateChecking) return;
-    if (update) return installWhenQuiet();
+  /**
+   * Looks for a newer version; [force]: asked from "التحقق من التحديثات".
+   * Returns { state: 'latest' | 'ready' | 'busy' | 'error', version }.
+   */
+  async function checkForUpdate(force = false) {
+    if (!app.isPackaged) return { state: 'latest', version: app.getVersion() };
+    if (updateChecking) return { state: 'busy', version: '' };
+    if (update) {
+      void installWhenQuiet();
+      return { state: 'ready', version: update.version };
+    }
     updateChecking = true;
     try {
       const res = await net.fetch(`${ORIGIN}/api/connect/app-version`, { cache: 'no-store' });
       const latest = (await res.json()).windows;
-      if (!latest || !isNewer(latest.version, app.getVersion())) return;
-      // An installer that did not lead to the new version is not retried for a day.
+      if (!latest || !isNewer(latest.version, app.getVersion())) return { state: 'latest', version: app.getVersion() };
+      // An installer that did not lead to the new version is not retried for a day (unless asked).
       try {
         const last = JSON.parse(fs.readFileSync(attemptFile(), 'utf8'));
-        if (last.version === latest.version && Date.now() - last.ts < 24 * 60 * 60 * 1000) return;
+        if (!force && last.version === latest.version && Date.now() - last.ts < 24 * 60 * 60 * 1000) return { state: 'error', version: latest.version };
       } catch {
         /* no earlier attempt */
       }
       const file = path.join(app.getPath('temp'), `SouthStreetConnect-Setup-${latest.version}.exe`);
       if (!fs.existsSync(file)) {
+        // Signed-in download (the app is only for account holders): net.fetch uses the app's cookies.
         const dl = await net.fetch(new URL(latest.url, ORIGIN).href, { cache: 'no-store' });
-        if (!dl.ok) return;
+        if (!dl.ok) return { state: 'error', version: latest.version };
         const part = `${file}.part`;
         fs.writeFileSync(part, Buffer.from(await dl.arrayBuffer()));
         fs.renameSync(part, file);
       }
       update = { version: latest.version, file };
-      installWhenQuiet();
+      void installWhenQuiet();
+      return { state: 'ready', version: latest.version };
     } catch {
-      /* offline: next check */
+      return { state: 'error', version: '' }; // offline: next check
     } finally {
       updateChecking = false;
     }
@@ -307,6 +317,8 @@ if (!app.requestSingleInstanceLock()) {
     syncCard();
     if (!call && update) setTimeout(installWhenQuiet, 3000); // the call that delayed an update is over
   });
+
+  ipcMain.handle('ss:check-update', () => checkForUpdate(true));
 
   ipcMain.on('ss:open-signin', (_e, url) => {
     if (typeof url === 'string' && url.startsWith(`${ORIGIN}/`)) shell.openExternal(url);

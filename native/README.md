@@ -6,8 +6,8 @@ ringtone and running in the background.
 
 | App | Folder | Built on | Download |
 |---|---|---|---|
-| Android | `android/` (Kotlin, no framework) | the VPS (command-line Android SDK, no Android Studio) | `/downloads/SouthStreetConnect.apk` |
-| Windows | `windows/` (Electron) | this PC | `/downloads/SouthStreetConnect-Setup.exe` |
+| Android | `android/` (Kotlin, no framework) | the VPS (command-line Android SDK, no Android Studio) | `/api/connect/download?platform=android` (signed in) |
+| Windows | `windows/` (Electron) | this PC | `/api/connect/download?platform=windows` (signed in) |
 
 `assets/ringtone.wav` is rendered by `node scripts/render-ringtone.mjs native/assets/ringtone.wav`
 (same melody as the web ringtone) and copied into both apps.

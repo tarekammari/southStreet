@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('ssNative', {
   /** Google sign-in in the real browser (Google blocks it inside apps). */
   openSignIn: (url) => ipcRenderer.send('ss:open-signin', url),
   callState: (state) => ipcRenderer.send('ss:call-state', state),
+  /** "التحقق من التحديثات": resolves to { state: 'latest' | 'ready' | 'busy' | 'error', version }. */
+  checkUpdate: () => ipcRenderer.invoke('ss:check-update'),
   onCallAction: (cb) => {
     const handler = (_e, action) => cb(action);
     ipcRenderer.on('ss:call-action', handler);
