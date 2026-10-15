@@ -1,7 +1,7 @@
 {
   "name": "south-street-connect",
   "productName": "South Street Connect",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "South Street Connect for Windows — messages and calls with the agency team.",
   "author": "South Street",
   "private": true,
@@ -28,6 +28,7 @@
       "createStartMenuShortcut": true,
       "shortcutName": "South Street Connect",
       "runAfterFinish": true
-    }
+    },
+    "protocols": [{ "name": "South Street Connect", "schemes": ["ssconnect"] }]
   }
 }

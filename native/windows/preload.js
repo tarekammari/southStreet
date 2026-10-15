@@ -7,6 +7,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('ssNative', {
   platform: 'windows',
+  /** Google sign-in in the real browser (Google blocks it inside apps). */
+  openSignIn: (url) => ipcRenderer.send('ss:open-signin', url),
   callState: (state) => ipcRenderer.send('ss:call-state', state),
   onCallAction: (cb) => {
     const handler = (_e, action) => cb(action);

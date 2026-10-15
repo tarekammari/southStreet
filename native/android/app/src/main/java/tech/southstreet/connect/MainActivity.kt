@@ -17,6 +17,8 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
+import androidx.browser.customtabs.CustomTabColorSchemeParams
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import org.json.JSONObject
@@ -80,7 +82,7 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
-        web.loadUrl(urlFrom(intent) ?: "${Net.origin}/connect")
+        web.loadUrl(signInUrl(intent) ?: urlFrom(intent) ?: "${Net.origin}/connect")
         applyCallWindow(intent)
         askPermissionsOnce()
         Prefs.fetchToken(this) { token ->
@@ -92,7 +94,7 @@ class MainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         applyCallWindow(intent)
-        urlFrom(intent)?.let { web.loadUrl(it) }
+        (signInUrl(intent) ?: urlFrom(intent))?.let { web.loadUrl(it) }
     }
 
     /** Answering from the lock screen: show the call over the lock screen too. */
@@ -102,6 +104,14 @@ class MainActivity : AppCompatActivity() {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
         }
+    }
+
+    /** ssconnect://signin?code=… — finish the Google sign-in done in the browser. */
+    private fun signInUrl(intent: Intent?): String? {
+        val data = intent?.data ?: return null
+        if (data.scheme != "ssconnect" || data.host != "signin") return null
+        val code = data.getQueryParameter("code") ?: return null
+        return "${Net.origin}/api/auth/app-handoff?code=${Uri.encode(code)}"
     }
 
     private fun urlFrom(intent: Intent?): String? {
@@ -152,6 +162,21 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface fun version() = BuildConfig.VERSION_NAME
         @JavascriptInterface fun token() = Prefs.token(this@MainActivity)
         @JavascriptInterface fun firebase() = BuildConfig.HAS_FIREBASE
+
+        /** Google sign-in runs in a Chrome tab (Google blocks it inside apps). */
+        @JavascriptInterface fun openSignIn(url: String) {
+            if (!url.startsWith(Net.origin)) return
+            runOnUiThread {
+                try {
+                    CustomTabsIntent.Builder()
+                        .setDefaultColorSchemeParams(CustomTabColorSchemeParams.Builder().setToolbarColor(0xFF065F46.toInt()).build())
+                        .build()
+                        .launchUrl(this@MainActivity, Uri.parse(url))
+                } catch (_: Exception) {
+                    try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (_: Exception) { }
+                }
+            }
+        }
 
         /** {phase, name, ...} on every call change: keeps the call alive with the screen off. */
         @JavascriptInterface fun callState(json: String) {

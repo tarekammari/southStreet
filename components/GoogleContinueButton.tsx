@@ -170,6 +170,17 @@ export default function GoogleContinueButton({
 
   const start = () => {
     if (disabled) return;
+    // Inside the Connect apps Google refuses its sign-in: continue in the real
+    // browser, which reopens the app signed in (see /app-signin).
+    const w = window as unknown as { SSAndroid?: { openSignIn?: (u: string) => void }; ssNative?: { openSignIn?: (u: string) => void } };
+    const native = w.SSAndroid?.openSignIn ? 'android' : w.ssNative?.openSignIn ? 'windows' : null;
+    if (native) {
+      const url = `${window.location.origin}/app-signin?platform=${native}`;
+      if (native === 'android') w.SSAndroid!.openSignIn!(url);
+      else w.ssNative!.openSignIn!(url);
+      setHint('أكمل الدخول بجوجل في المتصفح، ثم يعود التطبيق تلقائياً وأنت مسجّل.');
+      return;
+    }
     if (!clientId) {
       setHint('تسجيل جوجل غير مُعد على الخادم');
       return;

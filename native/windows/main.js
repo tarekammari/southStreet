@@ -20,6 +20,20 @@ const ICON = path.join(__dirname, 'assets', 'icon.png');
 // Ringtone may play without a click (the call card is not clicked yet).
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 app.setAppUserModelId('tech.southstreet.connect');
+// ssconnect://signin?code=… brings the browser's Google sign-in back to the app.
+if (process.defaultApp) app.setAsDefaultProtocolClient('ssconnect', process.execPath, [path.resolve(process.argv[1] || '.')]);
+else app.setAsDefaultProtocolClient('ssconnect');
+
+const signInUrl = (argv) => {
+  const link = (argv || []).find((a) => typeof a === 'string' && a.startsWith('ssconnect://signin'));
+  if (!link) return null;
+  try {
+    const code = new URL(link).searchParams.get('code');
+    return code ? `${ORIGIN}/api/auth/app-handoff?code=${encodeURIComponent(code)}` : null;
+  } catch {
+    return null;
+  }
+};
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -37,7 +51,11 @@ if (!app.requestSingleInstanceLock()) {
     main.focus();
   };
 
-  app.on('second-instance', showMain);
+  app.on('second-instance', (_e, argv) => {
+    const url = signInUrl(argv);
+    if (url && main) main.loadURL(url);
+    showMain();
+  });
 
   function createMain(hidden) {
     main = new BrowserWindow({
@@ -58,7 +76,7 @@ if (!app.requestSingleInstanceLock()) {
         backgroundThrottling: false,
       },
     });
-    main.loadURL(START_URL);
+    main.loadURL(signInUrl(process.argv) || START_URL);
 
     // Links to other sites open in the normal browser.
     main.webContents.setWindowOpenHandler(({ url }) => {
@@ -164,6 +182,10 @@ if (!app.requestSingleInstanceLock()) {
     }
     if (!call) main.flashFrame(false);
     syncCard();
+  });
+
+  ipcMain.on('ss:open-signin', (_e, url) => {
+    if (typeof url === 'string' && url.startsWith(`${ORIGIN}/`)) shell.openExternal(url);
   });
 
   // From the call card: answer / decline / mute / hang up / open.
