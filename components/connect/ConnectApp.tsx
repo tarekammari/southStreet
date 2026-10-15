@@ -16,7 +16,7 @@ import ChatView from './ChatView';
 import AboutSheet from './AboutSheet';
 import AndroidSetup from './AndroidSetup';
 import NotifyGate from './NotifyGate';
-import { AddPersonSheet, EMPTY_PEOPLE, PersonMenu, RequestList, SentAndBlocked, Suggestions, peopleAction, type PeopleData } from './People';
+import { AddPersonSheet, Directory, EMPTY_PEOPLE, PersonMenu, RequestList, SentAndBlocked, Suggestions, peopleAction, type PeopleData } from './People';
 import type { PeopleAction } from '@/lib/connect/people';
 import { androidChecks, androidInBackground, downloadNewApp, nativeNeedsManualUpdate, nativePlatform, onAndroidToken, onNativeCallAction, openAndroidSettings, sendCallState } from '@/lib/connect/native-bridge';
 import { versionLabel } from '@/lib/connect/version';
@@ -111,6 +111,8 @@ export default function ConnectApp() {
   const [people, setPeople] = useState<PeopleData>(EMPTY_PEOPLE);
   const [addOpen, setAddOpen] = useState(false);
   const [toast, setToast] = useState('');
+  const [found, setFound] = useState<PeopleData['everyone'] | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [setupDone, setSetupDone] = useState(false);
   // Apps before 1.6.0 cannot update themselves: offer the new installer.
   const [oldApp, setOldApp] = useState(false);
@@ -195,6 +197,28 @@ export default function ConnectApp() {
     },
     [loadPeople, loadContacts]
   );
+
+  // Search box (clients): also look through every client by name.
+  useEffect(() => {
+    const text = query.trim();
+    if (!isClient || text.length < 2) return setFound(null);
+    const t = window.setTimeout(async () => {
+      const res = await fetch(`/api/connect/people?search=${encodeURIComponent(text)}`, { headers: authHeaders(), cache: 'no-store' }).catch(() => null);
+      if (res?.ok) setFound((await res.json()).results || []);
+    }, 300);
+    return () => window.clearTimeout(t);
+  }, [query, isClient]);
+
+  /** Header button: reload chats, contacts, requests and calls now. */
+  const refreshAll = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    const started = Date.now();
+    await Promise.all([loadContacts(), loadPeople()]).catch(() => undefined);
+    setRefreshKey((k) => k + 1);
+    // Keep the spin visible a moment so the tap feels answered.
+    window.setTimeout(() => setRefreshing(false), Math.max(0, 500 - (Date.now() - started)));
+  };
 
   useEffect(() => {
     if (!toast) return;
@@ -619,6 +643,9 @@ export default function ConnectApp() {
             <small>{me.name}</small>
           </div>
           <div className="cn-top-actions">
+            <button type="button" className="cn-icon" onClick={() => void refreshAll()} disabled={refreshing} title="تحديث" aria-label="تحديث">
+              <RefreshCw className={`w-5 h-5${refreshing ? ' animate-spin' : ''}`} />
+            </button>
             <button type="button" className="cn-icon" onClick={() => setAboutOpen(true)} title="حول التطبيق" aria-label="حول التطبيق">
               <Info className="w-5 h-5" />
             </button>
@@ -665,7 +692,7 @@ export default function ConnectApp() {
 
         <label className="cn-search">
           <Search className="w-4 h-4" />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="بحث" />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={isClient ? 'بحث عن شخص بالاسم' : 'بحث'} />
         </label>
 
         <div className="cn-list">
@@ -688,7 +715,12 @@ export default function ConnectApp() {
               {favourites.length ? (<><h3 className="cn-group"><Star className="w-3.5 h-3.5" aria-hidden /> المفضّلون</h3><ul>{favourites.map((c) => row(c, false))}</ul></>) : null}
               {team.length ? (<><h3 className="cn-group">فريق الوكالة</h3><ul>{team.map((c) => row(c, false))}</ul></>) : null}
               {!q ? <Suggestions people={people.suggestions} onAction={onPeopleAction} /> : null}
-              {!q && !favourites.length && !people.suggestions.length && !requestCount ? (
+              {q && found ? (
+                <Directory title="نتائج البحث" people={found} onAction={onPeopleAction} empty="لا يوجد عميل بهذا الاسم." />
+              ) : !q ? (
+                <Directory title={`كل العملاء (${people.everyone.length})`} people={people.everyone} onAction={onPeopleAction} />
+              ) : null}
+              {!q && !favourites.length && !people.suggestions.length && !people.everyone.length && !requestCount ? (
                 <p className="cn-tip">أضف رفاق رحلتك ليظهروا هنا في «المفضّلون» — يقبلون طلبك ثم تتراسلون وتتصلون مجاناً.</p>
               ) : null}
               <SentAndBlocked sent={people.sent} blocked={people.blocked} onAction={onPeopleAction} />

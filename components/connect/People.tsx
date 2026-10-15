@@ -10,8 +10,8 @@ import { Check, Loader2, MoreVertical, Search, Sparkles, UserMinus, UserPlus, Us
 import { authHeaders, jsonAuthHeaders } from '@/lib/api-client';
 import type { PeopleAction, PersonCard } from '@/lib/connect/people';
 
-export type PeopleData = { requests: PersonCard[]; sent: PersonCard[]; blocked: PersonCard[]; suggestions: PersonCard[] };
-export const EMPTY_PEOPLE: PeopleData = { requests: [], sent: [], blocked: [], suggestions: [] };
+export type PeopleData = { requests: PersonCard[]; sent: PersonCard[]; blocked: PersonCard[]; suggestions: PersonCard[]; everyone: PersonCard[] };
+export const EMPTY_PEOPLE: PeopleData = { requests: [], sent: [], blocked: [], suggestions: [], everyone: [] };
 
 export async function peopleAction(id: string, action: PeopleAction): Promise<{ state?: string; error?: string }> {
   try {
@@ -110,6 +110,48 @@ export function Suggestions({ people, onAction }: { people: PersonCard[]; onActi
           </div>
         ))}
       </div>
+    </>
+  );
+}
+
+/** All other clients (or search results): one tap to ask to connect, like "add friend". */
+export function Directory({ title, people, onAction, empty }: { title: string; people: PersonCard[]; onAction: (id: string, a: PeopleAction) => Promise<void>; empty?: string }) {
+  const [state, setState] = useState<Record<string, string>>({});
+  if (!people.length) return empty ? <><h3 className="cn-group">{title}</h3><p className="cn-tip">{empty}</p></> : null;
+  return (
+    <>
+      <h3 className="cn-group">{title}</h3>
+      <ul>
+        {people.map((p) => {
+          const s = state[p.id] || p.state;
+          return (
+            <li key={p.id}>
+              <div className="cn-row is-static">
+                <Avatar p={p} />
+                <span className="cn-row-main">
+                  <span className="cn-row-top"><b>{p.name}</b></span>
+                  <span className="cn-row-sub"><small>{s === 'sent' ? 'تم إرسال الطلب' : s === 'received' ? 'أرسل لك طلباً' : p.online ? 'متصل الآن' : 'عميل South Street'}</small></span>
+                </span>
+              </div>
+              {s === 'sent' ? (
+                <span className="cn-chip is-done"><Check className="w-4 h-4" /> أُرسل</span>
+              ) : s === 'friend' ? (
+                <span className="cn-chip is-done"><Check className="w-4 h-4" /> صديق</span>
+              ) : (
+                <ActBtn
+                  className="cn-chip is-main"
+                  label={s === 'received' ? 'قبول' : 'إضافة'}
+                  icon={<UserPlus className="w-4 h-4" />}
+                  onRun={async () => {
+                    await onAction(p.id, 'request');
+                    setState((m) => ({ ...m, [p.id]: s === 'received' ? 'friend' : 'sent' }));
+                  }}
+                />
+              )}
+            </li>
+          );
+        })}
+      </ul>
     </>
   );
 }

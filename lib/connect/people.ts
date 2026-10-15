@@ -3,9 +3,11 @@
  *
  *  - Requests: a client asks, the other accepts / declines / blocks. Asking
  *    someone who already asked you simply connects you both.
- *  - Lookup: a client is found only by an exact phone number, email or client
- *    code — never by browsing everyone (clients' details stay private). Staff
- *    are never found this way: clients see only the Super Admin and the guides.
+ *  - Directory: every client sees the other clients (name and photo only —
+ *    never phone or email) and can ask to connect; search by name.
+ *  - Lookup: a client is also found by an exact phone number, email or client
+ *    code. Staff are never found this way: clients see only the Super Admin
+ *    and the guides.
  *  - Suggestions ("قد تعرفهم"): a light ranking of the clients you most likely
  *    know — same trip, same departure dates, same guide, contacts in common.
  */
@@ -49,7 +51,7 @@ function notify(userId: string) {
 
 /** Requests waiting for my answer, the ones I sent, the people I blocked, and suggestions. */
 export function peopleFor(me: ConnectUser) {
-  if (!isClient(me)) return { requests: [], sent: [], blocked: [], suggestions: [] };
+  if (!isClient(me)) return { requests: [], sent: [], blocked: [], suggestions: [], everyone: [] };
   const links = linksOf(me.id);
   const pick = (want: PersonState) =>
     links
@@ -58,7 +60,44 @@ export function peopleFor(me: ConnectUser) {
       .map((l) => userById(otherOf(l, me.id)))
       .filter((u): u is ConnectUser => Boolean(u))
       .map((u) => card(me, u, want === 'received' ? reasonFor(me, u) : ''));
-  return { requests: pick('received'), sent: pick('sent'), blocked: pick('blocked'), suggestions: suggestionsFor(me) };
+  const suggestions = suggestionsFor(me);
+  const suggested = new Set(suggestions.map((p) => p.id));
+  return {
+    requests: pick('received'),
+    sent: pick('sent'),
+    blocked: pick('blocked'),
+    suggestions,
+    everyone: directory(me).filter((p) => !suggested.has(p.id) && p.state !== 'received').slice(0, DIRECTORY_PAGE),
+  };
+}
+
+/* ---------------- directory ---------------- */
+
+const DIRECTORY_PAGE = 60;
+const fold = (s: string) =>
+  String(s || '')
+    .toLowerCase()
+    .replace(/[\u064B-\u0652\u0640]/g, '') // harakat, tatweel
+    .replace(/[أإآ]/g, 'ا')
+    .replace(/ى/g, 'ي')
+    .replace(/ة/g, 'ه')
+    .trim();
+
+/**
+ * The other clients a client may connect with (not yet friends; people who
+ * blocked me or whom I blocked are left out). Online first, then by name.
+ * With [search]: names containing it (Arabic letters folded: أ/ا, ة/ه, ى/ي).
+ */
+export function directory(me: ConnectUser, search = ''): PersonCard[] {
+  if (!isClient(me)) return [];
+  const q = fold(search);
+  const links = new Map(linksOf(me.id).map((l) => [otherOf(l, me.id), l]));
+  return activeUsers()
+    .filter((u) => u.id !== me.id && isClient(u) && (!q || fold(u.name).includes(q)))
+    .map((u) => ({ ...u, state: stateFor(me.id, links.get(u.id) || null), reason: '', online: isOnline(u.id) }))
+    .filter((p) => p.state !== 'friend' && p.state !== 'blocked' && links.get(p.id)?.state !== 'blocked')
+    .sort((a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name, 'ar'))
+    .slice(0, q ? 40 : 500);
 }
 
 /* ---------------- suggestions ---------------- */
