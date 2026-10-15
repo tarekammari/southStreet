@@ -9,52 +9,81 @@
   * { box-sizing: border-box; margin: 0; }
   html, body { height: 100%; background: transparent; overflow: hidden; font-family: 'Segoe UI', Tahoma, sans-serif; user-select: none; }
   .card {
-    position: absolute; inset: 6px; border-radius: 22px; padding: 16px 16px 14px;
-    color: #fff; display: flex; flex-direction: column; justify-content: space-between;
-    background: radial-gradient(260px 120px at 85% 0%, rgba(16,185,129,.45), transparent 70%), linear-gradient(160deg, #065f46, #0b1f19 75%);
-    box-shadow: 0 14px 34px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.08);
-    -webkit-app-region: drag; animation: in .35s cubic-bezier(.16,1,.3,1);
+    position: absolute; inset: 8px; border-radius: 24px; overflow: hidden; isolation: isolate;
+    color: #fff; display: flex; flex-direction: column;
+    background: radial-gradient(320px 180px at 50% 0%, rgba(16,185,129,.45), transparent 70%), linear-gradient(170deg, #065f46, #0b1f19 78%);
+    box-shadow: 0 24px 60px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.08);
+    -webkit-app-region: drag; animation: in .4s cubic-bezier(.16,1,.3,1);
   }
-  @keyframes in { from { opacity: 0; transform: translateY(18px) scale(.97); } }
-  .top { display: flex; align-items: center; gap: 12px; }
-  .brand { position: absolute; top: 10px; left: 16px; font-size: 11px; color: rgba(255,255,255,.6); direction: ltr; }
-  .av { position: relative; flex: none; width: 58px; height: 58px; border-radius: 50%; display: grid; place-items: center; font-size: 24px; font-weight: 800; background: linear-gradient(145deg,#10b981,#065f46); overflow: visible; }
+  @keyframes in { from { opacity: 0; transform: translateY(14px) scale(.96); } }
+  .bg { position: absolute; inset: -30px; z-index: -1; background-size: cover; background-position: center; filter: blur(30px) brightness(.35) saturate(1.2); opacity: 0; transition: opacity .4s; }
+  .bg.on { opacity: 1; }
+  .brand { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: rgba(255,255,255,.65); direction: ltr; }
+  .brand img { width: 16px; height: 16px; border-radius: 4px; }
+  .av { position: relative; flex: none; display: grid; place-items: center; border-radius: 50%; font-weight: 800; background: linear-gradient(145deg,#10b981,#065f46); box-shadow: 0 10px 28px rgba(0,0,0,.45), 0 0 0 3px rgba(255,255,255,.12); }
   .av img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
-  .av::before, .av::after { content: ''; position: absolute; inset: 0; border-radius: 50%; border: 2px solid rgba(167,243,208,.6); animation: ripple 2s infinite; }
-  .av::after { animation-delay: 1s; }
-  .is-live .av::before, .is-live .av::after { display: none; }
-  @keyframes ripple { from { transform: scale(1); opacity: .9; } to { transform: scale(1.7); opacity: 0; } }
-  .who { min-width: 0; }
-  .who b { display: block; font-size: 17px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .who small { display: block; font-size: 12.5px; color: #a7f3d0; margin-top: 2px; font-variant-numeric: tabular-nums; }
-  .actions { display: flex; gap: 10px; -webkit-app-region: no-drag; }
-  button { flex: 1; height: 42px; border: 0; border-radius: 13px; font: 700 14px 'Segoe UI', Tahoma, sans-serif; color: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 7px; transition: transform .1s, filter .15s; }
+  .ring { position: absolute; inset: 0; border-radius: 50%; border: 2px solid rgba(167,243,208,.6); animation: ripple 2.2s cubic-bezier(.2,.6,.35,1) infinite; }
+  .ring.b { animation-delay: .73s; } .ring.c { animation-delay: 1.46s; }
+  @keyframes ripple { from { transform: scale(1); opacity: .9; } to { transform: scale(1.85); opacity: 0; } }
+  .who b { display: block; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .who small { display: block; color: #a7f3d0; margin-top: 3px; font-variant-numeric: tabular-nums; }
+  .role { color: rgba(255,255,255,.7); font-size: 13px; margin-top: 2px; }
+  .actions { display: flex; -webkit-app-region: no-drag; }
+  button { border: 0; font: 700 14px 'Segoe UI', Tahoma, sans-serif; color: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: transform .1s, filter .15s; }
   button:hover { filter: brightness(1.1); }
-  button:active { transform: scale(.96); }
-  .accept { background: #22c55e; box-shadow: 0 8px 18px -8px rgba(34,197,94,.9); animation: nudge 1.4s infinite; }
-  .decline, .hangup { background: #ef4444; box-shadow: 0 8px 18px -8px rgba(239,68,68,.9); }
+  button:active { transform: scale(.94); }
+  svg { width: 20px; height: 20px; }
+  [hidden] { display: none !important; }
+
+  /* Incoming: phone-style, centred on screen */
+  .is-incoming { align-items: center; justify-content: space-between; padding: 18px 24px 26px; text-align: center; }
+  .is-incoming .top { display: flex; flex-direction: column; align-items: center; }
+  .is-incoming .av { width: 104px; height: 104px; font-size: 40px; margin-top: 18px; }
+  .is-incoming .who { margin-top: 18px; max-width: 100%; }
+  .is-incoming .who b { font-size: 24px; }
+  .is-incoming .who small { font-size: 14px; }
+  .is-incoming .actions { width: 100%; justify-content: space-around; }
+  .round { flex-direction: column; gap: 8px; background: none; font-size: 13px; }
+  .round span.dot { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; }
+  .round svg { width: 28px; height: 28px; }
+  .accept .dot { background: #22c55e; box-shadow: 0 12px 26px -10px rgba(34,197,94,.95); animation: nudge 1.4s infinite; }
+  .decline .dot { background: #ef4444; box-shadow: 0 12px 26px -10px rgba(239,68,68,.95); }
+  @keyframes nudge { 0%,60%,100% { transform: translateY(0); } 15% { transform: translateY(-7px); } 30% { transform: translateY(0); } 45% { transform: translateY(-3px); } }
+  .keys { font-size: 11px; color: rgba(255,255,255,.45); margin-top: 10px; }
+
+  /* In call: compact corner card */
+  .is-live { padding: 14px 16px; justify-content: space-between; }
+  .is-live .top { display: flex; align-items: center; gap: 12px; }
+  .is-live .av { width: 52px; height: 52px; font-size: 22px; }
+  .is-live .who b { font-size: 16px; }
+  .is-live .who small { font-size: 12.5px; }
+  .is-live .ring, .is-live .role, .is-live .keys, .is-live .brand { display: none; }
+  .is-live .actions { gap: 8px; }
+  .pill { flex: 1; height: 40px; border-radius: 12px; gap: 6px; }
   .soft { background: rgba(255,255,255,.14); }
   .soft.on { background: #fff; color: #0b1f19; }
-  @keyframes nudge { 0%,60%,100% { transform: translateY(0); } 15% { transform: translateY(-4px); } 30% { transform: translateY(0); } }
-  svg { width: 18px; height: 18px; }
-  [hidden] { display: none !important; }
+  .hangup { background: #ef4444; }
 </style>
 </head>
 <body>
-<div class="card" id="card">
-  <span class="brand">South Street Connect</span>
+<div class="card is-incoming" id="card">
+  <div class="bg" id="bg"></div>
+  <span class="brand"><img src="assets/icon.png" alt="">South Street Connect</span>
   <div class="top">
-    <span class="av" id="av"></span>
-    <div class="who"><b id="name"></b><small id="status">مكالمة صوتية واردة</small></div>
+    <span class="av" id="av"><i class="ring"></i><i class="ring b"></i><i class="ring c"></i><span id="avin"></span></span>
+    <div class="who"><b id="name"></b><div class="role" id="role"></div><small id="status">مكالمة صوتية واردة</small></div>
   </div>
-  <div class="actions" id="ringing">
-    <button class="decline" data-a="decline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M10.7 13.3a16 16 0 0 0 2.6 2.1l1.3-1.3a2 2 0 0 1 2.1-.4 12.8 12.8 0 0 0 2.8.7 2 2 0 0 1 1.7 2v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 3 4.2 2 2 0 0 1 5 2h3a2 2 0 0 1 2 1.7 12.8 12.8 0 0 0 .7 2.8 2 2 0 0 1-.4 2.1L9 9.9"/><path d="m22 2-20 20"/></svg>رفض</button>
-    <button class="accept" data-a="answer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.9.7 2.8a2 2 0 0 1-.4 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.9.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg>رد</button>
+  <div id="ringing" style="width:100%">
+    <div class="actions">
+      <button class="round decline" data-a="decline"><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M10.7 13.3a16 16 0 0 0 2.6 2.1l1.3-1.3a2 2 0 0 1 2.1-.4 12.8 12.8 0 0 0 2.8.7 2 2 0 0 1 1.7 2v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 3 4.2 2 2 0 0 1 5 2h3a2 2 0 0 1 2 1.7 12.8 12.8 0 0 0 .7 2.8 2 2 0 0 1-.4 2.1L9 9.9"/><path d="m22 2-20 20"/></svg></span>رفض</button>
+      <button class="round accept" data-a="answer"><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.9.7 2.8a2 2 0 0 1-.4 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.9.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg></span>رد</button>
+    </div>
+    <p class="keys">Enter للرد · Esc للرفض</p>
   </div>
   <div class="actions" id="live" hidden>
-    <button class="soft" data-a="open">فتح</button>
-    <button class="soft" id="mute" data-a="mute">كتم</button>
-    <button class="hangup" data-a="hangup">إنهاء</button>
+    <button class="pill soft" data-a="open">فتح</button>
+    <button class="pill soft" id="mute" data-a="mute">كتم</button>
+    <button class="pill hangup" data-a="hangup">إنهاء</button>
   </div>
 </div>
 <audio id="ring" src="assets/ringtone.wav" loop preload="auto"></audio>
@@ -63,6 +92,7 @@
   const ring = $('ring');
   let state = null;
   let timer = 0;
+  let swell = 0;
   const LABEL = { calling: 'جارٍ الاتصال…', ringing: 'يرنّ…', connecting: 'جارٍ الوصل…' };
 
   function clock() {
@@ -71,21 +101,30 @@
     $('status').textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   }
 
+  function stopRing() {
+    ring.pause();
+    clearInterval(swell);
+  }
+
   window.card.onCall((call) => {
     state = call;
-    if (!call) { ring.pause(); clearInterval(timer); return; }
+    clearInterval(timer);
+    if (!call) { stopRing(); return; }
     $('name').textContent = call.name || '';
-    const av = $('av');
-    av.textContent = '';
+    $('role').textContent = call.role || '';
+    const avin = $('avin');
+    avin.textContent = '';
+    $('bg').classList.remove('on');
     if (call.photo) {
       const img = document.createElement('img');
       img.src = call.photo;
-      img.onerror = () => { av.textContent = (call.name || '؟').charAt(0); };
-      av.appendChild(img);
-    } else av.textContent = (call.name || '؟').charAt(0);
+      img.onload = () => { $('bg').style.backgroundImage = `url("${call.photo}")`; $('bg').classList.add('on'); };
+      img.onerror = () => { avin.textContent = (call.name || '؟').charAt(0); };
+      avin.appendChild(img);
+    } else avin.textContent = (call.name || '؟').charAt(0);
 
     const incoming = call.phase === 'incoming';
-    $('card').classList.toggle('is-live', !incoming);
+    $('card').className = `card ${incoming ? 'is-incoming' : 'is-live'}`;
     $('ringing').hidden = !incoming;
     $('live').hidden = incoming;
     $('mute').classList.toggle('on', Boolean(call.muted));
@@ -98,25 +137,28 @@
         ring.volume = 0.35;
         ring.currentTime = 0;
         ring.play().catch(() => {});
-        const swell = setInterval(() => {
-          if (ring.paused) return clearInterval(swell);
+        clearInterval(swell);
+        swell = setInterval(() => {
           ring.volume = Math.min(1, ring.volume + 0.04);
           if (ring.volume >= 1) clearInterval(swell);
         }, 500);
       }
     } else {
-      ring.pause();
+      stopRing();
     }
-    clearInterval(timer);
     if (call.phase === 'active') { clock(); timer = setInterval(clock, 1000); }
   });
 
-  document.querySelectorAll('[data-a]').forEach((b) =>
-    b.addEventListener('click', () => {
-      if (b.dataset.a === 'answer' || b.dataset.a === 'decline') ring.pause();
-      window.card.act(b.dataset.a);
-    })
-  );
+  const act = (a) => {
+    if (a === 'answer' || a === 'decline') stopRing();
+    window.card.act(a);
+  };
+  document.querySelectorAll('[data-a]').forEach((b) => b.addEventListener('click', () => act(b.dataset.a)));
+  document.addEventListener('keydown', (e) => {
+    if (!state || state.phase !== 'incoming') return;
+    if (e.key === 'Enter') act('answer');
+    if (e.key === 'Escape') act('decline');
+  });
 </script>
 </body>
 </html>

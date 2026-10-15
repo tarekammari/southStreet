@@ -67,6 +67,9 @@ class CallService : Service() {
     }
 
     private fun ring(call: CallInfo) {
+        // The same call can be announced twice (live stream + push): ring once.
+        if (ringing?.id == call.id && player != null) return
+        stopSound() // never leave an earlier ringtone playing
         ringing = call
         current = call.id
         foreground(Notify.incoming(this, call, null), ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL)
@@ -172,8 +175,15 @@ class CallService : Service() {
         stopSelf()
     }
 
+    // The app was swiped away from recent apps while ringing: stop the ringtone too.
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        if (ringing != null) stopEverything()
+        super.onTaskRemoved(rootIntent)
+    }
+
     override fun onDestroy() {
         stopSound()
+        current = null
         super.onDestroy()
     }
 
@@ -185,7 +195,13 @@ class CallService : Service() {
         /** Id of the call ringing on this phone right now, if any. */
         @Volatile var current: String? = null
 
-        fun ring(ctx: Context, call: CallInfo) = start(ctx, Intent(ctx, CallService::class.java).setAction(ACTION_RING).putExtras(call.toBundle()))
+        fun ring(ctx: Context, call: CallInfo) {
+            synchronized(this) {
+                if (current == call.id) return
+                current = call.id
+            }
+            start(ctx, Intent(ctx, CallService::class.java).setAction(ACTION_RING).putExtras(call.toBundle()))
+        }
         fun ongoing(ctx: Context, caller: String) = start(ctx, Intent(ctx, CallService::class.java).setAction(ACTION_ONGOING).putExtra("caller", caller))
         fun stop(ctx: Context) {
             current = null

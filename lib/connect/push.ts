@@ -4,6 +4,7 @@
  * Needs VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBJECT; without them push
  * is simply off and the app still works while open.
  */
+import crypto from 'node:crypto';
 import webpush from 'web-push';
 import { dropPush, pushTargets } from './store';
 import { fcmReady, sendFcm } from './fcm';
@@ -67,11 +68,21 @@ export async function pushTo(userId: string, payload: PushPayload): Promise<void
   );
 }
 
-/** STUN always; TURN (relay through firewalls / mobile networks) when configured. */
-export function iceServers(): RTCIceServerLike[] {
+/**
+ * STUN always; TURN (relay through firewalls / mobile networks) when configured.
+ * With TURN_SECRET (coturn "use-auth-secret") every user gets a password valid
+ * for 12 hours only; TURN_USERNAME / TURN_CREDENTIAL remain for a fixed account.
+ */
+export function iceServers(userId = 'connect'): RTCIceServerLike[] {
   const servers: RTCIceServerLike[] = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
   const urls = (process.env.TURN_URLS || '').split(',').map((s) => s.trim()).filter(Boolean);
-  if (urls.length) {
+  if (!urls.length) return servers;
+  const secret = process.env.TURN_SECRET?.trim();
+  if (secret) {
+    const username = `${Math.floor(Date.now() / 1000) + 12 * 3600}:${userId}`;
+    const credential = crypto.createHmac('sha1', secret).update(username).digest('base64');
+    servers.push({ urls, username, credential });
+  } else {
     servers.push({ urls, username: process.env.TURN_USERNAME?.trim() || '', credential: process.env.TURN_CREDENTIAL?.trim() || '' });
   }
   return servers;

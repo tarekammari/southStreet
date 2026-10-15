@@ -162,10 +162,17 @@ if (!app.requestSingleInstanceLock()) {
     }
     if (!card) createCard();
     card.webContents.send('call', call);
-    const { workArea } = screen.getPrimaryDisplay();
-    const [w, h] = card.getSize();
-    card.setPosition(workArea.x + workArea.width - w - 16, workArea.y + workArea.height - h - 16);
-    if (!card.isVisible()) card.showInactive();
+    // Incoming call: a phone-style card in the middle of the screen. In a call
+    // (main window out of sight): a small card in the bottom corner.
+    const { workArea } = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+    const [w, h] = ringing ? [400, 440] : [380, 168];
+    const x = ringing ? workArea.x + Math.round((workArea.width - w) / 2) : workArea.x + workArea.width - w - 16;
+    const y = ringing ? workArea.y + Math.round((workArea.height - h) / 2) : workArea.y + workArea.height - h - 16;
+    card.setBounds({ x, y, width: w, height: h });
+    if (!card.isVisible()) {
+      if (ringing) card.show(); // take focus: Enter / Esc can answer / decline
+      else card.showInactive();
+    }
     card.setAlwaysOnTop(true, 'screen-saver');
   }
 

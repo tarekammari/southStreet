@@ -9,7 +9,7 @@ export async function GET(req: Request) {
   const s = connectSession(req);
   if ('error' in s) return s.error;
   return NextResponse.json(
-    { me: s.me, iceServers: iceServers(), vapidPublicKey: vapidPublicKey() || null },
+    { me: s.me, iceServers: iceServers(s.me.id), vapidPublicKey: vapidPublicKey() || null },
     { headers: { 'Cache-Control': 'no-store' } }
   );
 }

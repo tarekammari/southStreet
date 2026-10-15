@@ -1,52 +1,116 @@
 'use client';
 
 /**
- * Download page of South Street Connect (/app): what the app does, and how to
- * install it on Android, iPhone and Windows — one tap where the browser allows,
- * clear steps where it does not (iPhone), and a QR code for computer visitors.
+ * Download page of South Street Connect (/app): the native apps for Android and
+ * Windows (real call screen, ringtone, works while closed), the web app for
+ * iPhone, how to install each, and a QR code for computer visitors.
  */
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import QRCode from 'qrcode';
-import { Bell, CheckCircle2, Download, Lock, MessageCircle, Mic, Monitor, PhoneCall, Share, Smartphone, SquarePlus } from 'lucide-react';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import {
+  BatteryCharging,
+  Bell,
+  BellRing,
+  ChevronDown,
+  Download,
+  Lock,
+  MessageCircle,
+  Mic,
+  Monitor,
+  Phone,
+  PhoneCall,
+  PhoneOff,
+  Share,
+  ShieldCheck,
+  Smartphone,
+  SquarePlus,
+  Zap,
+} from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
-import { versionLabel } from '@/lib/connect/version';
-import '@/app/info-pages.css';
+import { CONNECT_VERSION } from '@/lib/connect/version';
+import '@/app/app-page.css';
 
-type Platform = 'android' | 'ios' | 'windows';
+type Platform = 'android' | 'windows' | 'ios';
 
-const FEATURES = [
-  { icon: MessageCircle, title: 'رسائل فورية', text: 'تواصل مباشر مع فريق الوكالة ومرشدك قبل الرحلة وأثناءها.' },
-  { icon: PhoneCall, title: 'مكالمات صوتية واضحة', text: 'صوت نقي بإلغاء الصدى والضجيج، ويتحمّل شبكة الجيل الرابع الضعيفة.' },
-  { icon: Mic, title: 'رسائل صوتية', text: 'سجّل رسالتك بضغطة وأرسلها، مثالية في الحرم أو أثناء التنقل.' },
-  { icon: Bell, title: 'إشعارات', text: 'تصلك الرسائل والمكالمات حتى والتطبيق مغلق.' },
-  { icon: Lock, title: 'خاص وآمن', text: 'بحسابك في ساوث ستريت فقط؛ المعتمرون لا يرون أرقام بعضهم.' },
-];
-
-const STEPS: Record<Platform, { label: string; icon: typeof Smartphone; steps: string[] }> = {
+const PLATFORMS: Record<
+  Platform,
+  { label: string; icon: typeof Smartphone; href?: string; cta: string; size?: string; steps: string[]; note?: string }
+> = {
   android: {
     label: 'أندرويد',
     icon: Smartphone,
-    steps: ['اضغط «تحميل تطبيق أندرويد» أدناه (3.6 ميغابايت).', 'افتح الملف المحمَّل؛ إن طُلب منك اسمح بـ«التثبيت من هذا المصدر» ثم «تثبيت».', 'افتح SS Connect وسجّل الدخول، واسمح بالإشعارات والميكروفون.', 'لشاشة المكالمة الكاملة: إن ظهر تنبيه في التطبيق اضغطه وفعّل «عرض بملء الشاشة».'],
-  },
-  ios: {
-    label: 'آيفون',
-    icon: Smartphone,
-    steps: ['افتح هذه الصفحة في متصفح Safari على الآيفون.', 'اضغط زر المشاركة (المربع مع السهم) أسفل الشاشة.', 'اختر «إضافة إلى الشاشة الرئيسية» ثم «إضافة».', 'افتح Connect من الشاشة الرئيسية وفعّل الإشعارات (iOS 16.4 أو أحدث).'],
+    href: '/downloads/SouthStreetConnect.apk',
+    cta: 'تحميل لأندرويد',
+    size: 'APK · 4 ميغابايت',
+    steps: [
+      'اضغط «تحميل لأندرويد» وافتح الملف بعد التحميل.',
+      'إن طُلب منك، اسمح بـ«التثبيت من هذا المصدر» ثم اضغط «تثبيت».',
+      'افتح SS Connect وسجّل الدخول، واسمح بالإشعارات والميكروفون.',
+      'وافق على «تجاهل تحسين البطارية» ليرنّ الهاتف والتطبيق مغلق.',
+    ],
   },
   windows: {
     label: 'ويندوز',
     icon: Monitor,
-    steps: ['اضغط «تحميل تطبيق ويندوز» أدناه.', 'شغّل الملف. إن ظهرت رسالة «Windows protected your PC» اضغط «More info» ثم «Run anyway».', 'يعمل Connect مع تشغيل ويندوز ويبقى بجانب الساعة: تصلك المكالمة في نافذة فوق كل البرامج.'],
+    href: '/downloads/SouthStreetConnect-Setup.exe',
+    cta: 'تحميل لويندوز',
+    size: 'Windows 10 / 11 · 80 ميغابايت',
+    steps: [
+      'اضغط «تحميل لويندوز» ثم شغّل الملف.',
+      'إن ظهرت «Windows protected your PC»: اضغط «More info» ثم «Run anyway».',
+      'سجّل الدخول. يعمل Connect مع تشغيل ويندوز ويبقى بجانب الساعة.',
+    ],
+    note: 'المكالمة تظهر في نافذة وسط الشاشة فوق كل البرامج، مع الرنين.',
+  },
+  ios: {
+    label: 'آيفون',
+    icon: Smartphone,
+    cta: 'فتح Connect',
+    steps: [
+      'افتح هذه الصفحة في Safari على الآيفون.',
+      'اضغط زر المشاركة ثم «إضافة إلى الشاشة الرئيسية».',
+      'افتح Connect من الشاشة الرئيسية وفعّل الإشعارات (iOS 16.4 أو أحدث).',
+    ],
+    note: 'تطبيق الآيفون الكامل قادم قريباً.',
   },
 };
 
-/** Native apps (real call screen and ringtone). iPhone keeps the web app for now. */
-const NATIVE: Partial<Record<Platform, { href: string; label: string }>> = {
-  android: { href: '/downloads/SouthStreetConnect.apk', label: 'تحميل تطبيق أندرويد' },
-  windows: { href: '/downloads/SouthStreetConnect-Setup.exe', label: 'تحميل تطبيق ويندوز' },
-};
+const FEATURES = [
+  { icon: PhoneCall, title: 'مكالمات مثل الهاتف', text: 'شاشة مكالمة كاملة ورنين حقيقي، حتى والتطبيق مغلق والهاتف مقفل.' },
+  { icon: MessageCircle, title: 'رسائل فورية', text: 'تصل في أقل من ثانية إلى فريق الوكالة ومرشدك.' },
+  { icon: Mic, title: 'رسائل صوتية', text: 'سجّل بضغطة وأرسل — مثالية في الحرم وأثناء التنقل.' },
+  { icon: Zap, title: 'صوت واضح', text: 'إلغاء الصدى والضجيج، ويتحمّل شبكات الجيل الرابع الضعيفة.' },
+  { icon: Bell, title: 'لا يفوتك شيء', text: 'إشعارات للرسائل والمكالمات الفائتة على كل أجهزتك.' },
+  { icon: Lock, title: 'خاص وآمن', text: 'بحسابك في ساوث ستريت فقط، ولا يرى المعتمرون أرقام بعضهم.' },
+];
+
+const HOW = [
+  { icon: BellRing, title: 'يتصل فريق الوكالة', text: 'من لوحة الإدارة أو تطبيق المرشد.' },
+  { icon: Smartphone, title: 'يرنّ جهازك', text: 'شاشة مكالمة كاملة ورنين يعلو تدريجياً.' },
+  { icon: Phone, title: 'ترد بلمسة', text: 'صوت مباشر وواضح، والمكالمة تبقى والشاشة مطفأة.' },
+];
+
+const FAQ = [
+  {
+    q: 'ويندوز يقول «Windows protected your PC» — هل هذا آمن؟',
+    a: 'نعم. تظهر هذه الرسالة لكل برنامج جديد غير موقّع بشهادة مدفوعة. اضغط «More info» ثم «Run anyway» مرة واحدة فقط.',
+  },
+  {
+    q: 'أندرويد يطلب السماح بالتثبيت من مصدر غير معروف',
+    a: 'التطبيق يُحمَّل من موقعنا مباشرة وليس من المتجر، لذلك يطلب أندرويد إذنك مرة واحدة. اسمح لـ Chrome بالتثبيت ثم أكمل.',
+  },
+  {
+    q: 'لماذا يطلب التطبيق تجاهل تحسين البطارية؟',
+    a: 'ليبقى متصلاً ويرنّ الهاتف عند الاتصال حتى والتطبيق مغلق — مثل تطبيقات الاتصال. استهلاكه للبطارية ضئيل جداً.',
+  },
+  {
+    q: 'كيف أسجّل الدخول بحساب جوجل؟',
+    a: 'اضغط «المتابعة باستخدام Google»: يُفتح المتصفح لتسجيل الدخول ثم يعود التطبيق تلقائياً وأنت مسجّل.',
+  },
+];
 
 function detect(): Platform {
   const ua = navigator.userAgent;
@@ -55,122 +119,279 @@ function detect(): Platform {
   return 'windows';
 }
 
+const rise = {
+  hidden: { opacity: 0, y: 22 },
+  show: (i = 0) => ({ opacity: 1, y: 0, transition: { duration: 0.6, delay: i * 0.07, ease: [0.16, 1, 0.3, 1] as const } }),
+};
+
+/** Animated phone showing an incoming Connect call. */
+function PhoneMock() {
+  const reduce = useReducedMotion();
+  return (
+    <motion.div
+      className="cx-phone"
+      aria-hidden
+      initial={{ opacity: 0, y: 30, rotate: -2 }}
+      animate={{ opacity: 1, y: 0, rotate: 0 }}
+      transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
+    >
+      <motion.div
+        className="cx-phone-body"
+        animate={reduce ? undefined : { y: [0, -10, 0] }}
+        transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
+      >
+        <span className="cx-notch" />
+        <div className="cx-screen">
+          <span className="cx-screen-brand">South Street Connect</span>
+          <div className="cx-caller">
+            <span className="cx-avatar">
+              <i />
+              <i />
+              <i />
+              <b>م</b>
+            </span>
+            <strong>مرشد الرحلة</strong>
+            <small>مكالمة صوتية واردة</small>
+          </div>
+          <div className="cx-screen-actions">
+            <span className="cx-btn is-decline"><PhoneOff /></span>
+            <span className="cx-btn is-accept"><Phone /></span>
+          </div>
+        </div>
+      </motion.div>
+      <motion.div
+        className="cx-bubble is-a"
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ delay: 0.8, duration: 0.6 }}
+      >
+        <MessageCircle /> وصلنا الفندق بسلام 🤍
+      </motion.div>
+      <motion.div
+        className="cx-bubble is-b"
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ delay: 1.2, duration: 0.6 }}
+      >
+        <Mic /> رسالة صوتية · 0:12
+      </motion.div>
+    </motion.div>
+  );
+}
+
 export default function DownloadPage() {
   const [platform, setPlatform] = useState<Platform>('android');
-  const [installEvt, setInstallEvt] = useState<any>(null);
-  const [installed, setInstalled] = useState(false);
+  const [detected, setDetected] = useState<Platform>('android');
   const [qr, setQr] = useState('');
+  const [open, setOpen] = useState<number | null>(0);
 
   useEffect(() => {
-    setPlatform(detect());
-    const onPrompt = (e: Event) => {
-      e.preventDefault();
-      setInstallEvt(e);
-    };
-    const onInstalled = () => setInstalled(true);
-    window.addEventListener('beforeinstallprompt', onPrompt);
-    window.addEventListener('appinstalled', onInstalled);
-    if ('serviceWorker' in navigator) void navigator.serviceWorker.register('/connect-sw.js', { scope: '/connect' }).catch(() => undefined);
+    const p = detect();
+    setPlatform(p);
+    setDetected(p);
     void QRCode.toDataURL(`${window.location.origin}/app?utm_source=qr`, { margin: 1, width: 360, color: { dark: '#064e3b', light: '#ffffff' } }).then(setQr);
-    return () => {
-      window.removeEventListener('beforeinstallprompt', onPrompt);
-      window.removeEventListener('appinstalled', onInstalled);
-    };
   }, []);
 
-  const install = async () => {
-    if (!installEvt) return;
-    installEvt.prompt();
-    const choice = await installEvt.userChoice;
-    if (choice?.outcome === 'accepted') setInstalled(true);
-    setInstallEvt(null);
-  };
+  const main = PLATFORMS[detected];
+  const current = PLATFORMS[platform];
+  const others = (Object.keys(PLATFORMS) as Platform[]).filter((p) => p !== detected);
 
-  const current = STEPS[platform];
+  const primary = (p: Platform, className: string) =>
+    PLATFORMS[p].href ? (
+      <a href={PLATFORMS[p].href} download className={className}>
+        <Download /> {PLATFORMS[p].cta}
+      </a>
+    ) : (
+      <Link href="/connect" className={className}>
+        <Smartphone /> {PLATFORMS[p].cta}
+      </Link>
+    );
 
   return (
-    <div className="page-shell min-h-screen bg-white">
+    <div className="page-shell min-h-screen cx-page">
       <Navbar variant="light" />
-      <main className="ip page-main" dir="rtl">
-        <section className="ip-hero">
-          <div className="ip-wrap ip-hero-grid">
-            <div>
-              <span className="ip-eyebrow"><Download className="w-4 h-4" /> تطبيق مجاني</span>
-              <h1>South Street <em>Connect</em></h1>
-              <p className="ip-lead" dir="ltr" style={{ fontSize: '0.8rem', opacity: 0.7, marginTop: 0 }}>v{versionLabel()}</p>
-              <p className="ip-lead">رسائل ومكالمات صوتية واضحة بينك وبين فريق الوكالة ومرشدك، على أندرويد وويندوز (تطبيق كامل برنين وشاشة مكالمة مثل الهاتف) والآيفون. بدون متجر تطبيقات: ثبّته من هنا في ثوانٍ.</p>
-              <div className="ip-actions">
-                {NATIVE[platform] ? (
-                  <a href={NATIVE[platform]!.href} download className="ip-btn is-primary"><Download className="w-4 h-4" /> {NATIVE[platform]!.label}</a>
-                ) : installed ? (
-                  <span className="ip-btn is-primary"><CheckCircle2 className="w-4 h-4" /> تم التثبيت</span>
-                ) : installEvt ? (
-                  <button type="button" className="ip-btn is-primary" onClick={() => void install()}><Download className="w-4 h-4" /> تثبيت التطبيق</button>
-                ) : (
-                  <a href="#install" className="ip-btn is-primary"><Download className="w-4 h-4" /> طريقة التثبيت</a>
-                )}
-                <Link href="/connect" className="ip-btn is-ghost">فتح في المتصفح</Link>
-              </div>
-            </div>
-            <div className="ap-phone" aria-hidden>
-              <img src="/icons/connect-512.png" alt="" />
-              <b>Connect</b>
-              <span>ساوث ستريت</span>
-            </div>
+      <main dir="rtl">
+        {/* ---------- hero ---------- */}
+        <section className="cx-hero">
+          <div className="cx-blobs" aria-hidden>
+            <span />
+            <span />
+            <span />
+          </div>
+          <div className="cx-wrap cx-hero-grid">
+            <motion.div initial="hidden" animate="show">
+              <motion.span className="cx-chip" variants={rise} custom={0}>
+                <span className="cx-live" /> الإصدار {CONNECT_VERSION} · مجاني
+              </motion.span>
+              <motion.h1 variants={rise} custom={1}>
+                رحلتك على <em>اتصال</em>
+                <br />
+                بفريقك في كل لحظة
+              </motion.h1>
+              <motion.p className="cx-lead" variants={rise} custom={2}>
+                South Street Connect يجمعك بفريق الوكالة ومرشدك: رسائل فورية ومكالمات صوتية واضحة، ترنّ مثل الهاتف حتى والتطبيق مغلق.
+              </motion.p>
+              <motion.div className="cx-ctas" variants={rise} custom={3}>
+                {primary(detected, 'cx-cta is-primary')}
+                <Link href="/connect" className="cx-cta is-ghost">فتح في المتصفح</Link>
+              </motion.div>
+              <motion.p className="cx-meta" variants={rise} custom={4}>
+                {main.size ? <span>{main.size}</span> : null}
+                <span className="cx-others">
+                  متوفر أيضاً على
+                  {others.map((p) => (
+                    <button key={p} type="button" onClick={() => { setPlatform(p); document.getElementById('install')?.scrollIntoView({ behavior: 'smooth' }); }}>
+                      {PLATFORMS[p].label}
+                    </button>
+                  ))}
+                </span>
+              </motion.p>
+              <motion.ul className="cx-trust" variants={rise} custom={5}>
+                <li><ShieldCheck /> اتصال مشفّر</li>
+                <li><BellRing /> رنين حقيقي</li>
+                <li><BatteryCharging /> خفيف على البطارية</li>
+              </motion.ul>
+            </motion.div>
+            <PhoneMock />
           </div>
         </section>
 
-        <section className="ip-section">
-          <div className="ip-wrap">
-            <div className="ip-cards ap-features">
-              {FEATURES.map((f) => (
-                <article key={f.title} className="ip-card">
-                  <i><f.icon className="w-5 h-5" /></i>
+        {/* ---------- features ---------- */}
+        <section className="cx-section">
+          <div className="cx-wrap">
+            <motion.div className="cx-head" initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.4 }}>
+              <motion.span className="cx-eyebrow" variants={rise}>لماذا Connect</motion.span>
+              <motion.h2 variants={rise} custom={1}>كل ما تحتاجه للتواصل أثناء الرحلة</motion.h2>
+            </motion.div>
+            <div className="cx-features">
+              {FEATURES.map((f, i) => (
+                <motion.article
+                  key={f.title}
+                  className="cx-feature"
+                  variants={rise}
+                  custom={i}
+                  initial="hidden"
+                  whileInView="show"
+                  viewport={{ once: true, amount: 0.3 }}
+                >
+                  <i><f.icon /></i>
                   <h3>{f.title}</h3>
                   <p>{f.text}</p>
-                </article>
+                </motion.article>
               ))}
             </div>
           </div>
         </section>
 
-        <section className="ip-section is-soft" id="install">
-          <div className="ip-wrap">
-            <div className="ip-head">
-              <span className="ip-eyebrow">التثبيت</span>
-              <h2 className="ip-h2">ثبّت Connect على جهازك</h2>
-            </div>
-            <div className="ap-platforms" role="tablist">
-              {(Object.keys(STEPS) as Platform[]).map((p) => {
-                const Icon = STEPS[p].icon;
+        {/* ---------- how a call reaches you ---------- */}
+        <section className="cx-section is-dark">
+          <div className="cx-wrap">
+            <motion.div className="cx-head" initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.4 }}>
+              <motion.span className="cx-eyebrow" variants={rise}>كيف يعمل</motion.span>
+              <motion.h2 variants={rise} custom={1}>مكالمة الوكالة تصلك أينما كنت</motion.h2>
+            </motion.div>
+            <ol className="cx-how">
+              {HOW.map((s, i) => (
+                <motion.li key={s.title} variants={rise} custom={i} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.5 }}>
+                  <span className="cx-how-num">{i + 1}</span>
+                  <i><s.icon /></i>
+                  <h3>{s.title}</h3>
+                  <p>{s.text}</p>
+                </motion.li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
+        {/* ---------- install ---------- */}
+        <section className="cx-section" id="install">
+          <div className="cx-wrap">
+            <motion.div className="cx-head" initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.4 }}>
+              <motion.span className="cx-eyebrow" variants={rise}>التثبيت</motion.span>
+              <motion.h2 variants={rise} custom={1}>جاهز في أقل من دقيقة</motion.h2>
+            </motion.div>
+
+            <div className="cx-tabs" role="tablist">
+              {(Object.keys(PLATFORMS) as Platform[]).map((p) => {
+                const Icon = PLATFORMS[p].icon;
                 return (
                   <button key={p} type="button" role="tab" aria-selected={platform === p} className={platform === p ? 'is-on' : ''} onClick={() => setPlatform(p)}>
-                    <Icon className="w-4 h-4" /> {STEPS[p].label}
+                    {platform === p ? <motion.span layoutId="cx-tab" className="cx-tab-bg" transition={{ type: 'spring', stiffness: 420, damping: 34 }} /> : null}
+                    <Icon /> {PLATFORMS[p].label}
                   </button>
                 );
               })}
             </div>
-            <div className="ap-install">
-              <ol className="ap-steps">
-                {current.steps.map((s, i) => (
-                  <li key={s}><span>{i + 1}</span><p>{s}</p></li>
-                ))}
-                {NATIVE[platform] ? (
-                  <li className="ap-ios-hint"><a href={NATIVE[platform]!.href} download className="ip-btn is-primary"><Download className="w-4 h-4" /> {NATIVE[platform]!.label}</a></li>
-                ) : platform === 'ios' ? (
-                  <li className="ap-ios-hint"><Share className="w-4 h-4" /> ثم <SquarePlus className="w-4 h-4" /> «إضافة إلى الشاشة الرئيسية»</li>
-                ) : installEvt ? (
-                  <li className="ap-ios-hint"><button type="button" className="ip-btn is-primary" onClick={() => void install()}><Download className="w-4 h-4" /> تثبيت الآن</button></li>
-                ) : null}
-              </ol>
+
+            <div className="cx-install">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={platform}
+                  className="cx-steps-card"
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -12 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <ol className="cx-steps">
+                    {current.steps.map((s, i) => (
+                      <li key={s}>
+                        <span>{i + 1}</span>
+                        <p>{s}</p>
+                      </li>
+                    ))}
+                  </ol>
+                  {platform === 'ios' ? (
+                    <p className="cx-ios"><Share /> ثم <SquarePlus /> «إضافة إلى الشاشة الرئيسية»</p>
+                  ) : null}
+                  {current.note ? <p className="cx-note">{current.note}</p> : null}
+                  {primary(platform, 'cx-cta is-primary is-wide')}
+                </motion.div>
+              </AnimatePresence>
+
               {qr ? (
-                <div className="ap-qr">
-                  <img src={qr} alt="رمز QR لفتح الصفحة على الهاتف" />
-                  <p>على الكمبيوتر؟ امسح الرمز بكاميرا هاتفك لفتح هذه الصفحة عليه.</p>
-                </div>
+                <motion.div className="cx-qr" initial={{ opacity: 0, scale: 0.96 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }}>
+                  <img src={qr} alt="رمز QR لفتح هذه الصفحة على الهاتف" />
+                  <b>على الكمبيوتر؟</b>
+                  <p>امسح الرمز بكاميرا هاتفك لتحميل التطبيق عليه.</p>
+                </motion.div>
               ) : null}
             </div>
-            <p className="ap-note">تسجيل الدخول بحسابك في ساوث ستريت. ليس لديك حساب؟ <Link href="/book">احجز رحلتك</Link> أو تواصل مع الوكالة.</p>
+          </div>
+        </section>
+
+        {/* ---------- FAQ ---------- */}
+        <section className="cx-section is-soft">
+          <div className="cx-wrap cx-faq-wrap">
+            <div className="cx-head">
+              <span className="cx-eyebrow">أسئلة شائعة</span>
+              <h2>قبل أن تبدأ</h2>
+            </div>
+            <div className="cx-faq">
+              {FAQ.map((f, i) => (
+                <div key={f.q} className={`cx-faq-item${open === i ? ' is-open' : ''}`}>
+                  <button type="button" aria-expanded={open === i} onClick={() => setOpen(open === i ? null : i)}>
+                    {f.q}
+                    <ChevronDown />
+                  </button>
+                  <AnimatePresence initial={false}>
+                    {open === i ? (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+                      >
+                        <p>{f.a}</p>
+                      </motion.div>
+                    ) : null}
+                  </AnimatePresence>
+                </div>
+              ))}
+            </div>
+            <p className="cx-signin">
+              تسجيل الدخول بحسابك في ساوث ستريت. ليس لديك حساب؟ <Link href="/book">احجز رحلتك</Link> أو تواصل مع الوكالة.
+            </p>
           </div>
         </section>
       </main>
