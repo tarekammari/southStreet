@@ -22,6 +22,9 @@ const ICON = path.join(__dirname, 'assets', 'icon.png');
 // app closes. The app only ever shows our own site (navigation is locked to
 // it below), so it runs without that sandbox.
 app.commandLine.appendSwitch('no-sandbox');
+// Chromium may think the window is covered by others and stop drawing it
+// (blank white window); the check is unreliable with some security suites.
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 // Ringtone may play without a click (the call card is not clicked yet).
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 app.setAppUserModelId('tech.southstreet.connect');
@@ -82,6 +85,8 @@ if (!app.requestSingleInstanceLock()) {
       },
     });
     main.loadURL(signInUrl(process.argv) || START_URL);
+    // Bring the window up (and to the front) once the page has painted.
+    if (!hidden) main.once('ready-to-show', showMain);
 
     // Only our own site is shown inside the app; anything else opens in the browser.
     main.webContents.on('will-navigate', (e, url) => {

@@ -492,6 +492,8 @@ export default function ConnectApp() {
   }, [vapid]);
 
   const enablePush = async () => {
+    // The Windows / Android apps ring by themselves; browser push is not used there.
+    if (nativePlatform()) return setPushState('unsupported');
     try {
       if (!vapid) throw new Error('no key');
       const permission = await Notification.requestPermission();
