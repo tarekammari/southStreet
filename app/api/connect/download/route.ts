@@ -41,7 +41,8 @@ export async function GET(req: NextRequest) {
     const s = connectSession(req);
     if ('error' in s) {
       // A person in the browser: sign in first, then the download page.
-      if ((req.headers.get('accept') || '').includes('text/html')) return NextResponse.redirect(new URL('/app?login=1', req.url));
+      // Relative: behind nginx req.url is the internal address (localhost:3000).
+      if ((req.headers.get('accept') || '').includes('text/html')) return new Response(null, { status: 307, headers: { Location: '/app?login=1' } });
       return s.error;
     }
   }
