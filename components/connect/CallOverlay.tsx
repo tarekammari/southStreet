@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ChevronDown, Maximize2, Mic, MicOff, Phone, PhoneOff, PictureInPicture2 } from 'lucide-react';
+import { ChevronDown, Maximize2, Mic, MicOff, Phone, PhoneOff, PictureInPicture2, Volume1, Volume2 } from 'lucide-react';
 import type { CallPhase } from '@/lib/connect/rtc';
 
 export type CallView = {
@@ -11,6 +11,8 @@ export type CallView = {
   phase: CallPhase | 'incoming';
   connectedAt?: number;
   muted: boolean;
+  /** Loudspeaker on (Android app; otherwise the earpiece, like a phone call). */
+  speaker?: boolean;
   note?: string;
 };
 
@@ -50,6 +52,7 @@ export default function CallOverlay({
   onMinimize,
   canPopOut,
   onPopOut,
+  onSpeaker,
 }: {
   view: CallView;
   onAccept: () => void;
@@ -59,6 +62,8 @@ export default function CallOverlay({
   onMinimize?: () => void;
   canPopOut?: boolean;
   onPopOut?: () => void;
+  /** Shown only where the app can switch earpiece / loudspeaker. */
+  onSpeaker?: () => void;
 }) {
   const status = useCallStatus(view);
   const incoming = view.phase === 'incoming';
@@ -118,6 +123,11 @@ export default function CallOverlay({
           <button type="button" className={`cn-call-btn is-soft${view.muted ? ' is-on' : ''}`} onClick={onMute} aria-label={view.muted ? 'تشغيل الميكروفون' : 'كتم'} aria-pressed={view.muted}>
             {view.muted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}<span>{view.muted ? 'مكتوم' : 'كتم'}</span>
           </button>
+          {onSpeaker ? (
+            <button type="button" className={`cn-call-btn is-soft${view.speaker ? ' is-on' : ''}`} onClick={onSpeaker} aria-label="مكبّر الصوت" aria-pressed={Boolean(view.speaker)}>
+              {view.speaker ? <Volume2 className="w-6 h-6" /> : <Volume1 className="w-6 h-6" />}<span>مكبّر الصوت</span>
+            </button>
+          ) : null}
           <button type="button" className="cn-call-btn is-decline" onClick={onHangup} aria-label="إنهاء"><PhoneOff className="w-7 h-7" /><span>إنهاء</span></button>
         </div>
       )}

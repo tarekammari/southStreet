@@ -18,7 +18,7 @@ import AndroidSetup from './AndroidSetup';
 import NotifyGate from './NotifyGate';
 import { AddPersonSheet, Directory, EMPTY_PEOPLE, PersonMenu, RequestList, SentAndBlocked, Suggestions, peopleAction, type PeopleData } from './People';
 import type { PeopleAction } from '@/lib/connect/people';
-import { androidChecks, androidInBackground, downloadNewApp, nativeNeedsManualUpdate, nativePlatform, onAndroidToken, onNativeCallAction, openAndroidSettings, sendCallState } from '@/lib/connect/native-bridge';
+import { androidChecks, androidInBackground, canSwitchSpeaker, downloadNewApp, nativeNeedsManualUpdate, nativePlatform, onAndroidToken, onNativeCallAction, openAndroidSettings, sendCallState } from '@/lib/connect/native-bridge';
 import { versionLabel } from '@/lib/connect/version';
 import CallOverlay, { CallMini, type CallView } from './CallOverlay';
 import { usePipWindow } from './usePipWindow';
@@ -160,6 +160,27 @@ export default function ConnectApp() {
     window.addEventListener('beforeinstallprompt', onPrompt);
     if ('serviceWorker' in navigator) void navigator.serviceWorker.register('/connect-sw.js', { scope: '/connect' }).catch(() => undefined);
     return () => window.removeEventListener('beforeinstallprompt', onPrompt);
+  }, []);
+
+  // Session ended (expired after 24 h, signed out elsewhere, password changed):
+  // any Connect request answered 401 brings up the sign-in window at once,
+  // instead of leaving "يلزم تسجيل الدخول" errors on a screen with no way to sign in.
+  useEffect(() => {
+    const original = window.fetch;
+    window.fetch = async (...args: Parameters<typeof fetch>) => {
+      const res = await original(...args);
+      if (res.status === 401) {
+        const url = typeof args[0] === 'string' ? args[0] : args[0] instanceof Request ? args[0].url : String(args[0]);
+        if (url.includes('/api/connect/') && !url.includes('/api/connect/download')) {
+          setMe(null);
+          setNeedLogin(true);
+        }
+      }
+      return res;
+    };
+    return () => {
+      window.fetch = original;
+    };
   }, []);
 
   useEffect(() => {
@@ -308,6 +329,9 @@ export default function ConnectApp() {
       return { ...v, muted: !v.muted };
     });
 
+  // Earpiece ↔ loudspeaker (the Android app moves the sound; each call starts on the earpiece).
+  const toggleSpeaker = () => setCallView((v) => (v ? { ...v, speaker: !v.speaker } : v));
+
   const popOutCall = async () => {
     if (await pip.open()) setMinimized(true);
   };
@@ -376,6 +400,7 @@ export default function ConnectApp() {
             role: callView.peerRole,
             connectedAt: callView.connectedAt,
             muted: callView.muted,
+            speaker: Boolean(callView.speaker),
           }
         : null
     );
@@ -821,6 +846,7 @@ export default function ConnectApp() {
           onMinimize={() => setMinimized(true)}
           canPopOut={pip.supported}
           onPopOut={() => void popOutCall()}
+          onSpeaker={canSwitchSpeaker() ? toggleSpeaker : undefined}
         />
       ) : null}
 

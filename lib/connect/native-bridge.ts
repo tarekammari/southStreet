@@ -16,6 +16,8 @@ export type NativeCallState = {
   role?: string;
   connectedAt?: number;
   muted?: boolean;
+  /** Loudspeaker instead of the earpiece (Android). */
+  speaker?: boolean;
 };
 
 type WindowsBridge = {
@@ -40,6 +42,15 @@ const win = () => (typeof window === 'undefined' ? undefined : (window as unknow
 const droid = () => (typeof window === 'undefined' ? undefined : (window as unknown as { SSAndroid?: AndroidBridge }).SSAndroid);
 
 export const nativePlatform = (): 'windows' | 'android' | null => (win() ? 'windows' : droid() ? 'android' : null);
+
+/** Android app that plays calls on the earpiece and can switch to the loudspeaker. */
+export function canSwitchSpeaker(): boolean {
+  try {
+    return Boolean((droid() as unknown as { canSwitchSpeaker?: () => boolean } | undefined)?.canSwitchSpeaker?.());
+  } catch {
+    return false;
+  }
+}
 
 export function sendCallState(state: NativeCallState | null) {
   const photo = state?.photo ? new URL(state.photo, window.location.href).href : undefined;

@@ -138,7 +138,7 @@
 .cn-shake { animation: cn-shake 1.2s ease-in-out infinite; }
 @keyframes cn-shake { 0%, 50%, 100% { transform: rotate(0); } 10%, 30% { transform: rotate(-14deg); } 20%, 40% { transform: rotate(14deg); } }
 
-.cn-call-actions { display: flex; gap: 56px; }
+.cn-call-actions { display: flex; gap: clamp(18px, 9vw, 56px); }
 .cn-call-actions.is-incoming { width: 100%; max-width: 360px; justify-content: space-between; gap: 24px; }
 .cn-call-btn { display: flex; flex-direction: column; align-items: center; gap: 10px; color: #fff !important; font-size: 0.86rem; font-weight: 700; }
 .cn-call-btn > svg { box-sizing: content-box; padding: 20px; border-radius: 50%; transition: transform 0.15s; }

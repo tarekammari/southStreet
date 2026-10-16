@@ -188,6 +188,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        CallAudio.reset(this)
         if (instance?.get() === this) instance = null
         web.destroy()
         super.onDestroy()
@@ -201,6 +202,9 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface fun version() = BuildConfig.VERSION_NAME
         @JavascriptInterface fun token() = Prefs.token(this@MainActivity)
         @JavascriptInterface fun firebase() = BuildConfig.HAS_FIREBASE
+
+        /** The call screen shows «مكبّر الصوت» (earpiece / loudspeaker) only in apps that can switch. */
+        @JavascriptInterface fun canSwitchSpeaker() = true
 
         /** False while the app is in the background: then the phone's call screen rings, not the page. */
         @JavascriptInterface fun inForeground() = visible
@@ -224,6 +228,13 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface fun callState(json: String) {
             val s = try { JSONObject(json) } catch (_: Exception) { return }
             inCall = s.optString("phase") !in listOf("", "ended")
+            // Earpiece like a phone call; the loudspeaker only when «مكبّر الصوت» is on.
+            runOnUiThread {
+                when (s.optString("phase")) {
+                    "active", "connecting", "calling", "ringing" -> CallAudio.route(this@MainActivity, s.optBoolean("speaker"))
+                    else -> CallAudio.reset(this@MainActivity)
+                }
+            }
             when (s.optString("phase")) {
                 "active", "connecting", "calling", "ringing" -> CallService.ongoing(this@MainActivity, s.optString("name"))
                 "ended", "" -> CallService.stop(this@MainActivity)
