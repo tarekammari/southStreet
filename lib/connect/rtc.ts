@@ -116,6 +116,8 @@ export class VoiceCall {
   private seenRestart = new Set<string>();
   /** Signalling messages are applied one at a time, in order. */
   private chain: Promise<void> = Promise.resolve();
+  /** My network candidates found before the call had an id (sent once it has one). */
+  private outbox: string[] = [];
 
   constructor(private iceServers: RTCIceServer[], private h: Handlers, private me: string) {
     this.audio = new Audio();
@@ -164,7 +166,11 @@ export class VoiceCall {
       void this.audio.play().catch(() => undefined);
     };
     pc.onicecandidate = (e) => {
-      if (e.candidate && this.id) void api({ action: 'ice', id: this.id, candidate: JSON.stringify(e.candidate.toJSON()) }).catch(() => undefined);
+      if (!e.candidate) return;
+      const candidate = JSON.stringify(e.candidate.toJSON());
+      // The caller finds its first candidates before the server has given the call an id: keep them.
+      if (this.id) this.sendIce(candidate);
+      else this.outbox.push(candidate);
     };
     pc.onconnectionstatechange = () => this.onConnection(pc.connectionState);
     // Wi-Fi ↔ mobile data: move the call to the new network at once instead of waiting for it to drop.
@@ -230,6 +236,10 @@ export class VoiceCall {
     }
   }
 
+  private sendIce(candidate: string) {
+    if (this.id) void api({ action: 'ice', id: this.id, candidate }).catch(() => undefined);
+  }
+
   private sendRestart(data: Restart) {
     if (this.id) void api({ action: 'restart', id: this.id, data }).catch(() => undefined);
   }
@@ -285,6 +295,7 @@ export class VoiceCall {
     }
     // Hung up while dialling: stop the other phone ringing.
     if (this.finished) return send({ action: 'end', id: this.id });
+    for (const c of this.outbox.splice(0)) this.sendIce(c);
     this.startPolling();
   }
 

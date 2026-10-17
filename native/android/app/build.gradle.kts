@@ -17,6 +17,8 @@ android {
 
     defaultConfig {
         applicationId = "tech.southstreet.connect"
+        // A test build installs next to the real app (e.g. SS_APP_ID_SUFFIX=.test).
+        System.getenv("SS_APP_ID_SUFFIX")?.takeIf { it.isNotBlank() }?.let { applicationIdSuffix = it }
         minSdk = 27
         targetSdk = 35
         versionCode = (System.getenv("SS_VERSION_CODE") ?: "1").toInt()

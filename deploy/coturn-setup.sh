@@ -101,8 +101,10 @@ denied-peer-ip=fe80::-febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff
 allowed-peer-ip=$PUBLIC_IP
 
 # Voice needs ~40 kb/s; these limits stop anyone using the relay as a bandwidth pipe.
-user-quota=8
-total-quota=800
+# One call can open ~6 relay sessions (UDP/TCP/TLS × each network of the phone), more
+# with Wi-Fi + mobile data or a reconnect: 40 per user leaves room, the total stays capped.
+user-quota=40
+total-quota=1200
 max-bps=256000
 stale-nonce=600
 no-rfc5780
