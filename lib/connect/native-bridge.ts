@@ -223,7 +223,7 @@ export async function downloadNewApp() {
   else window.open(url, '_blank');
 }
 
-export type UpdateCheck = { state: 'latest' | 'ready' | 'busy' | 'error' | 'old-app' | 'web-ready'; version: string };
+export type UpdateCheck = { state: 'latest' | 'downloading' | 'ready' | 'busy' | 'error' | 'old-app' | 'web-ready'; version: string };
 
 /** Windows (1.8.0+): how far the new version's download is, 0–100. */
 export function onUpdateProgress(cb: (p: { version: string; pct: number }) => void): () => void {
@@ -241,7 +241,12 @@ export async function checkAppUpdate(currentWeb: string): Promise<UpdateCheck> {
   const a = droid() as unknown as { checkUpdate?: () => void } | undefined;
   if (w || a) {
     if (nativeNeedsManualUpdate() || (w && !w.checkUpdate) || (a && !a.checkUpdate)) return { state: 'old-app', version: '' };
-    if (w?.checkUpdate) return w.checkUpdate().catch(() => ({ state: 'error' as const, version: '' }));
+    if (w?.checkUpdate) {
+      // Windows apps before 1.8.1 answer only when the whole download is done (minutes):
+      // after a few seconds say it is downloading in the background (it asks to install when ready).
+      const wait = new Promise<UpdateCheck>((resolve) => window.setTimeout(() => resolve({ state: 'downloading', version: '' }), 6000));
+      return Promise.race([w.checkUpdate().catch(() => ({ state: 'error' as const, version: '' })), wait]);
+    }
     return new Promise((resolve) => {
       const done = (r: UpdateCheck) => {
         window.removeEventListener('ss-native-update', onEvent);

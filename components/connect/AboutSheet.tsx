@@ -12,6 +12,7 @@ const APP_VERSION = process.env.APP_VERSION || '';
 
 const UPDATE_NOTE: Record<UpdateCheck['state'], string> = {
   latest: 'لديك أحدث إصدار ✓',
+  downloading: 'يُنزَّل التحديث في الخلفية — يمكنك متابعة عملك، وسيُعرض عليك التثبيت عند جاهزيته',
   ready: 'تحديث جديد جاهز — وافق على «تحديث الآن» ثم «تثبيت»',
   busy: 'جارٍ البحث عن تحديث…',
   error: 'تعذّر التحقق الآن — تأكد من الاتصال وحاول مرة أخرى',

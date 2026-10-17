@@ -1,7 +1,7 @@
 {
   "name": "south-street-connect",
   "productName": "South Street Connect",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "description": "South Street Connect for Windows — messages and calls with the agency team.",
   "author": "South Street",
   "private": true,
@@ -25,9 +25,10 @@
     "files": [
       "main.js",
       "preload.js",
+      "updates.js",
       "call.html",
       "call-preload.js",
-      "assets/**"
+      "assets/icon.png"
     ],
     "electronLanguages": [
       "ar",
@@ -52,6 +53,15 @@
         "name": "South Street Connect",
         "schemes": [
           "ssconnect"
+        ]
+      }
+    ],
+    "extraResources": [
+      {
+        "from": "assets",
+        "to": "sounds",
+        "filter": [
+          "*.wav"
         ]
       }
     ]

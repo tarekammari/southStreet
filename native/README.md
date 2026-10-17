@@ -79,8 +79,19 @@ with the ringtone and Answer / Decline when a call comes in, and the same card
 
 ```bash
 cd native/windows && npm install && npx electron-builder --win nsis --x64 --publish never
+gzip -9 -c dist/win-unpacked/resources/app.asar > dist/SouthStreetConnect-app.asar.gz
+sha256sum dist/win-unpacked/resources/app.asar        # → NATIVE_RELEASES.windows.app.sha256
 scp dist/SouthStreetConnect-Setup-*.exe root@45.9.190.236:/var/www/connect-downloads/SouthStreetConnect-Setup.exe
+scp dist/SouthStreetConnect-app.asar.gz root@45.9.190.236:/var/www/connect-downloads/SouthStreetConnect-app.asar.gz
 ```
+
+**Light updates (from 1.8.1):** when only the app's own files changed, the app
+downloads `SouthStreetConnect-app.asar.gz` (~35 KB) instead of the ~77 MB
+installer, checks its SHA-256, and a small script swaps `resources/app.asar`
+after the app closes (old one kept as `app.asar.bak`), then starts it again.
+The ringtones are outside app.asar (`resources/sounds`), so they never weigh on
+it. When the Electron version changes, set `windows.app.electron` to the new
+one: older apps then take the full installer. Always upload both files.
 
 The installer is not code-signed: Windows SmartScreen shows "More info → Run anyway"
 until a code-signing certificate is bought.
