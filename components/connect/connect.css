@@ -255,6 +255,13 @@
 .cn-msg-banner-text small { color: var(--cn-muted); font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @keyframes cn-drop { from { opacity: 0; transform: translate(-50%, -14px); } to { opacity: 1; transform: translate(-50%, 0); } }
 
+/* ---------- groups ---------- */
+.cn-avatar.is-group { border-radius: 14px; color: var(--cn-brand); background: #e6f4ef; }
+.cn-bubble-from { display: block; font-size: 0.74rem; font-weight: 800; color: var(--cn-brand); margin-bottom: 2px; }
+.cn-readonly { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 0; padding: 14px 16px calc(14px + env(safe-area-inset-bottom)); font-size: 0.84rem; font-weight: 700; color: var(--cn-muted); border-top: 1px solid var(--cn-line); background: var(--cn-panel); }
+.cn-gate-icon.is-stop { margin: 0 auto 10px; background: linear-gradient(145deg, #f87171, #b91c1c); box-shadow: 0 14px 30px -12px rgba(185, 28, 28, 0.7); }
+.cn-gate-icon.is-stop svg { animation: none; }
+
 /* ---------- message ticks ---------- */
 .cn-ticks { display: inline-flex; vertical-align: middle; margin-inline-start: 4px; opacity: 0.75; }
 .cn-ticks.is-read { color: #38bdf8; opacity: 1; }

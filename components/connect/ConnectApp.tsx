@@ -8,11 +8,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import dynamic from 'next/dynamic';
-import { Bell, BellOff, Download, Info, Loader2, RefreshCw, MessageCircle, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Search, Star, UserPlus, Users } from 'lucide-react';
+import { Ban, Bell, BellOff, Download, Info, Loader2, RefreshCw, MessageCircle, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Search, Star, UserPlus, Users } from 'lucide-react';
 import { authHeaders, jsonAuthHeaders } from '@/lib/api-client';
 import { VoiceCall, playMessageSound, startTone, stopTone, warmRingtone, type CallEndReason, type CallPhase } from '@/lib/connect/rtc';
-import { tellAndroid } from '@/lib/connect/device-prefs';
+import { setForcedRelay, tellAndroid } from '@/lib/connect/device-prefs';
 import type { ConnectContact, ConnectUser } from '@/lib/connect/store';
+import type { MyGroup } from '@/lib/connect/groups';
 import ChatView from './ChatView';
 import AboutSheet from './AboutSheet';
 import AndroidSetup from './AndroidSetup';
@@ -31,6 +32,17 @@ type Tab = 'chats' | 'contacts' | 'calls';
 type CallLog = { id: string; peerId: string; peerName: string; outgoing: boolean; state: string; createdTs: number; seconds: number };
 /** `key` / `sig`: the caller's device key and signature (end-to-end check). */
 type Incoming = { id: string; offer: string; key?: string; sig?: string; caller: { id: string; name: string; roleLabel: string; photo: string } };
+/** A conversation in the list: a person, or a group chat (id `grp:…`, made in /connect-admin). */
+export type ChatItem = ConnectContact & { group?: MyGroup };
+
+/** A group as a row of the chat list. */
+function groupItem(g: MyGroup): ChatItem {
+  return {
+    id: g.chatId, name: g.name, role: 'PILGRIM_USER', roleLabel: `${g.members} عضو`, photo: '', chatId: g.chatId,
+    online: false, lastSeen: 0, lastText: g.lastText, lastTs: g.lastTs, unread: g.unread, friend: false, affinity: 0, group: g,
+  };
+}
+
 /** A new message in a chat that is not on screen. */
 type Banner = { from: string; name: string; preview: string; key: number };
 
@@ -42,6 +54,7 @@ const END_NOTE: Record<CallEndReason, string> = {
   unreachable: 'تعذّر الوصول — هاتفه مغلق أو بلا إنترنت',
   busy: 'الطرف الآخر في مكالمة أخرى',
   failed: 'تعذّر الاتصال — تحقق من الشبكة',
+  blocked: 'المكالمات موقوفة حاليًا',
   elsewhere: 'تم الرد من جهاز آخر',
   insecure: 'أُوقفت المكالمة: تعذّر التحقق من تشفيرها',
   rate: 'محاولات اتصال كثيرة — انتظر دقيقة',
@@ -119,6 +132,11 @@ export default function ConnectApp() {
   const [iceServers, setIceServers] = useState<RTCIceServer[]>([]);
   const [vapid, setVapid] = useState<string | null>(null);
   const [contacts, setContacts] = useState<ConnectContact[]>([]);
+  const [groups, setGroups] = useState<MyGroup[]>([]);
+  /** Stopped by the Super Admin: why, and until when. */
+  const [suspended, setSuspended] = useState<{ reason: string; untilTs: number | null } | null>(null);
+  /** The Super Admin's rules for this account (calls allowed). */
+  const [callsAllowed, setCallsAllowed] = useState(true);
   const [people, setPeople] = useState<PeopleData>(EMPTY_PEOPLE);
   const [addOpen, setAddOpen] = useState(false);
   const [toast, setToast] = useState('');
@@ -157,11 +175,14 @@ export default function ConnectApp() {
   useEffect(() => {
     void fetch('/api/connect/config', { headers: authHeaders(), cache: 'no-store' })
       .then(async (r) => {
+        const data = await r.json().catch(() => ({}));
+        if (r.status === 403 && data.code === 'CONNECT_SUSPENDED') return setSuspended({ reason: data.reason || '', untilTs: data.untilTs || null });
         if (r.status === 401 || r.status === 403) return setNeedLogin(true);
-        const data = await r.json();
         setMe(data.me);
         setIceServers(data.iceServers || []);
         setVapid(data.vapidPublicKey || null);
+        setCallsAllowed(data.policy?.calls !== false);
+        setForcedRelay(Boolean(data.policy?.relayOnly));
       })
       .catch(() => setNeedLogin(true));
     setStandalone(window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true);
@@ -184,6 +205,13 @@ export default function ConnectApp() {
     const original = window.fetch;
     window.fetch = async (...args: Parameters<typeof fetch>) => {
       const res = await original(...args);
+      // Suspended by the Super Admin while the app is open: show why, at once.
+      if (res.status === 403) {
+        const url = typeof args[0] === 'string' ? args[0] : args[0] instanceof Request ? args[0].url : String(args[0]);
+        if (url.includes('/api/connect/') && !url.includes('/api/connect/admin')) {
+          void res.clone().json().then((d) => d?.code === 'CONNECT_SUSPENDED' && setSuspended({ reason: d.reason || '', untilTs: d.untilTs || null })).catch(() => undefined);
+        }
+      }
       if (res.status === 401) {
         const url = typeof args[0] === 'string' ? args[0] : args[0] instanceof Request ? args[0].url : String(args[0]);
         if (url.includes('/api/connect/') && !url.includes('/api/connect/download')) {
@@ -210,6 +238,7 @@ export default function ConnectApp() {
     if (!res.ok) return;
     const data = await res.json();
     setContacts(data.contacts || []);
+    setGroups(data.groups || []);
     setCalls(data.calls || []);
   }, []);
 
@@ -313,7 +342,7 @@ export default function ConnectApp() {
       await call.call(peer.id);
     } catch (err) {
       const code = (err as { code?: string }).code;
-      if (callRef.current === call) endUi(code === 'BUSY' ? 'busy' : code === 'RATE' ? 'rate' : 'failed');
+      if (callRef.current === call) endUi(code === 'BUSY' ? 'busy' : code === 'RATE' ? 'rate' : code === 'CALLS_OFF' ? 'blocked' : 'failed');
     }
   };
 
@@ -664,8 +693,9 @@ export default function ConnectApp() {
   };
 
   /* ---------- view ---------- */
-  const open = contacts.find((c) => c.id === openId) || null;
-  const totalUnread = contacts.reduce((n, c) => n + c.unread, 0);
+  const groupItems = groups.map(groupItem);
+  const open: ChatItem | null = contacts.find((c) => c.id === openId) || groupItems.find((g) => g.id === openId) || null;
+  const totalUnread = contacts.reduce((n, c) => n + c.unread, 0) + groups.reduce((n, g) => n + g.unread, 0);
 
   // Unread count on the app icon (installed app) and in the window title.
   useEffect(() => {
@@ -677,12 +707,28 @@ export default function ConnectApp() {
   }, [totalUnread]);
   const q = query.trim().toLowerCase();
   const filtered = contacts.filter((c) => !q || c.name.toLowerCase().includes(q) || c.roleLabel.includes(q));
-  const chats = filtered.filter((c) => c.lastTs);
+  // Chats: people I talked to and my groups, newest first.
+  const chats: ChatItem[] = [...filtered.filter((c) => c.lastTs), ...groupItems.filter((g) => !q || g.name.toLowerCase().includes(q))].sort((a, b) => b.lastTs - a.lastTs);
   const team = filtered.filter((c) => c.role !== 'PILGRIM_USER');
   const clients = filtered.filter((c) => c.role === 'PILGRIM_USER');
   // Favourites: the clients I accepted, the ones I talk to most (lately) first.
   const favourites = clients.filter((c) => c.friend).sort((a, b) => b.affinity - a.affinity || Number(b.online) - Number(a.online) || a.name.localeCompare(b.name, 'ar'));
   const requestCount = people.requests.length;
+
+  if (suspended) {
+    return (
+      <div className="cn-app cn-login" dir="rtl">
+        <div className="cn-login-card">
+          <span className="cn-gate-icon is-stop"><Ban className="w-8 h-8" /></span>
+          <h1>تم إيقاف حسابك في SS Connect</h1>
+          <p>{suspended.reason ? `السبب: ${suspended.reason}` : 'أوقفت إدارة الوكالة استعمالك للتطبيق مؤقتًا.'}</p>
+          {suspended.untilTs ? <p>ينتهي الإيقاف {new Date(suspended.untilTs).toLocaleString('ar-DZ', { dateStyle: 'medium', timeStyle: 'short' })}.</p> : null}
+          <p>للاستفسار تواصل مع الوكالة.</p>
+          <button type="button" className="cn-sheet-btn" onClick={() => window.location.reload()}><RefreshCw className="w-5 h-5" /> إعادة المحاولة</button>
+        </div>
+      </div>
+    );
+  }
 
   if (needLogin) {
     return (
@@ -702,10 +748,10 @@ export default function ConnectApp() {
     return <div className="cn-app cn-center" dir="rtl"><Loader2 className="w-6 h-6 animate-spin" /></div>;
   }
 
-  const row = (c: ConnectContact, showLast: boolean) => (
+  const row = (c: ChatItem, showLast: boolean) => (
     <li key={c.id}>
       <button type="button" className="cn-row" onClick={() => setOpenId(c.id)}>
-        <span className="cn-avatar">{c.photo ? <img src={c.photo} alt="" /> : c.name.charAt(0)}{c.online ? <i className="cn-dot" /> : null}</span>
+        <span className={`cn-avatar${c.group ? ' is-group' : ''}`}>{c.group ? <Users className="w-5 h-5" /> : c.photo ? <img src={c.photo} alt="" /> : c.name.charAt(0)}{c.online ? <i className="cn-dot" /> : null}</span>
         <span className="cn-row-main">
           <span className="cn-row-top"><b>{c.name}</b>{showLast ? <small>{shortTime(c.lastTs)}</small> : null}</span>
           <span className="cn-row-sub">
@@ -714,7 +760,7 @@ export default function ConnectApp() {
           </span>
         </span>
       </button>
-      {!showLast ? (
+      {!showLast && callsAllowed ? (
         <button type="button" className="cn-icon is-call" onClick={() => void placeCall(c)} aria-label={`اتصال بـ ${c.name}`}><Phone className="w-5 h-5" /></button>
       ) : null}
     </li>
@@ -836,7 +882,7 @@ export default function ConnectApp() {
                           <span className="cn-row-sub"><small>{missed ? (c.outgoing ? 'لم يُرد' : 'فائتة') : c.seconds ? `${Math.floor(c.seconds / 60)}:${String(c.seconds % 60).padStart(2, '0')}` : 'ملغاة'}</small></span>
                         </span>
                       </div>
-                      {peer ? <button type="button" className="cn-icon is-call" onClick={() => void placeCall(peer)} aria-label="معاودة الاتصال"><Phone className="w-5 h-5" /></button> : null}
+                      {peer && callsAllowed ? <button type="button" className="cn-icon is-call" onClick={() => void placeCall(peer)} aria-label="معاودة الاتصال"><Phone className="w-5 h-5" /></button> : null}
                     </li>
                   );
                 })}
@@ -860,7 +906,8 @@ export default function ConnectApp() {
             me={me}
             peer={open}
             onBack={() => setOpenId(null)}
-            onCall={() => void placeCall(open)}
+            onCall={callsAllowed && !open.group ? () => void placeCall(open) : undefined}
+            group={open.group}
             refreshKey={refreshKey}
             onChanged={() => void loadContacts()}
             menu={isClient && open.friend ? <PersonMenu name={open.name} onAction={(a) => onPeopleAction(open.id, a)} /> : null}

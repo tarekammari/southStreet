@@ -17,6 +17,7 @@ import { normalizeLoginRole, LOGIN_ROLE_LABELS, type LoginRole } from '../roles'
 import { isImageSource, resolveUserPhoto } from '../user-access-view';
 import { listening, publish } from './bus';
 import { areFriends, friendIds } from './links';
+import { settings } from './policy';
 
 export type ConnectUser = { id: string; name: string; role: LoginRole; roleLabel: string; photo: string };
 /** `friend`: a client I accepted (or who accepted me); `affinity`: how much we talk lately (orders favourites). */
@@ -121,7 +122,8 @@ export function canTalk(me: ConnectUser, peer: ConnectUser): boolean {
   if (me.id === peer.id) return false;
   if (isTeam(me.role)) return true;
   if (isTeam(peer.role)) return CLIENT_SEES.includes(peer.role) || hasConversation(buildDmChatId(me.id, peer.id));
-  return areFriends(me.id, peer.id);
+  // Clients writing to other clients can be switched off by the Super Admin.
+  return settings().clientChat && areFriends(me.id, peer.id);
 }
 
 export function activeUsers(): ConnectUser[] {
@@ -177,7 +179,7 @@ function presenceMap(): Map<string, number> {
   return new Map((db().prepare('SELECT user_id, seen_ts FROM connect_presence').all() as any[]).map((r) => [String(r.user_id), Number(r.seen_ts) || 0]));
 }
 
-function readTs(chatId: string, userId: string): number {
+export function readTs(chatId: string, userId: string): number {
   const r = db().prepare('SELECT read_ts FROM connect_reads WHERE read_id = ?').get(`${chatId}|${userId}`) as { read_ts?: number } | undefined;
   return Number(r?.read_ts) || 0;
 }

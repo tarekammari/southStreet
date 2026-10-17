@@ -42,7 +42,15 @@ const RELAY_KEY = 'ss_connect_relay_only';
  * «إخفاء عنواني في المكالمات»: calls go only through the relay, so the other
  * side never learns this device's IP address (a little more delay).
  */
+let forcedRelay = false;
+
+/** The Super Admin made every call go through the relay (config → policy.relayOnly). */
+export function setForcedRelay(on: boolean) {
+  forcedRelay = on;
+}
+
 export function relayOnly(): boolean {
+  if (forcedRelay) return true;
   try {
     return localStorage.getItem(RELAY_KEY) === '1';
   } catch {

@@ -26,8 +26,9 @@ import { fingerprintOf, rememberPeerKey, safetyCode, signSetup, verifySetup, typ
 
 export type CallPhase = 'idle' | 'calling' | 'ringing' | 'connecting' | 'active' | 'reconnecting' | 'ended';
 /** `unreachable`: no device of the other person confirmed ringing; `elsewhere`: answered on my other device;
- *  `insecure`: the call setup failed the end-to-end check; `rate`: too many calls in a minute. */
-export type CallEndReason = 'hangup' | 'declined' | 'missed' | 'unreachable' | 'busy' | 'failed' | 'remote-ended' | 'elsewhere' | 'insecure' | 'rate';
+ *  `insecure`: the call setup failed the end-to-end check; `rate`: too many calls in a minute;
+ *  `blocked`: calls are switched off by the Super Admin (for everyone, this person or the other). */
+export type CallEndReason = 'hangup' | 'declined' | 'missed' | 'unreachable' | 'busy' | 'failed' | 'remote-ended' | 'elsewhere' | 'insecure' | 'rate' | 'blocked';
 
 const AUDIO: MediaTrackConstraints = {
   echoCancellation: true,
@@ -290,7 +291,7 @@ export class VoiceCall {
       if (this.finished) return;
       this.cleanup();
       const code = (err as { code?: string }).code;
-      this.h.onEnd(code === 'BUSY' ? 'busy' : code === 'RATE' ? 'rate' : 'failed');
+      this.h.onEnd(code === 'BUSY' ? 'busy' : code === 'RATE' ? 'rate' : code === 'CALLS_OFF' ? 'blocked' : 'failed');
       throw err;
     }
     // Hung up while dialling: stop the other phone ringing.

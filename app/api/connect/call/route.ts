@@ -2,6 +2,7 @@ import { after, NextRequest, NextResponse } from 'next/server';
 import { connectSession } from '@/lib/connect/session';
 import { addIce, answerCall, busy, canTalk, finishCall, getCall, iceFor, ringingCall, startCall, userById } from '@/lib/connect/store';
 import { pushTo } from '@/lib/connect/push';
+import { controlOf, settings } from '@/lib/connect/policy';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -65,6 +66,14 @@ export async function POST(req: NextRequest) {
       return peer.role === 'PILGRIM_USER'
         ? NextResponse.json({ error: 'أرسل طلب تواصل أولاً — يمكنكما الاتصال بعد قبوله', code: 'NOT_CONNECTED' }, { status: 403 })
         : NextResponse.json({ error: 'غير متاح' }, { status: 403 });
+    }
+    // The Super Admin's rules: calls off for everyone, or blocked for one of the two.
+    if (s.me.role !== 'SUPER_ADMIN' && (!settings().calls || controlOf(s.me.id).callsBlocked)) {
+      return NextResponse.json({ error: 'المكالمات موقوفة حاليًا لهذا الحساب', code: 'CALLS_OFF' }, { status: 403 });
+    }
+    const peerControl = controlOf(peer.id);
+    if (peer.role !== 'SUPER_ADMIN' && (peerControl.suspended || peerControl.callsBlocked)) {
+      return NextResponse.json({ error: 'لا يمكن الاتصال بهذا الشخص الآن', code: 'CALLS_OFF' }, { status: 403 });
     }
     const offer = String(body.offer || '');
     if (!offer.includes('v=0')) return NextResponse.json({ error: 'عرض اتصال غير صالح' }, { status: 400 });
