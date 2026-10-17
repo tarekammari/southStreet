@@ -18,5 +18,5 @@ export const versionLabel = () => (BUILD_CODE ? `${CONNECT_VERSION} (${BUILD_COD
  */
 export const NATIVE_RELEASES = {
   android: { versionCode: 8, versionName: '1.8.0', url: '/api/connect/download?platform=android' },
-  windows: { version: '1.6.0', url: '/api/connect/download?platform=windows' },
+  windows: { version: '1.8.0', url: '/api/connect/download?platform=windows' },
 } as const;

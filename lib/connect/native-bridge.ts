@@ -225,6 +225,12 @@ export async function downloadNewApp() {
 
 export type UpdateCheck = { state: 'latest' | 'ready' | 'busy' | 'error' | 'old-app' | 'web-ready'; version: string };
 
+/** Windows (1.8.0+): how far the new version's download is, 0–100. */
+export function onUpdateProgress(cb: (p: { version: string; pct: number }) => void): () => void {
+  const w = win() as unknown as { onUpdateProgress?: (cb: (p: { version: string; pct: number }) => void) => () => void } | undefined;
+  return w?.onUpdateProgress ? w.onUpdateProgress(cb) : () => undefined;
+}
+
 /**
  * "التحقق من التحديثات": the app shell checks itself (and shows its own
  * "update now" question when a newer version is downloaded); in a browser the

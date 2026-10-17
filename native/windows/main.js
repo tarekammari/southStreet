@@ -77,7 +77,8 @@ if (!app.requestSingleInstanceLock()) {
 
   /* ---------------- self-update ---------------- */
 
-  const UPDATE_EVERY_MS = 6 * 60 * 60 * 1000;
+  // Often enough that a new version is usually downloaded before anyone asks for it.
+  const UPDATE_EVERY_MS = 2 * 60 * 60 * 1000;
   const attemptFile = () => path.join(app.getPath('userData'), 'update-attempt.json');
 
   /** "1.10.0" > "1.9.2" */
@@ -117,10 +118,8 @@ if (!app.requestSingleInstanceLock()) {
       if (!fs.existsSync(file)) {
         // Signed-in download (the app is only for account holders): net.fetch uses the app's cookies.
         const dl = await net.fetch(new URL(latest.url, ORIGIN).href, { cache: 'no-store' });
-        if (!dl.ok) return { state: 'error', version: latest.version };
-        const part = `${file}.part`;
-        fs.writeFileSync(part, Buffer.from(await dl.arrayBuffer()));
-        fs.renameSync(part, file);
+        if (!dl.ok || !dl.body) return { state: 'error', version: latest.version };
+        if (!(await saveDownload(dl, file, latest.version))) return { state: 'error', version: latest.version };
       }
       update = { version: latest.version, file };
       void installWhenQuiet();
@@ -129,6 +128,40 @@ if (!app.requestSingleInstanceLock()) {
       return { state: 'error', version: '' }; // offline: next check
     } finally {
       updateChecking = false;
+    }
+  }
+
+  /**
+   * Writes the installer to disk as it arrives (not all in memory) and tells the
+   * page how far it is («التحقق من التحديثات» shows the %). An incomplete file is dropped.
+   */
+  async function saveDownload(res, file, version) {
+    const total = Number(res.headers.get('content-length')) || 0;
+    const part = `${file}.part`;
+    const out = fs.createWriteStream(part);
+    const reader = res.body.getReader();
+    let got = 0;
+    let shown = -1;
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        got += value.length;
+        if (!out.write(Buffer.from(value))) await new Promise((r) => out.once('drain', r));
+        const pct = total ? Math.floor((got * 100) / total) : 0;
+        if (pct !== shown) {
+          shown = pct;
+          if (main && !main.isDestroyed()) main.webContents.send('ss:update-progress', { version, pct });
+        }
+      }
+      await new Promise((resolve, reject) => out.end((err) => (err ? reject(err) : resolve())));
+      if (total && got !== total) throw new Error('incomplete');
+      fs.renameSync(part, file);
+      return true;
+    } catch {
+      out.destroy();
+      try { fs.rmSync(part, { force: true }); } catch { /* ignore */ }
+      return false;
     }
   }
 

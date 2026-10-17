@@ -6,7 +6,7 @@ import { relayOnly, saveRelayOnly } from '@/lib/connect/device-prefs';
 import { jsonAuthHeaders } from '@/lib/api-client';
 import { versionLabel } from '@/lib/connect/version';
 import RingtonePicker from './RingtonePicker';
-import { checkAppUpdate, downloadNewApp, nativePlatform, nativeVersion, type UpdateCheck } from '@/lib/connect/native-bridge';
+import { checkAppUpdate, downloadNewApp, nativePlatform, nativeVersion, onUpdateProgress, type UpdateCheck } from '@/lib/connect/native-bridge';
 
 const APP_VERSION = process.env.APP_VERSION || '';
 
@@ -50,6 +50,9 @@ export default function AboutSheet({
   const [update, setUpdate] = useState<UpdateCheck | null>(null);
   const [hideIp, setHideIp] = useState(false);
   useEffect(() => setHideIp(relayOnly()), []);
+  // Windows: the new version downloading in the background (%).
+  const [progress, setProgress] = useState<{ version: string; pct: number } | null>(null);
+  useEffect(() => onUpdateProgress((p) => setProgress(p.pct >= 100 ? null : p)), []);
   const platform = nativePlatform();
   const shell = nativeVersion();
   const appLabel = platform ? `${platform === 'android' ? 'أندرويد' : 'ويندوز'} ${shell || 'قديم'}` : 'تطبيق الويب';
@@ -108,6 +111,12 @@ export default function AboutSheet({
         <button type="button" className="cn-sheet-btn" disabled={checking} onClick={() => void checkUpdates()}>
           {checking ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />} التحقق من التحديثات
         </button>
+        {progress ? (
+          <div className="cn-update-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress.pct} aria-label="تنزيل التحديث">
+            <span>جارٍ تنزيل الإصدار <bdi dir="ltr">{progress.version}</bdi>… <bdi dir="ltr">{progress.pct}%</bdi></span>
+            <i style={{ width: `${progress.pct}%` }} />
+          </div>
+        ) : null}
         {update ? (
           <p className={`cn-sheet-note${update.state === 'error' || update.state === 'old-app' ? ' is-error' : ''}`}>
             {UPDATE_NOTE[update.state]}

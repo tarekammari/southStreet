@@ -84,3 +84,8 @@ scp dist/SouthStreetConnect-Setup-*.exe root@45.9.190.236:/var/www/connect-downl
 
 The installer is not code-signed: Windows SmartScreen shows "More info → Run anyway"
 until a code-signing certificate is bought.
+
+Size: ~77 MB, almost all of it the Electron/Chromium runtime (only the ar / en-US / fr
+interface files are kept, maximum compression). From 1.8.0 the app checks every
+2 hours and downloads a new version in the background, streamed to disk with a
+progress % in «التحقق من التحديثات», so it is usually ready before anyone asks.
