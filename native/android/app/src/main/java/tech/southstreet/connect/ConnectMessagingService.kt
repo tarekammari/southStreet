@@ -23,6 +23,7 @@ class ConnectMessagingService : FirebaseMessagingService() {
                 if (CallService.ringingNow == id) {
                     CallService.stop(this)
                     IncomingCallActivity.close()
+                    Telecom.end(Telecom.causeOf(if (data["outcome"] == "answered") "active" else data["outcome"] ?: "ended"))
                 }
                 if (data["outcome"] == "missed") {
                     CallInfo.from(data)?.let { Notify.missed(this, it, data["url"] ?: "/connect") }

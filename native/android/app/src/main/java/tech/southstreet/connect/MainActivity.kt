@@ -234,13 +234,21 @@ class MainActivity : AppCompatActivity() {
             // Earpiece like a phone call; the loudspeaker only when «مكبّر الصوت» is on.
             runOnUiThread {
                 when (s.optString("phase")) {
-                    "active", "connecting", "calling", "ringing" -> CallAudio.route(this@MainActivity, s.optBoolean("speaker"))
+                    "active", "connecting", "calling", "ringing", "reconnecting" -> CallAudio.route(this@MainActivity, s.optBoolean("speaker"))
                     else -> CallAudio.reset(this@MainActivity)
                 }
             }
-            when (s.optString("phase")) {
-                "active", "connecting", "calling", "ringing" -> CallService.ongoing(this@MainActivity, s.optString("name"))
-                "ended", "" -> CallService.stop(this@MainActivity)
+            when (val phase = s.optString("phase")) {
+                "active", "connecting", "calling", "ringing", "reconnecting" -> {
+                    CallService.ongoing(this@MainActivity, s.optString("name"))
+                    // Known to Android's calling system (headsets, car, GSM calls, Do Not Disturb).
+                    Telecom.track(this@MainActivity, CallInfo(s.optString("id").ifBlank { "call" }, s.optString("name"), s.optString("photo"), s.optString("role")))
+                    if (phase == "active" || phase == "connecting" || phase == "reconnecting") Telecom.active()
+                }
+                "ended", "" -> {
+                    CallService.stop(this@MainActivity)
+                    Telecom.pageEnded()
+                }
                 "incoming" -> { /* the page rings while it is on screen */ }
             }
         }

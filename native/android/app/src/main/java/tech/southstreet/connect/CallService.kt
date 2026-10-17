@@ -89,7 +89,12 @@ class CallService : Service() {
             .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "ssconnect:ring").apply { acquire(60_000) }
         startSound()
         // Nobody answered: the server also marks it missed after 45 s.
-        handler.postDelayed({ if (ringing?.id == call.id) stopEverything() }, 50_000)
+        handler.postDelayed({
+            if (ringing?.id == call.id) {
+                stopEverything()
+                Telecom.end(android.telecom.DisconnectCause.MISSED)
+            }
+        }, 50_000)
     }
 
     private fun startSound() {
@@ -206,12 +211,22 @@ class CallService : Service() {
          */
         @Volatile var ringingNow: String? = null
 
+        /**
+         * A call came in (push or live stream). Through Android's calling system when it
+         * can ([Telecom], which then asks for [ringNow]); otherwise straight away.
+         */
         fun ring(ctx: Context, call: CallInfo) {
             synchronized(this) {
                 if (current == call.id) return
                 current = call.id
                 ringingNow = call.id
             }
+            if (!Telecom.incoming(ctx, call)) ringNow(ctx, call)
+        }
+
+        /** Our ringing screen + ringtone now (Telecom agreed, refused, or is not there). */
+        fun ringNow(ctx: Context, call: CallInfo) {
+            if (ringingNow != call.id) return // ended / answered meanwhile
             start(ctx, Intent(ctx, CallService::class.java).setAction(ACTION_RING).putExtras(call.toBundle()))
         }
         fun ongoing(ctx: Context, caller: String) = start(ctx, Intent(ctx, CallService::class.java).setAction(ACTION_ONGOING).putExtra("caller", caller))

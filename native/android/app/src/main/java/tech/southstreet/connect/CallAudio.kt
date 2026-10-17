@@ -38,8 +38,12 @@ object CallAudio {
     }
 
     private fun apply(ctx: Context, speaker: Boolean) {
-        val am = ctx.getSystemService(AudioManager::class.java) ?: return
         active = true
+        if (Telecom.route(speaker)) {
+            screenOffAtEar(ctx, !speaker)
+            return
+        }
+        val am = ctx.getSystemService(AudioManager::class.java) ?: return
         try {
             am.mode = AudioManager.MODE_IN_COMMUNICATION
             if (Build.VERSION.SDK_INT >= 31) {

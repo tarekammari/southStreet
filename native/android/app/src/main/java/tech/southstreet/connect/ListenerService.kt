@@ -150,6 +150,7 @@ class ListenerService : Service() {
                 if (id.isNotBlank() && id == CallService.ringingNow && state.isNotBlank() && state != "ringing") {
                     CallService.stop(this)
                     IncomingCallActivity.close()
+                    Telecom.end(Telecom.causeOf(state))
                 }
             }
         }
