@@ -214,6 +214,7 @@
 /* About sheet: version, checks, ringing test */
 .cn-version { display: block; margin-top: 10px; color: var(--cn-muted); font-size: 0.75rem; }
 .cn-sheet { position: fixed; inset: 0; z-index: 60; background: rgba(15, 23, 42, 0.45); display: flex; align-items: flex-end; justify-content: center; }
+.cn-sheet-card > * { flex-shrink: 0; } /* the card scrolls; its parts keep their height */
 .cn-sheet-card { width: 100%; max-width: 460px; max-height: 92dvh; overflow-y: auto; overscroll-behavior: contain; background: var(--cn-panel); border-radius: 20px 20px 0 0; padding: 16px 16px calc(18px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 12px; }
 @media (min-width: 720px) { .cn-sheet { align-items: center; } .cn-sheet-card { border-radius: 20px; } }
 .cn-sheet-card header { display: flex; align-items: center; gap: 12px; }
@@ -232,6 +233,39 @@
 .cn-sheet-btn:disabled { opacity: 0.5; }
 .cn-sheet-note { margin: 0; font-size: 0.82rem; text-align: center; color: #0f5132; }
 .cn-sheet-note.is-error { color: #b91c1c; }
+
+/* ---------- call: signal bars, security code ---------- */
+.cn-bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; margin-inline-start: 8px; vertical-align: middle; }
+.cn-bars i { width: 3px; border-radius: 1px; background: rgba(255, 255, 255, 0.3); }
+.cn-bars i:nth-child(1) { height: 5px; } .cn-bars i:nth-child(2) { height: 8px; } .cn-bars i:nth-child(3) { height: 12px; }
+.cn-bars.is-good i.is-on { background: #6ee7b7; }
+.cn-bars.is-fair i.is-on { background: #fcd34d; }
+.cn-bars.is-poor i.is-on { background: #fca5a5; }
+.cn-sec { margin-top: 14px; max-width: 320px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.cn-sec-head { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; background: rgba(255, 255, 255, 0.12); color: rgba(255, 255, 255, 0.9); font-size: 0.78rem; font-weight: 700; }
+.cn-sec.is-warn .cn-sec-head { background: rgba(251, 191, 36, 0.22); color: #fde68a; }
+.cn-sec-code { font-size: 1.05rem; letter-spacing: 2px; }
+.cn-sec-note { margin: 0; font-size: 0.76rem; line-height: 1.7; color: rgba(255, 255, 255, 0.78); text-align: center; }
+
+/* ---------- new message banner ---------- */
+.cn-msg-banner { position: fixed; top: calc(10px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 55; width: min(420px, calc(100% - 32px)); display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 16px; background: var(--cn-panel); border: 1px solid var(--cn-line); box-shadow: 0 18px 40px -18px rgba(15, 23, 42, 0.55); text-align: right; animation: cn-drop 0.28s cubic-bezier(0.16, 1, 0.3, 1); }
+.cn-msg-banner > svg { color: var(--cn-brand); flex: none; }
+.cn-msg-banner-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.cn-msg-banner-text b { font-size: 0.88rem; }
+.cn-msg-banner-text small { color: var(--cn-muted); font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@keyframes cn-drop { from { opacity: 0; transform: translate(-50%, -14px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+/* ---------- message ticks ---------- */
+.cn-ticks { display: inline-flex; vertical-align: middle; margin-inline-start: 4px; opacity: 0.75; }
+.cn-ticks.is-read { color: #38bdf8; opacity: 1; }
+
+/* ---------- settings switch ---------- */
+.cn-switch { display: flex; align-items: center; gap: 10px; padding: 11px 12px; border-radius: 14px; border: 1px solid var(--cn-line); cursor: pointer; }
+.cn-switch > svg { color: var(--cn-brand); flex: none; }
+.cn-switch span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cn-switch b { font-size: 0.88rem; }
+.cn-switch small { color: var(--cn-muted); font-size: 0.74rem; line-height: 1.6; }
+.cn-switch input { width: 20px; height: 20px; accent-color: var(--cn-brand); flex: none; }
 
 /* ---------- ringtone picker ---------- */
 .cn-tones { border: 1px solid var(--cn-line); border-radius: 14px; overflow: hidden; }

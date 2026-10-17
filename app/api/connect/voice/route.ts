@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectSession } from '@/lib/connect/session';
-import { canTalk, isOnline, markRead, saveConnectMessage, saveVoice, userById } from '@/lib/connect/store';
+import { canTalk, markRead, saveConnectMessage, saveVoice, userById } from '@/lib/connect/store';
 import { buildDmChatId } from '@/lib/chat-utils';
 import { pushTo } from '@/lib/connect/push';
 
@@ -26,8 +26,6 @@ export async function POST(req: NextRequest) {
   const mediaId = saveVoice(chatId, Buffer.from(await audio.arrayBuffer()), mime);
   const message = saveConnectMessage(s.me, chatId, { kind: 'voice', text: 'رسالة صوتية', mediaId, duration });
   markRead(chatId, s.me.id);
-  if (!isOnline(peer.id)) {
-    void pushTo(peer.id, { kind: 'message', title: s.me.name, body: '🎤 رسالة صوتية', tag: `chat-${chatId}`, url: `/connect?chat=${s.me.id}` });
-  }
+  void pushTo(peer.id, { kind: 'message', title: s.me.name, body: '🎤 رسالة صوتية', tag: `chat-${chatId}`, url: `/connect?chat=${s.me.id}`, msgId: message.id, chatId });
   return NextResponse.json({ message });
 }

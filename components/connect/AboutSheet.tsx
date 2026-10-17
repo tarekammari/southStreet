@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { BellRing, CheckCircle2, Download, Loader2, RefreshCw, X, XCircle } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { BellRing, CheckCircle2, Download, EyeOff, Loader2, RefreshCw, X, XCircle } from 'lucide-react';
+import { relayOnly, saveRelayOnly } from '@/lib/connect/device-prefs';
 import { jsonAuthHeaders } from '@/lib/api-client';
 import { versionLabel } from '@/lib/connect/version';
 import RingtonePicker from './RingtonePicker';
@@ -24,6 +25,7 @@ type Check = { label: string; ok: boolean; hint?: string };
 export default function AboutSheet({
   onClose,
   busy,
+  relay,
   live,
   serverPush,
   pushState,
@@ -33,6 +35,8 @@ export default function AboutSheet({
   onClose: () => void;
   /** A call is ringing or in progress (no ringtone previews over it). */
   busy: boolean;
+  /** The call relay (TURN) is set up on the server. */
+  relay: boolean;
   live: boolean;
   serverPush: boolean;
   pushState: 'unknown' | 'on' | 'off' | 'unsupported';
@@ -44,6 +48,8 @@ export default function AboutSheet({
   const [error, setError] = useState('');
   const [checking, setChecking] = useState(false);
   const [update, setUpdate] = useState<UpdateCheck | null>(null);
+  const [hideIp, setHideIp] = useState(false);
+  useEffect(() => setHideIp(relayOnly()), []);
   const platform = nativePlatform();
   const shell = nativeVersion();
   const appLabel = platform ? `${platform === 'android' ? 'أندرويد' : 'ويندوز'} ${shell || 'قديم'}` : 'تطبيق الويب';
@@ -60,6 +66,7 @@ export default function AboutSheet({
   const checks: Check[] = [
     { label: 'الاتصال المباشر', ok: live, hint: 'الرسائل والمكالمات تصل فورًا. إن لم يعمل يُستعمل التحديث الدوري.' },
     { label: 'الرنين على الخادم', ok: serverPush, hint: 'مفاتيح الإشعارات (VAPID) غير مضافة على الخادم.' },
+    { label: 'خادم وصل المكالمات', ok: relay, hint: 'بدونه قد لا تتصل المكالمات بين شبكتي هاتف (4G).' },
     {
       label: 'الإشعارات على هذا الجهاز',
       ok: pushState === 'on',
@@ -114,6 +121,24 @@ export default function AboutSheet({
         ) : null}
 
         <RingtonePicker busy={busy} />
+
+        {relay ? (
+          <label className="cn-switch">
+            <EyeOff className="w-5 h-5" />
+            <span>
+              <b>إخفاء عنواني في المكالمات</b>
+              <small>تمرّ المكالمات عبر خادم الوصل فقط، فلا يرى الطرف الآخر عنوان IP جهازك. الصوت يبقى مشفّرًا بين الهاتفين.</small>
+            </span>
+            <input
+              type="checkbox"
+              checked={hideIp}
+              onChange={(e) => {
+                setHideIp(e.target.checked);
+                saveRelayOnly(e.target.checked);
+              }}
+            />
+          </label>
+        ) : null}
 
         <ul className="cn-checks">
           {checks.map((c) => (

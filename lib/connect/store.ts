@@ -15,12 +15,12 @@ import { decryptBytes, encryptBytes } from '../db-crypto';
 import { buildDmChatId, parseDmChatId } from '../chat-utils';
 import { normalizeLoginRole, LOGIN_ROLE_LABELS, type LoginRole } from '../roles';
 import { isImageSource, resolveUserPhoto } from '../user-access-view';
-import { publish } from './bus';
+import { listening, publish } from './bus';
 import { areFriends, friendIds } from './links';
 
 export type ConnectUser = { id: string; name: string; role: LoginRole; roleLabel: string; photo: string };
 /** `friend`: a client I accepted (or who accepted me); `affinity`: how much we talk lately (orders favourites). */
-export type ConnectContact = ConnectUser & { chatId: string; online: boolean; lastText: string; lastTs: number; unread: number; friend: boolean; affinity: number };
+export type ConnectContact = ConnectUser & { chatId: string; online: boolean; lastSeen: number; lastText: string; lastTs: number; unread: number; friend: boolean; affinity: number };
 export type ConnectMessage = {
   id: string;
   chatId: string;
@@ -40,7 +40,14 @@ export type ConnectCall = {
   state: CallState;
   offer?: string;
   answer?: string;
+  /** Device keys and signatures over the offer / answer (end-to-end check, lib/connect/e2e.ts). */
+  offerKey?: string;
+  offerSig?: string;
+  answerKey?: string;
+  answerSig?: string;
   createdTs: number;
+  /** The callee's device confirmed it is ringing. */
+  ringingTs?: number;
   answeredTs?: number;
   endedTs?: number;
 };
@@ -73,6 +80,11 @@ function db() {
     CREATE TABLE IF NOT EXISTS connect_ice (ice_id TEXT PRIMARY KEY, call_id TEXT NOT NULL, from_id TEXT NOT NULL, candidate TEXT NOT NULL, ts INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS connect_push (endpoint_key TEXT PRIMARY KEY, user_id TEXT NOT NULL, subscription TEXT NOT NULL, ts INTEGER NOT NULL);
   `);
+  const callCols = new Set((d.prepare('PRAGMA table_info(connect_calls)').all() as { name: string }[]).map((c) => c.name));
+  for (const c of ['offer_key', 'offer_sig', 'answer_key', 'answer_sig']) if (!callCols.has(c)) d.exec(`ALTER TABLE connect_calls ADD COLUMN ${c} TEXT`);
+  if (!callCols.has('ringing_ts')) d.exec('ALTER TABLE connect_calls ADD COLUMN ringing_ts INTEGER');
+  const presCols = new Set((d.prepare('PRAGMA table_info(connect_presence)').all() as { name: string }[]).map((c) => c.name));
+  if (!presCols.has('delivered_ts')) d.exec('ALTER TABLE connect_presence ADD COLUMN delivered_ts INTEGER');
   raw().prepare('CREATE TABLE IF NOT EXISTS connect_media (media_id TEXT PRIMARY KEY, chat_id TEXT NOT NULL, mime_type TEXT NOT NULL, data BLOB NOT NULL, ts INTEGER NOT NULL)').run();
   ready = true;
   return d;
@@ -126,6 +138,41 @@ export function touchPresence(userId: string) {
   db().prepare('INSERT INTO connect_presence (user_id, seen_ts) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET seen_ts = excluded.seen_ts').run(userId, Date.now());
 }
 
+/** Last time one of the user's devices received everything sent to them (live connection or push). */
+function deliveredTs(userId: string): number {
+  const r = db().prepare('SELECT delivered_ts FROM connect_presence WHERE user_id = ?').get(userId) as { delivered_ts?: number } | undefined;
+  return Number(r?.delivered_ts) || 0;
+}
+
+/**
+ * A device of `userId` is connected / got a push: everything sent to them so far
+ * is delivered. The senders of messages that were waiting see ✓✓ at once.
+ */
+export function markDelivered(userId: string, ts = Date.now()) {
+  const before = deliveredTs(userId);
+  if (ts <= before) return;
+  db().prepare('INSERT INTO connect_presence (user_id, seen_ts, delivered_ts) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET delivered_ts = excluded.delivered_ts')
+    .run(userId, Date.now(), ts);
+  const waiting = db()
+    .prepare('SELECT DISTINCT chatId, senderId FROM messages WHERE (chatId LIKE ? OR chatId LIKE ?) AND senderId != ? AND ts > ?')
+    .all(`dm:${userId}:%`, `dm:%:${userId}`, userId, before) as { chatId: string; senderId: string }[];
+  for (const w of waiting) publishReceipt(String(w.chatId), userId, String(w.senderId));
+}
+
+/** How far `peer` has received / read the conversation (for my ✓ / ✓✓ / blue ✓✓). */
+export function receiptOf(chatId: string, peer: string): { delivered: number; read: number } {
+  const read = readTs(chatId, peer);
+  return { delivered: Math.max(deliveredTs(peer), read), read };
+}
+
+function publishReceipt(chatId: string, by: string, to: string) {
+  publish(to, { type: 'receipt', chatId, by, ...receiptOf(chatId, by) });
+}
+
+export function lastSeen(userId: string): number {
+  return presenceMap().get(userId) || 0;
+}
+
 function presenceMap(): Map<string, number> {
   return new Map((db().prepare('SELECT user_id, seen_ts FROM connect_presence').all() as any[]).map((r) => [String(r.user_id), Number(r.seen_ts) || 0]));
 }
@@ -136,8 +183,14 @@ function readTs(chatId: string, userId: string): number {
 }
 
 export function markRead(chatId: string, userId: string) {
+  const before = readTs(chatId, userId);
   db().prepare('INSERT INTO connect_reads (read_id, chat_id, user_id, read_ts) VALUES (?, ?, ?, ?) ON CONFLICT(read_id) DO UPDATE SET read_ts = excluded.read_ts')
     .run(`${chatId}|${userId}`, chatId, userId, Date.now());
+  // Messages from the other side were waiting: they now see the blue ✓✓.
+  const peer = chatPeer(chatId, userId);
+  if (!peer) return;
+  const r = db().prepare('SELECT MAX(ts) AS t FROM messages WHERE chatId = ? AND senderId = ?').get(chatId, peer) as { t?: number } | undefined;
+  if ((Number(r?.t) || 0) > before) publishReceipt(chatId, userId, peer);
 }
 
 const msgTs = (m: any) => Number(m.ts) || 0;
@@ -178,6 +231,7 @@ export function contactsFor(me: ConnectUser): ConnectContact[] {
         ...u,
         chatId,
         online: now - (presence.get(u.id) || 0) < ONLINE_MS,
+        lastSeen: presence.get(u.id) || 0,
         lastText: last ? (last.kind_type === 'voice' ? '🎤 رسالة صوتية' : String(last.text || '')) : '',
         lastTs: last ? msgTs(last) : 0,
         unread: list.filter((m) => m.senderId !== me.id && msgTs(m) > seen).length,
@@ -227,9 +281,16 @@ export function saveConnectMessage(from: ConnectUser, chatId: string, msg: { kin
     new Date(ts).toLocaleTimeString('ar-DZ', { hour: '2-digit', minute: '2-digit' }),
     msg.kind, msg.mediaId || null, msg.duration ?? null, ts
   );
-  // Both sides' live connections learn about it at once.
+  // Both sides' live connections learn about it at once (with what the banner shows).
   const pair = parseDmChatId(chatId);
-  for (const uid of pair || []) publish(uid, { type: 'chat', chatId, ts });
+  // Call-log lines are not announced: the call screen already showed the call.
+  const preview = msg.kind === 'voice' ? '🎤 رسالة صوتية' : msg.text.slice(0, 140);
+  for (const uid of pair || []) {
+    publish(uid, uid === from.id || msg.kind === 'call' ? { type: 'chat', chatId, ts } : { type: 'chat', chatId, ts, msgId: id, from: from.id, name: from.name, preview });
+  }
+  // The other side has a device connected right now: delivered.
+  const peer = pair?.find((uid) => uid !== from.id);
+  if (peer && listening(peer)) markDelivered(peer, ts);
   return { id, chatId, senderId: from.id, kind: msg.kind, text: msg.text, mediaId: msg.mediaId, duration: msg.duration, ts };
 }
 
@@ -280,7 +341,12 @@ function toCall(r: any): ConnectCall {
     state: r.state_type as CallState,
     offer: r.offer ? String(r.offer) : undefined,
     answer: r.answer ? String(r.answer) : undefined,
+    offerKey: r.offer_key ? String(r.offer_key) : undefined,
+    offerSig: r.offer_sig ? String(r.offer_sig) : undefined,
+    answerKey: r.answer_key ? String(r.answer_key) : undefined,
+    answerSig: r.answer_sig ? String(r.answer_sig) : undefined,
     createdTs: Number(r.created_ts) || 0,
+    ringingTs: r.ringing_ts ? Number(r.ringing_ts) : undefined,
     answeredTs: r.answered_ts ? Number(r.answered_ts) : undefined,
     endedTs: r.ended_ts ? Number(r.ended_ts) : undefined,
   };
@@ -299,19 +365,48 @@ function expire(call: ConnectCall): ConnectCall {
   return call;
 }
 
-export function startCall(caller: ConnectUser, callee: ConnectUser, offer: string): ConnectCall {
+/** Device key (public, base64) and signature as sent by the app; anything else is dropped. */
+export type Signed = { key?: string; sig?: string };
+const cleanKey = (v: unknown) => (typeof v === 'string' && /^[A-Za-z0-9+/=_-]{40,400}$/.test(v) ? v : null);
+
+export function startCall(caller: ConnectUser, callee: ConnectUser, offer: string, signed: Signed = {}): ConnectCall {
   const d = db();
+  // Old calls: their network candidates and setup (which hold IP addresses) are not kept.
+  const dayAgo = Date.now() - 86_400_000;
+  d.prepare('DELETE FROM connect_ice WHERE ts < ?').run(dayAgo);
+  d.prepare('UPDATE connect_calls SET offer = NULL, answer = NULL WHERE created_ts < ? AND (offer IS NOT NULL OR answer IS NOT NULL)').run(dayAgo);
   // One call at a time per person: close any stale ringing call of the caller.
   for (const r of d.prepare("SELECT * FROM connect_calls WHERE state_type IN ('ringing','active') AND (caller_id = ? OR callee_id = ?)").all(caller.id, caller.id) as any[]) {
     finishCall(toCall(r), 'ended');
   }
   const id = `call_${Date.now().toString(36)}${crypto.randomBytes(4).toString('hex')}`;
   const chatId = buildDmChatId(caller.id, callee.id);
-  d.prepare('INSERT INTO connect_calls (call_id, chat_id, caller_id, callee_id, state_type, offer, created_ts) VALUES (?, ?, ?, ?, ?, ?, ?)')
-    .run(id, chatId, caller.id, callee.id, 'ringing', offer.slice(0, 20000), Date.now());
+  d.prepare('INSERT INTO connect_calls (call_id, chat_id, caller_id, callee_id, state_type, offer, offer_key, offer_sig, created_ts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(id, chatId, caller.id, callee.id, 'ringing', offer.slice(0, 20000), cleanKey(signed.key), cleanKey(signed.sig), Date.now());
   const call = getCall(id)!;
-  publish(callee.id, { type: 'incoming', id, offer: call.offer, caller: { id: caller.id, name: caller.name, roleLabel: caller.roleLabel, photo: caller.photo } });
+  publish(callee.id, incomingEvent(call, caller));
   return call;
+}
+
+/** What the callee's devices get: the offer, who calls, and the caller's signature. */
+export function incomingEvent(call: ConnectCall, caller: ConnectUser) {
+  return {
+    type: 'incoming' as const,
+    id: call.id,
+    offer: call.offer,
+    key: call.offerKey,
+    sig: call.offerSig,
+    caller: { id: caller.id, name: caller.name, roleLabel: caller.roleLabel, photo: caller.photo },
+  };
+}
+
+/** The callee's device confirms it is ringing: the caller sees «يرنّ…» instead of «جارٍ الاتصال…». */
+export function ringingCall(call: ConnectCall): ConnectCall {
+  if (call.state !== 'ringing' || call.ringingTs) return call;
+  const ts = Date.now();
+  db().prepare('UPDATE connect_calls SET ringing_ts = ? WHERE call_id = ? AND ringing_ts IS NULL').run(ts, call.id);
+  publish(call.callerId, { type: 'call', id: call.id, state: 'ringing', ringingTs: ts });
+  return { ...call, ringingTs: ts };
 }
 
 export function busy(userId: string): boolean {
@@ -319,11 +414,13 @@ export function busy(userId: string): boolean {
   return rows.map(toCall).map(expire).some((c) => c.state === 'ringing' || c.state === 'active');
 }
 
-export function answerCall(call: ConnectCall, answer: string): ConnectCall {
-  db().prepare("UPDATE connect_calls SET state_type = 'active', answer = ?, answered_ts = ? WHERE call_id = ? AND state_type = 'ringing'")
-    .run(answer.slice(0, 20000), Date.now(), call.id);
+export function answerCall(call: ConnectCall, answer: string, signed: Signed = {}): ConnectCall {
+  db().prepare("UPDATE connect_calls SET state_type = 'active', answer = ?, answer_key = ?, answer_sig = ?, answered_ts = ? WHERE call_id = ? AND state_type = 'ringing'")
+    .run(answer.slice(0, 20000), cleanKey(signed.key), cleanKey(signed.sig), Date.now(), call.id);
   const updated = getCall(call.id)!;
-  publish(call.callerId, { type: 'call', id: call.id, state: updated.state, answer: updated.answer || null });
+  publish(call.callerId, { type: 'call', id: call.id, state: updated.state, answer: updated.answer || null, key: updated.answerKey || null, sig: updated.answerSig || null });
+  // The callee's other devices (phone + computer) stop ringing: answered elsewhere.
+  publish(call.calleeId, { type: 'call', id: call.id, state: updated.state });
   return updated;
 }
 
@@ -350,11 +447,13 @@ export function incomingFor(userId: string): ConnectCall | null {
   return live.sort((a, b) => b.createdTs - a.createdTs)[0] || null;
 }
 
-export function addIce(call: ConnectCall, fromId: string, candidate: string) {
+/** A message for the other side of the call, in order: a network candidate (≤ 2 KB) or a reconnect offer / answer (≤ 16 KB). */
+export function addIce(call: ConnectCall, fromId: string, candidate: string, max = 2000) {
+  if (candidate.length > max) return;
   const ts = Date.now();
   db().prepare('INSERT INTO connect_ice (ice_id, call_id, from_id, candidate, ts) VALUES (?, ?, ?, ?, ?)')
-    .run(`${call.id}_${ts}_${crypto.randomBytes(3).toString('hex')}`, call.id, fromId, candidate.slice(0, 2000), ts);
-  publish(fromId === call.callerId ? call.calleeId : call.callerId, { type: 'ice', id: call.id, candidate: candidate.slice(0, 2000), ts });
+    .run(`${call.id}_${ts}_${crypto.randomBytes(3).toString('hex')}`, call.id, fromId, candidate, ts);
+  publish(fromId === call.callerId ? call.calleeId : call.callerId, { type: 'ice', id: call.id, candidate, ts });
 }
 
 export function iceFor(callId: string, notFrom: string, since: number): { candidate: string; ts: number }[] {

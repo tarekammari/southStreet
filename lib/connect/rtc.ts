@@ -9,13 +9,25 @@
  *    on weak 4G), no DTX (no choppy silences), 20 ms frames.
  * The audio flows directly between the two devices (or via the TURN relay);
  * /api/connect/call only carries the setup.
+ *
+ * Phone-grade behaviour on top:
+ *  - end-to-end check: each side signs its encryption fingerprint and checks the
+ *    other's, both screens show the same security code (lib/connect/e2e.ts);
+ *  - «يرنّ…» only once the other device confirms it rings; no confirmation and no
+ *    answer = "unreachable", not "missed";
+ *  - a network change (Wi-Fi ↔ 4G) or a short drop restarts the network paths
+ *    of the same call (ICE restart) instead of ending it;
+ *  - call quality (loss, delay, jitter) for the signal bars.
  */
 import { jsonAuthHeaders, authHeaders } from '@/lib/api-client';
 import { renderRingtone, ringtoneSeconds, type RingtoneId } from './ringtones';
-import { getRingtone } from './ringtone-pref';
+import { getRingtone, relayOnly } from './device-prefs';
+import { fingerprintOf, rememberPeerKey, safetyCode, signSetup, verifySetup, type PeerKey, type SetupCheck } from './e2e';
 
-export type CallPhase = 'idle' | 'calling' | 'ringing' | 'connecting' | 'active' | 'ended';
-export type CallEndReason = 'hangup' | 'declined' | 'missed' | 'busy' | 'failed' | 'remote-ended';
+export type CallPhase = 'idle' | 'calling' | 'ringing' | 'connecting' | 'active' | 'reconnecting' | 'ended';
+/** `unreachable`: no device of the other person confirmed ringing; `elsewhere`: answered on my other device;
+ *  `insecure`: the call setup failed the end-to-end check; `rate`: too many calls in a minute. */
+export type CallEndReason = 'hangup' | 'declined' | 'missed' | 'unreachable' | 'busy' | 'failed' | 'remote-ended' | 'elsewhere' | 'insecure' | 'rate';
 
 const AUDIO: MediaTrackConstraints = {
   echoCancellation: true,
@@ -52,11 +64,22 @@ async function api(body: Record<string, unknown>) {
   return data;
 }
 
+export type CallQuality = { level: 'good' | 'fair' | 'poor'; relayed: boolean; rttMs?: number; lossPct?: number };
+/** End-to-end check of this call (lib/connect/e2e.ts) and the code both screens show. */
+export type CallSecurity = { check: SetupCheck; code: string[] | null; peerKey: PeerKey | null };
+
 type Handlers = {
   onPhase: (phase: CallPhase) => void;
   onEnd: (reason: CallEndReason) => void;
   onConnectedAt: (ts: number) => void;
+  onQuality?: (q: CallQuality) => void;
+  onSecurity?: (s: CallSecurity) => void;
 };
+
+type Restart = { restart: 'offer' | 'answer' | 'request'; sdp?: string };
+
+/** Give up when the network has not come back within this time. */
+const RECONNECT_GIVE_UP_MS = 30_000;
 
 export class VoiceCall {
   id: string | null = null;
@@ -69,16 +92,59 @@ export class VoiceCall {
   private remoteSet = false;
   private finished = false;
   private wakeLock: { release: () => Promise<void> } | null = null;
+  private phase: CallPhase = 'idle';
+  // Who is who, and what each side really uses (for the signature check and the security code).
+  private isCaller = false;
+  private callerId = '';
+  private calleeId = '';
+  private offerSdp = '';
+  private answerSdp = '';
+  private offerKey: string | null = null;
+  private answerKey: string | null = null;
+  private remoteFp: string | null = null;
+  private check: SetupCheck = 'unsigned';
+  private peerKey: PeerKey | null = null;
+  /** The callee's device confirmed it rings (otherwise an unanswered call was "unreachable"). */
+  private rang = false;
+  private connectedOnce = false;
+  private reconnectSince = 0;
+  private reconnectTimer = 0;
+  private netTimer = 0;
+  private statsTimer = 0;
+  private lastLost = 0;
+  private lastRecv = 0;
+  private seenRestart = new Set<string>();
+  /** Signalling messages are applied one at a time, in order. */
+  private chain: Promise<void> = Promise.resolve();
 
-  constructor(private iceServers: RTCIceServer[], private h: Handlers) {
+  constructor(private iceServers: RTCIceServer[], private h: Handlers, private me: string) {
     this.audio = new Audio();
     this.audio.autoplay = true;
     (this.audio as any).playsInline = true;
   }
 
+  private setPhase(phase: CallPhase) {
+    if (this.phase === phase || this.finished) return;
+    this.phase = phase;
+    this.h.onPhase(phase);
+  }
+
+  private serial(fn: () => Promise<void> | void) {
+    this.chain = this.chain.then(fn).catch(() => undefined);
+    return this.chain;
+  }
+
   private async setup() {
     this.mic = await navigator.mediaDevices.getUserMedia({ audio: AUDIO, video: false });
-    const pc = new RTCPeerConnection({ iceServers: this.iceServers, bundlePolicy: 'max-bundle', rtcpMuxPolicy: 'require' });
+    // «إخفاء عنواني»: only through our relay, so the other side never sees this device's IP.
+    const hasRelay = this.iceServers.some((s) => ([] as string[]).concat(s.urls).some((u) => /^turns?:/.test(u)));
+    const pc = new RTCPeerConnection({
+      iceServers: this.iceServers,
+      bundlePolicy: 'max-bundle',
+      rtcpMuxPolicy: 'require',
+      iceCandidatePoolSize: 2,
+      iceTransportPolicy: hasRelay && relayOnly() ? 'relay' : 'all',
+    });
     this.pc = pc;
     for (const track of this.mic.getAudioTracks()) pc.addTrack(track, this.mic);
     // Prefer Opus where the browser lets us choose codecs.
@@ -100,14 +166,10 @@ export class VoiceCall {
     pc.onicecandidate = (e) => {
       if (e.candidate && this.id) void api({ action: 'ice', id: this.id, candidate: JSON.stringify(e.candidate.toJSON()) }).catch(() => undefined);
     };
-    pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'connected') {
-        this.h.onPhase('active');
-        this.h.onConnectedAt(Date.now());
-      } else if (pc.connectionState === 'failed') {
-        this.hangup('failed');
-      }
-    };
+    pc.onconnectionstatechange = () => this.onConnection(pc.connectionState);
+    // Wi-Fi ↔ mobile data: move the call to the new network at once instead of waiting for it to drop.
+    window.addEventListener('online', this.onNetworkChange);
+    (navigator as any).connection?.addEventListener?.('change', this.onNetworkChange);
     try {
       this.wakeLock = await (navigator as any).wakeLock?.request('screen');
     } catch {
@@ -115,21 +177,110 @@ export class VoiceCall {
     }
   }
 
+  private onConnection(state: RTCPeerConnectionState) {
+    if (this.finished) return;
+    if (state === 'connected') {
+      window.clearTimeout(this.reconnectTimer);
+      this.reconnectSince = 0;
+      if (!this.connectedOnce) {
+        this.connectedOnce = true;
+        this.h.onConnectedAt(Date.now());
+        this.startStats();
+        void this.reportSecurity();
+      }
+      this.setPhase('active');
+    } else if (state === 'disconnected' || state === 'failed') {
+      if (!this.connectedOnce) {
+        if (state === 'failed') this.hangup('failed');
+        return;
+      }
+      // Like a phone: «جارٍ إعادة الاتصال…» while the call finds a new path.
+      this.setPhase('reconnecting');
+      this.reconnectSince ||= Date.now();
+      window.clearTimeout(this.reconnectTimer);
+      if (state === 'failed') void this.restart();
+      else this.reconnectTimer = window.setTimeout(() => void this.restart(), 2500);
+    }
+  }
+
+  private onNetworkChange = () => {
+    if (!this.connectedOnce || this.finished) return;
+    window.clearTimeout(this.netTimer);
+    this.netTimer = window.setTimeout(() => void this.restart(true), 800);
+  };
+
+  /**
+   * ICE restart: new network paths for the same encrypted call. Only the caller
+   * makes the new offer (no collisions); the callee asks the caller to.
+   */
+  private async restart(force = false) {
+    const pc = this.pc;
+    if (this.finished || !pc || !this.id) return;
+    if (!force && pc.connectionState === 'connected') return;
+    if (this.reconnectSince && Date.now() - this.reconnectSince > RECONNECT_GIVE_UP_MS) return this.hangup('failed');
+    window.clearTimeout(this.reconnectTimer);
+    if (pc.connectionState !== 'connected') this.reconnectTimer = window.setTimeout(() => void this.restart(), 6000);
+    if (!this.isCaller) return this.sendRestart({ restart: 'request' });
+    try {
+      const offer = await pc.createOffer({ iceRestart: true });
+      await pc.setLocalDescription({ type: 'offer', sdp: tuneOpus(offer.sdp || '') });
+      this.sendRestart({ restart: 'offer', sdp: pc.localDescription!.sdp });
+    } catch {
+      /* next attempt */
+    }
+  }
+
+  private sendRestart(data: Restart) {
+    if (this.id) void api({ action: 'restart', id: this.id, data }).catch(() => undefined);
+  }
+
+  private async onRestart(m: Restart, key: string) {
+    if (this.seenRestart.has(key)) return; // came by the live stream and by polling
+    this.seenRestart.add(key);
+    const pc = this.pc;
+    if (!pc || this.finished) return;
+    if (m.restart === 'request') {
+      if (this.isCaller) await this.restart(true);
+      return;
+    }
+    // The encryption of a running call never changes: a reconnect with another fingerprint is refused.
+    if (!m.sdp || fingerprintOf(m.sdp) !== this.remoteFp) return;
+    try {
+      if (m.restart === 'offer' && !this.isCaller) {
+        await pc.setRemoteDescription({ type: 'offer', sdp: m.sdp });
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription({ type: 'answer', sdp: tuneOpus(answer.sdp || '') });
+        this.sendRestart({ restart: 'answer', sdp: pc.localDescription!.sdp });
+      } else if (m.restart === 'answer' && this.isCaller && pc.signalingState === 'have-local-offer') {
+        await pc.setRemoteDescription({ type: 'answer', sdp: m.sdp });
+      }
+    } catch {
+      /* the next attempt starts over */
+    }
+  }
+
   /** Outgoing call. */
   async call(toUserId: string) {
-    this.h.onPhase('calling');
+    this.isCaller = true;
+    this.callerId = this.me;
+    this.calleeId = toUserId;
+    this.setPhase('calling');
     await this.setup();
     if (this.finished || !this.pc) return; // hung up while the microphone was opening
     const offer = await this.pc.createOffer({ offerToReceiveAudio: true });
     if (this.finished || !this.pc) return;
     await this.pc.setLocalDescription({ type: 'offer', sdp: tuneOpus(offer.sdp || '') });
+    this.offerSdp = this.pc.localDescription!.sdp;
+    const signed = await signSetup('offer', this.offerSdp, this.callerId, this.calleeId).catch(() => ({}) as { key?: string; sig?: string });
+    this.offerKey = signed.key || null;
     try {
-      const res = await api({ action: 'start', to: toUserId, offer: this.pc.localDescription!.sdp });
+      const res = await api({ action: 'start', to: toUserId, offer: this.offerSdp, ...signed });
       this.id = res.id;
     } catch (err) {
       if (this.finished) return;
       this.cleanup();
-      this.h.onEnd((err as { code?: string }).code === 'BUSY' ? 'busy' : 'failed');
+      const code = (err as { code?: string }).code;
+      this.h.onEnd(code === 'BUSY' ? 'busy' : code === 'RATE' ? 'rate' : 'failed');
       throw err;
     }
     // Hung up while dialling: stop the other phone ringing.
@@ -137,61 +288,151 @@ export class VoiceCall {
     this.startPolling();
   }
 
-  /** Answer an incoming call (offer from /api/connect/poll). */
-  async answer(callId: string, offerSdp: string) {
+  /** Answer an incoming call (offer and the caller's signature from the live stream / poll). */
+  async answer(callId: string, offerSdp: string, callerId: string, key?: string | null, sig?: string | null) {
     this.id = callId;
-    this.h.onPhase('connecting');
+    this.isCaller = false;
+    this.callerId = callerId;
+    this.calleeId = this.me;
+    this.setPhase('connecting');
+    this.check = await verifySetup('offer', offerSdp, callerId, this.me, key, sig);
+    if (this.check === 'invalid') return this.hangup('insecure'); // the setup was changed on the way
+    this.offerSdp = offerSdp;
+    this.offerKey = key || null;
+    this.remoteFp = fingerprintOf(offerSdp);
+    this.peerKey = await rememberPeerKey(callerId, key);
     await this.setup();
-    await this.pc!.setRemoteDescription({ type: 'offer', sdp: offerSdp });
+    if (this.finished || !this.pc) return;
+    await this.pc.setRemoteDescription({ type: 'offer', sdp: offerSdp });
     this.remoteSet = true;
-    const answer = await this.pc!.createAnswer();
-    await this.pc!.setLocalDescription({ type: 'answer', sdp: tuneOpus(answer.sdp || '') });
-    await api({ action: 'answer', id: callId, answer: this.pc!.localDescription!.sdp });
+    const answer = await this.pc.createAnswer();
+    await this.pc.setLocalDescription({ type: 'answer', sdp: tuneOpus(answer.sdp || '') });
+    this.answerSdp = this.pc.localDescription!.sdp;
+    const signed = await signSetup('answer', this.answerSdp, callerId, this.me).catch(() => ({}) as { key?: string; sig?: string });
+    this.answerKey = signed.key || null;
+    await api({ action: 'answer', id: callId, answer: this.answerSdp, ...signed });
     this.startPolling();
   }
 
-  /** Live event from /api/connect/stream: applied at once (polling stays as a backup). */
-  async signal(e: { type: string; id: string; state?: string; answer?: string | null; candidate?: string; ts?: number }) {
+  /** Live event from /api/connect/stream: applied at once, in order (polling stays as a backup). */
+  signal(e: { type: string; id: string; state?: string; answer?: string | null; key?: string | null; sig?: string | null; ringingTs?: number | null; candidate?: string; ts?: number }) {
     if (!this.id || e.id !== this.id || this.finished) return;
-    if (e.type === 'ice' && e.candidate) {
-      this.iceSince = Math.max(this.iceSince, Number(e.ts) || 0);
-      await this.applyCandidate(e.candidate);
-    } else if (e.type === 'call') {
-      if (e.answer) await this.applyAnswer(e.answer);
-      if (e.state === 'declined') this.end('declined');
-      else if (e.state === 'missed') this.end('missed');
-      else if (e.state === 'ended') this.end('remote-ended');
-    }
+    return this.serial(async () => {
+      if (e.type === 'ice' && e.candidate) {
+        this.iceSince = Math.max(this.iceSince, Number(e.ts) || 0);
+        await this.applyCandidate(e.candidate, Number(e.ts) || 0);
+      } else if (e.type === 'call') {
+        if (e.ringingTs || e.state === 'ringing') this.markRinging();
+        if (e.answer) await this.applyAnswer(e.answer, e.key, e.sig);
+        this.applyState(e.state);
+      }
+    });
+  }
+
+  private markRinging() {
+    if (!this.isCaller || this.rang) return;
+    this.rang = true;
+    if (this.phase === 'calling') this.setPhase('ringing');
+  }
+
+  private applyState(state?: string) {
+    if (state === 'declined') this.end('declined');
+    else if (state === 'missed') this.end(this.rang ? 'missed' : 'unreachable');
+    else if (state === 'ended') this.end('remote-ended');
   }
 
   private applying: Promise<void> | null = null;
 
-  private async applyAnswer(sdp: string) {
+  private async applyAnswer(sdp: string, key?: string | null, sig?: string | null) {
     if (this.remoteSet || this.applying || !this.pc) return this.applying || undefined;
     const pc = this.pc;
     this.applying = (async () => {
+      const check = await verifySetup('answer', sdp, this.callerId, this.calleeId, key, sig);
+      if (check === 'invalid') return this.hangup('insecure');
+      this.check = check;
+      this.answerSdp = sdp;
+      this.answerKey = key || null;
+      this.remoteFp = fingerprintOf(sdp);
+      this.peerKey = await rememberPeerKey(this.calleeId, key);
       await pc.setRemoteDescription({ type: 'answer', sdp });
       this.remoteSet = true;
-      this.h.onPhase('connecting');
+      this.setPhase('connecting');
       for (const c of this.pendingIce.splice(0)) await pc.addIceCandidate(c).catch(() => undefined);
     })();
     return this.applying;
   }
 
-  private async applyCandidate(raw: string) {
-    let init: RTCIceCandidateInit;
+  private async applyCandidate(raw: string, ts: number) {
+    let init: RTCIceCandidateInit & Partial<Restart>;
     try {
       init = JSON.parse(raw);
     } catch {
       return;
     }
+    if (typeof init.restart === 'string') return this.onRestart(init as Restart, `${ts}|${init.restart}`);
     if (!this.remoteSet && this.applying) await this.applying.catch(() => undefined);
     if (this.remoteSet && this.pc) await this.pc.addIceCandidate(init).catch(() => undefined);
     else this.pendingIce.push(init);
   }
 
+  /** The security code (same on both phones = nobody in the middle). */
+  private async reportSecurity() {
+    if (!this.h.onSecurity) return;
+    const code = await safetyCode(this.offerSdp, this.answerSdp, this.offerKey, this.answerKey).catch(() => null);
+    if (!this.finished) this.h.onSecurity({ check: this.check, code, peerKey: this.peerKey });
+  }
+
+  /** Call quality every 2 s: lost packets, delay and jitter of the audio, and whether it goes through the relay. */
+  private startStats() {
+    const tick = async () => {
+      const pc = this.pc;
+      if (this.finished || !pc) return;
+      try {
+        const report = await pc.getStats();
+        let pairId = '';
+        report.forEach((r: any) => {
+          if (r.type === 'transport' && r.selectedCandidatePairId) pairId = r.selectedCandidatePairId;
+        });
+        let rtt: number | undefined;
+        let relayed = false;
+        let lost = 0;
+        let recv = 0;
+        let jitter = 0;
+        report.forEach((r: any) => {
+          if (r.type === 'candidate-pair' && (r.id === pairId || (!pairId && r.nominated && r.state === 'succeeded'))) {
+            rtt = r.currentRoundTripTime;
+            relayed = report.get(r.localCandidateId)?.candidateType === 'relay' || report.get(r.remoteCandidateId)?.candidateType === 'relay';
+          }
+          if (r.type === 'inbound-rtp' && r.kind === 'audio') {
+            lost = r.packetsLost || 0;
+            recv = r.packetsReceived || 0;
+            jitter = r.jitter || 0;
+          }
+        });
+        const dLost = Math.max(0, lost - this.lastLost);
+        const dRecv = Math.max(0, recv - this.lastRecv);
+        this.lastLost = lost;
+        this.lastRecv = recv;
+        const lossPct = dLost + dRecv ? (dLost / (dLost + dRecv)) * 100 : 100;
+        const rttMs = rtt !== undefined ? rtt * 1000 : undefined;
+        const level: CallQuality['level'] =
+          lossPct > 8 || (rttMs ?? 0) > 600 || jitter > 0.08 ? 'poor' : lossPct > 3 || (rttMs ?? 0) > 300 || jitter > 0.04 ? 'fair' : 'good';
+        if (this.phase === 'active') this.h.onQuality?.({ level, relayed, rttMs, lossPct });
+      } catch {
+        /* next round */
+      }
+      this.statsTimer = window.setTimeout(tick, 2000);
+    };
+    this.statsTimer = window.setTimeout(tick, 2000);
+  }
+
   static decline(callId: string) {
     send({ action: 'decline', id: callId });
+  }
+
+  /** The incoming call really rings on this device: the caller sees «يرنّ…». */
+  static ringing(callId: string) {
+    send({ action: 'ringing', id: callId });
   }
 
   setMuted(muted: boolean) {
@@ -213,14 +454,15 @@ export class VoiceCall {
       try {
         const res = await fetch(`/api/connect/call?id=${encodeURIComponent(this.id)}&since=${this.iceSince}`, { headers: authHeaders(), cache: 'no-store' });
         const data = await res.json();
-        if (data.answer) await this.applyAnswer(data.answer);
-        for (const c of data.candidates || []) {
-          this.iceSince = Math.max(this.iceSince, Number(c.ts) || 0);
-          await this.applyCandidate(c.candidate);
-        }
-        if (data.state === 'declined') return void this.end('declined');
-        if (data.state === 'missed') return void this.end('missed');
-        if (data.state === 'ended') return void this.end('remote-ended');
+        await this.serial(async () => {
+          if (data.ringingTs) this.markRinging();
+          if (data.answer) await this.applyAnswer(data.answer, data.key, data.sig);
+          for (const c of data.candidates || []) {
+            this.iceSince = Math.max(this.iceSince, Number(c.ts) || 0);
+            await this.applyCandidate(c.candidate, Number(c.ts) || 0);
+          }
+          this.applyState(data.state);
+        });
       } catch {
         /* network blip: try again */
       }
@@ -239,12 +481,18 @@ export class VoiceCall {
   private cleanup() {
     this.finished = true;
     window.clearTimeout(this.pollTimer);
+    window.clearTimeout(this.reconnectTimer);
+    window.clearTimeout(this.netTimer);
+    window.clearTimeout(this.statsTimer);
+    window.removeEventListener('online', this.onNetworkChange);
+    (navigator as any).connection?.removeEventListener?.('change', this.onNetworkChange);
     this.mic?.getTracks().forEach((t) => t.stop());
     this.pc?.getSenders().forEach((s) => s.track?.stop());
     this.pc?.close();
     this.pc = null;
     this.audio.srcObject = null;
     void this.wakeLock?.release().catch(() => undefined);
+    this.phase = 'ended';
     this.h.onPhase('ended');
   }
 }
@@ -408,4 +656,26 @@ export function stopTone() {
   }
   navigator.vibrate?.(0);
   done?.();
+}
+
+/** New message in another chat: a soft two-note "ding" (quiet, short, no file). */
+export function playMessageSound() {
+  try {
+    const c = ctx();
+    const t = c.currentTime + 0.01;
+    for (const [at, f] of [[0, 1318.51], [0.09, 1760]] as const) {
+      const o = c.createOscillator();
+      const g = c.createGain();
+      o.type = 'sine';
+      o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t + at);
+      g.gain.exponentialRampToValueAtTime(0.12, t + at + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + at + 0.35);
+      o.connect(g).connect(c.destination);
+      o.start(t + at);
+      o.stop(t + at + 0.4);
+    }
+  } catch {
+    /* sound is a bonus */
+  }
 }

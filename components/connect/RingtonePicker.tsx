@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Check, ChevronDown, Music, Play, Square } from 'lucide-react';
 import { RINGTONES, RINGTONE_GROUPS, DEFAULT_RINGTONE, type RingtoneGroup, type RingtoneId } from '@/lib/connect/ringtones';
-import { getRingtone, saveRingtone } from '@/lib/connect/ringtone-pref';
+import { getRingtone, saveRingtone } from '@/lib/connect/device-prefs';
 import { previewRingtone, stopRingtonePreview, warmRingtone } from '@/lib/connect/rtc';
 
 const GROUPS: RingtoneGroup[] = ['classic', 'space', 'nature'];

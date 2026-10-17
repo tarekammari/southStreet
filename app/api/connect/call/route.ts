@@ -1,6 +1,6 @@
 import { after, NextRequest, NextResponse } from 'next/server';
 import { connectSession } from '@/lib/connect/session';
-import { addIce, answerCall, busy, canTalk, finishCall, getCall, iceFor, startCall, userById } from '@/lib/connect/store';
+import { addIce, answerCall, busy, canTalk, finishCall, getCall, iceFor, ringingCall, startCall, userById } from '@/lib/connect/store';
 import { pushTo } from '@/lib/connect/push';
 
 export const dynamic = 'force-dynamic';
@@ -8,13 +8,29 @@ export const maxDuration = 60;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** At most 8 calls started per person per minute (stops ring-bombing). */
+const started = new Map<string, number[]>();
+function tooMany(userId: string): boolean {
+  const now = Date.now();
+  const recent = (started.get(userId) || []).filter((t) => now - t < 60_000);
+  recent.push(now);
+  started.set(userId, recent);
+  return recent.length > 8;
+}
+
 /**
  * Voice-call signalling (WebRTC). Audio itself goes directly between the two
  * phones (or through the TURN relay); this route only exchanges the setup.
  *   GET  ?id=&since=        state of a call + the other side's network candidates
- *   POST {action:'start', to, offer}
- *   POST {action:'answer'|'decline'|'end', id, answer?}
+ *   POST {action:'start', to, offer, key?, sig?}
+ *   POST {action:'ringing', id}            the callee's device rings (caller sees «يرنّ…»)
+ *   POST {action:'answer', id, answer, key?, sig?}
+ *   POST {action:'decline'|'end', id}
  *   POST {action:'ice', id, candidate}
+ *   POST {action:'restart', id, data}      reconnect after a network change (ICE restart)
+ * `key` / `sig`: the device's public key and its signature over the audio
+ * encryption fingerprint, checked by the other phone (lib/connect/e2e.ts) — the
+ * server only passes them on and cannot forge them.
  */
 export async function GET(req: NextRequest) {
   const s = connectSession(req);
@@ -26,6 +42,9 @@ export async function GET(req: NextRequest) {
     {
       state: call.state,
       answer: call.callerId === s.me.id ? call.answer || null : null,
+      key: call.callerId === s.me.id ? call.answerKey || null : null,
+      sig: call.callerId === s.me.id ? call.answerSig || null : null,
+      ringingTs: call.ringingTs || null,
       answeredTs: call.answeredTs || null,
       candidates: iceFor(call.id, s.me.id, since),
     },
@@ -49,8 +68,9 @@ export async function POST(req: NextRequest) {
     }
     const offer = String(body.offer || '');
     if (!offer.includes('v=0')) return NextResponse.json({ error: 'عرض اتصال غير صالح' }, { status: 400 });
+    if (tooMany(s.me.id)) return NextResponse.json({ error: 'محاولات اتصال كثيرة — انتظر دقيقة', code: 'RATE' }, { status: 429 });
     if (busy(peer.id)) return NextResponse.json({ error: 'الطرف الآخر في مكالمة الآن', code: 'BUSY' }, { status: 409 });
-    const call = startCall(s.me, peer, offer);
+    const call = startCall(s.me, peer, offer, { key: body.key, sig: body.sig });
     const me = s.me;
     // A closed app rings with ONE call notification: the native Android app turns
     // it into a full-screen call screen with a looping ringtone; browsers keep a
@@ -86,12 +106,16 @@ export async function POST(req: NextRequest) {
   const call = getCall(String(body.id || ''));
   if (!call || (call.callerId !== s.me.id && call.calleeId !== s.me.id)) return NextResponse.json({ error: 'غير موجودة' }, { status: 404 });
 
+  if (body.action === 'ringing') {
+    if (call.calleeId !== s.me.id) return NextResponse.json({ error: 'غير مسموح' }, { status: 403 });
+    return NextResponse.json({ state: ringingCall(call).state });
+  }
   if (body.action === 'answer') {
     if (call.calleeId !== s.me.id) return NextResponse.json({ error: 'غير مسموح' }, { status: 403 });
     if (call.state !== 'ringing') return NextResponse.json({ error: 'انتهت المكالمة', state: call.state }, { status: 409 });
     const answer = String(body.answer || '');
     if (!answer.includes('v=0')) return NextResponse.json({ error: 'رد غير صالح' }, { status: 400 });
-    return NextResponse.json({ state: answerCall(call, answer).state });
+    return NextResponse.json({ state: answerCall(call, answer, { key: body.key, sig: body.sig }).state });
   }
   if (body.action === 'decline') {
     return NextResponse.json({ state: finishCall(call, call.calleeId === s.me.id && call.state === 'ringing' ? 'declined' : 'ended').state });
@@ -102,6 +126,13 @@ export async function POST(req: NextRequest) {
   if (body.action === 'ice') {
     const candidate = typeof body.candidate === 'string' ? body.candidate : JSON.stringify(body.candidate || {});
     if (candidate.length > 2 && (call.state === 'ringing' || call.state === 'active')) addIce(call, s.me.id, candidate);
+    return NextResponse.json({ success: true });
+  }
+  if (body.action === 'restart') {
+    const data = body.data && typeof body.data === 'object' ? body.data : null;
+    if (!data || !['offer', 'answer', 'request'].includes(data.restart)) return NextResponse.json({ error: 'غير صالح' }, { status: 400 });
+    if (call.state !== 'active') return NextResponse.json({ error: 'انتهت المكالمة', state: call.state }, { status: 409 });
+    addIce(call, s.me.id, JSON.stringify({ restart: data.restart, sdp: typeof data.sdp === 'string' ? data.sdp : undefined }), 16_000);
     return NextResponse.json({ success: true });
   }
   return NextResponse.json({ error: 'إجراء غير معروف' }, { status: 400 });

@@ -2,7 +2,9 @@
 
 import { DEFAULT_RINGTONE, isRingtone, type RingtoneId } from './ringtones';
 
-/** The ringtone picked on this device (like a phone's own ringtone setting). */
+/** Settings kept on this device: the ringtone (like a phone's own ringtone setting) and call privacy. */
+
+/** The ringtone picked on this device. */
 const KEY = 'ss_connect_ringtone';
 
 export function getRingtone(): RingtoneId {
@@ -29,5 +31,30 @@ export function tellAndroid(id: RingtoneId = getRingtone()) {
     (window as unknown as { SSAndroid?: { setRingtone?: (id: string) => void } }).SSAndroid?.setRingtone?.(id);
   } catch {
     /* apps before 1.6.2 ring with the original tone */
+  }
+}
+
+/* ---------- call privacy ---------- */
+
+const RELAY_KEY = 'ss_connect_relay_only';
+
+/**
+ * «إخفاء عنواني في المكالمات»: calls go only through the relay, so the other
+ * side never learns this device's IP address (a little more delay).
+ */
+export function relayOnly(): boolean {
+  try {
+    return localStorage.getItem(RELAY_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function saveRelayOnly(on: boolean) {
+  try {
+    if (on) localStorage.setItem(RELAY_KEY, '1');
+    else localStorage.removeItem(RELAY_KEY);
+  } catch {
+    /* ignore */
   }
 }

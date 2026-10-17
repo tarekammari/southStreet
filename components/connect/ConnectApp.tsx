@@ -10,8 +10,8 @@ import { createPortal } from 'react-dom';
 import dynamic from 'next/dynamic';
 import { Bell, BellOff, Download, Info, Loader2, RefreshCw, MessageCircle, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Search, Star, UserPlus, Users } from 'lucide-react';
 import { authHeaders, jsonAuthHeaders } from '@/lib/api-client';
-import { VoiceCall, startTone, stopTone, warmRingtone, type CallEndReason, type CallPhase } from '@/lib/connect/rtc';
-import { tellAndroid } from '@/lib/connect/ringtone-pref';
+import { VoiceCall, playMessageSound, startTone, stopTone, warmRingtone, type CallEndReason, type CallPhase } from '@/lib/connect/rtc';
+import { tellAndroid } from '@/lib/connect/device-prefs';
 import type { ConnectContact, ConnectUser } from '@/lib/connect/store';
 import ChatView from './ChatView';
 import AboutSheet from './AboutSheet';
@@ -29,16 +29,26 @@ const LoginModal = dynamic(() => import('@/components/LoginModal'), { ssr: false
 
 type Tab = 'chats' | 'contacts' | 'calls';
 type CallLog = { id: string; peerId: string; peerName: string; outgoing: boolean; state: string; createdTs: number; seconds: number };
-type Incoming = { id: string; offer: string; caller: { id: string; name: string; roleLabel: string; photo: string } };
+/** `key` / `sig`: the caller's device key and signature (end-to-end check). */
+type Incoming = { id: string; offer: string; key?: string; sig?: string; caller: { id: string; name: string; roleLabel: string; photo: string } };
+/** A new message in a chat that is not on screen. */
+type Banner = { from: string; name: string; preview: string; key: number };
 
 const END_NOTE: Record<CallEndReason, string> = {
   hangup: 'انتهت المكالمة',
   'remote-ended': 'أنهى الطرف الآخر المكالمة',
   declined: 'رُفضت المكالمة',
   missed: 'لم يتم الرد',
+  unreachable: 'تعذّر الوصول — هاتفه مغلق أو بلا إنترنت',
   busy: 'الطرف الآخر في مكالمة أخرى',
   failed: 'تعذّر الاتصال — تحقق من الشبكة',
+  elsewhere: 'تم الرد من جهاز آخر',
+  insecure: 'أُوقفت المكالمة: تعذّر التحقق من تشفيرها',
+  rate: 'محاولات اتصال كثيرة — انتظر دقيقة',
 };
+
+/** No device of the other person confirmed ringing after this long: say so (the call keeps trying). */
+const UNREACHABLE_HINT_MS = 12_000;
 
 function shortTime(ts: number) {
   if (!ts) return '';
@@ -112,6 +122,7 @@ export default function ConnectApp() {
   const [people, setPeople] = useState<PeopleData>(EMPTY_PEOPLE);
   const [addOpen, setAddOpen] = useState(false);
   const [toast, setToast] = useState('');
+  const [banner, setBanner] = useState<Banner | null>(null);
   const [found, setFound] = useState<PeopleData['everyone'] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [setupDone, setSetupDone] = useState(false);
@@ -277,39 +288,45 @@ export default function ConnectApp() {
     () => ({
       onPhase: (phase: CallPhase) => {
         if (phase === 'active' || phase === 'connecting') stopTone();
-        if (phase !== 'ended') setCallView((v) => (v ? { ...v, phase } : v));
+        // The other phone really rings: now the caller hears the ringback.
+        if (phase === 'ringing') startTone('ringback');
+        if (phase !== 'ended') setCallView((v) => (v ? { ...v, phase, note: undefined } : v));
       },
       onEnd: endUi,
       onConnectedAt: (ts: number) => setCallView((v) => (v ? { ...v, connectedAt: ts } : v)),
+      onQuality: (quality: CallView['quality']) => setCallView((v) => (v && v.quality?.level !== quality?.level ? { ...v, quality } : v)),
+      onSecurity: (security: CallView['security']) => setCallView((v) => (v ? { ...v, security } : v)),
     }),
     [endUi]
   );
 
   const placeCall = async (peer: ConnectContact) => {
-    if (callRef.current) return;
+    if (callRef.current || !me) return;
     setCallView({ peerName: peer.name, peerPhoto: peer.photo, peerRole: peer.roleLabel, phase: 'calling', muted: false });
-    const call = new VoiceCall(iceServers, handlers);
+    const call = new VoiceCall(iceServers, handlers, me.id);
     callRef.current = call;
+    // Still no device of theirs rings: tell the caller why it is taking long.
+    window.setTimeout(() => {
+      setCallView((v) => (v && callRef.current === call && v.phase === 'calling' ? { ...v, note: 'لم يصل الاتصال إلى هاتفه بعد — قد يكون مغلقًا أو بلا إنترنت' } : v));
+    }, UNREACHABLE_HINT_MS);
     try {
       await call.call(peer.id);
-      if (callRef.current !== call) return; // hung up while dialling
-      setCallView((v) => (v ? { ...v, phase: 'ringing' } : v));
-      startTone('ringback');
     } catch (err) {
-      if (callRef.current === call) endUi((err as { code?: string }).code === 'BUSY' ? 'busy' : 'failed');
+      const code = (err as { code?: string }).code;
+      if (callRef.current === call) endUi(code === 'BUSY' ? 'busy' : code === 'RATE' ? 'rate' : 'failed');
     }
   };
 
   const acceptCall = async () => {
     const inc = incomingRef.current;
-    if (!inc) return;
+    if (!inc || !me) return;
     stopTone();
     clearCallNotifications(inc.id);
-    const call = new VoiceCall(iceServers, handlers);
+    const call = new VoiceCall(iceServers, handlers, me.id);
     callRef.current = call;
     setCallView((v) => (v ? { ...v, phase: 'connecting' } : v));
     try {
-      await call.answer(inc.id, inc.offer);
+      await call.answer(inc.id, inc.offer, inc.caller.id, inc.key, inc.sig);
     } catch {
       endUi('failed');
     }
@@ -379,6 +396,8 @@ export default function ConnectApp() {
     incomingRef.current = inc;
     setMinimized(false);
     setCallView({ peerName: inc.caller.name, peerPhoto: inc.caller.photo, peerRole: inc.caller.roleLabel, phase: 'incoming', muted: false });
+    // Tell the caller this device rings («يرنّ…»).
+    VoiceCall.ringing(inc.id);
     // Opened from the notification's "رد" button: answer straight away.
     if (autoAnswer.current && autoAnswer.current === inc.id) {
       autoAnswer.current = null;
@@ -389,6 +408,27 @@ export default function ConnectApp() {
       if (!nativePlatform() && document.visibilityState !== 'visible') ringWhileHidden(inc);
     }
   }, []);
+
+  /* ---------- new messages: banner, sound, badge ---------- */
+  // A message in a chat that is not on screen: a banner at the top (tap to open), a short
+  // sound and a buzz — quietly, during a call. The chat on screen stays silent.
+  const announce = useRef<(m: Omit<Banner, 'key'>) => void>(() => undefined);
+  announce.current = (m) => {
+    const visible = document.visibilityState === 'visible';
+    if (visible && openId === m.from) return;
+    if (!visible && !nativePlatform()) return; // the system notification (push) shows it
+    setBanner({ ...m, key: Date.now() });
+    if (!callRef.current && !incomingRef.current) {
+      playMessageSound();
+      navigator.vibrate?.(80);
+    }
+  };
+
+  useEffect(() => {
+    if (!banner) return;
+    const t = window.setTimeout(() => setBanner(null), 4500);
+    return () => window.clearTimeout(t);
+  }, [banner]);
 
   /* ---------- native apps (Windows / Android) ---------- */
   // Every call change goes to the app shell: floating card, ongoing-call service…
@@ -491,10 +531,18 @@ export default function ConnectApp() {
         stopFallback();
         void pollOnce(); // catch up on anything missed while disconnected
       });
-      es.addEventListener('chat', () => {
+      es.addEventListener('chat', (ev) => {
         void loadContacts();
         setRefreshKey((k) => k + 1);
+        try {
+          const d = JSON.parse((ev as MessageEvent).data);
+          if (d.from && d.name) announce.current({ from: d.from, name: d.name, preview: d.preview || '' });
+        } catch {
+          /* ignore */
+        }
       });
+      // The other side received / read my messages: ✓✓ in the open chat.
+      es.addEventListener('receipt', () => setRefreshKey((k) => k + 1));
       es.addEventListener('people', () => {
         void loadPeople();
         void loadContacts();
@@ -510,7 +558,7 @@ export default function ConnectApp() {
         try {
           const data = JSON.parse((ev as MessageEvent).data);
           if (callRef.current) void callRef.current.signal(data);
-          else if (data.type === 'call' && incomingRef.current?.id === data.id && data.state !== 'ringing') endUi('missed');
+          else if (data.type === 'call' && incomingRef.current?.id === data.id && data.state !== 'ringing') endUi(data.state === 'active' ? 'elsewhere' : 'missed');
         } catch {
           /* ignore */
         }
@@ -618,6 +666,15 @@ export default function ConnectApp() {
   /* ---------- view ---------- */
   const open = contacts.find((c) => c.id === openId) || null;
   const totalUnread = contacts.reduce((n, c) => n + c.unread, 0);
+
+  // Unread count on the app icon (installed app) and in the window title.
+  useEffect(() => {
+    const nav = navigator as Navigator & { setAppBadge?: (n?: number) => Promise<void>; clearAppBadge?: () => Promise<void> };
+    if (totalUnread) void nav.setAppBadge?.(totalUnread).catch(() => undefined);
+    else void nav.clearAppBadge?.().catch(() => undefined);
+    const base = document.title.replace(/^\(\d+\) /, '');
+    document.title = totalUnread ? `(${totalUnread}) ${base}` : base;
+  }, [totalUnread]);
   const q = query.trim().toLowerCase();
   const filtered = contacts.filter((c) => !q || c.name.toLowerCase().includes(q) || c.roleLabel.includes(q));
   const chats = filtered.filter((c) => c.lastTs);
@@ -832,8 +889,33 @@ export default function ConnectApp() {
 
       {toast ? <div className="cn-toast" role="status">{toast}</div> : null}
 
+      {banner && !(callView && !minimized) ? (
+        <button
+          key={banner.key}
+          type="button"
+          className="cn-msg-banner"
+          role="status"
+          onClick={() => {
+            setOpenId(banner.from);
+            setBanner(null);
+          }}
+        >
+          <span className="cn-avatar">
+            {(() => {
+              const c = contacts.find((p) => p.id === banner.from);
+              return c?.photo ? <img src={c.photo} alt="" /> : banner.name.charAt(0);
+            })()}
+          </span>
+          <span className="cn-msg-banner-text">
+            <b>{banner.name}</b>
+            <small>{banner.preview}</small>
+          </span>
+          <MessageCircle className="w-5 h-5" aria-hidden />
+        </button>
+      ) : null}
+
       {aboutOpen ? (
-        <AboutSheet onClose={() => setAboutOpen(false)} busy={Boolean(callView)} live={live} serverPush={Boolean(vapid)} pushState={pushState === 'denied' ? 'off' : pushState} onEnablePush={enablePush} onApplyWebUpdate={() => void applyUpdate()} />
+        <AboutSheet onClose={() => setAboutOpen(false)} busy={Boolean(callView)} relay={iceServers.some((s) => ([] as string[]).concat(s.urls).some((u) => /^turns?:/.test(u)))} live={live} serverPush={Boolean(vapid)} pushState={pushState === 'denied' ? 'off' : pushState} onEnablePush={enablePush} onApplyWebUpdate={() => void applyUpdate()} />
       ) : null}
 
       {me && vapid && (pushState === 'off' || pushState === 'denied') && !gateLater && !callView ? (

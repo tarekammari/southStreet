@@ -20,7 +20,7 @@ class ConnectMessagingService : FirebaseMessagingService() {
             }
             "call-end" -> {
                 val id = data["callId"] ?: return
-                if (CallService.current == id) {
+                if (CallService.ringingNow == id) {
                     CallService.stop(this)
                     IncomingCallActivity.close()
                 }
@@ -29,8 +29,10 @@ class ConnectMessagingService : FirebaseMessagingService() {
                 }
             }
             "message" -> {
+                // Reached this phone: the sender sees ✓✓.
+                Net.postJson("/api/connect/messages", "{\"action\":\"delivered\"}")
                 if (MainActivity.visible) return
-                Notify.message(this, data["title"] ?: "South Street Connect", data["body"] ?: "", data["url"] ?: "/connect", data["tag"] ?: "chat")
+                Notify.message(this, data["title"] ?: "South Street Connect", data["body"] ?: "", data["url"] ?: "/connect", data["tag"] ?: "chat", data["msgId"] ?: "")
             }
         }
     }

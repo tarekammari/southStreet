@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Loader2, Mic, Pause, Phone, PhoneIncoming, PhoneMissed, Play, Send, Trash2 } from 'lucide-react';
+import { ArrowRight, Check, CheckCheck, Loader2, Mic, Pause, Phone, PhoneIncoming, PhoneMissed, Play, Send, Trash2 } from 'lucide-react';
 import { authHeaders, jsonAuthHeaders } from '@/lib/api-client';
 import type { ConnectContact, ConnectMessage } from '@/lib/connect/store';
 
@@ -24,6 +24,25 @@ function dayOf(ts: number) {
   if (d.toDateString() === today.toDateString()) return 'اليوم';
   if (d.toDateString() === y.toDateString()) return 'أمس';
   return d.toLocaleDateString('ar-DZ', { day: 'numeric', month: 'long' });
+}
+
+/** «آخر ظهور»: when the other person last had the app connected. */
+function seenText(ts: number) {
+  if (!ts) return '';
+  const ago = Date.now() - ts;
+  if (ago < 120_000) return 'آخر ظهور قبل لحظات';
+  const d = new Date(ts);
+  const time = d.toLocaleTimeString('ar-DZ', { hour: '2-digit', minute: '2-digit' });
+  if (d.toDateString() === new Date().toDateString()) return `آخر ظهور اليوم ${time}`;
+  if (d.toDateString() === new Date(Date.now() - 86_400_000).toDateString()) return `آخر ظهور أمس ${time}`;
+  return `آخر ظهور ${d.toLocaleDateString('ar-DZ', { day: 'numeric', month: 'short' })}`;
+}
+
+/** ✓ sent · ✓✓ reached their phone · blue ✓✓ read. */
+function Ticks({ ts, receipt }: { ts: number; receipt: { delivered: number; read: number } }) {
+  if (ts <= receipt.read) return <span className="cn-ticks is-read" aria-label="مقروءة"><CheckCheck className="w-3.5 h-3.5" /></span>;
+  if (ts <= receipt.delivered) return <span className="cn-ticks" aria-label="وصلت"><CheckCheck className="w-3.5 h-3.5" /></span>;
+  return <span className="cn-ticks" aria-label="أُرسلت"><Check className="w-3.5 h-3.5" /></span>;
 }
 
 /** A voice note with its own play / pause and progress. */
@@ -79,6 +98,8 @@ export default function ChatView({
   const [messages, setMessages] = useState<ConnectMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [online, setOnline] = useState(peer.online);
+  const [seen, setSeen] = useState(peer.lastSeen || 0);
+  const [receipt, setReceipt] = useState({ delivered: 0, read: 0 });
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
@@ -99,6 +120,8 @@ export default function ChatView({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'تعذّر التحميل');
       setOnline(Boolean(data.peerOnline));
+      if (data.peerSeen) setSeen(Number(data.peerSeen));
+      if (data.receipt) setReceipt({ delivered: Number(data.receipt.delivered) || 0, read: Number(data.receipt.read) || 0 });
       const incoming: ConnectMessage[] = data.messages || [];
       if (incoming.length) lastTs.current = Math.max(lastTs.current, ...incoming.map((m) => m.ts));
       setMessages((prev) => {
@@ -115,6 +138,8 @@ export default function ChatView({
 
   useEffect(() => {
     lastTs.current = 0;
+    setReceipt({ delivered: 0, read: 0 });
+    setSeen(peer.lastSeen || 0);
     setLoading(true);
     void load(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -211,7 +236,7 @@ export default function ChatView({
         <span className="cn-avatar">{peer.photo ? <img src={peer.photo} alt="" /> : peer.name.charAt(0)}{online ? <i className="cn-dot" /> : null}</span>
         <div className="cn-chat-title">
           <b>{peer.name}</b>
-          <small>{online ? 'متصل الآن' : peer.friend ? 'من المفضّلين' : peer.roleLabel}</small>
+          <small>{online ? 'متصل الآن' : seen ? seenText(seen) : peer.friend ? 'من المفضّلين' : peer.roleLabel}</small>
         </div>
         <button type="button" className="cn-icon is-call" onClick={onCall} aria-label="اتصال صوتي"><Phone className="w-5 h-5" /></button>
         {menu}
@@ -236,7 +261,7 @@ export default function ChatView({
               ) : (
                 <div className={`cn-bubble ${mine ? 'is-mine' : 'is-theirs'}`}>
                   {m.kind === 'voice' && m.mediaId ? <VoiceNote src={`/api/connect/media/${m.mediaId}`} duration={m.duration} /> : <p>{m.text}</p>}
-                  <small>{timeOf(m.ts)}</small>
+                  <small>{timeOf(m.ts)}{mine ? <Ticks ts={m.ts} receipt={receipt} /> : null}</small>
                 </div>
               )}
             </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import { jsonAuthHeaders } from '@/lib/api-client';
-import { getRingtone } from './ringtone-pref';
+import { getRingtone } from './device-prefs';
 
 /**
  * The Connect page running inside the native apps:
