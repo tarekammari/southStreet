@@ -9,7 +9,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Activity, Ban, BellRing, Check, ClipboardList, Loader2, Lock, LogIn, Megaphone, MessageCircle, MicOff, Phone,
+  Activity, ArrowRight, Ban, LayoutDashboard, BellRing, Check, ClipboardList, Loader2, Lock, LogIn, Megaphone, MessageCircle, MicOff, Phone,
   PhoneOff, Plus, RefreshCw, Search, Settings, Shield, ShieldCheck, Smartphone, Trash2, UserMinus, UserPlus, Users, X,
 } from 'lucide-react';
 import { authHeaders, jsonAuthHeaders } from '@/lib/api-client';
@@ -227,6 +227,7 @@ export default function ConnectAdmin() {
             <p>هذا الحساب لا يملك صلاحية لوحة SS Connect — هي للمدير العام فقط، بعد الدخول بمفتاح الأمان.</p>
           )}
           <button type="button" className="ca-btn" onClick={() => { setDenied(null); void loadOverview(); }}><RefreshCw className="w-4 h-4" /> إعادة المحاولة</button>
+          <a className="ca-btn" href="/admin"><ArrowRight className="w-4 h-4" /> لوحة الإدارة الرئيسية</a>
         </div>
       </div>
     );
@@ -241,7 +242,9 @@ export default function ConnectAdmin() {
             <b>SS Connect</b>
             <small>غرفة التحكم</small>
           </div>
+          <a href="/admin" className="ca-back-mini" title="العودة إلى لوحة الإدارة الرئيسية" aria-label="العودة إلى لوحة الإدارة الرئيسية"><ArrowRight className="w-5 h-5" /></a>
         </div>
+        <a href="/admin" className="ca-back"><LayoutDashboard className="w-5 h-5" /> <span>لوحة الإدارة الرئيسية</span> <ArrowRight className="w-4 h-4" /></a>
         <nav className="ca-nav" aria-label="أقسام اللوحة">
           {TABS.map((t) => (
             <button key={t.id} type="button" className={tab === t.id ? 'is-on' : ''} aria-current={tab === t.id ? 'page' : undefined} onClick={() => setTab(t.id)}>

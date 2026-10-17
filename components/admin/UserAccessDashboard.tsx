@@ -739,9 +739,6 @@ export default function UserAccessDashboard({
         <div className="inn-body" dir="rtl">
           {toast ? <div className="inn-toast">{toast}</div> : null}
 
-          {/* The SS Connect control room (its own dashboard) — Super Admin only. */}
-          {isSuperAdmin ? <ConnectLaunchButton /> : null}
-
           {sideOpen ? (
             <button
               type="button"
@@ -974,6 +971,9 @@ export default function UserAccessDashboard({
                   <span className="inn-side-label">الموقع</span>
                 </Link>
               </nav>
+
+              {/* The SS Connect control room (its own dashboard) — Super Admin only. */}
+              {isSuperAdmin ? <ConnectLaunchButton /> : null}
 
               <div className="inn-side-rule" />
 

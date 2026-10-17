@@ -39,6 +39,12 @@
 .ca-brand img { width: 40px; height: 40px; border-radius: 11px; }
 .ca-brand b { display: block; font-size: 1rem; font-weight: 900; }
 .ca-brand small { color: var(--ca-muted); font-size: 0.78rem; }
+.ca-brand > div { flex: 1; min-width: 0; }
+/* Back to the main dashboard (/admin): a full link in the side menu, an arrow on phones. */
+.ca-back { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--ca-line); color: var(--ca-ink); font-weight: 800; font-size: 0.88rem; text-decoration: none; }
+.ca-back span { flex: 1; }
+.ca-back:hover { background: var(--ca-bg); border-color: var(--ca-brand); color: var(--ca-brand); }
+.ca-back-mini { display: none; place-items: center; width: 36px; height: 36px; border-radius: 10px; color: var(--ca-muted); border: 1px solid var(--ca-line); flex: none; }
 .ca-nav { display: flex; flex-direction: column; gap: 4px; }
 .ca-nav button { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; font-weight: 700; font-size: 0.92rem; color: var(--ca-muted); text-align: right; }
 .ca-nav button:hover { background: var(--ca-bg); color: var(--ca-ink); }
@@ -174,6 +180,8 @@
   .ca-nav { min-width: 0; flex-direction: row; overflow-x: auto; gap: 4px; scrollbar-width: none; margin: 0 -4px; }
   .ca-nav button { flex: none; padding: 8px 10px; font-size: 0.84rem; }
   .ca-privacy { display: none; }
+  .ca-back { display: none; }
+  .ca-back-mini { display: grid; }
   .ca-main { padding: 18px 16px 50px; }
   .ca-row { flex-wrap: wrap; }
   .ca-row.is-person .ca-row-actions { width: 100%; justify-content: flex-start; }
