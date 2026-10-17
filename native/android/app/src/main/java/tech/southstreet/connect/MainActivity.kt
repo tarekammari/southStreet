@@ -206,6 +206,9 @@ class MainActivity : AppCompatActivity() {
         /** The call screen shows «مكبّر الصوت» (earpiece / loudspeaker) only in apps that can switch. */
         @JavascriptInterface fun canSwitchSpeaker() = true
 
+        /** The ringtone picked in «حول التطبيق»: the call screen rings with it while the app is closed. */
+        @JavascriptInterface fun setRingtone(id: String) = Prefs.saveRingtone(this@MainActivity, id)
+
         /** False while the app is in the background: then the phone's call screen rings, not the page. */
         @JavascriptInterface fun inForeground() = visible
 

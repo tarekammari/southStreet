@@ -1,6 +1,7 @@
 'use client';
 
 import { jsonAuthHeaders } from '@/lib/api-client';
+import { getRingtone } from './ringtone-pref';
 
 /**
  * The Connect page running inside the native apps:
@@ -18,6 +19,8 @@ export type NativeCallState = {
   muted?: boolean;
   /** Loudspeaker instead of the earpiece (Android). */
   speaker?: boolean;
+  /** The ringtone picked on this device (the Windows call card plays it). */
+  ringtone?: string;
 };
 
 type WindowsBridge = {
@@ -54,7 +57,7 @@ export function canSwitchSpeaker(): boolean {
 
 export function sendCallState(state: NativeCallState | null) {
   const photo = state?.photo ? new URL(state.photo, window.location.href).href : undefined;
-  const s = state ? { ...state, photo } : null;
+  const s = state ? { ...state, photo, ringtone: getRingtone() } : null;
   try {
     win()?.callState(s);
     droid()?.callState(JSON.stringify(s || { phase: 'ended' }));

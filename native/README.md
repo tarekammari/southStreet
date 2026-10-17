@@ -9,8 +9,11 @@ ringtone and running in the background.
 | Android | `android/` (Kotlin, no framework) | the VPS (command-line Android SDK, no Android Studio) | `/api/connect/download?platform=android` (signed in) |
 | Windows | `windows/` (Electron) | this PC | `/api/connect/download?platform=windows` (signed in) |
 
-`assets/ringtone.wav` is rendered by `node scripts/render-ringtone.mjs native/assets/ringtone.wav`
-(same melody as the web ringtone) and copied into both apps.
+The ringtones (`ringtone.wav`, the original, and `ringtone_<id>.wav`: space and
+calm nature tones) are rendered by `npm run connect:ringtones` from
+`lib/connect/ringtones.ts`, the same code the web app plays, straight into both
+apps. The tone picked in «حول التطبيق» is saved on the device and told to the app
+(Android: `SSAndroid.setRingtone`, Windows: the `ringtone` field of the call state).
 
 ## Android
 

@@ -10,7 +10,8 @@ import { createPortal } from 'react-dom';
 import dynamic from 'next/dynamic';
 import { Bell, BellOff, Download, Info, Loader2, RefreshCw, MessageCircle, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Search, Star, UserPlus, Users } from 'lucide-react';
 import { authHeaders, jsonAuthHeaders } from '@/lib/api-client';
-import { VoiceCall, startTone, stopTone, type CallEndReason, type CallPhase } from '@/lib/connect/rtc';
+import { VoiceCall, startTone, stopTone, warmRingtone, type CallEndReason, type CallPhase } from '@/lib/connect/rtc';
+import { tellAndroid } from '@/lib/connect/ringtone-pref';
 import type { ConnectContact, ConnectUser } from '@/lib/connect/store';
 import ChatView from './ChatView';
 import AboutSheet from './AboutSheet';
@@ -159,6 +160,9 @@ export default function ConnectApp() {
     };
     window.addEventListener('beforeinstallprompt', onPrompt);
     if ('serviceWorker' in navigator) void navigator.serviceWorker.register('/connect-sw.js', { scope: '/connect' }).catch(() => undefined);
+    // The chosen ringtone: ready to ring at once, and known to the Android app.
+    warmRingtone();
+    tellAndroid();
     return () => window.removeEventListener('beforeinstallprompt', onPrompt);
   }, []);
 
@@ -829,7 +833,7 @@ export default function ConnectApp() {
       {toast ? <div className="cn-toast" role="status">{toast}</div> : null}
 
       {aboutOpen ? (
-        <AboutSheet onClose={() => setAboutOpen(false)} live={live} serverPush={Boolean(vapid)} pushState={pushState === 'denied' ? 'off' : pushState} onEnablePush={enablePush} onApplyWebUpdate={() => void applyUpdate()} />
+        <AboutSheet onClose={() => setAboutOpen(false)} busy={Boolean(callView)} live={live} serverPush={Boolean(vapid)} pushState={pushState === 'denied' ? 'off' : pushState} onEnablePush={enablePush} onApplyWebUpdate={() => void applyUpdate()} />
       ) : null}
 
       {me && vapid && (pushState === 'off' || pushState === 'denied') && !gateLater && !callView ? (

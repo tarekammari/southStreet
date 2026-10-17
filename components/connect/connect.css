@@ -214,7 +214,7 @@
 /* About sheet: version, checks, ringing test */
 .cn-version { display: block; margin-top: 10px; color: var(--cn-muted); font-size: 0.75rem; }
 .cn-sheet { position: fixed; inset: 0; z-index: 60; background: rgba(15, 23, 42, 0.45); display: flex; align-items: flex-end; justify-content: center; }
-.cn-sheet-card { width: 100%; max-width: 460px; background: var(--cn-panel); border-radius: 20px 20px 0 0; padding: 16px 16px calc(18px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 12px; }
+.cn-sheet-card { width: 100%; max-width: 460px; max-height: 92dvh; overflow-y: auto; overscroll-behavior: contain; background: var(--cn-panel); border-radius: 20px 20px 0 0; padding: 16px 16px calc(18px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 12px; }
 @media (min-width: 720px) { .cn-sheet { align-items: center; } .cn-sheet-card { border-radius: 20px; } }
 .cn-sheet-card header { display: flex; align-items: center; gap: 12px; }
 .cn-sheet-card header img { width: 44px; height: 44px; border-radius: 12px; }
@@ -232,6 +232,29 @@
 .cn-sheet-btn:disabled { opacity: 0.5; }
 .cn-sheet-note { margin: 0; font-size: 0.82rem; text-align: center; color: #0f5132; }
 .cn-sheet-note.is-error { color: #b91c1c; }
+
+/* ---------- ringtone picker ---------- */
+.cn-tones { border: 1px solid var(--cn-line); border-radius: 14px; overflow: hidden; }
+.cn-tones-head { width: 100%; display: flex; align-items: center; gap: 10px; padding: 11px 12px; text-align: right; }
+.cn-tones-head > svg:first-child { color: var(--cn-brand); flex: none; }
+.cn-tones-head span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.cn-tones-head b { font-size: 0.88rem; }
+.cn-tones-head small { color: var(--cn-muted); font-size: 0.76rem; }
+.cn-tones-chev { color: var(--cn-muted); flex: none; transition: transform 0.2s ease; }
+.cn-tones-chev.is-open { transform: rotate(180deg); }
+.cn-tones-list { display: flex; flex-direction: column; gap: 10px; padding: 2px 10px 12px; border-top: 1px solid var(--cn-line); }
+.cn-tones-list h3 { margin: 10px 2px 6px; font-size: 0.72rem; font-weight: 800; color: var(--cn-muted); }
+.cn-tones-list [role='radiogroup'] { display: flex; flex-direction: column; gap: 6px; }
+.cn-tone { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; border-radius: 12px; border: 1px solid transparent; text-align: right; transition: background 0.15s ease; }
+.cn-tone:hover { background: #f4f6f5; }
+.cn-tone.is-on { border-color: var(--cn-brand); background: #f0faf6; }
+.cn-tone-play { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; flex: none; color: #fff; background: linear-gradient(145deg, #10b981, #047857); }
+.cn-tone-play.is-space { background: radial-gradient(circle at 30% 30%, #818cf8, #312e81 70%); }
+.cn-tone-play.is-nature { background: linear-gradient(145deg, #5eead4, #0f766e); }
+.cn-tone-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.cn-tone-text b { font-size: 0.86rem; }
+.cn-tone-text small { color: var(--cn-muted); font-size: 0.74rem; line-height: 1.5; }
+.cn-tone-check { color: var(--cn-brand); flex: none; }
 
 /* ---------- "turn on call ringing" step ---------- */
 .cn-gate { position: fixed; inset: 0; z-index: 45; display: grid; place-items: center; padding: 20px; background: rgba(4, 20, 15, 0.55); backdrop-filter: blur(8px); animation: cn-fade 0.25s ease; }

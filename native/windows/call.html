@@ -132,6 +132,10 @@
     $('status').textContent = incoming ? 'مكالمة صوتية واردة' : LABEL[call.phase] || '';
 
     if (incoming) {
+      // The ringtone picked in the app (assets/ringtone_<id>.wav; the original otherwise).
+      const id = /^[a-z-]{2,30}$/.test(call.ringtone || '') && call.ringtone !== 'south-street' ? call.ringtone : '';
+      const file = id ? `assets/ringtone_${id.replace(/-/g, '_')}.wav` : 'assets/ringtone.wav';
+      if (ring.paused && !ring.src.endsWith(file)) ring.src = file;
       if (ring.paused) {
         // Start soft, then swell to full volume over ~8 s.
         ring.volume = 0.35;

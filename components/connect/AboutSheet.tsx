@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { BellRing, CheckCircle2, Download, Loader2, RefreshCw, X, XCircle } from 'lucide-react';
 import { jsonAuthHeaders } from '@/lib/api-client';
 import { versionLabel } from '@/lib/connect/version';
+import RingtonePicker from './RingtonePicker';
 import { checkAppUpdate, downloadNewApp, nativePlatform, nativeVersion, type UpdateCheck } from '@/lib/connect/native-bridge';
 
 const APP_VERSION = process.env.APP_VERSION || '';
@@ -19,9 +20,10 @@ const UPDATE_NOTE: Record<UpdateCheck['state'], string> = {
 
 type Check = { label: string; ok: boolean; hint?: string };
 
-/** "حول التطبيق": versions, check for updates, what works on this device, and a ringing test. */
+/** "حول التطبيق": versions, check for updates, the ringtone, what works on this device, and a ringing test. */
 export default function AboutSheet({
   onClose,
+  busy,
   live,
   serverPush,
   pushState,
@@ -29,6 +31,8 @@ export default function AboutSheet({
   onApplyWebUpdate,
 }: {
   onClose: () => void;
+  /** A call is ringing or in progress (no ringtone previews over it). */
+  busy: boolean;
   live: boolean;
   serverPush: boolean;
   pushState: 'unknown' | 'on' | 'off' | 'unsupported';
@@ -108,6 +112,8 @@ export default function AboutSheet({
             <Download className="w-5 h-5" /> تنزيل الإصدار الجديد
           </button>
         ) : null}
+
+        <RingtonePicker busy={busy} />
 
         <ul className="cn-checks">
           {checks.map((c) => (

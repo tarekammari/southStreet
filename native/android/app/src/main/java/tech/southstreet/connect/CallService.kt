@@ -102,7 +102,7 @@ class CallService : Service() {
                         .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                         .build()
                 )
-                setDataSource(this@CallService, Uri.parse("android.resource://$packageName/${R.raw.ringtone}"))
+                setDataSource(this@CallService, Uri.parse("android.resource://$packageName/${Prefs.ringtoneRes(this@CallService)}"))
                 isLooping = true
                 prepare()
                 setVolume(0.35f, 0.35f)
