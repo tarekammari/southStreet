@@ -134,7 +134,8 @@ set_env() { if grep -q "^$1=" "$ENV_FILE"; then sed -i "s|^$1=.*|$1=$2|" "$ENV_F
 set_env TURN_URLS "turn:$DOMAIN:3478?transport=udp,turn:$DOMAIN:3478?transport=tcp,turns:$DOMAIN:5349?transport=tcp"
 set_env TURN_SECRET "$SECRET"
 chown "$APP_USER": "$ENV_FILE" && chmod 600 "$ENV_FILE"
-sudo -iu "$APP_USER" bash -lc "cd '$APP_DIR' && pm2 reload ecosystem.config.cjs --update-env" >/dev/null
+# Only the web app (the build folder comes from .next-active); the nightly jobs are left alone.
+sudo -iu "$APP_USER" bash -lc "cd '$APP_DIR' && pm2 reload ecosystem.config.cjs --only south-street --update-env" >/dev/null
 
 echo
 echo "Relay ready on $DOMAIN ($PUBLIC_IP): 3478 UDP/TCP, 5349 TLS, relay 49160-49999/UDP."
