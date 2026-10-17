@@ -184,6 +184,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         visible = false
+        // Leaving the app with no call going on: make sure other apps get normal sound (not the earpiece).
+        if (!inCall) CallAudio.settle(this)
         super.onPause()
     }
 

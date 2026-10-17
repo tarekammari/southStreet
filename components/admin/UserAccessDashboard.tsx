@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import AppVersionBadge from '@/components/admin/AppVersionBadge';
+import ConnectLaunchButton from '@/components/admin/ConnectLaunchButton';
 import BackupsPanel from '@/components/admin/BackupsPanel';
 import AboutPageEditor from '@/components/admin/AboutPageEditor';
 import WhatsAppHub from '@/components/admin/WhatsAppHub';
@@ -737,6 +738,9 @@ export default function UserAccessDashboard({
         {/* ── Light body ── */}
         <div className="inn-body" dir="rtl">
           {toast ? <div className="inn-toast">{toast}</div> : null}
+
+          {/* The SS Connect control room (its own dashboard) — Super Admin only. */}
+          {isSuperAdmin ? <ConnectLaunchButton /> : null}
 
           {sideOpen ? (
             <button
