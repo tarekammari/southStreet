@@ -347,6 +347,10 @@ export function applyReservationChanges(input: {
 export function cancelCustomerReservation(reservation: Reservation): Reservation {
   const guard = selfManageGuard(reservation);
   if (!guard.ok) throw new Error(guard.reason || 'LOCKED');
+  // Money already paid: a refund is prepared by the accountant and approved by the Super Admin.
+  if ((Number(reservation.paid_amount) || 0) > 0) {
+    throw new Error('سُجّلت دفعة على هذا الطلب. للإلغاء واسترجاع المبلغ تواصل مع الوكالة من المحادثة.');
+  }
 
   const db = getSqliteDb();
   const now = new Date().toISOString();

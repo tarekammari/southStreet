@@ -21,7 +21,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const gate = requireReceiptAccess(req);
+    // Issuing a receipt books money: the accountant only (no Super Admin / Admin shortcut).
+    const gate = requireRole(req, ['ACCOUNTANT']);
     if ('error' in gate) return gate.error;
     const body: Receipt = await req.json();
     if (!body.id || !body.pilgrimName || !body.totalAmount) {

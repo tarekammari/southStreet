@@ -16,6 +16,7 @@ import { User, Receipt } from '@/types';
 import { fmtCount, fmtMoney } from './money';
 import { TRIP_TYPES, classifyTripType, tripTypeLabel } from '@/lib/finance-categories';
 import ClientPaymentModal, { type Collectible } from './ClientPaymentModal';
+import PaymentApprovalsPanel from './PaymentApprovalsPanel';
 import AcctPrintButton from './AcctPrintButton';
 import AdminConfirmDialog from '@/components/admin/AdminConfirmDialog';
 import {
@@ -221,8 +222,10 @@ export default function ReceiptsPanel({ currentUser }: { currentUser: User }) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'تعذّر تنفيذ العملية');
+      // A reversal waits for the Super Admin's approval (segregation of duties).
+      if (data.queued) window.alert(data.message || 'أُرسل الطلب للموافقة');
 
-      if (act.kind === 'void_receipt') {
+      if (act.kind === 'void_receipt' && !data.queued) {
         setSelected(null);
         setReceipts((prev) =>
           prev.map((r) => (r.id === act.id ? { ...r, status: 'ملغاة' } : r))
@@ -556,6 +559,7 @@ export default function ReceiptsPanel({ currentUser }: { currentUser: User }) {
           </div>
         }
       />
+      <PaymentApprovalsPanel onChanged={() => void fetchReceipts()} />
 
       {recapPeriod && periodRange ? (
         <p className="text-sm font-semibold acct-top-subtitle px-1 tabular-nums">
@@ -1431,7 +1435,10 @@ export default function ReceiptsPanel({ currentUser }: { currentUser: User }) {
             setCollectOpen(false);
             setCollect(null);
           }}
-          onSaved={() => void fetchReceipts()}
+          onSaved={(message) => {
+            if (message && !/اعتُمدت$/.test(message)) window.alert(message);
+            void fetchReceipts();
+          }}
         />
       )}
 
@@ -1512,7 +1519,7 @@ export default function ReceiptsPanel({ currentUser }: { currentUser: User }) {
         busy={incomeBusy}
         title={
           confirmAct?.kind === 'void_receipt'
-            ? 'إلغاء الدفعة / السند؟'
+            ? 'طلب إلغاء الدفعة / السند؟'
             : confirmAct?.kind === 'hide_client'
               ? 'إخفاء العميل من الدليل؟'
               : confirmAct?.kind === 'purge_client'
@@ -1521,7 +1528,7 @@ export default function ReceiptsPanel({ currentUser }: { currentUser: User }) {
         }
         message={
           confirmAct?.kind === 'void_receipt'
-            ? `تُسحب «${confirmAct.label}» من التحصيل والرصيد. العميل يبقى في الدليل، والدفعات الملغاة تُعرض من «الملغاة».`
+            ? `يُرسل طلب إلغاء «${confirmAct.label}» (استرجاع) إلى المشرف العام للموافقة. بعد الموافقة تُسحب من التحصيل والرصيد وتُعرض في «الملغاة».`
             : confirmAct?.kind === 'hide_client'
               ? `يُخفى «${confirmAct?.label || ''}» من الدليل الظاهر. تجده لاحقاً في «المخفية» لإظهاره أو حذفه نهائياً.`
               : confirmAct?.kind === 'purge_client'
@@ -1530,7 +1537,7 @@ export default function ReceiptsPanel({ currentUser }: { currentUser: User }) {
         }
         confirmLabel={
           confirmAct?.kind === 'void_receipt'
-            ? 'تأكيد الإلغاء'
+            ? 'إرسال للموافقة'
             : confirmAct?.kind === 'hide_client'
               ? 'إخفاء'
               : confirmAct?.kind === 'purge_client'

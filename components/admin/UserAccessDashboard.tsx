@@ -79,6 +79,7 @@ import GoogleLoginSettings from '@/components/admin/GoogleLoginSettings';
 import ServerHealthPanel from '@/components/admin/ServerHealth';
 import PresenceTimeline from '@/components/admin/PresenceTimeline';
 import AgencyPendingBookings from '@/components/booking/AgencyPendingBookings';
+import PaymentApprovalsPanel from '@/components/accountant/PaymentApprovalsPanel';
 
 type DashboardStats = {
   total: number;
@@ -780,7 +781,8 @@ export default function UserAccessDashboard({
             </div>
           ) : null}
           {section === 'bookings' ? (
-            <div key="bookings" className="inn-stage-pane is-active inn-swap">
+            <div key="bookings" className="inn-stage-pane is-active inn-swap space-y-4">
+              <PaymentApprovalsPanel />
               <AgencyPendingBookings />
             </div>
           ) : null}

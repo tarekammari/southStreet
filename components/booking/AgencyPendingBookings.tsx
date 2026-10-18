@@ -11,6 +11,7 @@ import {
   Mail,
   Phone,
   RefreshCw,
+  ShieldAlert,
   UserRound,
   Wallet,
   XCircle,
@@ -31,7 +32,7 @@ import ClientPaymentModal from '@/components/accountant/ClientPaymentModal';
  */
 type Stage = 'demand' | 'deposit' | 'done';
 
-type Permissions = { role: string; canApprove: boolean; canCollectDeposit: boolean };
+type Permissions = { role: string; canApprove: boolean; canCollectDeposit: boolean; canOverride?: boolean };
 
 type DepositPreset = { reservation_id: string; customer_code: string; customer_name: string };
 
@@ -125,7 +126,7 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
   } | null>(null);
   const [stage, setStage] = useState<Stage | null>(null);
   const [openId, setOpenId] = useState('');
-  const [depositFor, setDepositFor] = useState<DepositPreset | null>(null);
+  const [depositFor, setDepositFor] = useState<(DepositPreset & { override?: boolean }) | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -413,6 +414,23 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
                             <Wallet className="w-3.5 h-3.5" /> تسجيل العربون وتأكيد الحجز
                           </button>
                         ) : null}
+                        {perms.canOverride ? (
+                          <button
+                            type="button"
+                            className="pipe-btn"
+                            title="اعتماد استثنائي بسبب مكتوب ومفتاح الأمان — يُبلَّغ المحاسب ويُسجَّل في التدقيق"
+                            onClick={() =>
+                              setDepositFor({
+                                reservation_id: res.reservation_id,
+                                customer_code: res.customer_id,
+                                customer_name: res.customer_name,
+                                override: true,
+                              })
+                            }
+                          >
+                            <ShieldAlert className="w-3.5 h-3.5" /> تجاوز الإدارة
+                          </button>
+                        ) : null}
                         {perms.canApprove && paid === 0 ? (
                           <button
                             type="button"
@@ -518,9 +536,10 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
       {depositFor ? (
         <ClientPaymentModal
           preset={depositFor}
+          override={Boolean(depositFor.override)}
           onClose={() => setDepositFor(null)}
-          onSaved={() => {
-            setFlash('سُجّل العربون — تأكد الحجز وأُبلغ المعتمر');
+          onSaved={(message) => {
+            setFlash(message || 'سُجّل العربون — تأكد الحجز وأُبلغ المعتمر');
             setOpenId('');
             window.dispatchEvent(new CustomEvent('southstreet:bookings-updated'));
           }}
