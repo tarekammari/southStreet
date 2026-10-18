@@ -469,3 +469,8 @@ html.skr-side .luxury-modal-overlay .luxury-table-shell { height: 100%; }
 @media (prefers-reduced-motion: reduce) {
   .skr-island, .skr-island-wave i, .skr-island-dots i, .skr-island.is-reply .skr-island-avatar { animation: none; }
 }
+
+/* «نداء صخر» listening: the bubble badge shows an ear and breathes */
+.sakhr-fab-brain-badge.is-wake { background: #059669 !important; color: #fff; animation: skr-wake 2.4s ease-in-out infinite; }
+@keyframes skr-wake { 0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, .55); } 50% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); } }
+@media (prefers-reduced-motion: reduce) { .sakhr-fab-brain-badge.is-wake { animation: none; } }

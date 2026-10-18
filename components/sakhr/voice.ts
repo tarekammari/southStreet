@@ -513,3 +513,24 @@ export function stopSpeaking() {
     player.removeAttribute('src');
   }
 }
+
+/** A soft two-note cue: rising when Sakhr starts listening, falling when the conversation ends. */
+export function chime(kind: 'start' | 'stop') {
+  const ctx = audioContext();
+  if (!ctx) return;
+  const notes = kind === 'start' ? [660, 880] : [740, 494];
+  const t0 = ctx.currentTime + 0.02;
+  notes.forEach((freq, i) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    const at = t0 + i * 0.13;
+    gain.gain.setValueAtTime(0, at);
+    gain.gain.linearRampToValueAtTime(0.12, at + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, at + 0.22);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(at);
+    osc.stop(at + 0.25);
+  });
+}
