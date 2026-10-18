@@ -72,17 +72,6 @@
 .ip-chip { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 999px; background: #fff; border: 1px solid var(--ip-line); font-size: 0.82rem; font-weight: 700; color: var(--ip-ink); }
 .ip-chip svg { color: var(--ip-brand); }
 
-/* Stats: one quiet strip under the hero */
-.ip-stats {
-  display: flex; flex-wrap: wrap; gap: 1px; margin: -32px auto 0; width: fit-content; max-width: 100%; position: relative; z-index: 2; overflow: hidden;
-  background: var(--ip-line); border: 1px solid var(--ip-line); border-radius: 22px;
-  box-shadow: 0 18px 40px -30px rgba(15, 23, 42, 0.45);
-}
-.ip-stat { flex: 1 1 auto; width: 270px; display: flex; align-items: center; gap: 14px; padding: 18px 22px; background: #fff; }
-.ip-stat b { display: block; font-family: var(--font-cairo), 'Cairo', sans-serif; font-size: 1.6rem; font-weight: 900; color: var(--ip-ink); line-height: 1.1; text-align: right; }
-.ip-stat small { display: block; margin-top: 2px; color: var(--ip-muted); font-weight: 700; font-size: 0.82rem; }
-.ip-stat i { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 13px; background: var(--ip-brand-soft); color: var(--ip-brand); flex: none; font-style: normal; }
-
 /* Story */
 .ip-story { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 40px; align-items: center; }
 .ip-story-img { border-radius: 24px; overflow: hidden; aspect-ratio: 5 / 4; background: var(--ip-brand-soft); border: 1px solid var(--ip-line); }
@@ -155,20 +144,6 @@
 .ip-btn.is-sakhr:hover { background: #d6b874; transform: translateY(-1px); }
 .ip-btn:focus-visible { outline: 2px solid var(--ip-brand); outline-offset: 2px; }
 .ip-btn.is-sakhr:focus-visible { outline-color: #c9a962; }
-
-.ip-details {
-  display: flex; flex-wrap: wrap; gap: 1px; margin-top: 18px; overflow: hidden;
-  background: var(--ip-line); border: 1px solid var(--ip-line); border-radius: 22px;
-}
-.ip-detail { flex: 1 1 230px; display: flex; align-items: flex-start; gap: 12px; padding: 18px 20px; background: #fff; text-decoration: none; color: inherit; }
-.ip-detail i { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; background: var(--ip-brand-soft); color: var(--ip-brand); flex: none; font-style: normal; }
-.ip-detail small { display: block; color: var(--ip-muted); font-weight: 700; font-size: 0.78rem; }
-.ip-detail b { display: block; color: var(--ip-ink); font-weight: 800; font-size: 0.95rem; margin-top: 2px; line-height: 1.6; word-break: break-word; }
-.ip-detail b[dir='ltr'] { text-align: right; }
-.ip-detail:first-child { flex: 2 1 300px; }
-a.ip-detail { transition: background .2s; }
-a.ip-detail:hover { background: #f6fbf8; }
-a.ip-detail:hover b { color: var(--ip-brand); }
 
 /* About: closing band */
 .ip-end { padding-top: 48px; }
@@ -291,10 +266,6 @@ a.ip-detail:hover b { color: var(--ip-brand); }
   .ip-hero { padding: 36px 0 44px; }
   .ip-hero-grid, .ip-story, .ip-help, .ip-split { grid-template-columns: minmax(0, 1fr); }
   .ip-hero-art { aspect-ratio: 16 / 10; }
-  .ip-stats { margin-top: -24px; width: auto; border-radius: 18px; }
-  .ip-stat { width: auto; flex-basis: 140px; padding: 14px 16px; gap: 10px; }
-  .ip-stat i { width: 36px; height: 36px; border-radius: 11px; }
-  .ip-stat b { font-size: 1.35rem; }
   .ip-cards, .ip-steps, .ip-checks { grid-template-columns: minmax(0, 1fr); }
   .ip-help-card { padding: 20px; border-radius: 20px; }
   .ip-band { padding: 22px; border-radius: 20px; }

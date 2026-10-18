@@ -1,7 +1,7 @@
 import { AiCard, AiAction } from '@/types';
 import { getDatabase, saveDatabase, AiKnowledgeRule } from '@/lib/db';
 import { getSqliteDb } from '@/lib/sqlite';
-import { AGENCY_FULL_ADDRESS, AGENCY_PHONE, AGENCY_PHONE_TEL } from '@/lib/agency-contact';
+import { AGENCY_FULL_ADDRESS, AGENCY_GEO, AGENCY_PHONE, AGENCY_PHONE_TEL } from '@/lib/agency-contact';
 import {
   toolSearchPackages,
   toolGetSeasonsInfo,
@@ -687,10 +687,9 @@ export function detectAgencyCustomIntents(prompt: string): { text: string; cards
         }
       ],
       map: {
-        // Centre of El Oued (the agency is on Khemisti main street).
         title: 'وكالة ساوث ستريت - وسط مدينة الوادي',
-        latitude: 33.3683,
-        longitude: 6.8674
+        latitude: AGENCY_GEO.latitude,
+        longitude: AGENCY_GEO.longitude
       },
       actions: []
     };

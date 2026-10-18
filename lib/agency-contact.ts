@@ -17,3 +17,8 @@ export function telHref(phone: string): string {
   else if (n.startsWith('0')) n = `+213${n.slice(1)}`;
   return `tel:${n}`;
 }
+
+/** The agency on Google Maps (pin shared by the agency) and its coordinates. */
+export const AGENCY_MAP_URL = 'https://maps.app.goo.gl/MszHxUCJwnK7i3Fy6';
+export const AGENCY_GEO = { latitude: 33.36252, longitude: 6.858862 };
+export const AGENCY_MAP_EMBED = `https://www.google.com/maps?q=${AGENCY_GEO.latitude},${AGENCY_GEO.longitude}&z=17&hl=ar&output=embed`;
