@@ -9559,6 +9559,61 @@ body.modal-open .sakhr-panel-shell {
   font-size: 0.78rem;
   font-weight: 700;
 }
+/* Archive: accepted vs refused at a glance (stripe on the reading side, tinted avatar, muted amount). */
+.pipe-row.is-accepted,
+.pipe-row.is-refused { position: relative; }
+.pipe-row.is-accepted::before,
+.pipe-row.is-refused::before {
+  content: '';
+  position: absolute;
+  inset-block: 0.55rem;
+  inset-inline-start: 0;
+  width: 4px;
+  border-radius: 999px;
+  background: #10b981;
+}
+.pipe-row.is-refused::before { background: #f43f5e; }
+.pipe-row.is-refused .pipe-row-head { background: linear-gradient(to left, rgba(254, 242, 242, 0.85), transparent 55%); }
+.pipe-row.is-accepted .pipe-row-head { background: linear-gradient(to left, rgba(236, 253, 245, 0.75), transparent 55%); }
+.pipe-row.is-refused .pipe-row-head:hover { background: #fef2f2; }
+.pipe-row.is-accepted .pipe-row-head:hover { background: #ecfdf5; }
+.pipe-row.is-accepted .pipe-row-avatar { background: #d1fae5; color: #047857; }
+.pipe-row.is-refused .pipe-row-avatar { background: #ffe4e6; color: #be123c; }
+.pipe-row.is-accepted .pipe-row-avatar svg,
+.pipe-row.is-refused .pipe-row-avatar svg { width: 1.05rem; height: 1.05rem; }
+.pipe-row.is-refused .pipe-row-amount { color: #9f1239; opacity: 0.7; text-decoration: line-through; text-decoration-thickness: 1.5px; }
+.pipe-row.is-refused .pipe-row-head .text-slate-900 { color: #881337; }
+.pipe-outcomes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid #f1f5f9;
+  list-style: none;
+}
+.pipe-outcomes button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: 32px;
+  padding: 0 0.8rem;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #475569;
+  font-size: 0.75rem;
+  font-weight: 800;
+  transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.2s;
+}
+.pipe-outcomes button:hover { transform: translateY(-1px); }
+.pipe-outcomes button svg { width: 0.95rem; height: 0.95rem; }
+.pipe-outcomes button b { min-width: 1.35rem; padding: 0 0.35rem; border-radius: 999px; background: #f1f5f9; font-size: 0.7rem; text-align: center; }
+.pipe-outcomes button.is-accepted { color: #047857; }
+.pipe-outcomes button.is-refused { color: #be123c; }
+.pipe-outcomes button.is-on { background: #0f172a; border-color: #0f172a; color: #fff; }
+.pipe-outcomes button.is-accepted.is-on { background: #059669; border-color: #059669; }
+.pipe-outcomes button.is-refused.is-on { background: #e11d48; border-color: #e11d48; }
+.pipe-outcomes button.is-on b { background: rgba(255, 255, 255, 0.22); color: #fff; }
 .pipe-empty { padding: 2rem 1rem; text-align: center; font-size: 0.85rem; color: #94a3b8; }
 @media (max-width: 639px) {
   .pipe-steps { grid-template-columns: 1fr; }

@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useCallback, useEffect, useId, useMemo, useState } from 'react';
-import { Activity, Database, HardDrive, KeyRound, Power, Radio, Server } from 'lucide-react';
+import { Activity, Cpu, Database, HardDrive, MemoryStick, Power, Radio, Server, Users } from 'lucide-react';
 import type { DatabaseUsage, ServerHealth } from '@/lib/server-health';
 import type { TopUserUsage } from '@/lib/top-users';
 import { authHeaders, getAuthToken, apiFetch, jsonAuthHeaders } from '@/lib/api-client';
 
-const LIME = '#65a30d';
-const DONUT = ['#475569', '#8b5cf6', '#10b981', '#84cc16', '#f97316', '#0ea5e9', '#ec4899', '#eab308'];
+/** One calm palette: each metric keeps its colour everywhere on the page. */
+const C = { cpu: '#10b981', ram: '#f59e0b', disk: '#0ea5e9', sessions: '#8b5cf6' };
+const DONUT = ['#0f766e', '#10b981', '#0ea5e9', '#6366f1', '#8b5cf6', '#f59e0b', '#f43f5e', '#94a3b8'];
 
 function token(): string {
   if (typeof window === 'undefined') return '';
@@ -47,18 +48,6 @@ function delta(values: number[]): number {
   return values[values.length - 1] - values[0];
 }
 
-function downloadKey(fileName: string, content: string) {
-  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = fileName || 'southstreet_admin.key';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
-
 function MiniSpark({ values, color }: { values: number[]; color: string }) {
   const uid = useId().replace(/:/g, '');
   const { line, area } = useMemo(() => {
@@ -83,8 +72,8 @@ function MiniSpark({ values, color }: { values: number[]; color: string }) {
           <stop offset="100%" stopColor={color} stopOpacity="0" />
         </linearGradient>
       </defs>
-      <path d={area} fill={`url(#ms-${uid})`} />
-      <path d={line} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" />
+      <path className="srv-mini-area" d={area} fill={`url(#ms-${uid})`} />
+      <path className="srv-mini-line" d={line} pathLength={1} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -106,12 +95,14 @@ function Donut({
     <div className="srv-donut">
       <div className="srv-donut-ring">
         <svg viewBox="0 0 160 160" aria-hidden="true">
-          <circle cx="80" cy="80" r={r} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="16" />
-          {slices.map((slice) => {
+          <circle cx="80" cy="80" r={r} fill="none" stroke="rgba(15,23,42,0.06)" strokeWidth="16" />
+          {slices.map((slice, i) => {
             const len = (slice.value / total) * c;
             const el = (
               <circle
                 key={slice.label}
+                className="srv-slice"
+                style={{ animationDelay: `${0.15 + i * 0.08}s` }}
                 cx="80"
                 cy="80"
                 r={r}
@@ -133,8 +124,8 @@ function Donut({
         </div>
       </div>
       <ul className="srv-legend">
-        {slices.map((slice) => (
-          <li key={slice.label}>
+        {slices.map((slice, i) => (
+          <li key={slice.label} style={{ animationDelay: `${0.3 + i * 0.05}s` }}>
             <i style={{ background: slice.color }} />
             <em>{slice.label}</em>
             <b>{((slice.value / total) * 100).toFixed(slice.value / total >= 0.1 ? 0 : 1)}%</b>
@@ -145,7 +136,7 @@ function Donut({
   );
 }
 
-function BarChart({ values, color = '#94a3b8' }: { values: number[]; color?: string }) {
+function BarChart({ values, color = C.cpu }: { values: number[]; color?: string }) {
   const uid = useId().replace(/:/g, '');
   const max = Math.max(12, ...values, 1);
   const w = 320;
@@ -156,21 +147,24 @@ function BarChart({ values, color = '#94a3b8' }: { values: number[]; color?: str
     <svg className="srv-bars" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" aria-hidden="true">
       <defs>
         <linearGradient id={`bar-${uid}`} x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.95" />
-          <stop offset="100%" stopColor={color} stopOpacity="0.05" />
+          <stop offset="0%" stopColor={color} stopOpacity="0.9" />
+          <stop offset="100%" stopColor={color} stopOpacity="0.12" />
         </linearGradient>
       </defs>
       {values.map((v, i) => {
         const bh = Math.max(4, (v / max) * (h - 8));
+        const last = i === values.length - 1;
         return (
           <rect
             key={i}
+            className={`srv-bar${last ? ' is-now' : ''}`}
+            style={{ animationDelay: `${i * 0.018}s` }}
             x={i * (bar + gap)}
             y={h - bh}
             width={Math.max(2, bar)}
             height={bh}
             rx={Math.min(4, bar / 2)}
-            fill={`url(#bar-${uid})`}
+            fill={last ? color : `url(#bar-${uid})`}
           />
         );
       })}
@@ -181,30 +175,30 @@ function BarChart({ values, color = '#94a3b8' }: { values: number[]; color?: str
 function SemiGauge({ value, label }: { value: number; label: string }) {
   const uid = useId().replace(/:/g, '');
   const clamped = Math.min(100, Math.max(0, value));
-  const theta = Math.PI * (1 - clamped / 100);
   const cx = 120;
   const cy = 118;
-  const r = 78;
-  const nx = cx + r * Math.cos(theta);
-  const ny = cy - r * Math.sin(theta);
+  // Drawn pointing at 0 and rotated, so the needle glides when the value changes.
+  const tone = clamped >= 88 ? '#e11d48' : clamped >= 70 ? '#f59e0b' : C.cpu;
   return (
     <div className="srv-semi">
       <svg viewBox="0 0 240 150" aria-hidden="true">
         <defs>
           <linearGradient id={`gg-${uid}`} x1="0" x2="1" y1="0" y2="0">
-            <stop offset="0%" stopColor="#84cc16" />
-            <stop offset="55%" stopColor="#fb8a3c" />
-            <stop offset="100%" stopColor="#ef4444" />
+            <stop offset="0%" stopColor="#10b981" />
+            <stop offset="60%" stopColor="#f59e0b" />
+            <stop offset="100%" stopColor="#e11d48" />
           </linearGradient>
         </defs>
-        <path d="M42 118 A78 78 0 0 1 198 118" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="14" strokeLinecap="round" />
-        <path d="M42 118 A78 78 0 0 1 198 118" fill="none" stroke={`url(#gg-${uid})`} strokeWidth="14" strokeLinecap="round" />
-        <line x1={cx} y1={cy} x2={nx} y2={ny} stroke="#fff" strokeWidth="3" strokeLinecap="round" />
-        <circle cx={nx} cy={ny} r="5.5" fill="#fff" />
-        <circle cx={cx} cy={cy} r="7" fill="#1a1a1c" stroke="#fff" strokeWidth="2" />
+        <path d="M42 118 A78 78 0 0 1 198 118" fill="none" stroke="rgba(15,23,42,0.07)" strokeWidth="14" strokeLinecap="round" />
+        <path className="srv-semi-arc" d="M42 118 A78 78 0 0 1 198 118" pathLength={1} fill="none" stroke={`url(#gg-${uid})`} strokeWidth="14" strokeLinecap="round" />
+        <g className="srv-needle" style={{ transform: `rotate(${clamped * 1.8}deg)` }}>
+          <line x1={cx} y1={cy} x2={cx - 70} y2={cy} stroke="#0f172a" strokeWidth="3" strokeLinecap="round" />
+          <circle cx={cx - 70} cy={cy} r="5" fill={tone} stroke="#fff" strokeWidth="2" />
+        </g>
+        <circle cx={cx} cy={cy} r="7" fill="#0f172a" stroke="#fff" strokeWidth="2" />
       </svg>
       <div className="srv-semi-copy">
-        <strong>{Math.round(clamped)}</strong>
+        <strong style={{ color: tone }}>{Math.round(clamped)}</strong>
         <span>{label}</span>
       </div>
     </div>
@@ -217,18 +211,23 @@ function KpiCard({
   hint,
   series,
   color,
+  icon: Icon,
 }: {
   label: string;
   value: string;
   hint: string;
   series: number[];
   color: string;
+  icon: React.ComponentType<{ className?: string }>;
 }) {
   const change = delta(series);
   const up = change >= 0;
   return (
-    <article className="srv-kpi">
-      <span>{label}</span>
+    <article className="srv-kpi" style={{ ['--kpi' as string]: color }}>
+      <span className="srv-kpi-label">
+        <i aria-hidden><Icon className="w-3.5 h-3.5" /></i>
+        {label}
+      </span>
       <div className="srv-kpi-row">
         <strong>{value}</strong>
         <em className={up ? 'is-up' : 'is-down'}>
@@ -246,7 +245,6 @@ export default function ServerHealthPanel() {
   const [health, setHealth] = useState<ServerHealth | null>(null);
   const [error, setError] = useState('');
   const [openDb, setOpenDb] = useState<string | null>(null);
-  const [tab, setTab] = useState<'key' | 'stop'>('key');
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
@@ -278,7 +276,7 @@ export default function ServerHealthPanel() {
     return () => window.clearInterval(id);
   }, [load]);
 
-  const command = useCallback(async (action: 'rotate-key' | 'stop') => {
+  const stopServer = useCallback(async () => {
     setBusy(true);
     setNotice('');
     try {
@@ -289,31 +287,15 @@ export default function ServerHealthPanel() {
           'Content-Type': 'application/json',
         },
         credentials: 'same-origin',
-        body: JSON.stringify({ action, confirm: true }),
+        body: JSON.stringify({ action: 'stop', confirm: true }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setNotice(data.error || 'تعذّر تنفيذ الإجراء');
         return;
       }
-      if (action === 'rotate-key') {
-        downloadKey(data.fileName, data.fileContent);
-        setNotice('تم توليد المفتاح الجديد. الملف السابق لم يعد صالحاً.');
-        setHealth((prev) =>
-          prev
-            ? {
-                ...prev,
-                adminKey: {
-                  fingerprint: data.fingerprint || prev.adminKey?.fingerprint || '',
-                  issuedAt: data.issuedAt || prev.adminKey?.issuedAt || null,
-                },
-              }
-            : prev
-        );
-      } else {
-        setStopping(true);
-        setNotice('جاري إيقاف الخادم…');
-      }
+      setStopping(true);
+      setNotice('جاري إيقاف الخادم…');
       setConfirm(false);
     } catch {
       setNotice('تعذّر الاتصال بالخادم');
@@ -380,28 +362,32 @@ export default function ServerHealthPanel() {
             value={`${Math.round(health?.cpuPercent || 0)}%`}
             hint={`${health?.cores || 0} نواة`}
             series={cpuSeries}
-            color={LIME}
+            color={C.cpu}
+            icon={Cpu}
           />
           <KpiCard
             label="الذاكرة"
             value={`${Math.round(health?.memory.percent || 0)}%`}
             hint={health ? `${bytes(health.memory.used)} / ${bytes(health.memory.total)}` : '—'}
             series={ramSeries}
-            color="#fb8a3c"
+            color={C.ram}
+            icon={MemoryStick}
           />
           <KpiCard
             label="التخزين"
             value={`${Math.round(health?.disk?.percent || 0)}%`}
             hint={health?.disk ? `${bytes(health.disk.used)} / ${bytes(health.disk.total)}` : '—'}
             series={diskSeries}
-            color="#38bdf8"
+            color={C.disk}
+            icon={HardDrive}
           />
           <KpiCard
             label="الجلسات"
             value={String(health?.traffic.sessions ?? 0)}
             hint={`${health?.traffic.requestsPerMinute ?? 0} طلب / د`}
             series={ramSeries}
-            color="#a78bfa"
+            color={C.sessions}
+            icon={Users}
           />
         </div>
 
@@ -444,7 +430,7 @@ export default function ServerHealthPanel() {
               </div>
               <span className="srv-chip">مباشر</span>
             </header>
-            <BarChart values={cpuSeries.length ? cpuSeries : [2, 4, 3, 6, 2, 5, 3]} />
+            <BarChart values={cpuSeries.length ? cpuSeries : [2, 4, 3, 6, 2, 5, 3]} color={C.cpu} />
           </article>
 
           <div className="srv-side">
@@ -459,55 +445,26 @@ export default function ServerHealthPanel() {
             </article>
 
             <article className="srv-card srv-trade">
-              <div className="srv-tabs">
-                <button type="button" className={tab === 'key' ? 'is-on' : ''} onClick={() => { setTab('key'); setConfirm(false); setNotice(''); }}>
-                  مفتاح
-                </button>
-                <button type="button" className={tab === 'stop' ? 'is-on' : ''} onClick={() => { setTab('stop'); setConfirm(false); setNotice(''); }}>
-                  إيقاف
-                </button>
-              </div>
-
-              {tab === 'key' ? (
-                <>
-                  <label>البصمة الحالية</label>
-                  <div className="srv-field" dir="ltr">
-                    {health?.adminKey?.fingerprint ? `•••• ${health.adminKey.fingerprint}` : '—'}
-                  </div>
-                  <p className="srv-hint">توليد ملف جديد يُبطل southstreet_admin.key السابق فوراً.</p>
-                  {confirm ? (
-                    <div className="srv-confirm-row">
-                      <button type="button" className="srv-cta" disabled={busy} onClick={() => command('rotate-key')}>
-                        {busy ? 'جاري التوليد…' : 'تأكيد التوليد'}
-                      </button>
-                      <button type="button" className="srv-ghost" onClick={() => setConfirm(false)}>إلغاء</button>
-                    </div>
-                  ) : (
-                    <button type="button" className="srv-cta" onClick={() => setConfirm(true)}>
-                      <KeyRound className="w-4 h-4" />
-                      توليد مفتاح جديد
-                    </button>
-                  )}
-                </>
+              <header>
+                <div>
+                  <h3>إيقاف الخادم</h3>
+                  <p>{stopping ? 'جاري الإيقاف' : 'العملية تعمل'}</p>
+                </div>
+                <span className={`srv-dot${stopping ? ' is-hot' : ''}`} aria-hidden />
+              </header>
+              <p className="srv-hint">يوقف عملية Node؛ مدير العمليات (PM2) يعيد تشغيلها تلقائياً خلال ثوانٍ.</p>
+              {confirm ? (
+                <div className="srv-confirm-row">
+                  <button type="button" className="srv-cta is-hot" disabled={busy || stopping} onClick={stopServer}>
+                    {busy || stopping ? 'جاري الإيقاف…' : 'تأكيد الإيقاف'}
+                  </button>
+                  <button type="button" className="srv-ghost" disabled={stopping} onClick={() => setConfirm(false)}>إلغاء</button>
+                </div>
               ) : (
-                <>
-                  <label>حالة العملية</label>
-                  <div className="srv-field">{stopping ? 'جاري الإيقاف' : 'يعمل'}</div>
-                  <p className="srv-hint">إيقاف Node يغلق الموقع حتى إعادة التشغيل يدوياً.</p>
-                  {confirm ? (
-                    <div className="srv-confirm-row">
-                      <button type="button" className="srv-cta is-hot" disabled={busy || stopping} onClick={() => command('stop')}>
-                        {busy || stopping ? 'جاري الإيقاف…' : 'تأكيد الإيقاف'}
-                      </button>
-                      <button type="button" className="srv-ghost" disabled={stopping} onClick={() => setConfirm(false)}>إلغاء</button>
-                    </div>
-                  ) : (
-                    <button type="button" className="srv-cta is-hot" disabled={stopping} onClick={() => setConfirm(true)}>
-                      <Power className="w-4 h-4" />
-                      إيقاف الخادم
-                    </button>
-                  )}
-                </>
+                <button type="button" className="srv-cta is-hot" disabled={stopping} onClick={() => setConfirm(true)}>
+                  <Power className="w-4 h-4" />
+                  إيقاف الخادم
+                </button>
               )}
               {notice ? <p className={`srv-note${stopping ? ' is-hot' : ''}`}>{notice}</p> : null}
             </article>

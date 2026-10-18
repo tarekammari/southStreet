@@ -5,6 +5,7 @@ import Link from 'next/link';
 import {
   BadgeCheck,
   CheckCircle,
+  CheckCircle2,
   ChevronLeft,
   Inbox,
   Loader2,
@@ -77,6 +78,7 @@ function SummaryRow({
   name,
   amount,
   badge,
+  outcome,
   open,
   onToggle,
   children,
@@ -85,15 +87,19 @@ function SummaryRow({
   name: string;
   amount: number;
   badge?: React.ReactNode;
+  /** Archive rows: accepted (green) or refused / cancelled (red) at a glance. */
+  outcome?: 'accepted' | 'refused';
   open: boolean;
   onToggle: () => void;
   children: React.ReactNode;
 }) {
   return (
-    <li className={`pipe-row${open ? ' is-open' : ''}`}>
+    <li className={`pipe-row${open ? ' is-open' : ''}${outcome ? ` is-${outcome}` : ''}`}>
       <button type="button" onClick={onToggle} aria-expanded={open} className="pipe-row-head">
         <ChevronLeft className="pipe-row-chev" aria-hidden />
-        <span className="pipe-row-avatar" aria-hidden>{(name || '؟').trim().charAt(0)}</span>
+        <span className="pipe-row-avatar" aria-hidden>
+          {outcome === 'accepted' ? <CheckCircle2 /> : outcome === 'refused' ? <XCircle /> : (name || '؟').trim().charAt(0)}
+        </span>
         <span className="min-w-0 flex-1">
           <span className="block font-bold text-sm text-slate-900 truncate">{name}</span>
           <span className="block text-[11px] font-mono text-slate-400">{reference}</span>
@@ -126,6 +132,7 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
   } | null>(null);
   const [stage, setStage] = useState<Stage | null>(null);
   const [openId, setOpenId] = useState('');
+  const [doneFilter, setDoneFilter] = useState<'all' | 'accepted' | 'refused'>('all');
   const [depositFor, setDepositFor] = useState<(DepositPreset & { override?: boolean }) | null>(null);
 
   const load = useCallback(() => {
@@ -457,8 +464,36 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
                 })
               : null}
 
+            {current === 'done' && recent.length ? (
+              <li className="pipe-outcomes" role="tablist" aria-label="تصفية حسب النتيجة">
+                {([
+                  { id: 'all', label: 'الكل', n: recent.length },
+                  { id: 'accepted', label: 'المقبولة', n: recent.filter((r) => outcomeTone(String(r.status || '')) !== 'is-bad').length },
+                  { id: 'refused', label: 'المرفوضة', n: recent.filter((r) => outcomeTone(String(r.status || '')) === 'is-bad').length },
+                ] as const).map((f) => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={doneFilter === f.id}
+                    className={`is-${f.id}${doneFilter === f.id ? ' is-on' : ''}`}
+                    onClick={() => setDoneFilter(f.id)}
+                  >
+                    {f.id === 'accepted' ? <CheckCircle2 aria-hidden /> : f.id === 'refused' ? <XCircle aria-hidden /> : null}
+                    {f.label}
+                    <b>{f.n}</b>
+                  </button>
+                ))}
+              </li>
+            ) : null}
             {current === 'done'
-              ? recent.map((res) => {
+              ? recent
+                .filter((res) => {
+                  if (doneFilter === 'all') return true;
+                  const bad = outcomeTone(String(res.status || '')) === 'is-bad';
+                  return doneFilter === 'refused' ? bad : !bad;
+                })
+                .map((res) => {
                   const open = openId === res.reservation_id;
                   const status = String(res.status || '');
                   const printable = ['CONFIRMED', 'PAID', 'PARTIALLY_PAID', 'READY_FOR_TRAVEL', 'COMPLETED'].includes(status.toUpperCase());
@@ -469,6 +504,7 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
                       name={res.customer_name}
                       amount={res.total_amount}
                       badge={<span className={`pipe-tag ${outcomeTone(status)}`}>{reservationStatusLabel(status)}</span>}
+                      outcome={outcomeTone(status) === 'is-bad' ? 'refused' : 'accepted'}
                       open={open}
                       onToggle={() => toggle(res.reservation_id)}
                     >
@@ -496,6 +532,10 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
                 })
               : null}
 
+            {current === 'done' && recent.length && doneFilter !== 'all' &&
+            !recent.some((r) => (outcomeTone(String(r.status || '')) === 'is-bad') === (doneFilter === 'refused')) ? (
+              <li className="pipe-empty">{doneFilter === 'refused' ? 'لا توجد طلبات مرفوضة' : 'لا توجد طلبات مقبولة'}</li>
+            ) : null}
             {rows === 0 ? (
               <li className="pipe-empty">
                 {current === 'demand'
