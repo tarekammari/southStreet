@@ -3351,8 +3351,31 @@
 }
 
 .inn-side-link.is-active {
-  background: #f1f5f9;
-  color: #0f172a;
+  position: relative;
+  background: linear-gradient(to left, #d1fae5, #ecfdf5 70%);
+  color: #065f46;
+  font-weight: 800;
+  box-shadow: inset 0 0 0 1px #a7f3d0;
+}
+
+/* Bar on the reading side marks the section on screen. */
+.inn-side-link.is-active::before {
+  content: '';
+  position: absolute;
+  inset-block: 8px;
+  inset-inline-start: -2px;
+  width: 4px;
+  border-radius: 999px;
+  background: #059669;
+  animation: inn-active-in 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.inn-side-link.is-active svg { color: #059669; }
+.inn-side-link.is-active:hover { background: linear-gradient(to left, #a7f3d0, #d1fae5 70%); color: #064e3b; }
+
+@keyframes inn-active-in {
+  from { transform: scaleY(0); opacity: 0; }
+  to { transform: scaleY(1); opacity: 1; }
 }
 
 .inn-side-badge {

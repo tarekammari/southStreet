@@ -411,6 +411,93 @@
 .tm-trip-past, .tm-trip-now { display: block; margin-top: 4px; font-size: 11.5px; font-weight: 700; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tm-trip-past { color: #64748b; }
 .tm-trip-now { color: var(--tm-brand); }
+.tm-trip-now { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; max-width: 260px; white-space: normal; line-height: 1.4; }
+.tm-trip-now svg { flex-shrink: 0; }
+.tm-trip-dates { display: inline-flex; align-items: center; gap: 3px; font-weight: 600; color: #64748b; font-size: 11px; }
+.tm-trip-none { display: block; margin-top: 4px; font-size: 11px; font-weight: 600; color: #94a3b8; }
+.tm-person-trip { display: none; align-items: center; gap: 4px; margin-top: 3px; font-style: normal; font-size: 11px; font-weight: 700; color: var(--tm-brand); }
+@media (max-width: 640px) { .tm-person-trip { display: inline-flex; } }
+
+/* Program filter (clients tabs) */
+.tm-progfilter {
+  display: flex;
+  gap: 8px;
+  margin: -4px 0 12px;
+  padding: 2px 2px 6px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.tm-progfilter button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #334155;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+.tm-progfilter button:hover { border-color: #a7f3d0; transform: translateY(-1px); }
+.tm-progfilter button svg { color: var(--tm-brand); }
+.tm-progfilter button small { font-size: 11px; font-weight: 600; color: #64748b; }
+.tm-program-name { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tm-progfilter button.is-none { color: #64748b; border-style: dashed; }
+.tm-progfilter button.is-active {
+  background: var(--tm-brand);
+  border-color: var(--tm-brand);
+  color: #fff;
+  box-shadow: 0 6px 16px -8px rgba(4, 120, 87, 0.7);
+}
+.tm-progfilter button.is-active svg,
+.tm-progfilter button.is-active small { color: rgba(255, 255, 255, 0.85); }
+.tm-progfilter button.is-active .tm-tab-count { background: rgba(255, 255, 255, 0.22); color: #fff; }
+
+/* Drawer: the client's Umrah program */
+.tm-trip-card {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid #a7f3d0;
+  background: linear-gradient(135deg, #ecfdf5, #ffffff 70%);
+}
+.tm-trip-card.is-past { border-color: #e2e8f0; background: #f8fafc; }
+.tm-trip-card.is-none { border-style: dashed; border-color: #cbd5e1; background: #fff; }
+.tm-trip-card-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: var(--tm-brand);
+  color: #fff;
+}
+.tm-trip-card.is-past .tm-trip-card-icon,
+.tm-trip-card.is-none .tm-trip-card-icon { background: #e2e8f0; color: #475569; }
+.tm-trip-card small { display: block; font-size: 11px; font-weight: 700; color: #64748b; }
+.tm-trip-card strong { display: block; margin-top: 2px; font-size: 15px; color: #0f172a; }
+.tm-trip-card-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.tm-trip-card-meta > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #334155;
+}
 
 /* Guide: programmes he accompanies */
 .tm-programs { margin-top: 14px; padding: 14px; border: 1px solid var(--tm-line, #e5e7eb); border-radius: 14px; display: flex; flex-direction: column; gap: 10px; }

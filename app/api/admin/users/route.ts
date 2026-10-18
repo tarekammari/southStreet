@@ -4,7 +4,7 @@ import { ensureUserAccount, isEmailTaken, updateUserAccess, updateUserProfile, d
 import { getSqliteDb } from '@/lib/sqlite';
 import { ensureStaffProfileColumns, staffExtras } from '@/lib/staff-profile';
 import { mapReservationRow } from '@/lib/booking';
-import { isCurrentReservation, isTripOver } from '@/lib/booking-catalog';
+import { isCurrentReservation, isTripOver, reservationStatusLabel } from '@/lib/booking-catalog';
 import { normalizeLoginRole, LOGIN_ROLE_LABELS, toPortalRole, PORTAL_TABS, isPrivilegedRole } from '@/lib/roles';
 import { enrichUsersWithSessions, isImageSource, resolveUserPhoto } from '@/lib/user-access-view';
 import { generateDeviceFingerprint } from '@/lib/security';
@@ -71,20 +71,47 @@ function loadStaffProfiles(sqlite: any): Map<string, StaffProfile> {
   return profiles;
 }
 
-type TripInfo = { state: 'current' | 'past' | 'none'; lastTrip?: string; lastEnd?: string };
+/** The Umrah program a client goes (or went) with: shown in the Team list and drawer, and used to filter. */
+type TripProgram = {
+  packageId: string;
+  name: string;
+  startDate?: string;
+  endDate?: string;
+  reference?: string;
+  status?: string;
+  statusLabel?: string;
+  roomType?: string;
+};
+type TripInfo = { state: 'current' | 'past' | 'none'; lastTrip?: string; lastEnd?: string; program?: TripProgram };
+
+function tripProgram(r: any): TripProgram {
+  const status = String(r.status || '');
+  return {
+    packageId: String(r.package_id || r.program?.package_id || ''),
+    name: String(r.program?.package_name || r.package_name || ''),
+    startDate: r.program?.start_date || undefined,
+    endDate: r.program?.end_date || undefined,
+    reference: r.reservation_number || undefined,
+    status,
+    statusLabel: reservationStatusLabel(status),
+    roomType: r.room_type || undefined,
+  };
+}
 
 /** Clients' trips: current (booked, not over) or past (every trip ended) — for the "سابقون" tab. */
 function loadClientTrips(sqlite: any): Map<string, TripInfo> {
   const out = new Map<string, TripInfo>();
   try {
     const rows = (sqlite.prepare('SELECT * FROM reservations').all() as any[]).map(mapReservationRow);
+    // Oldest first, so the newest current booking is the one kept.
+    rows.sort((x, y) => String(x.created_at || '').localeCompare(String(y.created_at || '')));
     for (const r of rows) {
       if (!r.customer_id) continue;
       const status = String(r.status || '').toUpperCase();
       if (status === 'REJECTED' || status === 'CANCELLED') continue;
       const prev = out.get(r.customer_id) || { state: 'none' as const };
       if (isCurrentReservation(r)) {
-        out.set(r.customer_id, { ...prev, state: 'current' });
+        out.set(r.customer_id, { ...prev, state: 'current', program: tripProgram(r) });
       } else if (isTripOver(r) && prev.state !== 'current') {
         const end = r.program?.end_date || '';
         const newer = !prev.lastEnd || end > prev.lastEnd;
@@ -92,6 +119,7 @@ function loadClientTrips(sqlite: any): Map<string, TripInfo> {
           state: 'past',
           lastTrip: newer ? r.program?.package_name || r.package_name : prev.lastTrip,
           lastEnd: newer ? end : prev.lastEnd,
+          program: newer ? tripProgram(r) : prev.program,
         });
       }
     }
