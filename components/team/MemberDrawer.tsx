@@ -25,6 +25,7 @@ import {
 import { LOGIN_ROLE_LABELS, type LoginRole } from '@/lib/roles';
 import { LANGUAGE_OPTIONS } from '@/lib/record-field-options';
 import { ROOM_LABELS } from '@/lib/booking-catalog';
+import ClientTripEditor from './ClientTripEditor';
 import {
   CATEGORY_LABEL,
   MEMBER_TYPES,
@@ -472,6 +473,15 @@ export default function MemberDrawer({
                     </div>
                   )}
                 </div>
+              ) : null}
+              {member.role === 'PILGRIM_USER' && viewer.role === 'SUPER_ADMIN' ? (
+                <ClientTripEditor
+                  key={member.id}
+                  userId={member.id}
+                  hasActive={member.trip?.state === 'current'}
+                  onSaved={onChanged}
+                  onToast={(text, tone) => onToast(text, tone === 'error' ? 'error' : 'ok')}
+                />
               ) : null}
               {isStaff ? (
                 <div className="tm-home-row">

@@ -515,3 +515,37 @@
 .tm-programs-tag.is-other { background: #fff7e6; color: #92400e; }
 .tm-programs-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .tm-programs-warn { color: #92400e; font-size: 0.78rem; }
+
+/* Super Admin: change / add a client's trip */
+.tm-trip-edit-btn { margin-top: 10px; }
+.tm-trip-editor {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  animation: tm-trip-in 0.25s ease;
+}
+.tm-trip-editor > strong { font-size: 14px; color: #0f172a; }
+.tm-trip-editor label { display: grid; gap: 4px; font-size: 12px; font-weight: 700; color: #475569; }
+.tm-trip-editor select {
+  height: 40px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+}
+.tm-trip-editor select:focus { outline: none; border-color: var(--tm-brand); background: #fff; }
+.tm-trip-editor-sum { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 6px; margin: 0; }
+.tm-trip-editor-sum div { padding: 8px 10px; border-radius: 10px; background: var(--tm-brand-soft); }
+.tm-trip-editor-sum dt { font-size: 11px; font-weight: 700; color: #64748b; }
+.tm-trip-editor-sum dd { margin: 2px 0 0; font-size: 14px; font-weight: 800; color: #065f46; }
+.tm-trip-editor-warn { margin: 0; padding: 8px 10px; border-radius: 10px; background: #fff1f2; color: #be123c; font-size: 12px; font-weight: 700; }
+.tm-trip-editor-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.tm-trip-editor .tm-muted { margin: 0; font-size: 12px; line-height: 1.6; }
+@keyframes tm-trip-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
