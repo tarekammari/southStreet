@@ -23,6 +23,7 @@ import {
   UserRound,
   Loader2,
 } from 'lucide-react';
+import { isTourism, parseTour, tourCountryLabel } from '@/lib/tour';
 import { Package, Reservation } from '@/types';
 import {
   BOOKING_EXTRAS,
@@ -242,7 +243,7 @@ export default function BookingWizard() {
   const goNext = () => {
     setError('');
     if ((view === 'offer' || view === 'packages') && !selected) {
-      setError('اختر باقة العمرة للمتابعة');
+      setError('اختر البرنامج أو الرحلة للمتابعة');
       return;
     }
     if (selected && isPackageExpired(selected)) {
@@ -505,7 +506,9 @@ export default function BookingWizard() {
                 {selected.start_date ? (
                   <span><Calendar className="w-5 h-5" /> {formatShortDate(selected.start_date)}</span>
                 ) : null}
-                {selected.makkah_hotel_name ? (
+                {isTourism(selected) && tourCountryLabel(parseTour(selected.tour)) ? (
+                  <span><MapPin className="w-5 h-5" /> {tourCountryLabel(parseTour(selected.tour))}{parseTour(selected.tour).cities.length ? ` · ${parseTour(selected.tour).cities.join('، ')}` : ''}</span>
+                ) : selected.makkah_hotel_name ? (
                   <span><MapPin className="w-5 h-5" /> {selected.makkah_hotel_name}</span>
                 ) : null}
               </div>

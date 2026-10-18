@@ -40,6 +40,8 @@ import HotelServicesField from '@/components/record-card/HotelServicesField';
 import HotelVideosField from '@/components/record-card/HotelVideosField';
 import HotelLocationField from '@/components/record-card/HotelLocationField';
 import PackageOfferingsPanel from '@/components/record-card/PackageOfferingsPanel';
+import TripDetailsPanel from '@/components/record-card/TripDetailsPanel';
+import type { TripKind } from '@/lib/tour';
 import LoginCredentialsPanel from '@/components/LoginCredentialsPanel';
 import ReviewsModerator from '@/components/ReviewsModerator';
 import { StarRating } from '@/components/StarRating';
@@ -1228,14 +1230,17 @@ export function RecordBigCard({ card, columns, tableName, tableLabel, onClose, o
     }
   };
 
+  // Programs: a tourist trip has no Makkah / Madinah hotels (its hotels are in TripDetailsPanel).
+  const [tripKind, setTripKind] = useState<TripKind>('UMRAH');
   const visiblePrimary = useMemo(
     () => layout.primary.filter((f) => {
       if (f.name.toLowerCase() === 'images') return false;
+      if (tableName === 'packages' && tripKind === 'TOURISM' && /^(makkah|madinah)_hotel_/.test(f.name)) return false;
       if (editing && f.kind === 'media' && f.name.toLowerCase() !== 'videos') return false;
       if (isNew && (f.name === 'rating' || f.name === 'review_count')) return false;
       return true;
     }),
-    [editing, layout.primary, isNew]
+    [editing, layout.primary, isNew, tableName, tripKind]
   );
 
   const galleryUrls = useMemo(
@@ -1433,6 +1438,9 @@ export function RecordBigCard({ card, columns, tableName, tableLabel, onClose, o
           ) : null}
           <div className="record-big-grid">{visiblePrimary.map(renderField)}</div>
 
+          {tableName === 'packages' && (
+            <TripDetailsPanel packageId={isNew ? null : String(card.keyValue || '')} onKindChange={setTripKind} />
+          )}
           {tableName === 'packages' && (
             <PackageOfferingsPanel packageId={isNew ? null : String(card.keyValue || '')} />
           )}

@@ -827,6 +827,9 @@ function migrateFinanceCategories(db: Database.Database) {
   ensureColumn('finance_client_payments', 'status', "TEXT DEFAULT 'POSTED'");
   ensureColumn('packages', 'annex_options', 'TEXT');
   ensureColumn('packages', 'featured', 'INTEGER DEFAULT 0');
+  // Tourist trips: UMRAH | HAJJ | TOURISM (empty = by name), and the tour details (JSON, lib/tour.ts).
+  ensureColumn('packages', 'trip_type', 'TEXT');
+  ensureColumn('packages', 'tour', 'TEXT');
   normalizePackageRows(db);
   ensureColumn('finance_staff_salaries', 'kind', "TEXT DEFAULT 'salary'");
   try {

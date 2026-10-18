@@ -1,3 +1,4 @@
+import { looksLikeTourName } from '@/lib/tour';
 /**
  * Shared finance category constants (Arabic RTL labels).
  * IDs are stable English keys stored in DB/API; UI shows Arabic labels.
@@ -169,6 +170,7 @@ export function treasuryKindLabel(raw?: string | null): string {
 export const TRIP_TYPES = [
   { id: 'umrah', label: 'عمرة' },
   { id: 'hajj', label: 'حج' },
+  { id: 'tourism', label: 'سياحة' },
   { id: 'other', label: 'أخرى' },
 ] as const;
 
@@ -180,14 +182,16 @@ export function tripTypeLabel(raw?: string | null): string {
 }
 
 /**
- * Package names are free Arabic text, so the trip line is inferred from keywords.
- * Seasonal names such as "باقة أوت الاقتصادية" carry no keyword; since the agency only
- * sells Umrah and Hajj, anything named that is not Hajj is counted as Umrah, and only
- * revenue with no package attached falls to "أخرى".
+ * Receipts carry the program's name only, so the trip line is inferred from it.
+ * Tourist trips are recognised from the programs table (`tourismNames`, server side)
+ * or by destination words; then Hajj by keyword; any other named program is Umrah
+ * ("باقة أوت الاقتصادية"), and only revenue with no program falls to "أخرى".
  */
-export function classifyTripType(packageName?: string | null): TripTypeId {
+export function classifyTripType(packageName?: string | null, tourismNames?: Set<string>): TripTypeId {
   const name = String(packageName || '').trim();
   if (!name) return 'other';
+  // Tourist trips: known from the programs table on the server, else by destination words.
+  if (tourismNames?.has(name) || looksLikeTourName(name)) return 'tourism';
   if (/حج|حجة|hajj/i.test(name)) return 'hajj';
   return 'umrah';
 }

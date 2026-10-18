@@ -53,6 +53,7 @@ const BASE_NAV_LINKS: NavLink[] = [
   { label: 'الرئيسية', href: '/' },
   { label: 'عن الوكالة', href: '/about' },
   { label: 'البرامج', href: '/packages' },
+  { label: 'رحلات سياحية', href: '/trips' },
   { label: 'الفنادق', href: '/hotels' },
 ];
 
@@ -63,6 +64,7 @@ function navIcon(href: string) {
   if (path === '/about') return Info;
   if (path === '/packages') return Compass;
   if (path === '/hotels') return BedDouble;
+  if (path === '/trips') return Plane;
   if (path === '/guide') return BookOpen;
   return Plane;
 }

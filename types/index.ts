@@ -246,6 +246,10 @@ export interface Package {
   status: 'DRAFT' | 'PUBLISHED' | 'FULL' | 'CLOSED';
   published: boolean;
   image_url: string;
+  /** UMRAH | HAJJ | TOURISM — empty on older programs (see lib/tour.ts tripKindOf). */
+  trip_type?: string | null;
+  /** Tourist trips: country, cities, itinerary, hotels, highlights, visa note. */
+  tour?: import('@/lib/tour').TourDetails | null;
 }
 
 export interface TravelerInfo {
