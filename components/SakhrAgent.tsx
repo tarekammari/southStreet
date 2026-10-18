@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowUp, Brain, Check, ChevronDown, Copy, Ear, EarOff, Loader2, Mic, Minus, RefreshCw, Table, Trash2, Volume2, VolumeX, X } from 'lucide-react';
+import { ArrowUp, Brain, Check, ChevronDown, Copy, Loader2, Mic, Minus, RefreshCw, Table, Trash2, Volume2, VolumeX, X } from 'lucide-react';
 import { SAKHR_OPEN_EVENT, SAKHR_OPEN_KEY } from '@/components/sakhr/openSakhr';
 import { openLogin, type LoginRequest } from '@/components/auth/openLogin';
 import { CONNECT_INSTALL_EVENT, connectInstallHref, type ConnectInstallPlatform } from '@/components/connect/installConnect';
@@ -12,7 +12,7 @@ import { adminFetch, keyErrorMessage } from '@/lib/webauthn-client';
 import type { SakhrAgentProps } from '@/components/sakhr/SakhrAgentHelpers';
 import type { VisualSpec } from '@/lib/sakhr/visual';
 import { chime, speak, stopSpeaking, unlockAudio, useArabicVoice, useVoiceRecorder, voiceInputSupported } from '@/components/sakhr/voice';
-import { isStopCommand, useWakeWord, wakeSupported } from '@/components/sakhr/wake';
+import { isStopCommand } from '@/components/sakhr/stop-command';
 
 const TableBrowser = dynamic(() => import('@/components/sakhr/TableBrowser'), { ssr: false });
 const SakhrVisual = dynamic(() => import('@/components/sakhr/SakhrVisual'), { ssr: false });
@@ -280,26 +280,6 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
     window.setTimeout(() => resumeListening?.(), 250);
   }, []);
 
-  // «نداء صخر»: «مرحبا صخر» starts a voice conversation, «خلاص صخر» ends it (components/sakhr/wake.ts).
-  const [wakeReady, setWakeReady] = useState(false);
-  const [wakeOn, setWakeOnState] = useState(false);
-  useEffect(() => {
-    setWakeReady(wakeSupported() && voiceInputSupported());
-    try {
-      setWakeOnState(localStorage.getItem('ss_sakhr_wake') === '1');
-    } catch {
-      /* off by default */
-    }
-  }, []);
-  const setWakeOn = useCallback((on: boolean) => {
-    setWakeOnState(on);
-    try {
-      localStorage.setItem('ss_sakhr_wake', on ? '1' : '0');
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
   useEffect(() => {
     try {
       if (sessionStorage.getItem(OPEN_KEY) === '1') setOpenState(true);
@@ -497,27 +477,9 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
     stopSpeaking();
     setSpeakingId(null);
     chime('stop');
-    setMessages((prev) => [...prev, { id: newId(), role: 'model', text: 'حاضر. ناديني «مرحبا صخر» متى احتجتني.' }]);
+    setMessages((prev) => [...prev, { id: newId(), role: 'model', text: 'حاضر، أنهيت المحادثة الصوتية. أنا هنا متى احتجتني.' }]);
   };
 
-  // Listening for the wake phrase only while nothing else uses the microphone or the speaker.
-  const wakeListening = wakeReady && wakeOn && !handsFree && voice.state === 'idle' && !thinking && !speakingId;
-  useWakeWord({
-    active: wakeListening,
-    onWake: (rest) => {
-      chime('start');
-      stopSpeaking();
-      setHandsFree(speakReplies && canSpeak);
-      setVoiceNotice('');
-      // «مرحبا صخر، ما هي البرامج؟» in one breath: ask it at once.
-      if (rest.split(' ').filter(Boolean).length >= 2) sendRef.current(rest, true);
-      else void voiceRef.current.start({ auto: true });
-    },
-    onDenied: () => {
-      setWakeOn(false);
-      setVoiceNotice('لم يُسمح باستعمال الميكروفون، فتوقف «نداء صخر». اسمح به من إعدادات المتصفح ثم فعّله من جديد.');
-    },
-  });
 
   // Auto-minimise: an idle chat folds back into the bubble (conversation kept)
   // when the visitor scrolls the page or clicks outside it. Never while Sakhr
@@ -706,8 +668,8 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
             {open ? <ChevronDown className="w-6 h-6 text-white drop-shadow" /> : <span className="sakhr-fab-letter">ص</span>}
           </span>
           {!open ? (
-            <span className={`sakhr-fab-brain-badge${wakeListening ? ' is-wake' : ''}`} aria-hidden="true">
-              {wakeListening ? <Ear className="w-3 h-3" /> : <Brain className="w-3 h-3" />}
+            <span className="sakhr-fab-brain-badge" aria-hidden="true">
+              <Brain className="w-3 h-3" />
             </span>
           ) : null}
         </button>
@@ -726,26 +688,6 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
                 <button type="button" className="skr-tables" onClick={() => setTable('packages')}>
                   <Table className="w-4 h-4" aria-hidden />
                   الجداول
-                </button>
-              ) : null}
-              {wakeReady ? (
-                <button
-                  type="button"
-                  className={`skr-icon${wakeOn ? ' is-on' : ''}`}
-                  onClick={() => {
-                    const next = !wakeOn;
-                    setWakeOn(next);
-                    if (next) {
-                      unlockAudio();
-                      chime('start');
-                      setVoiceNotice('«نداء صخر» مفعّل: قل «مرحبا صخر» لتبدأ محادثة صوتية، و«خلاص صخر» لتنهيها. يستمع ما دامت الصفحة مفتوحة، عبر خدمة التعرّف الصوتي في متصفحك.');
-                    } else setVoiceNotice('');
-                  }}
-                  title={wakeOn ? '«نداء صخر» مفعّل — قل «مرحبا صخر»' : 'نداء صخر: ابدأ بقول «مرحبا صخر»'}
-                  aria-label={wakeOn ? 'إيقاف نداء صخر' : 'تفعيل نداء صخر'}
-                  aria-pressed={wakeOn}
-                >
-                  {wakeOn ? <Ear className="w-4 h-4" /> : <EarOff className="w-4 h-4" />}
                 </button>
               ) : null}
               {canSpeak ? (
