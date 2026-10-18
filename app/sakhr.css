@@ -402,3 +402,68 @@ html.skr-side .luxury-modal-overlay .luxury-table-shell { height: 100%; }
 @media (prefers-reduced-motion: reduce) { .skr-handsfree-dot { animation: none; } }
 .skr-handsfree button { color: var(--skr-text); font-weight: 600; }
 .skr-empty .skr-wa { margin-top: 14px; }
+
+/* ------------------------------------------------------------------ *
+ * Minimised but still working: the "island" (like the iPhone's Dynamic
+ * Island) — listening, thinking, speaking, or a reply waiting. Tap to open.
+ * ------------------------------------------------------------------ */
+.skr-island {
+  position: fixed; z-index: 260; top: 84px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 4px; max-width: min(560px, calc(100vw - 24px));
+  padding: 5px; border-radius: 999px; background: #0b0b0d; color: #f5f5f4;
+  box-shadow: 0 18px 40px -14px rgba(0, 0, 0, .55), 0 0 0 1px rgba(255, 255, 255, .06) inset;
+  font-family: var(--font-tajawal), 'Tajawal', sans-serif;
+  animation: skr-island-in .55s cubic-bezier(.2, 1.35, .4, 1) both;
+}
+@keyframes skr-island-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(-14px) scale(.55, .7); }
+  to { opacity: 1; transform: translateX(-50%); }
+}
+.skr-island-main {
+  display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; padding: 3px 12px 3px 6px;
+  background: none; border: 0; color: inherit; cursor: pointer; text-align: start; font: inherit;
+}
+.skr-island-avatar {
+  display: grid; place-items: center; width: 30px; height: 30px; flex: none; border-radius: 999px;
+  background: rgba(201, 169, 98, .16); border: 1px solid rgba(201, 169, 98, .45); color: #c9a962;
+  font-family: var(--font-cairo), sans-serif; font-weight: 800; font-size: .9rem;
+}
+.skr-island-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .86rem; font-weight: 700; }
+.skr-island.is-reply .skr-island-text { font-weight: 600; color: #e7e5e4; }
+.skr-island.is-reply .skr-island-avatar { animation: skr-island-pulse 1.6s ease-in-out 2; }
+@keyframes skr-island-pulse { 50% { box-shadow: 0 0 0 6px rgba(201, 169, 98, .25); } }
+.skr-island-time { font-size: .78rem; font-weight: 700; color: #a8a29e; font-variant-numeric: tabular-nums; flex: none; }
+.skr-island-btn {
+  display: grid; place-items: center; width: 34px; height: 34px; flex: none; border-radius: 999px; cursor: pointer;
+  background: rgba(255, 255, 255, .08); color: #e7e5e4; border: 0; transition: background .2s, transform .2s;
+}
+.skr-island-btn:hover { background: rgba(255, 255, 255, .16); }
+.skr-island-btn.is-send { background: #c9a962; color: #1c1406; }
+.skr-island-btn.is-send:hover { background: #d6b874; }
+.skr-island-btn:focus-visible, .skr-island-main:focus-visible { outline: 2px solid #c9a962; outline-offset: 2px; border-radius: 999px; }
+
+/* Live microphone level, speaking wave, thinking dots */
+.skr-island-levels, .skr-island-wave { display: flex; align-items: center; gap: 3px; height: 18px; flex: none; }
+.skr-island-levels i, .skr-island-wave i { display: block; width: 3px; height: 100%; border-radius: 3px; background: #ef4444; transform-origin: center; transition: transform .08s linear; }
+.skr-island.is-listen .skr-island-avatar { border-color: rgba(239, 68, 68, .6); color: #fca5a5; background: rgba(239, 68, 68, .14); }
+.skr-island-wave i { background: #c9a962; animation: skr-island-wave 1s ease-in-out infinite; }
+.skr-island-wave i:nth-child(2) { animation-delay: -.8s; }
+.skr-island-wave i:nth-child(3) { animation-delay: -.6s; }
+.skr-island-wave i:nth-child(4) { animation-delay: -.4s; }
+.skr-island-wave i:nth-child(5) { animation-delay: -.2s; }
+.skr-island.is-handsfree .skr-island-wave i { animation-duration: 2.4s; opacity: .7; }
+@keyframes skr-island-wave { 0%, 100% { transform: scaleY(.25); } 50% { transform: scaleY(1); } }
+.skr-island-dots { display: flex; gap: 4px; flex: none; }
+.skr-island-dots i { width: 6px; height: 6px; border-radius: 999px; background: #c9a962; animation: skr-island-dot 1.2s ease-in-out infinite; }
+.skr-island-dots i:nth-child(2) { animation-delay: .15s; }
+.skr-island-dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes skr-island-dot { 0%, 80%, 100% { opacity: .3; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
+.skr-island-spin { color: #c9a962; flex: none; }
+
+@media (max-width: 640px) {
+  .skr-island { top: 78px; }
+  .skr-island-text { font-size: .82rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skr-island, .skr-island-wave i, .skr-island-dots i, .skr-island.is-reply .skr-island-avatar { animation: none; }
+}

@@ -58,6 +58,17 @@ function bearer(): Record<string, string> {
   }
 }
 
+/** One plain line of a reply for the minimised island (no markdown). */
+function previewOf(text: string): string {
+  const line = text
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/[*#|>`_]/g, '')
+    .split(/\r?\n/)
+    .map((l) => l.replace(/^\s*([-•]|\d+[.)])\s+/, '').trim())
+    .find(Boolean);
+  return (line || '').slice(0, 140);
+}
+
 function newId(): string {
   return Math.random().toString(36).slice(2, 10);
 }
@@ -194,6 +205,10 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
       return value;
     });
   }, []);
+  const openRef = useRef(open);
+  openRef.current = open;
+  // A reply that arrived while the chat was minimised: shown on the island until opened.
+  const [unread, setUnread] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [thinking, setThinking] = useState(false);
@@ -373,6 +388,7 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
         });
       if (spoken) setSpeakingId(replyId);
       else if (viaVoice) listenAgain();
+      if (!openRef.current && data.reply) setUnread(previewOf(data.reply));
       for (const action of data.clientActions || []) {
         if (action.type === 'open_table') setTable(action.table);
         if (action.type === 'navigate' && typeof action.href === 'string' && action.href.startsWith('/')) {
@@ -382,18 +398,23 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
     } catch (err) {
       setMessages((prev) => [...prev, { id: newId(), role: 'model', text: (err as Error).message, error: true }]);
       setHandsFree(false);
+      if (!openRef.current) setUnread((err as Error).message);
     } finally {
       setThinking(false);
     }
   }, [draft, messages, router, thinking, speakReplies, listenAgain, setHandsFree]);
 
-  const closeChat = () => {
+  // Minimising only folds the window: listening, replies and speech carry on in the island.
+  const closeChat = () => setOpen(false);
+  const endVoice = () => {
     setHandsFree(false);
     stopSpeaking();
     setSpeakingId(null);
     if (voice.state === 'recording') voice.stop(false);
-    setOpen(false);
   };
+  useEffect(() => {
+    if (open) setUnread('');
+  }, [open]);
   sendRef.current = (text, viaVoice) => void send(text, viaVoice);
 
   // Auto-minimise: an idle chat folds back into the bubble (conversation kept)
@@ -487,8 +508,83 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
   const isSuperAdmin = role === 'SUPER_ADMIN';
   const roleLabel = role !== 'ANON' && role in LOGIN_ROLE_LABELS ? LOGIN_ROLE_LABELS[role as keyof typeof LOGIN_ROLE_LABELS] : '';
 
+  // Minimised but still working (like the iPhone's Dynamic Island): listening,
+  // thinking, speaking, a voice conversation, or a reply waiting to be read.
+  const island = open
+    ? null
+    : voice.state === 'recording'
+      ? 'listen'
+      : voice.state === 'transcribing'
+        ? 'transcribe'
+        : thinking
+          ? 'think'
+          : speakingId
+            ? 'speak'
+            : handsFree
+              ? 'handsfree'
+              : unread
+                ? 'reply'
+                : null;
+  const islandLabel: Record<NonNullable<typeof island>, string> = {
+    listen: handsFree ? 'أستمع إليك… تكلّم' : 'أستمع إليك…',
+    transcribe: 'أحوّل صوتك إلى نص…',
+    think: 'صخر يفكّر…',
+    speak: 'صخر يتكلّم…',
+    handsfree: 'محادثة صوتية · أنتظر سؤالك',
+    reply: unread,
+  };
+
   return (
     <>
+      {island ? (
+        <div className={`skr-island is-${island}`} dir="rtl" role="status" aria-live="polite">
+          <button type="button" className="skr-island-main" onClick={() => setOpen(true)} aria-label="فتح محادثة صخر">
+            <span className="skr-island-avatar" aria-hidden>ص</span>
+            <span className="skr-island-text">{islandLabel[island]}</span>
+            {island === 'listen' ? (
+              <>
+                <span className="skr-island-levels" aria-hidden>
+                  {voice.levels.slice(0, 7).map((l, i) => <i key={i} style={{ transform: `scaleY(${Math.max(0.15, l)})` }} />)}
+                </span>
+                <span className="skr-island-time" dir="ltr">{`${Math.floor(voice.seconds / 60)}:${String(voice.seconds % 60).padStart(2, '0')}`}</span>
+              </>
+            ) : island === 'speak' || island === 'handsfree' ? (
+              <span className="skr-island-wave" aria-hidden><i /><i /><i /><i /><i /></span>
+            ) : island === 'think' ? (
+              <span className="skr-island-dots" aria-hidden><i /><i /><i /></span>
+            ) : island === 'transcribe' ? (
+              <Loader2 className="w-4 h-4 animate-spin skr-island-spin" aria-hidden />
+            ) : null}
+          </button>
+          {island === 'listen' ? (
+            <>
+              <button type="button" className="skr-island-btn" onClick={endVoice} aria-label="إلغاء التسجيل" title="إلغاء">
+                <Trash2 className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                className="skr-island-btn is-send"
+                onClick={() => {
+                  if (speakReplies) unlockAudio();
+                  voice.stop(true);
+                }}
+                aria-label="إرسال"
+                title="إرسال"
+              >
+                <ArrowUp className="w-4 h-4" />
+              </button>
+            </>
+          ) : island === 'speak' || island === 'handsfree' ? (
+            <button type="button" className="skr-island-btn" onClick={endVoice} aria-label="إيقاف الصوت وإنهاء المحادثة الصوتية" title="إيقاف">
+              <VolumeX className="w-4 h-4" />
+            </button>
+          ) : island === 'reply' ? (
+            <button type="button" className="skr-island-btn" onClick={() => setUnread('')} aria-label="إخفاء" title="إخفاء">
+              <X className="w-4 h-4" />
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       <div ref={fabRef} className="fixed bottom-5 right-5 sm:bottom-8 sm:right-8 z-50 select-none sakhr-fab-shell">
         <button
           onClick={() => (open ? closeChat() : setOpen(true))}
