@@ -39,7 +39,12 @@ export type ToolResult = { ok: boolean; data?: unknown; error?: string; status?:
 export type ClientAction =
   | { type: 'navigate'; href: string }
   | { type: 'open_table'; table: string }
-  | { type: 'visual'; visual: VisualSpec };
+  | { type: 'visual'; visual: VisualSpec }
+  | { type: 'open_login'; method: LoginMethod; username?: string }
+  | { type: 'connect_app'; action: 'open' | 'download_page' | 'install'; platform: ConnectPlatform };
+
+export type LoginMethod = 'choose' | 'google' | 'password' | 'register';
+export type ConnectPlatform = 'auto' | 'android' | 'windows' | 'iphone';
 
 export type SakhrTool = {
   name: string;
@@ -871,6 +876,47 @@ export const SAKHR_TOOLS: SakhrTool[] = [
       if (a.page === 'portal' && role === 'ANON') return { error: 'سجّل الدخول أولاً' };
       const href = map[a.page];
       return href ? { type: 'navigate', href } : { error: 'صفحة غير معروفة' };
+    },
+  },
+  {
+    name: 'open_sign_in',
+    description:
+      'Open the sign-in window on screen. method: "google" (the window opens with the Google button ready — the user taps it to finish), "password" (the user types their password in the window; pass username if they gave it), "register" (create an account), "choose" (let them pick). Never ask for, repeat or store a password in the chat.',
+    parameters: {
+      type: 'object',
+      properties: {
+        method: { type: 'string', enum: ['choose', 'google', 'password', 'register'] },
+        username: { type: 'string', description: 'E-mail or username the user gave, to prefill. Never a password.' },
+      },
+      required: ['method'],
+    },
+    roles: EVERYONE,
+    kind: 'client',
+    clientAction: (a, role) => {
+      if (role !== 'ANON') return { error: 'المستخدم مسجّل الدخول بالفعل' };
+      const method: LoginMethod = ['google', 'password', 'register'].includes(a?.method) ? a.method : 'choose';
+      const username = String(a?.username || '').trim();
+      return { type: 'open_login', method, ...(/^[\w.@+-]{2,120}$/.test(username) ? { username } : {}) };
+    },
+  },
+  {
+    name: 'connect_app',
+    description:
+      'South Street Connect, the agency app for messages and voice calls with the agency team and guides. action: "open" (open Connect in the browser now), "download_page" (the app page with all platforms), "install" (start installing on this device: Android APK, Windows installer, or iPhone add-to-home-screen steps; sign-in comes first if needed). platform: "auto" (this device) unless the user names one.',
+    parameters: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: ['open', 'download_page', 'install'] },
+        platform: { type: 'string', enum: ['auto', 'android', 'windows', 'iphone'] },
+      },
+      required: ['action'],
+    },
+    roles: EVERYONE,
+    kind: 'client',
+    clientAction: (a) => {
+      const action = ['open', 'download_page', 'install'].includes(a?.action) ? a.action : 'download_page';
+      const platform: ConnectPlatform = ['android', 'windows', 'iphone'].includes(a?.platform) ? a.platform : 'auto';
+      return { type: 'connect_app', action, platform };
     },
   },
   {

@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { User } from '@/types';
 import LoginModal from './LoginModal';
+import { LOGIN_EVENT, type LoginRequest } from '@/components/auth/openLogin';
 import DemandBag from '@/components/booking/DemandBag';
 import { logoutAndReload, profilePhotoSrc, readStoredUser, syncSessionProfile } from '@/lib/client-session';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -159,6 +160,8 @@ const PROMO_LINE =
 
 export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 'light', showPromo = false, promoLine }: NavbarProps) {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
+  // Sakhr (or another part of the page) can open sign-in with a method chosen.
+  const [loginRequest, setLoginRequest] = useState<LoginRequest | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -173,6 +176,19 @@ export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 
   useEffect(() => {
     setSessionUser(currentUser ?? readStoredUser());
   }, [currentUser]);
+
+  useEffect(() => {
+    const onRequest = (e: Event) => {
+      const detail = (e as CustomEvent<LoginRequest & { handled?: boolean }>).detail;
+      if (!detail || detail.handled) return;
+      detail.handled = true;
+      setMobileOpen(false);
+      setLoginRequest(detail);
+      setIsLoginOpen(true);
+    };
+    window.addEventListener(LOGIN_EVENT, onRequest);
+    return () => window.removeEventListener(LOGIN_EVENT, onRequest);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -572,7 +588,9 @@ export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 
 
       {isLoginOpen && (
         <LoginModal
-          onClose={() => setIsLoginOpen(false)}
+          request={loginRequest || undefined}
+          redirectTo={loginRequest?.redirectTo}
+          onClose={() => { setIsLoginOpen(false); setLoginRequest(null); }}
           onSelectRole={(code, name) => { setIsLoginOpen(false); onSelectRole?.(code, name); }}
         />
       )}

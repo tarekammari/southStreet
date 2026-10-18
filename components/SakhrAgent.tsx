@@ -5,6 +5,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowUp, Brain, Check, ChevronDown, Copy, Loader2, Mic, Minus, RefreshCw, Table, Trash2, Volume2, VolumeX, X } from 'lucide-react';
 import { SAKHR_OPEN_EVENT, SAKHR_OPEN_KEY } from '@/components/sakhr/openSakhr';
+import { openLogin, type LoginRequest } from '@/components/auth/openLogin';
+import { CONNECT_INSTALL_EVENT, connectInstallHref, type ConnectInstallPlatform } from '@/components/connect/installConnect';
 import { LOGIN_ROLE_LABELS, normalizeLoginRole } from '@/lib/roles';
 import { adminFetch, keyErrorMessage } from '@/lib/webauthn-client';
 import type { SakhrAgentProps } from '@/components/sakhr/SakhrAgentHelpers';
@@ -67,6 +69,21 @@ function previewOf(text: string): string {
     .map((l) => l.replace(/^\s*([-•]|\d+[.)])\s+/, '').trim())
     .find(Boolean);
   return (line || '').slice(0, 140);
+}
+
+const PASSWORD_WORD = /(password|passwd|pwd|mot\s*de\s*passe|كلم[ةه]\s*(?:ال)?(?:مرور|سر)|(?:ال)?باس?وو?رد|الرقم\s*السري)/i;
+const PASSWORD_LEAD = /^(is|est|هي|هو|ديالي|تاعي|[:=])\s*/i;
+
+/** "my password is Ab12…" — a password typed in the chat is never sent anywhere. */
+function looksLikePassword(text: string): boolean {
+  const m = text.match(PASSWORD_WORD);
+  if (!m || m.index === undefined) return false;
+  const after = text.slice(m.index + m[0].length).trim();
+  const explicit = PASSWORD_LEAD.test(after);
+  const token = (after.replace(PASSWORD_LEAD, '').split(/\s+/)[0] || '').replace(/[.,!?؟،]+$/, '');
+  if (token.length < 4) return false;
+  const arabicWord = /^[؀-ۿ]+$/.test(token);
+  return /\d/.test(token) || (explicit && !arabicWord) || /[^\w؀-ۿ]/.test(token);
 }
 
 function newId(): string {
@@ -346,9 +363,45 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
     return () => document.documentElement.classList.remove('skr-side');
   }, [docked]);
 
+  // UI actions chosen by Sakhr's tools (lib/sakhr/tools.ts, kind "client").
+  const runClientAction = useCallback((action: any) => {
+    if (action.type === 'open_table') setTable(action.table);
+    if (action.type === 'navigate' && typeof action.href === 'string' && action.href.startsWith('/')) {
+      window.setTimeout(() => router.push(action.href), 600);
+    }
+    if (action.type === 'open_login') {
+      // Fold the chat so the sign-in window is in front; the island keeps the conversation.
+      setOpen(false);
+      const req: LoginRequest = { method: action.method, username: action.username };
+      window.setTimeout(() => {
+        if (!openLogin(req)) router.push('/app?login=1');
+      }, 350);
+    }
+    if (action.type === 'connect_app') {
+      const platform = (action.platform || 'auto') as ConnectInstallPlatform;
+      if (action.action === 'install' && window.location.pathname === '/app') {
+        setOpen(false);
+        window.dispatchEvent(new CustomEvent(CONNECT_INSTALL_EVENT, { detail: platform }));
+        return;
+      }
+      const href = action.action === 'open' ? '/connect' : action.action === 'install' ? connectInstallHref(platform) : '/app';
+      window.setTimeout(() => router.push(href), 600);
+    }
+  }, [router, setOpen]);
+
   const send = useCallback(async (override?: string, viaVoice = false) => {
     const text = (override ?? draft).trim();
     if (!text || thinking) return;
+    if (looksLikePassword(text)) {
+      // Not stored, not sent to the server or the AI: straight to the sign-in window.
+      setDraft('');
+      setMessages((prev) => [
+        ...prev,
+        { id: newId(), role: 'model', text: '🔒 لا تكتب كلمة المرور في المحادثة، حتى معي. فتحت لك نافذة تسجيل الدخول: اكتبها هناك فقط.' },
+      ]);
+      runClientAction({ type: 'open_login', method: 'password' });
+      return;
+    }
     stopSpeaking();
     setSpeakingId(null);
     const userMsg: ChatMessage = { id: newId(), role: 'user', text };
@@ -389,12 +442,7 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
       if (spoken) setSpeakingId(replyId);
       else if (viaVoice) listenAgain();
       if (!openRef.current && data.reply) setUnread(previewOf(data.reply));
-      for (const action of data.clientActions || []) {
-        if (action.type === 'open_table') setTable(action.table);
-        if (action.type === 'navigate' && typeof action.href === 'string' && action.href.startsWith('/')) {
-          window.setTimeout(() => router.push(action.href), 600);
-        }
-      }
+      for (const action of data.clientActions || []) runClientAction(action);
     } catch (err) {
       setMessages((prev) => [...prev, { id: newId(), role: 'model', text: (err as Error).message, error: true }]);
       setHandsFree(false);
@@ -402,7 +450,7 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
     } finally {
       setThinking(false);
     }
-  }, [draft, messages, router, thinking, speakReplies, listenAgain, setHandsFree]);
+  }, [draft, messages, thinking, speakReplies, listenAgain, setHandsFree, runClientAction]);
 
   // Minimising only folds the window: listening, replies and speech carry on in the island.
   const closeChat = () => setOpen(false);

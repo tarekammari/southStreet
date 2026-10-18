@@ -9820,3 +9820,11 @@ body.modal-open .sakhr-panel-shell {
 @media (min-width: 768px) and (max-width: 1023px) {
   .ss-footer-cols.has-qr { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Sign-in opened for Google (e.g. by Sakhr): the Google button glows until tapped. */
+.login-google-focus > :first-child { border-radius: 14px; animation: login-google-glow 1.8s ease-in-out infinite; }
+@keyframes login-google-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(66, 133, 244, 0); }
+  50% { box-shadow: 0 0 0 5px rgba(66, 133, 244, .28); }
+}
+@media (prefers-reduced-motion: reduce) { .login-google-focus > :first-child { animation: none; box-shadow: 0 0 0 3px rgba(66, 133, 244, .3); } }
