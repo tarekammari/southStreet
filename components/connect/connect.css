@@ -379,3 +379,11 @@
 .cn-versions > div { padding: 10px 12px; border-radius: 12px; background: #f6f8f7; }
 .cn-versions dt { font-size: 0.72rem; font-weight: 800; color: var(--cn-muted); }
 .cn-versions dd { margin: 2px 0 0; font-size: 0.9rem; font-weight: 800; }
+
+/* Sign out (this device only) */
+.cn-logout { align-items: center; text-align: center; }
+.cn-logout h2 { margin: 0; font-size: 1.05rem; font-weight: 900; }
+.cn-logout .cn-sheet-btn { width: 100%; }
+.cn-logout-icon { display: grid; place-items: center; width: 54px; height: 54px; border-radius: 16px; background: #fef2f2; color: #dc2626; }
+.cn-sheet-btn.is-danger { background: #dc2626; color: #fff; border-color: transparent; }
+.cn-sheet-btn.is-danger:hover:not(:disabled) { background: #b91c1c; }

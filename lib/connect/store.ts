@@ -475,12 +475,17 @@ export function callHistory(userId: string, limit = 40): ConnectCall[] {
 /* ---------------- push subscriptions ---------------- */
 
 /** A web-push subscription ({endpoint, keys}) or a native app token ({fcm, platform}). */
-export function savePush(userId: string, subscription: unknown) {
-  const json = JSON.stringify(subscription);
+/** Row key of a subscription (web push endpoint or native app token); throws when it is not one. */
+function pushKeyOf(subscription: unknown): string {
   const fcm = String((subscription as any)?.fcm || '');
   const endpoint = fcm ? '' : String((subscription as any)?.endpoint || '');
   if (fcm ? !/^[\w:.-]{20,400}$/.test(fcm) : !endpoint.startsWith('https://')) throw new Error('bad subscription');
-  const key = crypto.createHash('sha256').update(fcm ? `fcm:${fcm}` : endpoint).digest('hex').slice(0, 40);
+  return crypto.createHash('sha256').update(fcm ? `fcm:${fcm}` : endpoint).digest('hex').slice(0, 40);
+}
+
+export function savePush(userId: string, subscription: unknown) {
+  const json = JSON.stringify(subscription);
+  const key = pushKeyOf(subscription);
   db().prepare('INSERT INTO connect_push (endpoint_key, user_id, subscription, ts) VALUES (?, ?, ?, ?) ON CONFLICT(endpoint_key) DO UPDATE SET user_id = excluded.user_id, subscription = excluded.subscription, ts = excluded.ts')
     .run(key, userId, json.slice(0, 4000), Date.now());
 }
@@ -495,6 +500,11 @@ export function pushTargets(userId: string): { key: string; subscription: any }[
       }
     })
     .filter(Boolean) as { key: string; subscription: any }[];
+}
+
+/** This device signed out: it stops getting this account's messages and calls. */
+export function removePush(userId: string, subscription: unknown) {
+  db().prepare('DELETE FROM connect_push WHERE endpoint_key = ? AND user_id = ?').run(pushKeyOf(subscription), userId);
 }
 
 export function dropPush(key: string) {

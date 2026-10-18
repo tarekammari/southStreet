@@ -8,8 +8,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import dynamic from 'next/dynamic';
-import { Ban, Bell, BellOff, Download, Info, Loader2, RefreshCw, MessageCircle, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Search, Star, UserPlus, Users } from 'lucide-react';
+import { Ban, Bell, BellOff, Download, Info, Loader2, LogOut, RefreshCw, MessageCircle, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Search, Star, UserPlus, Users } from 'lucide-react';
 import { authHeaders, jsonAuthHeaders } from '@/lib/api-client';
+import { logoutAndReload } from '@/lib/client-session';
 import { VoiceCall, playMessageSound, startTone, stopTone, warmRingtone, type CallEndReason, type CallPhase } from '@/lib/connect/rtc';
 import { setForcedRelay, tellAndroid } from '@/lib/connect/device-prefs';
 import type { ConnectContact, ConnectUser } from '@/lib/connect/store';
@@ -160,6 +161,8 @@ export default function ConnectApp() {
   const [standalone, setStandalone] = useState(true);
   const [updateReady, setUpdateReady] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [logoutOpen, setLogoutOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [live, setLive] = useState(false);
   const [minimized, setMinimized] = useState(false);
   const pip = usePipWindow();
@@ -173,7 +176,11 @@ export default function ConnectApp() {
 
   /* ---------- start ---------- */
   useEffect(() => {
-    void fetch('/api/connect/config', { headers: authHeaders(), cache: 'no-store' })
+    // Stay signed in on this device until the user signs out here
+    // (lib/connect/device-session.ts): start or renew it before anything else.
+    void fetch('/api/connect/session', { method: 'POST', headers: authHeaders(), cache: 'no-store' })
+      .catch(() => undefined)
+      .then(() => fetch('/api/connect/config', { headers: authHeaders(), cache: 'no-store' }))
       .then(async (r) => {
         const data = await r.json().catch(() => ({}));
         if (r.status === 403 && data.code === 'CONNECT_SUSPENDED') return setSuspended({ reason: data.reason || '', untilTs: data.untilTs || null });
@@ -489,10 +496,30 @@ export default function ConnectApp() {
   };
   useEffect(() => onNativeCallAction((action) => nativeActions.current[action]?.()), []);
 
+  // Renewed while the app stays open (and when it comes back to the screen).
+  useEffect(() => {
+    if (!me) return;
+    let last = Date.now();
+    const renew = () => {
+      if (Date.now() - last < 3_600_000) return;
+      last = Date.now();
+      void fetch('/api/connect/session', { method: 'POST', headers: authHeaders(), cache: 'no-store' }).catch(() => undefined);
+    };
+    const timer = window.setInterval(renew, 3_600_000);
+    const onVisible = () => document.visibilityState === 'visible' && renew();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [me]);
+
   // Android: tie this phone's push token to the signed-in account.
+  const androidToken = useRef('');
   useEffect(() => {
     if (!me) return;
     return onAndroidToken((token) => {
+      androidToken.current = token;
       void fetch('/api/connect/push', { method: 'POST', headers: jsonAuthHeaders(), body: JSON.stringify({ subscription: { fcm: token, platform: 'android' } }) });
     });
   }, [me]);
@@ -766,6 +793,31 @@ export default function ConnectApp() {
     </li>
   );
 
+  // Sign out on this device only: no more messages or calls here, other devices stay signed in.
+  const logout = async () => {
+    setLoggingOut(true);
+    const unsubscribe = (subscription: unknown) =>
+      fetch('/api/connect/push', { method: 'DELETE', headers: jsonAuthHeaders(), body: JSON.stringify({ subscription }) }).catch(() => undefined);
+    try {
+      callRef.current?.hangup();
+    } catch {
+      /* no call */
+    }
+    if (androidToken.current) await unsubscribe({ fcm: androidToken.current, platform: 'android' });
+    try {
+      const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration('/connect') : undefined;
+      const sub = await reg?.pushManager.getSubscription();
+      if (sub) {
+        await unsubscribe(sub.toJSON());
+        await sub.unsubscribe();
+      }
+    } catch {
+      /* push not available */
+    }
+    await fetch('/api/connect/session', { method: 'DELETE', headers: authHeaders() }).catch(() => undefined);
+    await logoutAndReload('/connect');
+  };
+
   return (
     <div className={`cn-app${open ? ' has-chat' : ''}`} dir="rtl">
       <aside className="cn-side">
@@ -780,6 +832,9 @@ export default function ConnectApp() {
             </button>
             <button type="button" className="cn-icon" onClick={() => setAboutOpen(true)} title="حول التطبيق" aria-label="حول التطبيق">
               <Info className="w-5 h-5" />
+            </button>
+            <button type="button" className="cn-icon" onClick={() => setLogoutOpen(true)} title="تسجيل الخروج" aria-label="تسجيل الخروج">
+              <LogOut className="w-5 h-5" />
             </button>
             {!standalone && installEvt ? (
               <button type="button" className="cn-pill" onClick={async () => { installEvt.prompt(); await installEvt.userChoice; setInstallEvt(null); }}>
@@ -961,6 +1016,19 @@ export default function ConnectApp() {
         </button>
       ) : null}
 
+      {logoutOpen ? (
+        <div className="cn-sheet" role="dialog" aria-modal="true" aria-label="تسجيل الخروج" onClick={() => !loggingOut && setLogoutOpen(false)}>
+          <div className="cn-sheet-card cn-logout" onClick={(e) => e.stopPropagation()}>
+            <span className="cn-logout-icon" aria-hidden><LogOut className="w-6 h-6" /></span>
+            <h2>تسجيل الخروج من SS Connect؟</h2>
+            <p className="cn-sheet-hint">لن تصلك الرسائل والمكالمات على هذا الجهاز حتى تسجّل الدخول من جديد. أجهزتك الأخرى تبقى متصلة.</p>
+            <button type="button" className="cn-sheet-btn is-danger" disabled={loggingOut} onClick={() => void logout()}>
+              {loggingOut ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />} تسجيل الخروج
+            </button>
+            <button type="button" className="cn-sheet-btn" disabled={loggingOut} onClick={() => setLogoutOpen(false)}>إلغاء</button>
+          </div>
+        </div>
+      ) : null}
       {aboutOpen ? (
         <AboutSheet onClose={() => setAboutOpen(false)} busy={Boolean(callView)} relay={iceServers.some((s) => ([] as string[]).concat(s.urls).some((u) => /^turns?:/.test(u)))} live={live} serverPush={Boolean(vapid)} pushState={pushState === 'denied' ? 'off' : pushState} onEnablePush={enablePush} onApplyWebUpdate={() => void applyUpdate()} />
       ) : null}
