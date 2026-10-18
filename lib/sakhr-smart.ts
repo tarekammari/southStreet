@@ -3,6 +3,8 @@
  * Pure utilities; do not change public API response shapes.
  */
 
+import { AGENCY_PHONE } from './agency-contact';
+
 export const SAKHR_HISTORY_TURNS = 12;
 
 export interface SakhrHistoryTurn {
@@ -73,7 +75,7 @@ export function buildUnknownPriceResponse(agencyPhone?: string): {
   source: 'packages';
   sourceLabel: string;
 } {
-  const phone = agencyPhone || '+213 21 55 44 33';
+  const phone = agencyPhone || AGENCY_PHONE;
   return {
     text:
       '💰 **بخصوص الأسعار:**\n\n' +
@@ -101,7 +103,7 @@ export function buildClarifyingFallback(prompt: string, agencyPhone?: string): {
   actions: [];
   noKnowledge: true;
 } {
-  const phone = agencyPhone || '+213 21 55 44 33';
+  const phone = agencyPhone || AGENCY_PHONE;
   const short = (prompt || '').trim().slice(0, 120);
   return {
     text:

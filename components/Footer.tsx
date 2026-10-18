@@ -11,6 +11,7 @@ import { useAgencyInfo } from '@/components/social/useAgencyInfo';
 import { SOCIAL_ICON } from '@/components/social/SocialIcons';
 import { toPortalRole } from '@/lib/roles';
 import PhoneQr from '@/components/PhoneQr';
+import { AGENCY_CITY, telHref } from '@/lib/agency-contact';
 import '@/app/footer.css';
 
 const PRODUCT_LINKS = [
@@ -36,7 +37,8 @@ const rise = {
   }),
 };
 
-export default function Footer({ content }: { content?: PageContentRow[] }) {
+/** `hideCta`: the page already offers Connect (e.g. the About page's contact section). */
+export default function Footer({ content, hideCta = false }: { content?: PageContentRow[]; hideCta?: boolean }) {
   const [rows, setRows] = useState<PageContentRow[]>(content || []);
   const [pilgrim, setPilgrim] = useState(false);
 
@@ -71,9 +73,9 @@ export default function Footer({ content }: { content?: PageContentRow[] }) {
   });
 
   const contacts = [
-    agency?.phone && { icon: Phone, label: agency.phone, href: `tel:${agency.phone.replace(/\s+/g, '')}`, ltr: true },
+    agency?.phone && { icon: Phone, label: agency.phone, href: telHref(agency.phone), ltr: true },
     agency?.email && { icon: Mail, label: agency.email, href: `mailto:${agency.email}`, ltr: true },
-    { icon: MapPin, label: agency?.city || agency?.address || 'الجزائر العاصمة', href: '/about#contact' },
+    { icon: MapPin, label: agency?.city || agency?.address || AGENCY_CITY, href: '/about#contact' },
   ].filter(Boolean) as { icon: typeof Phone; label: string; href: string; ltr?: boolean }[];
 
   const companyLinks = COMPANY_LINKS.map((link) =>
@@ -84,6 +86,7 @@ export default function Footer({ content }: { content?: PageContentRow[] }) {
     <footer id="contact" className="sf" dir="rtl">
       <div className="sf-wrap">
         {/* Contact goes through Connect: messages and calls with the agency team. */}
+        {hideCta ? null : (
         <motion.div
           className="sf-cta"
           initial="hidden"
@@ -104,6 +107,7 @@ export default function Footer({ content }: { content?: PageContentRow[] }) {
             <Link href="/app" className="sf-btn is-ghost">ثبّت التطبيق</Link>
           </div>
         </motion.div>
+        )}
 
         <div className="sf-grid">
           <motion.div className="sf-brand" initial="hidden" whileInView="visible" viewport={{ once: true }} variants={rise} custom={1}>

@@ -3,7 +3,8 @@
 import dynamic from 'next/dynamic';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowUp, Brain, Check, Copy, Loader2, Mic, RefreshCw, Table, Trash2, Volume2, VolumeX, X } from 'lucide-react';
+import { ArrowUp, Brain, Check, ChevronDown, Copy, Loader2, Mic, Minus, RefreshCw, Table, Trash2, Volume2, VolumeX, X } from 'lucide-react';
+import { SAKHR_OPEN_EVENT, SAKHR_OPEN_KEY } from '@/components/sakhr/openSakhr';
 import { LOGIN_ROLE_LABELS, normalizeLoginRole } from '@/lib/roles';
 import { adminFetch, keyErrorMessage } from '@/lib/webauthn-client';
 import type { SakhrAgentProps } from '@/components/sakhr/SakhrAgentHelpers';
@@ -40,7 +41,7 @@ type ChatMessage = {
 };
 
 const STORE_KEY = 'ss_sakhr_chat';
-const OPEN_KEY = 'ss_sakhr_open';
+const OPEN_KEY = SAKHR_OPEN_KEY;
 
 // Hands-free mode outlives a page change: the reply that opened a page is still
 // being spoken when the next page's Sakhr mounts, and that one listens next.
@@ -246,6 +247,9 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
     } catch {
       /* closed by default */
     }
+    // «اسأل صخر» buttons on the page (components/sakhr/openSakhr.ts).
+    const onOpenRequest = () => setOpen(true);
+    window.addEventListener(SAKHR_OPEN_EVENT, onOpenRequest);
     // Links like /sakhr or /?sakhr=1&q=… (e.g. from the agency's WhatsApp greeting)
     // open the chat at once, with the question already typed.
     try {
@@ -268,6 +272,7 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
     } catch {
       /* default on */
     }
+    return () => window.removeEventListener(SAKHR_OPEN_EVENT, onOpenRequest);
   }, [setOpen]);
 
   const readAloud = (id: string, text: string) => {
@@ -315,7 +320,8 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
   }, [messages, thinking, open]);
 
   useEffect(() => {
-    if (open) window.setTimeout(() => inputRef.current?.focus(), 80);
+    // Phones: no keyboard popping up over the page until the user taps the input.
+    if (open && !window.matchMedia('(pointer: coarse)').matches) window.setTimeout(() => inputRef.current?.focus(), 80);
   }, [open]);
 
   // A table opened by Sakhr sits beside the chat (below it on phones), never over it.
@@ -390,6 +396,54 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
   };
   sendRef.current = (text, viaVoice) => void send(text, viaVoice);
 
+  // Auto-minimise: an idle chat folds back into the bubble (conversation kept)
+  // when the visitor scrolls the page or clicks outside it. Never while Sakhr
+  // is replying or speaking, the user is typing or talking, or a table is open.
+  const panelRef = useRef<HTMLElement>(null);
+  const fabRef = useRef<HTMLDivElement>(null);
+  const busy =
+    thinking ||
+    !!draft.trim() ||
+    voice.state !== 'idle' ||
+    handsFree ||
+    !!speakingId ||
+    !!table ||
+    messages.some((m) => m.actions?.some((a) => a.state === 'running'));
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
+  // New content scrolls the chat; ignore page scroll for a moment after it.
+  const quietUntil = useRef(0);
+  useEffect(() => {
+    quietUntil.current = Date.now() + 700;
+  }, [messages, thinking, open, busy]);
+  useEffect(() => {
+    if (!open) return;
+    let startY = window.scrollY;
+    const minimise = () => setOpen(false);
+    const onScroll = () => {
+      const typingOnPhone = document.activeElement === inputRef.current && window.matchMedia('(pointer: coarse)').matches;
+      if (busyRef.current || Date.now() < quietUntil.current || typingOnPhone) {
+        startY = window.scrollY;
+        return;
+      }
+      if (Math.abs(window.scrollY - startY) > 80) minimise();
+    };
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Node | null;
+      if (!target || busyRef.current || Date.now() < quietUntil.current) return;
+      if (panelRef.current?.contains(target) || fabRef.current?.contains(target)) return;
+      // Dialogs opened from the chat (tables, previews) are part of it.
+      if ((target as Element).closest?.('[role="dialog"], .luxury-modal-overlay')) return;
+      minimise();
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      document.removeEventListener('pointerdown', onPointerDown);
+    };
+  }, [open, setOpen]);
+
   const updateAction = (msgId: string, token: string, patch: Partial<ActionCard>) => {
     setMessages((prev) =>
       prev.map((m) =>
@@ -435,10 +489,11 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
 
   return (
     <>
-      <div className="fixed bottom-5 right-5 sm:bottom-8 sm:right-8 z-50 select-none sakhr-fab-shell">
+      <div ref={fabRef} className="fixed bottom-5 right-5 sm:bottom-8 sm:right-8 z-50 select-none sakhr-fab-shell">
         <button
           onClick={() => (open ? closeChat() : setOpen(true))}
-          aria-label={open ? 'إغلاق صخر' : 'فتح صخر، المساعد الذكي'}
+          aria-label={open ? 'تصغير صخر' : 'فتح صخر، المساعد الذكي'}
+          title={open ? 'تصغير' : 'صخر، المساعد الذكي'}
           aria-expanded={open}
           className={`sakhr-fab-future relative w-14 h-14 sm:w-[64px] sm:h-[64px] rounded-full focus:outline-none group cursor-pointer flex items-center justify-center ${open ? 'is-open' : ''}`}
         >
@@ -450,7 +505,7 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
             <span className="sakhr-fab-spark" />
           </span>
           <span className="sakhr-fab-core">
-            {open ? <X className="w-5 h-5 text-white drop-shadow" /> : <span className="sakhr-fab-letter">ص</span>}
+            {open ? <ChevronDown className="w-6 h-6 text-white drop-shadow" /> : <span className="sakhr-fab-letter">ص</span>}
           </span>
           {!open ? (
             <span className="sakhr-fab-brain-badge" aria-hidden="true">
@@ -461,7 +516,7 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
       </div>
 
       {open && (
-        <section className="skr-panel" dir="rtl" aria-label="محادثة صخر">
+        <section ref={panelRef} className="skr-panel" dir="rtl" aria-label="محادثة صخر">
           <header className="skr-head">
             <span className="skr-avatar" aria-hidden>ص</span>
             <div className="skr-title">
@@ -510,9 +565,10 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
                 type="button"
                 className="skr-icon"
                 onClick={closeChat}
-                aria-label="إغلاق"
+                title="تصغير (تبقى المحادثة محفوظة)"
+                aria-label="تصغير صخر"
               >
-                <X className="w-4 h-4" />
+                <Minus className="w-4 h-4" />
               </button>
             </div>
           </header>

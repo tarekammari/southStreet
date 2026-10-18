@@ -11,6 +11,7 @@ import { Package } from '@/types';
 import { readWishlist } from '@/lib/wishlist';
 import { publicList } from '@/lib/public-catalog';
 import { parseTripDate } from '@/lib/booking-catalog';
+import { AGENCY_PHONE, AGENCY_PHONE_TEL } from '@/lib/agency-contact';
 import {
   PROGRAM_TYPE_LABEL,
   formatProgramDate,
@@ -280,7 +281,7 @@ function PackagesPageInner() {
 
         <p className="pcat-help">
           لم تجد الموعد المناسب؟ اتصل بالوكالة على{' '}
-          <a href="tel:+21321554433" dir="ltr">+213 21 55 44 33</a> وسنقترح عليك أقرب برنامج.
+          <a href={`tel:${AGENCY_PHONE_TEL}`} dir="ltr">{AGENCY_PHONE}</a> وسنقترح عليك أقرب برنامج.
         </p>
       </main>
 

@@ -12,10 +12,12 @@
   --skr-gold: #c9a962;
   position: fixed;
   z-index: 250;
-  top: 80px;
-  bottom: 24px;
+  /* Sits above the «ص» bubble, which stays visible to fold the chat back. */
+  bottom: 108px;
   right: 32px;
-  width: min(480px, calc(100vw - 16px));
+  width: min(440px, calc(100vw - 16px));
+  height: min(680px, calc(100vh - 200px));
+  height: min(680px, calc(100dvh - 200px));
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -29,7 +31,11 @@
 }
 @keyframes skr-in { from { opacity: 0; transform: translateY(12px) scale(0.98); } to { opacity: 1; transform: none; } }
 @media (max-width: 640px) {
-  .skr-panel { top: 72px; bottom: 12px; right: 8px; width: calc(100vw - 16px); }
+  .skr-panel {
+    bottom: 88px; right: 8px; width: calc(100vw - 16px);
+    height: min(560px, calc(100vh - 168px));
+    height: min(560px, calc(100dvh - 168px));
+  }
 }
 
 .skr-head {
@@ -93,6 +99,8 @@
   flex-direction: column;
   gap: 0.75rem;
   scrollbar-width: thin;
+  /* Scrolling the chat never scrolls the page behind it. */
+  overscroll-behavior: contain;
 }
 .skr-empty {
   margin: auto;
@@ -376,10 +384,10 @@
  * ------------------------------------------------------------------ */
 html.skr-side .skr-panel { z-index: 330; }
 @media (min-width: 1024px) {
-  html.skr-side .luxury-modal-overlay { padding-right: calc(min(480px, 100vw - 16px) + 48px); }
+  html.skr-side .luxury-modal-overlay { padding-right: calc(min(440px, 100vw - 16px) + 48px); }
 }
 @media (max-width: 1023.98px) {
-  html.skr-side .skr-panel { top: auto; height: 46vh; bottom: 8px; }
+  html.skr-side .skr-panel { height: 46vh; bottom: 8px; }
   html.skr-side .luxury-modal-overlay { padding-bottom: calc(46vh + 16px); align-items: stretch; }
 }
 html.skr-side .luxury-modal-overlay .luxury-table-shell { height: 100%; }
