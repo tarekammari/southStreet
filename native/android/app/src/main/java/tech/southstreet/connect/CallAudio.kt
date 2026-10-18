@@ -39,18 +39,17 @@ object CallAudio {
     fun route(ctx: Context, speaker: Boolean) {
         val app = ctx.applicationContext
         apply(app, speaker)
-        // The WebView sets up its own audio when the voice starts flowing: apply again after it.
+        // The WebView's call engine picks the LOUDSPEAKER itself when the voice starts
+        // flowing (and again on reconnects): apply our choice again after it.
         main.removeCallbacksAndMessages(null)
-        main.postDelayed({ if (active) apply(app, speaker) }, 800)
-        main.postDelayed({ if (active) apply(app, speaker) }, 2500)
+        for (delay in longArrayOf(800, 2500, 5000)) main.postDelayed({ if (active) apply(app, speaker) }, delay)
     }
 
     private fun apply(ctx: Context, speaker: Boolean) {
         active = true
-        if (Telecom.route(speaker)) {
-            screenOffAtEar(ctx, !speaker)
-            return
-        }
+        // Telecom (Bluetooth, car, the system's call state) is told the route too — but the
+        // sound itself is set here: Telecom alone does not override the WebView's loudspeaker.
+        Telecom.route(speaker)
         val am = ctx.getSystemService(AudioManager::class.java) ?: return
         try {
             am.mode = AudioManager.MODE_IN_COMMUNICATION
