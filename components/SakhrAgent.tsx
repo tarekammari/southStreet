@@ -416,7 +416,7 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
       const res = await fetch('/api/ai/sakhr', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...bearer() },
-        body: JSON.stringify({ message: text, history }),
+        body: JSON.stringify({ message: text, history, voice: viaVoice }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'تعذّر على صخر الرد الآن.');

@@ -38,6 +38,8 @@ function rateLimited(key: string, limit: number): boolean {
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const message = String(body.message || '').trim().slice(0, MAX_MESSAGE);
+  // Spoken question: short spoken answer (read aloud at once).
+  const voice = body.voice === true;
   if (!message) return NextResponse.json({ error: 'اكتب رسالتك أولاً' }, { status: 400 });
 
   const history: ChatTurn[] = (Array.isArray(body.history) ? body.history : [])
@@ -60,7 +62,7 @@ export async function POST(req: Request) {
   }
 
   // A visitor's opening question ("which programmes are open?") is the same for everyone.
-  const cacheKey = role === 'ANON' && history.length === 0 ? `anon:${normalizeQuestion(message)}` : null;
+  const cacheKey = role === 'ANON' && history.length === 0 ? `anon:${voice ? 'v:' : ''}${normalizeQuestion(message)}` : null;
   if (cacheKey) {
     const hit = cacheGet<Omit<AgentReply, 'meta'>>(cacheKey);
     if (hit) {
@@ -84,6 +86,7 @@ export async function POST(req: Request) {
       },
       history,
       message,
+      voice,
     }));
     const { meta, ...reply } = result;
     recordMetric({

@@ -15,8 +15,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 export type VoiceState = 'idle' | 'recording' | 'transcribing';
 
 const MAX_SECONDS = 60;
-/** Quiet time after speech that means "I finished talking". */
-const END_SILENCE_MS = 1300;
+/** Quiet time after speech that means "I finished talking" (shorter = faster turns). */
+const END_SILENCE_MS = 950;
 /** Speech needed before a pause counts as the end (ignores clicks and breaths). */
 const MIN_SPEECH_MS = 300;
 /** Hands-free listening gives up when nobody speaks for this long. */
@@ -330,11 +330,16 @@ function arabicVoice(): SpeechSynthesisVoice | null {
 
 /** null = not checked yet; the server voice (Gemini) works on every device. */
 let serverVoice: boolean | null = null;
+/** The server voice is busy (quota) or slow: read with the device voice until then. */
+let serverVoiceRestUntil = 0;
 let serverCheck: Promise<boolean> | null = null;
 function checkServerVoice(): Promise<boolean> {
   serverCheck ||= fetch('/api/ai/sakhr/speech', { cache: 'no-store' })
     .then((r) => r.json())
-    .then((d) => (serverVoice = Boolean(d?.available)))
+    .then((d) => {
+      if (d?.resting) serverVoiceRestUntil = Date.now() + 60_000;
+      return (serverVoice = Boolean(d?.available));
+    })
     .catch(() => (serverVoice = false));
   return serverCheck;
 }
@@ -377,7 +382,7 @@ function chunksOf(text: string): string[] {
   const out: string[] = [];
   let cur = '';
   for (const s of sentences) {
-    const limit = out.length === 0 ? 140 : 320;
+    const limit = out.length === 0 ? 90 : out.length === 1 ? 200 : 320;
     if (cur && (cur + ' ' + s).length > limit) {
       out.push(cur);
       cur = s;
@@ -431,7 +436,11 @@ async function fetchChunk(text: string): Promise<Blob> {
     credentials: 'same-origin',
     body: JSON.stringify({ text }),
   });
-  if (!res.ok) throw new Error(String(res.status));
+  if (!res.ok) {
+    // Busy or failing: the next replies go straight to the device voice for a minute.
+    if (res.status === 429 || res.status >= 500) serverVoiceRestUntil = Date.now() + 60_000;
+    throw new Error(String(res.status));
+  }
   return res.blob();
 }
 
@@ -465,6 +474,8 @@ export function speak(text: string, onEnd?: () => void): boolean {
   stopSpeaking();
   const mine = ++session;
   if (serverVoice === false) return browserSpeak(clean, mine, onEnd);
+  // Server voice resting: speak at once with the device voice when there is an Arabic one.
+  if (Date.now() < serverVoiceRestUntil && browserSpeak(clean, mine, onEnd)) return true;
 
   const parts = chunksOf(clean);
   void (async () => {
