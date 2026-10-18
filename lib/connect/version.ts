@@ -17,7 +17,7 @@ export const versionLabel = () => (BUILD_CODE ? `${CONNECT_VERSION} (${BUILD_COD
  * new files are uploaded (an app never installs a file that is not newer).
  */
 export const NATIVE_RELEASES = {
-  android: { versionCode: 8, versionName: '1.8.0', url: '/api/connect/download?platform=android' },
+  android: { versionCode: 9, versionName: '1.8.1', url: '/api/connect/download?platform=android' },
   windows: {
     version: '1.8.1',
     url: '/api/connect/download?platform=windows',
