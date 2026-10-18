@@ -205,6 +205,8 @@ a.ab-detail:hover { background: #f6fbf8; }
 a.ab-detail:hover b { color: var(--ip-brand); }
 a.ab-detail:hover i { transform: scale(1.1); }
 .ab-visit-btn { align-self: flex-start; margin-top: auto; }
+.ab-follow { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 4px 8px 0; }
+.ab-follow > span { font-size: .8rem; font-weight: 800; color: var(--ip-muted); margin-inline-end: 4px; }
 
 /* ---------- Closing band ---------- */
 .ab-band { position: relative; overflow: hidden; isolation: isolate; background-size: 180% 180%; animation: ab-flow 12s ease-in-out infinite alternate; }

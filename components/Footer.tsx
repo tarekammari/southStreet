@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, Mail, MapPin, MessageCircle, Phone, PhoneCall, Smartphone } from 'lucide-react';
 import { publicList } from '@/lib/public-catalog';
 import { PageContentRow, pickPageContent } from '@/lib/page-content';
-import { SOCIAL_LABELS } from '@/lib/social';
+import { socialProfiles } from '@/lib/social';
 import { useAgencyInfo } from '@/components/social/useAgencyInfo';
 import { SOCIAL_ICON } from '@/components/social/SocialIcons';
 import { toPortalRole } from '@/lib/roles';
@@ -63,9 +63,7 @@ export default function Footer({ content, hideCta = false }: { content?: PageCon
 
   const agency = useAgencyInfo();
   const social = agency?.social;
-  const profiles = social
-    ? (Object.keys(SOCIAL_LABELS) as (keyof typeof SOCIAL_LABELS)[]).filter((k) => social[k]).map((k) => ({ key: k, url: social[k], label: SOCIAL_LABELS[k] }))
-    : [];
+  const profiles = socialProfiles(social);
 
   const about = pickPageContent(rows, 'footer_about', {
     title: 'ساوث ستريت للأسفار والعمرة',

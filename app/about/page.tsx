@@ -33,6 +33,9 @@ import { initialOf, photoOf, type MorshidRow } from '@/components/AboutSection';
 import { useReveal } from '@/components/info/useReveal';
 import { CountUp, ScrollProgress, spotlightMove, tiltHandlers } from '@/components/about/effects';
 import { openSakhr } from '@/components/sakhr/openSakhr';
+import { useAgencyInfo } from '@/components/social/useAgencyInfo';
+import { SOCIAL_ICON } from '@/components/social/SocialIcons';
+import { socialProfiles } from '@/lib/social';
 import { publicAgency, publicList, publicReviews } from '@/lib/public-catalog';
 import type { PageContentRow } from '@/lib/page-content';
 import { readAboutContent } from '@/lib/about-content';
@@ -95,6 +98,7 @@ export default function AboutPage() {
   }, []);
 
   useReveal();
+  const profiles = socialProfiles(useAgencyInfo()?.social);
 
   const name = agency.agency_name || 'وكالة ساوث ستريت';
   const about = readAboutContent(content);
@@ -418,6 +422,19 @@ export default function AboutPage() {
                     );
                   })}
                 </div>
+                {profiles.length ? (
+                  <div className="ab-follow">
+                    <span>تابعونا</span>
+                    {profiles.map((p) => {
+                      const Icon = SOCIAL_ICON[p.key];
+                      return (
+                        <a key={p.key} href={p.url} target="_blank" rel="noreferrer" className={`hero-social is-${p.key}`} aria-label={p.label} title={p.label}>
+                          <Icon />
+                        </a>
+                      );
+                    })}
+                  </div>
+                ) : null}
                 <a href={mapUrl} target="_blank" rel="noreferrer" className="ip-btn is-primary ab-shine ab-visit-btn">
                   <Navigation className="w-4 h-4" /> الاتجاهات في خرائط Google <ExternalLink className="w-3.5 h-3.5" />
                 </a>
