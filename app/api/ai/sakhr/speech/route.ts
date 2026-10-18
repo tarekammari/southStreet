@@ -218,7 +218,7 @@ export async function POST(req: NextRequest) {
       // Out of quota or not enabled for this account (e.g. terms not accepted): rest it.
       if (status === 429) rest(p.id, 60_000);
       else if (status === 400 || status === 401 || status === 403 || status === 404) rest(p.id, 30 * 60_000);
-      else if (timedOut) rest(p.id, 30_000);
+      else if (timedOut || status >= 500) rest(p.id, 30_000);
       console.warn(`[sakhr] tts ${p.id} failed (${status || (timedOut ? 'timeout' : 'network')}) after ${Date.now() - started} ms`);
     }
   }
