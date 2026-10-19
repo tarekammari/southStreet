@@ -1,8 +1,6 @@
-'use client';
+import { redirect } from 'next/navigation';
 
-import ProgramCatalog from '@/components/catalog/ProgramCatalog';
-
-/** Organised tourist trips: Turkey, Malaysia, Egypt, Tunisia, Spain, London. */
+/** Old link: tourist trips now live on the programs page. */
 export default function TripsPage() {
-  return <ProgramCatalog kind="tourism" />;
+  redirect('/packages?kind=tourism');
 }

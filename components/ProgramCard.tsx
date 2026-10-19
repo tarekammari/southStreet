@@ -12,7 +12,7 @@ import {
   programMinPrice,
 } from '@/lib/program-display';
 import { Plane } from 'lucide-react';
-import { destinationOf, isTourism, parseTour } from '@/lib/tour';
+import { destinationOf, isTourism, tourOf } from '@/lib/tour';
 
 /** Home-page program card: photo, name, date, price, one action. Details live on /packages. */
 export default function ProgramCard({ pkg, index }: { pkg: Package; index: number }) {
@@ -21,12 +21,12 @@ export default function ProgramCard({ pkg, index }: { pkg: Package; index: numbe
   const price = programMinPrice(pkg);
   const date = formatProgramDate(pkg.start_date);
   const tourism = isTourism(pkg);
-  const tour = tourism ? parseTour(pkg.tour) : null;
+  const tour = tourism ? tourOf(pkg) : null;
   const dest = tour ? destinationOf(tour.country) : null;
   const ownPhoto = Boolean(pkg.image_url) && !/kaaba|maka0/i.test(String(pkg.image_url));
   const href = bookable
     ? `/book?package=${encodeURIComponent(pkg.package_id)}`
-    : `${tourism ? '/trips' : '/packages'}#${encodeURIComponent(pkg.package_id)}`;
+    : `${tourism ? '/packages?kind=tourism' : '/packages'}#${encodeURIComponent(pkg.package_id)}`;
 
   return (
     <Link href={href} className={`prog-card is-${availability}${tourism ? ' is-tour' : ''}`}>

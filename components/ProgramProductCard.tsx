@@ -18,7 +18,7 @@ import {
   seatFillPercent,
 } from '@/lib/program-display';
 import WishlistHeart from '@/components/WishlistHeart';
-import { destinationOf, isTourism, parseTour, tourCountryLabel } from '@/lib/tour';
+import { destinationOf, isTourism, tourCountryLabel, tourOf } from '@/lib/tour';
 
 type Guide = { morshid_id: string; name: string; image?: string; avatar?: string };
 
@@ -66,7 +66,7 @@ export default function ProgramProductCard({ pkg, index }: { pkg: Package; index
   const end = formatProgramDate(pkg.end_date);
   const validStart = parseTripDate(pkg.start_date);
   const tourism = isTourism(pkg);
-  const tour = tourism ? parseTour(pkg.tour) : null;
+  const tour = tourism ? tourOf(pkg) : null;
   const dest = tour ? destinationOf(tour.country) : null;
   // A tourist trip without its own photo must not borrow the Kaaba pictures.
   const ownPhoto = Boolean(pkg.image_url) && !/kaaba|maka0/i.test(String(pkg.image_url));

@@ -17,7 +17,7 @@ import '@/app/footer.css';
 const PRODUCT_LINKS = [
   { label: 'حجز العمرة', href: '/book' },
   { label: 'البرامج', href: '/packages' },
-  { label: 'رحلات سياحية', href: '/trips' },
+  { label: 'رحلات سياحية', href: '/packages?kind=tourism' },
   { label: 'الفنادق', href: '/hotels' },
   { label: 'دليل العمرة', href: '/guide' },
 ];

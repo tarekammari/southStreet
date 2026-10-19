@@ -2,7 +2,7 @@
 
 import ProgramCatalog from '@/components/catalog/ProgramCatalog';
 
-/** Umrah and Hajj programs; tourist trips live on /trips (same catalog component). */
+/** Programs: Umrah / Hajj and tourist trips on one page (?kind=tourism). */
 export default function PackagesPage() {
-  return <ProgramCatalog kind="religious" />;
+  return <ProgramCatalog />;
 }

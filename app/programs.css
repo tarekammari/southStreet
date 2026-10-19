@@ -930,8 +930,10 @@
 .pcat-dests button i { width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 2px #fff; }
 .pcat-dests button small { font-size: 0.72rem; opacity: 0.75; }
 .pcat-kinds { display: inline-flex; gap: 0.3rem; padding: 0.25rem; margin-bottom: 1rem; border-radius: 999px; background: #f1f5f9; }
-.pcat-kinds a { padding: 0.45rem 1rem; border-radius: 999px; font-size: 0.85rem; font-weight: 800; color: #475569; text-decoration: none; transition: background 0.2s, color 0.2s; }
-.pcat-kinds a[aria-current='page'] { background: #fff; color: #047857; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12); }
+.pcat-kinds button { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 1.15rem; border-radius: 999px; font-size: 0.9rem; font-weight: 800; color: #475569; transition: background 0.2s, color 0.2s, box-shadow 0.2s; }
+.pcat-kinds button span { min-width: 1.4rem; padding: 0 0.35rem; border-radius: 999px; background: #e2e8f0; font-size: 0.72rem; text-align: center; }
+.pcat-kinds button[aria-selected='true'] { background: #fff; color: #047857; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12); }
+.pcat-kinds button[aria-selected='true'] span { background: #d1fae5; color: #047857; }
 
 /* Home: tourist-trips rail */
 .prog-media > .pcard-tourcover { padding-bottom: 0; }
@@ -949,3 +951,12 @@
 .book-pkg-group + .book-pkg-group { margin-top: 1.25rem; }
 .book-pkg-group-title { display: flex; align-items: center; gap: 0.45rem; margin: 0 0 0.6rem; font-size: 0.9rem; font-weight: 800; color: #0f172a; }
 .book-pkg-group-title span { min-width: 1.5rem; padding: 0 0.4rem; border-radius: 999px; background: #ecfdf5; color: #047857; font-size: 0.72rem; text-align: center; }
+
+/* Hotels page: by country */
+.hotel-countries { display: flex; flex-wrap: wrap; gap: 0.45rem; margin: 0 0 1rem; }
+.hotel-countries button { display: inline-flex; align-items: center; gap: 0.4rem; height: 40px; padding: 0 1rem; border-radius: 999px; border: 1px solid #e2e8f0; background: #fff; font-size: 0.86rem; font-weight: 800; color: #334155; transition: all 0.2s; }
+.hotel-countries button:hover { border-color: #6ee7b7; transform: translateY(-1px); }
+.hotel-countries button i { width: 10px; height: 10px; border-radius: 50%; }
+.hotel-countries button span { min-width: 1.4rem; padding: 0 0.35rem; border-radius: 999px; background: #f1f5f9; font-size: 0.72rem; text-align: center; }
+.hotel-countries button[aria-selected='true'] { background: #047857; border-color: #047857; color: #fff; box-shadow: 0 8px 18px -10px rgba(4, 120, 87, 0.8); }
+.hotel-countries button[aria-selected='true'] span { background: rgba(255, 255, 255, 0.22); color: #fff; }

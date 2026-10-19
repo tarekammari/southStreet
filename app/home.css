@@ -233,3 +233,102 @@
   .nav-logo-link:hover .brand-s1,
   .home-cta-btn:hover { transform: none; }
 }
+
+/* ---- Home: tourist-trips showcase (components/home/TourismShowcase) ----- */
+.tour-show { position: relative; z-index: 1; padding: 1rem 0.75rem 2.5rem; }
+.tour-show-inner {
+  position: relative;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 2rem 1.1rem 2.2rem;
+  border-radius: 2rem;
+  color: #fff;
+  background:
+    radial-gradient(60% 80% at 100% 0%, rgba(45, 212, 191, 0.25), transparent 60%),
+    radial-gradient(50% 70% at 0% 100%, rgba(56, 189, 248, 0.22), transparent 60%),
+    linear-gradient(135deg, #042f2e 0%, #0b3b4f 55%, #0f172a 100%);
+  box-shadow: 0 30px 60px -30px rgba(2, 44, 34, 0.65);
+  overflow: hidden;
+}
+@media (min-width: 640px) { .tour-show-inner { padding: 2.6rem 2.2rem 2.8rem; } }
+.tour-show-inner::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+  background-size: 22px 22px;
+  mask-image: linear-gradient(180deg, #000, transparent 70%);
+}
+.tour-show-head { position: relative; z-index: 1; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 1rem; }
+.tour-show-eyebrow { display: inline-flex; align-items: center; gap: 0.4rem; margin: 0 0 0.5rem; padding: 0.3rem 0.8rem; border-radius: 999px; background: rgba(255, 255, 255, 0.1); font-size: 0.78rem; font-weight: 800; color: #99f6e4; }
+.tour-show-eyebrow svg { width: 0.95rem; height: 0.95rem; transform: rotate(-45deg); }
+.tour-show-head h2 { margin: 0; font-size: clamp(1.6rem, 4vw, 2.4rem); font-weight: 900; line-height: 1.25; letter-spacing: -0.01em; }
+.tour-show-lead { margin: 0.5rem 0 0; max-width: 38rem; font-size: 0.95rem; line-height: 1.8; color: rgba(226, 232, 240, 0.85); }
+.tour-show-all { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.65rem 1.2rem; border-radius: 999px; background: #fff; color: #0f766e; font-size: 0.9rem; font-weight: 900; text-decoration: none; transition: transform 0.2s, box-shadow 0.2s; }
+.tour-show-all:hover { transform: translateY(-2px); box-shadow: 0 12px 24px -12px rgba(255, 255, 255, 0.6); }
+
+.tour-show-perks { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1.4rem 0 1.6rem; padding: 0; list-style: none; }
+.tour-show-perks li { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.45rem 0.85rem; border-radius: 999px; background: rgba(255, 255, 255, 0.08); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12); font-size: 0.8rem; font-weight: 700; color: #e2e8f0; }
+.tour-show-perks svg { width: 1rem; height: 1rem; color: #5eead4; }
+
+.tour-show-grid { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+@media (min-width: 900px) {
+  /* Six destinations: a clean 3 × 2 board; the busiest one comes first. */
+  .tour-show-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: 13.5rem; }
+}
+.tour-tile-cell { display: flex; min-height: 9.5rem; }
+.tour-tile {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  padding: 1rem;
+  border-radius: 1.4rem;
+  overflow: hidden;
+  isolation: isolate;
+  text-decoration: none;
+  color: #fff;
+  background: radial-gradient(120% 90% at 85% 0%, rgba(255, 255, 255, 0.25), transparent 55%), linear-gradient(150deg, var(--tile), color-mix(in srgb, var(--tile) 55%, #020617));
+  box-shadow: 0 18px 30px -22px rgba(0, 0, 0, 0.8);
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s;
+}
+.tour-tile:hover { transform: translateY(-4px); box-shadow: 0 26px 40px -22px rgba(0, 0, 0, 0.9); }
+.tour-tile > img { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; transition: transform 0.9s cubic-bezier(0.16, 1, 0.3, 1); }
+.tour-tile:hover > img { transform: scale(1.06); }
+.tour-tile.has-photo::before { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, transparent 25%, rgba(2, 6, 23, 0.85)); }
+.tour-tile.is-soon { filter: saturate(0.75); }
+.tour-tile-mark {
+  position: absolute;
+  inset-inline-end: -0.4rem;
+  top: 0.3rem;
+  z-index: -1;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(2.2rem, 6vw, 3.6rem);
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.13);
+  white-space: nowrap;
+  direction: ltr;
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.tour-tile.has-photo .tour-tile-mark { color: rgba(255, 255, 255, 0.22); }
+.tour-tile:hover .tour-tile-mark { transform: translateX(-8px); }
+.tour-tile-cell.is-lead .tour-tile-mark { font-size: clamp(2.6rem, 6.5vw, 4.4rem); }
+.tour-tile-body { display: grid; gap: 0.2rem; }
+.tour-tile-body strong { font-size: 1.3rem; font-weight: 900; text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3); }
+.tour-tile-cell.is-lead .tour-tile-body strong { font-size: 1.6rem; }
+.tour-tile-body small { font-size: 0.78rem; font-weight: 600; color: rgba(255, 255, 255, 0.85); }
+.tour-tile-body em { justify-self: start; margin-top: 0.35rem; padding: 0.2rem 0.65rem; border-radius: 999px; background: rgba(255, 255, 255, 0.18); backdrop-filter: blur(6px); font-style: normal; font-size: 0.75rem; font-weight: 800; }
+.tour-tile.is-soon .tour-tile-body em { background: rgba(2, 6, 23, 0.35); color: rgba(255, 255, 255, 0.8); }
+.tour-tile-go { position: absolute; top: 0.8rem; inset-inline-start: 0.8rem; display: grid; place-items: center; width: 2.1rem; height: 2.1rem; border-radius: 50%; background: rgba(255, 255, 255, 0.16); opacity: 0; transform: translateX(6px); transition: opacity 0.3s, transform 0.3s; }
+.tour-tile-go svg { width: 1rem; height: 1rem; }
+.tour-tile:hover .tour-tile-go { opacity: 1; transform: none; }
+
+.tour-show-trips { position: relative; z-index: 1; margin-top: 2rem; }
+.tour-show-trips h3 { margin: 0 0 0.9rem; font-size: 1.1rem; font-weight: 900; color: #fff; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-tile, .tour-tile > img, .tour-tile-mark, .tour-tile-go, .tour-show-all { transition: none; }
+  .tour-tile:hover, .tour-tile:hover > img, .tour-tile:hover .tour-tile-mark { transform: none; }
+}

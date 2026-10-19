@@ -24,6 +24,8 @@ export type Destination = {
   label: string;
   /** Accent colour for chips and covers. */
   color: string;
+  /** Latin name, used as a large watermark on the home tiles. */
+  latin: string;
   cities: string[];
   /** Words a program name may carry for this destination (finance / search). */
   keywords: string[];
@@ -37,6 +39,7 @@ export const DESTINATIONS: Destination[] = [
     id: 'TR',
     label: 'تركيا',
     color: '#b91c1c',
+    latin: 'TÜRKİYE',
     cities: ['إسطنبول', 'بورصة', 'طرابزون', 'أنطاليا', 'كابادوكيا', 'إزمير'],
     keywords: ['تركيا', 'اسطنبول', 'إسطنبول', 'turkey', 'istanbul', 'türkiye'],
     visa: 'تأشيرة تركيا — الوكالة تتكفّل بالإجراءات وتؤكّد الشروط عند الحجز.',
@@ -45,6 +48,7 @@ export const DESTINATIONS: Destination[] = [
     id: 'MY',
     label: 'ماليزيا',
     color: '#1d4ed8',
+    latin: 'MALAYSIA',
     cities: ['كوالالمبور', 'لنكاوي', 'بينانغ', 'مرتفعات جنتنج', 'ملاكا'],
     keywords: ['ماليزيا', 'كوالالمبور', 'malaysia', 'kuala lumpur'],
     visa: 'شروط دخول ماليزيا — الوكالة تؤكّدها عند الحجز وتتكفّل بالإجراءات.',
@@ -53,6 +57,7 @@ export const DESTINATIONS: Destination[] = [
     id: 'EG',
     label: 'مصر',
     color: '#b45309',
+    latin: 'EGYPT',
     cities: ['القاهرة', 'الإسكندرية', 'شرم الشيخ', 'الغردقة', 'الأقصر', 'أسوان'],
     keywords: ['مصر', 'القاهرة', 'شرم', 'egypt', 'cairo'],
     visa: 'تأشيرة مصر — الوكالة تتكفّل بالإجراءات.',
@@ -61,6 +66,7 @@ export const DESTINATIONS: Destination[] = [
     id: 'TN',
     label: 'تونس',
     color: '#be123c',
+    latin: 'TUNISIA',
     cities: ['تونس العاصمة', 'الحمامات', 'سوسة', 'جربة', 'المنستير', 'طبرقة'],
     keywords: ['تونس', 'الحمامات', 'سوسة', 'جربة', 'tunisia', 'tunis'],
     visa: 'دخول تونس بجواز السفر الجزائري — بدون تأشيرة.',
@@ -69,6 +75,7 @@ export const DESTINATIONS: Destination[] = [
     id: 'ES',
     label: 'إسبانيا',
     color: '#c2410c',
+    latin: 'ESPAÑA',
     cities: ['برشلونة', 'مدريد', 'غرناطة', 'إشبيلية', 'قرطبة', 'ملقة'],
     keywords: ['اسبانيا', 'إسبانيا', 'الأندلس', 'برشلونة', 'مدريد', 'spain', 'barcelona', 'madrid'],
     visa: 'تأشيرة شنغن — الوكالة تجهّز الملف وتحجز الموعد.',
@@ -77,6 +84,7 @@ export const DESTINATIONS: Destination[] = [
     id: 'GB',
     label: 'لندن',
     color: '#1e3a8a',
+    latin: 'LONDON',
     cities: ['لندن', 'مانشستر', 'إدنبرة', 'أكسفورد'],
     keywords: ['لندن', 'بريطانيا', 'المملكة المتحدة', 'london', 'uk', 'england'],
     visa: 'تأشيرة المملكة المتحدة — الوكالة تجهّز الملف وتحجز الموعد.',
@@ -155,6 +163,52 @@ export function tourCountryLabel(tour: Pick<TourDetails, 'country'> | null | und
   if (!tour?.country) return '';
   const d = destinationOf(tour.country);
   return d ? d.label : tour.country;
+}
+
+/** The destination a free text names (program name, city…), by keywords and city names. */
+export function guessDestination(text?: string | null): Destination | null {
+  const n = String(text || '').toLowerCase();
+  if (!n) return null;
+  return (
+    DESTINATIONS.find((d) => d.keywords.some((k) => n.includes(k.toLowerCase())) || d.cities.some((c) => n.includes(c.toLowerCase()))) ||
+    null
+  );
+}
+
+/**
+ * A program's tour details, with the country filled in when staff left it
+ * empty but the name or the cities say it («رحلة سياحية إلى إسطنبول» → تركيا).
+ */
+export function tourOf(pkg: { tour?: unknown; name?: string | null }): TourDetails {
+  const tour = parseTour(pkg.tour);
+  if (tour.country) return tour;
+  const guess = guessDestination([pkg.name, ...tour.cities].filter(Boolean).join(' '));
+  return guess ? { ...tour, country: guess.id, visa: tour.visa || guess.visa } : tour;
+}
+
+/* ---- Hotels: country from the city ------------------------------------- */
+
+export type HotelCountry = { id: string; label: string; color: string; cities: string[] };
+
+/** Saudi Arabia (the Haram hotels, stored as MAKKAH / MADINAH) first, then the trip destinations. */
+export const HOTEL_COUNTRIES: HotelCountry[] = [
+  { id: 'SA', label: 'السعودية', color: '#047857', cities: ['MAKKAH', 'MADINAH', 'مكة المكرمة', 'المدينة المنورة', 'جدة'] },
+  ...DESTINATIONS.map((d) => ({ id: d.id, label: d.label, color: d.color, cities: d.cities })),
+];
+
+const CITY_CODES: Record<string, string> = { MAKKAH: 'مكة المكرمة', MADINAH: 'المدينة المنورة' };
+
+export function hotelCityLabel(city?: string | null): string {
+  const c = String(city || '').trim();
+  return CITY_CODES[c] || c;
+}
+
+/** Country id of a hotel city ('' when unknown). */
+export function hotelCountryOf(city?: string | null): string {
+  const c = String(city || '').trim();
+  if (!c) return '';
+  const hit = HOTEL_COUNTRIES.find((k) => k.cities.some((x) => x === c || x.toLowerCase() === c.toLowerCase()));
+  return hit?.id || guessDestination(c)?.id || '';
 }
 
 /** A program name that clearly names a destination (used where only the name is known, e.g. receipts). */

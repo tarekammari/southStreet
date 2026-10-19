@@ -86,7 +86,7 @@ export const APP_PAGES: AppPage[] = [
   },
   {
     id: 'trips',
-    path: '/trips',
+    path: '/packages?kind=tourism',
     title: 'رحلات سياحية',
     titleEn: 'Tourist trips',
     description: 'رحلات سياحية منظّمة إلى تركيا، ماليزيا، مصر، تونس، إسبانيا ولندن — برنامج يوماً بيوم، فنادق، والوكالة تتكفّل بالتأشيرة.',

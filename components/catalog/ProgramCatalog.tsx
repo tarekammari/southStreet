@@ -1,7 +1,7 @@
 'use client';
 
 import React, { Suspense, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ChevronDown, Heart, SearchX, Search, X } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import SakhrAgent from '@/components/lazy/LazySakhrAgent';
@@ -20,7 +20,7 @@ import {
   programAvailability,
   programMinPrice,
 } from '@/lib/program-display';
-import { DESTINATIONS, destinationOf, isTourism, parseTour } from '@/lib/tour';
+import { destinationOf, DESTINATIONS, isTourism, tourOf } from '@/lib/tour';
 
 export type CatalogKind = 'religious' | 'tourism';
 
@@ -47,10 +47,39 @@ function startTime(pkg: Package): number {
   return parseTripDate(pkg.start_date)?.getTime() ?? Number.MAX_SAFE_INTEGER;
 }
 
-function ProgramCatalogInner({ kind }: { kind: CatalogKind }) {
+function ProgramCatalogInner() {
+  // One page for both: ?kind=tourism opens the tourist trips, &dest=TR a destination.
+  const params = useSearchParams();
+  const router = useRouter();
+  const kind: CatalogKind = params.get('kind') === 'tourism' ? 'tourism' : 'religious';
   const copy = COPY[kind];
-  const [dest, setDest] = useState('ALL');
-  const [packages, setPackages] = useState<Package[]>([]);
+  const [dest, setDestState] = useState(params.get('dest') || 'ALL');
+  const [allPackages, setAllPackages] = useState<Package[]>([]);
+  const packages = useMemo(
+    () => allPackages.filter((p) => (kind === 'tourism' ? isTourism(p) : !isTourism(p))),
+    [allPackages, kind]
+  );
+  const setParams = (next: { kind?: CatalogKind; dest?: string }) => {
+    const q = new URLSearchParams(params.toString());
+    const k = next.kind ?? kind;
+    if (k === 'tourism') q.set('kind', 'tourism');
+    else q.delete('kind');
+    const d = next.dest ?? (next.kind && next.kind !== kind ? 'ALL' : dest);
+    if (k === 'tourism' && d && d !== 'ALL') q.set('dest', d);
+    else q.delete('dest');
+    router.replace(`/packages${q.toString() ? `?${q}` : ''}`, { scroll: false });
+  };
+  const setDest = (d: string) => {
+    setDestState(d);
+    setParams({ dest: d });
+  };
+  const switchKind = (k: CatalogKind) => {
+    if (k === kind) return;
+    setDestState('ALL');
+    setType('ALL');
+    setSeason('ALL');
+    setParams({ kind: k, dest: 'ALL' });
+  };
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [query, setQuery] = useState('');
@@ -64,7 +93,7 @@ function ProgramCatalogInner({ kind }: { kind: CatalogKind }) {
   useEffect(() => {
     publicList<Package>('packages')
       .then((data) => {
-        if (Array.isArray(data)) setPackages(data.filter((p) => (kind === 'tourism' ? isTourism(p) : !isTourism(p))));
+        if (Array.isArray(data)) setAllPackages(data);
       })
       .catch(() => setFailed(true))
       .finally(() => setLoading(false));
@@ -76,7 +105,7 @@ function ProgramCatalogInner({ kind }: { kind: CatalogKind }) {
       window.removeEventListener('storage', sync);
       window.removeEventListener('southstreet:wishlist-updated', sync);
     };
-  }, [kind]);
+  }, []);
 
   // Deep links from the home page: /packages#<package_id>
   useEffect(() => {
@@ -108,7 +137,7 @@ function ProgramCatalogInner({ kind }: { kind: CatalogKind }) {
     packages
       .filter((p) => programAvailability(p) !== 'expired')
       .forEach((p) => {
-        const c = parseTour(p.tour).country;
+        const c = tourOf(p).country;
         if (c) counts.set(c, (counts.get(c) || 0) + 1);
       });
     const known = DESTINATIONS.filter((d) => counts.has(d.id)).map((d) => ({ id: d.id, label: d.label, color: d.color, n: counts.get(d.id) || 0 }));
@@ -141,11 +170,11 @@ function ProgramCatalogInner({ kind }: { kind: CatalogKind }) {
     const q = query.trim().toLowerCase();
     const matches = packages.filter((pkg) => {
       if (type !== 'ALL' && pkg.type !== type) return false;
-      if (dest !== 'ALL' && parseTour(pkg.tour).country !== dest) return false;
+      if (dest !== 'ALL' && tourOf(pkg).country !== dest) return false;
       if (season !== 'ALL' && pkg.season_id !== season) return false;
       if (onlySaved && !saved.includes(pkg.package_id)) return false;
       if (q) {
-        const tour = parseTour(pkg.tour);
+        const tour = tourOf(pkg);
         const hay = [
           pkg.name, pkg.makkah_hotel_name, pkg.madinah_hotel_name, pkg.airline, pkg.departure_city, pkg.season_name,
           destinationOf(tour.country)?.label, tour.country, ...tour.cities, ...tour.hotels.map((h) => h.name),
@@ -187,9 +216,16 @@ function ProgramCatalogInner({ kind }: { kind: CatalogKind }) {
       <Navbar variant="light" />
 
       <main className="page-main pb-20 max-w-6xl mx-auto px-4 sm:px-6">
-        <nav className="pcat-kinds" aria-label="نوع البرامج">
-          <Link href="/packages" aria-current={kind === 'religious' ? 'page' : undefined}>العمرة والحج</Link>
-          <Link href="/trips" aria-current={kind === 'tourism' ? 'page' : undefined}>رحلات سياحية</Link>
+        <nav className="pcat-kinds" role="tablist" aria-label="نوع البرامج">
+          {([
+            ['religious', 'العمرة والحج', allPackages.filter((p) => !isTourism(p) && programAvailability(p) !== 'expired').length],
+            ['tourism', 'رحلات سياحية', allPackages.filter((p) => isTourism(p) && programAvailability(p) !== 'expired').length],
+          ] as const).map(([id, label, n]) => (
+            <button key={id} type="button" role="tab" aria-selected={kind === id} onClick={() => switchKind(id)}>
+              {label}
+              {!loading ? <span>{n}</span> : null}
+            </button>
+          ))}
         </nav>
         <header className="pcat-head">
           <div>
@@ -349,10 +385,11 @@ function ProgramCatalogInner({ kind }: { kind: CatalogKind }) {
   );
 }
 
-export default function ProgramCatalog({ kind }: { kind: CatalogKind }) {
+/** Umrah / Hajj programs and tourist trips, one page (/packages; /trips redirects here). */
+export default function ProgramCatalog() {
   return (
     <Suspense fallback={<div className="min-h-screen page-shell flex items-center justify-center text-slate-500">جاري التحميل...</div>}>
-      <ProgramCatalogInner kind={kind} />
+      <ProgramCatalogInner />
     </Suspense>
   );
 }

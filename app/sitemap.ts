@@ -10,7 +10,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
   return [
     { path: '/', priority: 1, freq: 'daily' as const },
     { path: '/packages', priority: 0.9, freq: 'daily' as const },
-    { path: '/trips', priority: 0.9, freq: 'daily' as const },
     { path: '/book', priority: 0.8, freq: 'weekly' as const },
     { path: '/hotels', priority: 0.7, freq: 'weekly' as const },
     { path: '/guide', priority: 0.7, freq: 'monthly' as const },

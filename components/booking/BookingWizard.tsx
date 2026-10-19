@@ -23,7 +23,7 @@ import {
   UserRound,
   Loader2,
 } from 'lucide-react';
-import { isTourism, parseTour, tourCountryLabel } from '@/lib/tour';
+import { isTourism, tourCountryLabel, tourOf } from '@/lib/tour';
 import { Package, Reservation } from '@/types';
 import {
   BOOKING_EXTRAS,
@@ -506,8 +506,8 @@ export default function BookingWizard() {
                 {selected.start_date ? (
                   <span><Calendar className="w-5 h-5" /> {formatShortDate(selected.start_date)}</span>
                 ) : null}
-                {isTourism(selected) && tourCountryLabel(parseTour(selected.tour)) ? (
-                  <span><MapPin className="w-5 h-5" /> {tourCountryLabel(parseTour(selected.tour))}{parseTour(selected.tour).cities.length ? ` · ${parseTour(selected.tour).cities.join('، ')}` : ''}</span>
+                {isTourism(selected) && tourCountryLabel(tourOf(selected)) ? (
+                  <span><MapPin className="w-5 h-5" /> {tourCountryLabel(tourOf(selected))}{tourOf(selected).cities.length ? ` · ${tourOf(selected).cities.join('، ')}` : ''}</span>
                 ) : selected.makkah_hotel_name ? (
                   <span><MapPin className="w-5 h-5" /> {selected.makkah_hotel_name}</span>
                 ) : null}
@@ -556,7 +556,7 @@ export default function BookingWizard() {
               {list.map((pkg) => {
                 const from = pkg.prices?.length ? Math.min(...pkg.prices.map((p) => p.amount)) : 0;
                 const active = pkg.package_id === packageId;
-                const country = isTourism(pkg) ? tourCountryLabel(parseTour(pkg.tour)) : '';
+                const country = isTourism(pkg) ? tourCountryLabel(tourOf(pkg)) : '';
                 return (
                   <article key={pkg.package_id} className={`book-pkg-pick ${active ? 'is-active' : ''}`}>
                     <button
@@ -573,7 +573,7 @@ export default function BookingWizard() {
                       <span className="book-choice-price">{money(from)}</span>
                     </button>
                     <Link
-                      href={`${country ? '/trips' : '/packages'}#${encodeURIComponent(pkg.package_id)}`}
+                      href={`${country ? '/packages?kind=tourism' : '/packages'}#${encodeURIComponent(pkg.package_id)}`}
                       className="book-pkg-details"
                     >
                       {country ? 'تفاصيل الرحلة' : 'تفاصيل البرنامج'}
