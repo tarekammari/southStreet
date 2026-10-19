@@ -25,6 +25,7 @@ import {
   getOwnedReservation,
   isActiveReservation,
   listCustomerReservations,
+  listCustomerHotelBookings,
   loadPublishedPackage,
   lookupMorshidPhone,
   mapReservationRow,
@@ -261,6 +262,7 @@ export async function GET(req: NextRequest) {
   const db = getSqliteDb();
   const account = db.prepare('SELECT * FROM users WHERE id = ?').get(auth.id) as any;
   const reservations = listCustomerReservations(auth.id);
+  const hotelBookings = listCustomerHotelBookings(auth.id);
   const activeReservation = reservations.find((row) => isActiveReservation(row.status)) || null;
 
   const allReceipts = db.prepare('SELECT * FROM receipts').all() as any[];
@@ -268,11 +270,11 @@ export async function GET(req: NextRequest) {
     .filter((row) =>
       row.pilgrimCode === account?.code ||
       row.pilgrimName === account?.name ||
-      reservations.some((res) => row.packageName === res.package_name && row.pilgrimName === res.customer_name)
+      [...reservations, ...hotelBookings].some((res) => row.packageName === res.package_name && row.pilgrimName === res.customer_name)
     )
     .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
 
-  return NextResponse.json({ reservations, receipts, activeReservation });
+  return NextResponse.json({ reservations, hotelBookings, receipts, activeReservation });
 }
 
 export async function POST(req: NextRequest) {

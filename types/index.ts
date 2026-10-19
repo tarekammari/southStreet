@@ -357,6 +357,12 @@ export interface Reservation {
   agency_confirmed_by?: string;
   document_verify_code?: string;
   agency_note?: string;
+  /** TRIP = a program (Umrah / Hajj / tourist trip), HOTEL = a hotel-only stay. */
+  booking_kind?: 'TRIP' | 'HOTEL';
+  hotel_stay?: import('@/lib/hotels/types').HotelStay;
+  /** Tourist trips: visa follow-up (lib/visa.ts). */
+  visa_status?: string;
+  visa_note?: string;
 }
 
 /** Pending Umrah demand with linked customer account info (for agency review). */

@@ -41,6 +41,7 @@ import HotelVideosField from '@/components/record-card/HotelVideosField';
 import HotelLocationField from '@/components/record-card/HotelLocationField';
 import PackageOfferingsPanel from '@/components/record-card/PackageOfferingsPanel';
 import TripDetailsPanel from '@/components/record-card/TripDetailsPanel';
+import HotelInventoryPanel from '@/components/record-card/HotelInventoryPanel';
 import type { TripKind } from '@/lib/tour';
 import LoginCredentialsPanel from '@/components/LoginCredentialsPanel';
 import ReviewsModerator from '@/components/ReviewsModerator';
@@ -1438,6 +1439,9 @@ export function RecordBigCard({ card, columns, tableName, tableLabel, onClose, o
           ) : null}
           <div className="record-big-grid">{visiblePrimary.map(renderField)}</div>
 
+          {tableName === 'hotels' && (
+            <HotelInventoryPanel hotelId={isNew ? null : String(card.keyValue || '')} />
+          )}
           {tableName === 'packages' && (
             <TripDetailsPanel packageId={isNew ? null : String(card.keyValue || '')} onKindChange={setTripKind} />
           )}

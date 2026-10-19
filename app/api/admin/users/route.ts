@@ -106,7 +106,7 @@ function loadClientTrips(sqlite: any): Map<string, TripInfo> {
     // Oldest first, so the newest current booking is the one kept.
     rows.sort((x, y) => String(x.created_at || '').localeCompare(String(y.created_at || '')));
     for (const r of rows) {
-      if (!r.customer_id) continue;
+      if (!r.customer_id || r.booking_kind === 'HOTEL') continue;
       const status = String(r.status || '').toUpperCase();
       if (status === 'REJECTED' || status === 'CANCELLED') continue;
       const prev = out.get(r.customer_id) || { state: 'none' as const };

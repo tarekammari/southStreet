@@ -301,13 +301,23 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
                       reference={res.reservation_number}
                       name={res.customer_name}
                       amount={res.total_amount}
+                      badge={res.booking_kind === 'HOTEL' ? <span className="pipe-tag is-ok">فندق</span> : undefined}
                       open={open}
                       onToggle={() => toggle(res.reservation_id)}
                     >
                       <dl className="pipe-facts">
                         <div><Mail className="w-3.5 h-3.5" aria-hidden /> {res.customer_email || '—'}</div>
                         <div><Phone className="w-3.5 h-3.5" aria-hidden /> <span dir="ltr">{res.customer_phone || '—'}</span></div>
+                        {res.booking_kind === 'HOTEL' && res.hotel_stay ? (
+                          <div className="sm:col-span-2">
+                            <UserRound className="w-3.5 h-3.5" aria-hidden /> {res.hotel_stay.check_in} ← {res.hotel_stay.check_out} · {res.hotel_stay.nights} ليالٍ ·{' '}
+                            {res.hotel_stay.rooms.map((r) => `${r.room_name} (${r.adults}${r.children ? `+${r.children}` : ''})`).join(' + ')}
+                            {res.hotel_stay.free_cancel_until ? ` · إلغاء مجاني حتى ${res.hotel_stay.free_cancel_until}` : ' · غير قابل للاسترداد'}
+                            {res.hotel_stay.requests ? ` · طلب: ${res.hotel_stay.requests}` : ''}
+                          </div>
+                        ) : (
                         <div><UserRound className="w-3.5 h-3.5" aria-hidden /> {ROOM_LABELS[res.room_type] || res.room_type} · {res.travelers_count || 1} مسافر</div>
+                        )}
                         <div>جواز: <span dir="ltr">{res.passport || '—'}</span></div>
                         <div className="sm:col-span-2 font-bold text-slate-800">{res.package_name}</div>
                         {(res.extras || []).length ? (

@@ -171,6 +171,7 @@ export const TRIP_TYPES = [
   { id: 'umrah', label: 'عمرة' },
   { id: 'hajj', label: 'حج' },
   { id: 'tourism', label: 'سياحة' },
+  { id: 'hotel', label: 'فنادق' },
   { id: 'other', label: 'أخرى' },
 ] as const;
 
@@ -190,6 +191,7 @@ export function tripTypeLabel(raw?: string | null): string {
 export function classifyTripType(packageName?: string | null, tourismNames?: Set<string>): TripTypeId {
   const name = String(packageName || '').trim();
   if (!name) return 'other';
+  if (/^حجز فندق/.test(name)) return 'hotel';
   // Tourist trips: known from the programs table on the server, else by destination words.
   if (tourismNames?.has(name) || looksLikeTourName(name)) return 'tourism';
   if (/حج|حجة|hajj/i.test(name)) return 'hajj';

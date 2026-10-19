@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next';
 import './fonts.css';
 import './globals.css';
 import './programs.css';
+import './hotels-booking.css';
 import './home.css';
 import './security.css';
 import './sakhr.css';

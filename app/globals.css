@@ -3139,6 +3139,38 @@ body.modal-open .sakhr-panel-shell {
 .pkg-kind-tabs button.is-on { background: #fff; color: #047857; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12); }
 .pkg-kind-tabs button.is-on span { background: #d1fae5; color: #047857; }
 
+/* Hotels card: rooms, rates, availability (HotelInventoryPanel) */
+.hinv-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.5rem; }
+.hinv-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.75rem; }
+.hinv-switch { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.8rem 0.35rem 0.4rem; border-radius: 999px; background: #f1f5f9; font-size: 0.78rem; font-weight: 800; color: #64748b; }
+.hinv-switch span { position: relative; width: 34px; height: 20px; border-radius: 999px; background: #cbd5e1; transition: background 0.2s; }
+.hinv-switch span::after { content: ''; position: absolute; top: 2px; right: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform 0.2s; }
+.hinv-switch.is-on { background: #ecfdf5; color: #047857; }
+.hinv-switch.is-on span { background: #10b981; }
+.hinv-switch.is-on span::after { transform: translateX(-14px); }
+.hinv-rooms { display: grid; gap: 0.6rem; }
+.hinv-room { padding: 0.75rem; border-radius: 12px; border: 1px solid #e2e8f0; background: #fff; }
+.hinv-room.is-off { opacity: 0.6; }
+.hinv-room > header { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; }
+.hinv-room > header svg { color: #047857; }
+.hinv-room > header strong { font-size: 0.9rem; }
+.hinv-room > header small { font-size: 0.72rem; color: #64748b; }
+.hinv-room-acts { display: inline-flex; gap: 0.3rem; margin-inline-start: auto; }
+.hinv-room-acts button { display: inline-flex; align-items: center; gap: 0.2rem; padding: 0.2rem 0.55rem; border-radius: 8px; background: #f1f5f9; font-size: 0.72rem; font-weight: 700; color: #334155; }
+.hinv-room-acts button:hover { background: #e2e8f0; }
+.hinv-room-acts button.is-del { color: #be123c; background: #fff1f2; }
+.hinv-rates { list-style: none; margin: 0.5rem 0 0; padding: 0; display: grid; gap: 0.35rem; }
+.hinv-rates li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.5rem; padding: 0.4rem 0.6rem; border-radius: 9px; background: #f8fafc; font-size: 0.8rem; }
+.hinv-rates li b { color: #047857; }
+.hinv-rates li small { flex-basis: 100%; font-size: 0.7rem; color: #64748b; }
+.hinv-empty { margin: 0.45rem 0 0; font-size: 0.75rem; color: #b45309; }
+.hinv-dialog { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 1rem; background: rgba(15, 23, 42, 0.45); }
+.hinv-dialog form { width: min(560px, 100%); max-height: 90vh; overflow: auto; padding: 1.1rem; border-radius: 16px; background: #fff; box-shadow: 0 24px 50px -20px rgba(15, 23, 42, 0.5); animation: trip-in 0.2s ease; }
+.hinv-dialog h4 { margin: 0 0 0.5rem; font-size: 1rem; font-weight: 800; }
+.hinv-check { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.6rem; font-size: 0.82rem; font-weight: 700; color: #334155; }
+.hinv-ghost { padding: 0.45rem 0.9rem; border-radius: 10px; font-size: 0.82rem; font-weight: 700; color: #475569; }
+.hinv-del { margin-inline-end: auto; padding: 0.45rem 0.9rem; border-radius: 10px; background: #fff1f2; color: #be123c; font-size: 0.82rem; font-weight: 800; }
+
 /* Program card: kind + tourist-trip details (TripDetailsPanel) */
 .trip-panel { margin-bottom: 0.85rem; }
 .trip-kinds { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.35rem; padding: 0.25rem; margin-bottom: 0.85rem; border-radius: 12px; background: #f1f5f9; }
