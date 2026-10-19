@@ -10,8 +10,9 @@ import { ArrowLeft, MapPin, Star } from 'lucide-react';
 import Link from 'next/link';
 import HotelGalleryDialog from '@/components/hotels/HotelGalleryDialog';
 import { publicList } from '@/lib/public-catalog';
-import { DESTINATIONS, HOTEL_COUNTRIES, hotelCityLabel, hotelCountryOf } from '@/lib/tour';
-import HotelSearchBar, { defaultDates, searchHref } from '@/components/hotels/HotelSearchBar';
+import { HOTEL_COUNTRIES, hotelCityLabel, hotelCountryOf } from '@/lib/tour';
+import HotelSearchBar from '@/components/hotels/HotelSearchBar';
+import PopularDestinations from '@/components/hotels/PopularDestinations';
 
 const FALLBACK = 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=900&auto=format&fit=crop';
 
@@ -68,14 +69,8 @@ export default function HotelsPage() {
           <h1 id="hhero-title">احجز فندقك بسهولة</h1>
           <p>ابحث بالبلد أو المدينة أو اسم الفندق، قارن الغرف والأسعار للإقامة كاملة بالدينار، وأرسل طلبك — تؤكده الوكالة مع الفندق.</p>
           <HotelSearchBar />
-          <div className="hhero-dests" aria-label="وجهات">
-            {[{ id: 'SA', label: 'مكة المكرمة', dest: 'مكة', color: '#047857' }, ...DESTINATIONS.map((d) => ({ id: d.id, label: d.label, dest: d.id, color: d.color }))].map((d) => (
-              <Link key={d.id} href={searchHref({ dest: d.dest, label: d.label, ...defaultDates(), rooms: [{ adults: 2, children: 0, childAges: [] }] })}>
-                <i style={{ background: d.color }} aria-hidden /> {d.label}
-              </Link>
-            ))}
-          </div>
         </section>
+        <PopularDestinations hotels={hotels} />
         <h2 className="hotel-page-title">
           {country === 'SA' ? 'فنادق الحرمين الشريفين' : country === 'ALL' ? 'فنادقنا في الحرمين وحول العالم' : `فنادق ${countries.find((c) => c.id === country)?.label || ''}`}
         </h2>

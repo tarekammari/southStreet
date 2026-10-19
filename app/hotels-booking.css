@@ -310,10 +310,35 @@
 @media (min-width: 640px) { .hhero { padding: 3rem 2rem 2rem; } }
 .hhero h1 { margin: 0; font-size: clamp(1.7rem, 4vw, 2.6rem); font-weight: 900; color: var(--hb-ink); }
 .hhero p { margin: 0.5rem 0 1.4rem; max-width: 40rem; font-size: 0.98rem; line-height: 1.8; color: var(--hb-muted); }
-.hhero-dests { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 1.1rem; }
-.hhero-dests a { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.9rem; border-radius: 999px; background: #f8fafc; border: 1px solid var(--hb-line); font-size: 0.82rem; font-weight: 800; color: #334155; text-decoration: none; transition: all 0.2s; }
-.hhero-dests a:hover { border-color: #6ee7b7; transform: translateY(-1px); }
-.hhero-dests i { width: 9px; height: 9px; border-radius: 50%; }
+
+/* ---- /hotels popular destinations slider -------------------------------- */
+.hdest { margin: -0.6rem 0 2.4rem; }
+.hdest-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; margin-bottom: 0.9rem; }
+.hdest-head h2 { margin: 0; font-size: clamp(1.25rem, 2.6vw, 1.6rem); font-weight: 900; color: var(--hb-ink); }
+.hdest-head p { margin: 0.25rem 0 0; font-size: 0.88rem; color: var(--hb-muted); }
+.hdest-nav { display: none; gap: 0.4rem; }
+@media (min-width: 768px) { .hdest-nav { display: flex; } }
+.hdest-nav button { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; border-radius: 50%; background: #fff; border: 1px solid var(--hb-line); color: var(--hb-ink); box-shadow: 0 6px 16px -10px rgba(15, 23, 42, 0.5); cursor: pointer; transition: all 0.2s; }
+.hdest-nav button:hover:not(:disabled) { border-color: #6ee7b7; color: var(--hb-green); }
+.hdest-nav button:disabled { opacity: 0.35; cursor: default; box-shadow: none; }
+.hdest-nav svg { width: 1.2rem; height: 1.2rem; }
+.hdest-track { display: grid; grid-auto-flow: column; grid-auto-columns: 72%; gap: 0.8rem; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: 0.1rem; padding: 0.2rem 0.1rem 0.8rem; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.hdest-track::-webkit-scrollbar { display: none; }
+@media (min-width: 480px) { .hdest-track { grid-auto-columns: 46%; } }
+@media (min-width: 768px) { .hdest-track { grid-auto-columns: calc((100% - 2.4rem) / 4); } }
+@media (min-width: 1100px) { .hdest-track { grid-auto-columns: calc((100% - 3.2rem) / 5); } }
+.hdest-card { position: relative; display: block; aspect-ratio: 4 / 5; overflow: hidden; border-radius: 1.3rem; scroll-snap-align: start; background: radial-gradient(90% 70% at 100% 0%, rgba(255, 255, 255, 0.22), transparent 60%), var(--dest, #047857); color: #fff; text-decoration: none; isolation: isolate; box-shadow: 0 18px 34px -26px rgba(15, 23, 42, 0.8); transition: transform 0.3s var(--hb-ease, ease), box-shadow 0.3s; }
+.hdest-card:hover { transform: translateY(-3px); box-shadow: 0 26px 40px -26px rgba(15, 23, 42, 0.9); }
+.hdest-card:focus-visible { outline: 3px solid #34d399; outline-offset: 3px; }
+.hdest-card img { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; transition: transform 0.6s var(--hb-ease, ease); }
+.hdest-card:hover img { transform: scale(1.06); }
+.hdest-latin { position: absolute; inset: auto 0 38% 0; z-index: -2; text-align: center; font-size: 1.9rem; font-weight: 900; letter-spacing: 0.12em; color: rgba(255, 255, 255, 0.22); direction: ltr; }
+.hdest-shade { position: absolute; inset: 0; z-index: -1; background: linear-gradient(to top, rgba(2, 6, 23, 0.82), rgba(2, 6, 23, 0.15) 55%, transparent); }
+.hdest-count { position: absolute; top: 0.7rem; inset-inline-start: 0.7rem; padding: 0.22rem 0.65rem; border-radius: 999px; background: rgba(255, 255, 255, 0.92); color: var(--hb-ink); font-size: 0.72rem; font-weight: 900; }
+.hdest-text { position: absolute; inset: auto 0 0 0; display: grid; gap: 0.15rem; padding: 0.9rem 1rem 1rem; }
+.hdest-text strong { font-size: 1.15rem; font-weight: 900; }
+.hdest-text small { font-size: 0.76rem; font-weight: 600; color: rgba(255, 255, 255, 0.82); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (prefers-reduced-motion: reduce) { .hdest-card, .hdest-card img { transition: none; } .hdest-card:hover, .hdest-card:hover img { transform: none; } }
 
 /* ---- Portal: hotel bookings --------------------------------------------- */
 .phb { margin-top: 1rem; padding: 1rem; border-radius: 1.3rem; background: #fff; border: 1px solid var(--hb-line); }
