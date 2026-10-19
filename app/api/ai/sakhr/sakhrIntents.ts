@@ -423,7 +423,7 @@ export function detectAdminDbToolsIntent(prompt: string): { text: string; cards:
 
   if (isTableViewQuery) {
     let tableName = 'packages'; // default if general
-    let tableLabel = 'باقات العمرة والحج';
+    let tableLabel = 'البرامج والرحلات';
 
     if (lower.includes('فندق') || lower.includes('فنادق') || lower.includes('hotel')) {
       tableName = 'hotels'; tableLabel = 'الفنادق المعتمدة';
@@ -512,7 +512,7 @@ export function detectAdminDbToolsIntent(prompt: string): { text: string; cards:
             data: {
               title: 'اختيار جدول البيانات لإضافة جديد',
               options: [
-                { name: 'packages', label: '📦 باقات العمرة والحج' },
+                { name: 'packages', label: '📦 البرامج والرحلات' },
                 { name: 'hotels', label: '🏨 الفنادق المعتمدة' },
                 { name: 'morshids', label: '👨‍💼 المرشدين وطاقم العمل' },
                 { name: 'users', label: '👤 المستخدمين والحسابات' },

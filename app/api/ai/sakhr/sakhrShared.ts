@@ -20,7 +20,7 @@ import { callExternalAI } from '@/lib/sakhr-external-ai';
 export const AGENCY_SOURCE_LABELS: Record<string, string> = {
   ai_knowledge: 'قاعدة معرفة الوكالة المعتمدة',
   page_content: 'محتوى صفحات التطبيق',
-  packages: 'جدول باقات العمرة والحج',
+  packages: 'جدول البرامج والرحلات (العمرة والحج والرحلات السياحية)',
   hotels: 'جدول الفنادق المعتمدة',
   morshids: 'جدول المرشدين وطاقم الوكالة',
   agency_settings: 'إعدادات الوكالة الرسمية',

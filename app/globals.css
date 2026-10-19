@@ -3132,6 +3132,13 @@ body.modal-open .sakhr-panel-shell {
 .pkg-offer-note { margin: 0 0 0.5rem; color: #047857; font-size: 0.8rem; font-weight: 700; }
 .pkg-offer-block h4 { margin: 0 0 0.45rem; font-size: 0.78rem; font-weight: 700; color: #475569; }
 .pkg-offer-block + .pkg-offer-block { margin-top: 0.85rem; }
+/* Tables → programs: Umrah / Hajj vs tourist trips */
+.pkg-kind-tabs { display: inline-flex; gap: 0.3rem; padding: 0.25rem; margin: 0 0 1rem; border-radius: 999px; background: #f1f5f9; }
+.pkg-kind-tabs button { display: inline-flex; align-items: center; gap: 0.4rem; height: 36px; padding: 0 1rem; border-radius: 999px; font-size: 0.85rem; font-weight: 800; color: #475569; transition: background 0.2s, color 0.2s, box-shadow 0.2s; }
+.pkg-kind-tabs button span { min-width: 1.5rem; padding: 0 0.35rem; border-radius: 999px; background: #e2e8f0; font-size: 0.72rem; text-align: center; }
+.pkg-kind-tabs button.is-on { background: #fff; color: #047857; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12); }
+.pkg-kind-tabs button.is-on span { background: #d1fae5; color: #047857; }
+
 /* Program card: kind + tourist-trip details (TripDetailsPanel) */
 .trip-panel { margin-bottom: 0.85rem; }
 .trip-kinds { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.35rem; padding: 0.25rem; margin-bottom: 0.85rem; border-radius: 12px; background: #f1f5f9; }

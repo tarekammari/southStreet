@@ -54,6 +54,7 @@ export default function HomePage() {
       <main className="page-main relative overflow-x-clip pb-6">
         <HeroSection content={pageContent} />
         <TravelProgramsSection content={pageContent} />
+        <TravelProgramsSection content={pageContent} kind="tourism" />
         <section id="agency-section" className="relative z-10 w-full px-3 py-8 sm:px-6 sm:py-12">
           <AgencySection />
         </section>
