@@ -1,5 +1,5 @@
 /**
- * Hotel-only booking → a reservation (booking_kind = HOTEL), so it follows
+ * Hotel-only booking → a reservation (booking_type = HOTEL), so it follows
  * the agency's usual path: the Admin accepts, the accountant records the
  * deposit (same segregation-of-duties rules), finance counts it under «فنادق».
  * Rooms are held from the request on; a rejected / cancelled booking frees them.
@@ -117,7 +117,7 @@ export function createHotelBooking(
         reservation_id, reservation_number, customer_id, customer_name, customer_email, customer_phone,
         package_id, package_name, room_type, travelers_count, travelers, total_price, paid_amount,
         payment_status, reservation_status, created_at, updated_at, extras, invoice, appointments, program,
-        document_verify_code, booking_kind, hotel_id, hotel_stay
+        document_verify_code, booking_type, hotel_id, hotel_stay
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'HOTEL', ?, ?, ?, 0, 'PENDING', 'REQUESTED', ?, ?, '[]', ?, ?, ?, ?, 'HOTEL', ?, ?)
     `)
     .run(

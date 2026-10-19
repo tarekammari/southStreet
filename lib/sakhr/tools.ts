@@ -16,6 +16,8 @@ import { reservationStatusLabel } from '@/lib/booking-catalog';
 import { sanitizeVisual, type VisualSpec } from '@/lib/sakhr/visual';
 import { trustedWebSearch } from '@/lib/sakhr/trusted-search';
 import { findOfficialUpdates } from '@/lib/sakhr/official-updates';
+import { HOTEL_TOOLS } from '@/lib/sakhr/hotel-tools';
+import { isTourism, tourOf, destinationOf } from '@/lib/tour';
 
 /**
  * Sakhr's tools. Each one runs through the app's own API handler with the
@@ -328,11 +330,12 @@ export const SAKHR_TOOLS: SakhrTool[] = [
   {
     name: 'search_programs',
     description:
-      'Search the agency Umrah/Hajj programs (trips): dates, duration, hotels, airline, price from, seats left and whether booking is open. Use for any question about trips, prices or availability.',
+      'Search the agency programs: Umrah / Hajj and organised tourist trips (Turkey, Malaysia, Egypt, Tunisia, Spain, London…): kind, destination, cities, dates, duration, hotels, airline, price from, seats left, whether booking is open, and the page link. Use for any question about trips, prices or availability. For a hotel-only stay use hotels_search instead.',
     parameters: {
       type: 'object',
       properties: {
-        query: { type: 'string', description: 'Optional words to match in the program name, hotel, airline or season.' },
+        query: { type: 'string', description: 'Optional words to match in the program name, destination, city, hotel, airline or season.' },
+        kind: { type: 'string', enum: ['umrah_hajj', 'tourism'], description: 'Optional: only Umrah/Hajj programs or only tourist trips.' },
         include_past: { type: 'boolean', description: 'Include programs whose departure has passed.' },
       },
     },
@@ -344,7 +347,15 @@ export const SAKHR_TOOLS: SakhrTool[] = [
       const q = String(args?.query || '').trim().toLowerCase();
       const rows = (res.data as any[])
         .filter((p) => args?.include_past || programAvailability(p) !== 'expired')
-        .filter((p) => !q || [p.name, p.makkah_hotel_name, p.madinah_hotel_name, p.airline, p.season_name].join(' ').toLowerCase().includes(q))
+        .filter((p) => !args?.kind || (args.kind === 'tourism') === isTourism(p))
+        .filter((p) => {
+          if (!q) return true;
+          const t = tourOf(p);
+          return [p.name, p.makkah_hotel_name, p.madinah_hotel_name, p.airline, p.season_name, destinationOf(t.country)?.label, t.country, ...t.cities]
+            .join(' ')
+            .toLowerCase()
+            .includes(q);
+        })
         .slice(0, 15)
         .map((p) => ({
           id: p.package_id,
@@ -367,6 +378,12 @@ export const SAKHR_TOOLS: SakhrTool[] = [
           madinah_hotel: p.madinah_hotel_name,
           airline: p.airline,
           departure: p.departure_city,
+          kind: isTourism(p) ? 'tourist trip' : /حج/.test(p.name) ? 'Hajj' : 'Umrah',
+          destination: isTourism(p) ? destinationOf(tourOf(p).country)?.label || tourOf(p).country || undefined : undefined,
+          cities: isTourism(p) ? tourOf(p).cities : undefined,
+          days_plan: isTourism(p) ? tourOf(p).itinerary.slice(0, 10).map((d) => `اليوم ${d.day}: ${d.title}`) : undefined,
+          visa: isTourism(p) ? tourOf(p).visa || undefined : undefined,
+          page: `/packages/${encodeURIComponent(p.package_id)}`,
           book_link: `/book?package=${encodeURIComponent(p.package_id)}`,
         }));
       return { ok: true, data: { count: rows.length, programs: rows } };
@@ -472,7 +489,7 @@ export const SAKHR_TOOLS: SakhrTool[] = [
   },
   {
     name: 'my_bookings',
-    description: "The signed-in user's own Umrah requests and bookings: status, amounts paid and remaining, receipts.",
+    description: "The signed-in user's own bookings: Umrah / Hajj / tourist trips and hotel-only stays — status, amounts paid and remaining, receipts.",
     parameters: { type: 'object', properties: {} },
     roles: SIGNED_IN,
     kind: 'read',
@@ -489,7 +506,15 @@ export const SAKHR_TOOLS: SakhrTool[] = [
         remaining: money((Number(r.total_amount) || 0) - (Number(r.paid_amount) || 0)),
         created: r.created_at,
       }));
-      return { ok: true, data: { reservations, receipts: (res.data.receipts || []).length } };
+      const hotelBookings = (res.data.hotelBookings || []).map((r: any) => ({
+        number: r.reservation_number,
+        hotel: r.hotel_stay?.hotel_name || r.package_name,
+        dates: r.hotel_stay ? `${r.hotel_stay.check_in} → ${r.hotel_stay.check_out}` : '',
+        status: r.status,
+        total: money(r.total_amount),
+        paid: money(r.paid_amount),
+      }));
+      return { ok: true, data: { reservations, hotel_bookings: hotelBookings, receipts: (res.data.receipts || []).length } };
     },
   },
   {
@@ -1018,6 +1043,8 @@ export const SAKHR_TOOLS: SakhrTool[] = [
     kind: 'client',
     clientAction: (a, role) => (canReadTable(a.table, role) ? { type: 'open_table', table: a.table } : { error: 'لا يمكن فتح هذا الجدول' }),
   },
+  // Hotels (hotel-only stays) and tourist-trip visa follow-up: lib/sakhr/hotel-tools.ts
+  ...HOTEL_TOOLS,
 ];
 
 export function toolsFor(role: Who): SakhrTool[] {

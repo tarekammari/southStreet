@@ -186,11 +186,11 @@ export function mapReservationRow(row: any): Reservation {
     agency_confirmed_by: row.agency_confirmed_by || undefined,
     document_verify_code: row.document_verify_code || undefined,
     agency_note: row.agency_note || undefined,
-    booking_kind: row.booking_kind === 'HOTEL' ? 'HOTEL' : 'TRIP',
+    booking_kind: row.booking_type === 'HOTEL' || row.booking_kind === 'HOTEL' ? 'HOTEL' : 'TRIP',
     hotel_stay: parseJson<import('@/lib/hotels/types').HotelStay | null>(row.hotel_stay, null) || undefined,
     visa_status: row.visa_status || undefined,
     visa_note: row.visa_note || undefined,
-    trip_kind: row.booking_kind === 'HOTEL' ? undefined : packageKind(row.package_id),
+    trip_kind: row.booking_type === 'HOTEL' || row.booking_kind === 'HOTEL' ? undefined : packageKind(row.package_id),
   };
 }
 
@@ -598,7 +598,7 @@ export function confirmReservationByAgency(
     customerId: row.customer_id,
     customerName: row.customer_name,
     reservationNumber: row.reservation_number,
-    pilgrimText: `مرحباً ${row.customer_name}، قبلت الوكالة ${row.booking_kind === 'HOTEL' ? 'طلب حجز الفندق' : 'طلب عمرتك'} رقم ${row.reservation_number} وتم تفعيل دخول حسابك. ملاحظة مهمة: لم تُسجَّل بعد دفعة العربون (${deposit.toLocaleString('ar-DZ')} دج — ${Math.round(DEPOSIT_PERCENT * 100)}٪). يكتمل التأكيد النهائي عند المحاسب بعد تحصيل هذه الدفعة.`,
+    pilgrimText: `مرحباً ${row.customer_name}، قبلت الوكالة ${row.booking_type === 'HOTEL' || row.booking_kind === 'HOTEL' ? 'طلب حجز الفندق' : 'طلب عمرتك'} رقم ${row.reservation_number} وتم تفعيل دخول حسابك. ملاحظة مهمة: لم تُسجَّل بعد دفعة العربون (${deposit.toLocaleString('ar-DZ')} دج — ${Math.round(DEPOSIT_PERCENT * 100)}٪). يكتمل التأكيد النهائي عند المحاسب بعد تحصيل هذه الدفعة.`,
     groupText: `قُبل طلب ${row.customer_name} — ${row.package_name} (${row.reservation_number}) — بانتظار العربون عند المحاسب.`,
     packageName: row.package_name,
   });
@@ -715,8 +715,8 @@ export function rejectReservationByAgency(
     customerName: row.customer_name,
     reservationNumber: row.reservation_number,
     pilgrimText: accepted
-      ? `نعتذر ${row.customer_name}، أُلغي ${row.booking_kind === 'HOTEL' ? 'طلب حجز الفندق' : 'طلب العمرة'} ${row.reservation_number}. ${note ? `السبب: ${note}` : ''} يمكنك اختيار برنامج آخر في أي وقت أو مراسلتنا هنا.`
-      : `نعتذر ${row.customer_name}، لم تتم الموافقة على ${row.booking_kind === 'HOTEL' ? 'طلب حجز الفندق' : 'طلب العمرة'} ${row.reservation_number}. ${note ? `السبب: ${note}` : ''} يمكنك اختيار برنامج آخر في أي وقت أو مراسلتنا هنا.`,
+      ? `نعتذر ${row.customer_name}، أُلغي ${row.booking_type === 'HOTEL' || row.booking_kind === 'HOTEL' ? 'طلب حجز الفندق' : 'طلب العمرة'} ${row.reservation_number}. ${note ? `السبب: ${note}` : ''} يمكنك اختيار برنامج آخر في أي وقت أو مراسلتنا هنا.`
+      : `نعتذر ${row.customer_name}، لم تتم الموافقة على ${row.booking_type === 'HOTEL' || row.booking_kind === 'HOTEL' ? 'طلب حجز الفندق' : 'طلب العمرة'} ${row.reservation_number}. ${note ? `السبب: ${note}` : ''} يمكنك اختيار برنامج آخر في أي وقت أو مراسلتنا هنا.`,
   });
 
   return getReservationById(reservationId) as Reservation;

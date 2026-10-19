@@ -79,6 +79,15 @@ export function ensureHotelSchema() {
   // Shown in hotel search & bookable (separate from "shown on the hotels page").
   add('hotels', 'bookable', 'INTEGER DEFAULT 0');
   add('reservations', 'booking_kind', "TEXT DEFAULT 'TRIP'");
+  // booking_kind is encrypted at rest (not a plaintext column name), so it
+  // cannot be filtered in SQL; booking_type (…_type stays plaintext) can.
+  add('reservations', 'booking_type', 'TEXT');
+  for (const r of db.prepare('SELECT reservation_id, booking_kind, booking_type, hotel_stay FROM reservations').all() as any[]) {
+    if (r.booking_type) continue;
+    if (r.booking_kind === 'HOTEL' || (r.hotel_stay && String(r.hotel_stay).includes('hotel_id'))) {
+      db.prepare("UPDATE reservations SET booking_type = 'HOTEL' WHERE reservation_id = ?").run(r.reservation_id);
+    }
+  }
   add('reservations', 'hotel_id', 'TEXT');
   add('reservations', 'hotel_stay', 'TEXT');
   add('reservations', 'visa_status', 'TEXT');
@@ -403,7 +412,7 @@ const LIVE = new Set(['REQUESTED', 'PENDING', 'PAYMENT_PENDING', 'CONFIRMED', 'P
 function liveStays(): HotelStay[] {
   ensureHotelSchema();
   return (getSqliteDb()
-    .prepare("SELECT reservation_status, hotel_stay FROM reservations WHERE booking_kind = 'HOTEL'")
+    .prepare("SELECT reservation_status, hotel_stay FROM reservations WHERE booking_type = 'HOTEL'")
     .all() as any[])
     .filter((r) => LIVE.has(String(r.reservation_status || '').toUpperCase()))
     .map((r) => json<HotelStay | null>(r.hotel_stay, null))

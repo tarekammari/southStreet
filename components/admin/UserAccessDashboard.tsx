@@ -40,6 +40,7 @@ import {
   Shield,
   ShieldCheck,
   ShoppingBag,
+  BedDouble,
   Square,
   Star,
   Triangle,
@@ -80,6 +81,7 @@ import ServerHealthPanel from '@/components/admin/ServerHealth';
 import PresenceTimeline from '@/components/admin/PresenceTimeline';
 import AgencyPendingBookings from '@/components/booking/AgencyPendingBookings';
 import PaymentApprovalsPanel from '@/components/accountant/PaymentApprovalsPanel';
+import HotelsAdmin from '@/components/admin/HotelsAdmin';
 
 type DashboardStats = {
   total: number;
@@ -115,7 +117,7 @@ const EMPTY_STATS: DashboardStats = {
 const HEARTBEAT_MS = 45000;
 const REFRESH_MS = 20000;
 
-type DashSection = 'users' | 'security' | 'google' | 'server' | 'bookings' | 'keys' | 'backups' | 'about' | 'whatsapp' | 'reviews';
+type DashSection = 'users' | 'security' | 'google' | 'server' | 'bookings' | 'hotels' | 'keys' | 'backups' | 'about' | 'whatsapp' | 'reviews';
 type FilterKey = 'all' | 'online' | 'active' | 'pending' | 'suspended';
 type RoleFilter = 'all' | LoginRole;
 type FlyoutKey = 'accounts' | 'sessions' | 'types' | null;
@@ -656,7 +658,9 @@ export default function UserAccessDashboard({
       : section === 'server'
         ? 'حالة الخادم'
         : section === 'bookings'
-          ? 'طلبات العمرة'
+          ? 'طلبات الحجز'
+          : section === 'hotels'
+            ? 'الفنادق والحجوزات'
           : section === 'about'
             ? 'صفحة عن الوكالة'
             : section === 'whatsapp'
@@ -780,6 +784,11 @@ export default function UserAccessDashboard({
               <SecurityKeysPanel />
             </div>
           ) : null}
+          {section === 'hotels' ? (
+            <div key="hotels" className="inn-stage-pane is-active inn-swap">
+              <HotelsAdmin isSuperAdmin={isSuperAdmin} />
+            </div>
+          ) : null}
           {section === 'bookings' ? (
             <div key="bookings" className="inn-stage-pane is-active inn-swap space-y-4">
               <PaymentApprovalsPanel />
@@ -873,11 +882,20 @@ export default function UserAccessDashboard({
                   type="button"
                   className={`inn-side-link${section === 'bookings' ? ' is-active' : ''}`}
                   onClick={() => goSection('bookings')}
-                  title="طلبات العمرة"
+                  title="طلبات الحجز"
                 >
                   <ShoppingBag className="w-4 h-4" />
-                  <span className="inn-side-label">طلبات العمرة</span>
+                  <span className="inn-side-label">طلبات الحجز</span>
                   {demandCount > 0 ? <span className="inn-side-badge">{demandCount}</span> : null}
+                </button>
+                <button
+                  type="button"
+                  className={`inn-side-link${section === 'hotels' ? ' is-active' : ''}`}
+                  onClick={() => goSection('hotels')}
+                  title="الفنادق والحجوزات"
+                >
+                  <BedDouble className="w-4 h-4" />
+                  <span className="inn-side-label">الفنادق والحجوزات</span>
                 </button>
                 <button
                   type="button"

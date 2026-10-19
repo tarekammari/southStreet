@@ -289,6 +289,12 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
     // «اسأل صخر» buttons on the page (components/sakhr/openSakhr.ts).
     const onOpenRequest = () => setOpen(true);
     window.addEventListener(SAKHR_OPEN_EVENT, onOpenRequest);
+    // Other screens can open a table (e.g. «الفنادق» from the hotels admin section).
+    const onOpenTable = (e: Event) => {
+      const t = (e as CustomEvent<{ table?: string }>).detail?.table;
+      if (t) setTable(t);
+    };
+    window.addEventListener('ss:open-table', onOpenTable);
     // Links like /sakhr or /?sakhr=1&q=… (e.g. from the agency's WhatsApp greeting)
     // open the chat at once, with the question already typed.
     try {
@@ -311,7 +317,10 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
     } catch {
       /* default on */
     }
-    return () => window.removeEventListener(SAKHR_OPEN_EVENT, onOpenRequest);
+    return () => {
+      window.removeEventListener(SAKHR_OPEN_EVENT, onOpenRequest);
+      window.removeEventListener('ss:open-table', onOpenTable);
+    };
   }, [setOpen]);
 
   const readAloud = (id: string, text: string) => {

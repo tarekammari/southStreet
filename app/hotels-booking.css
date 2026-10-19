@@ -449,3 +449,55 @@
 @media (prefers-reduced-motion: reduce) {
   .tdet-hero > img, .ttv-steps li.is-now span { animation: none; }
 }
+
+/* ---- Admin: hotels & bookings (HotelsAdmin) ------------------------------ */
+.hadm { padding: 1.2rem; }
+.hadm-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.8rem; }
+.hadm-head h2 { display: flex; align-items: center; gap: 0.5rem; margin: 0; font-size: 1.25rem; font-weight: 900; }
+.hadm-head h2 svg { width: 1.3rem; height: 1.3rem; color: var(--hb-green); }
+.hadm-head p { margin: 0.25rem 0 0; font-size: 0.85rem; color: var(--hb-muted); }
+.hadm-head-acts { display: flex; gap: 0.4rem; align-items: flex-start; }
+.hadm-btn { display: inline-flex; align-items: center; gap: 0.35rem; height: 2.4rem; padding: 0 0.9rem; border-radius: 0.8rem; border: 1px solid var(--hb-line); background: #fff; font-size: 0.82rem; font-weight: 800; color: #334155; text-decoration: none; }
+.hadm-btn svg { width: 1rem; height: 1rem; }
+.hadm-btn.is-primary { background: var(--hb-green); border-color: var(--hb-green); color: #fff; }
+.hadm-btn:disabled { opacity: 0.5; }
+.hadm-tabs { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 1rem 0; padding: 0.25rem; border-radius: 999px; background: #f1f5f9; width: fit-content; max-width: 100%; }
+.hadm-tabs button { padding: 0.45rem 1rem; border-radius: 999px; font-size: 0.84rem; font-weight: 800; color: #475569; }
+.hadm-tabs button[aria-selected='true'] { background: #fff; color: var(--hb-green); box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12); }
+.hadm-muted { display: flex; align-items: flex-start; gap: 0.4rem; margin: 0 0 0.8rem; font-size: 0.84rem; line-height: 1.7; color: var(--hb-muted); }
+.hadm-muted svg { flex: none; width: 1rem; height: 1rem; margin-top: 0.25rem; }
+.hadm-sub { margin: 0.6rem 0 0.4rem; font-size: 0.9rem; font-weight: 900; }
+.hadm-list { display: grid; gap: 0.45rem; margin: 0.6rem 0 0; padding: 0; list-style: none; }
+.hadm-booking, .hadm-hotel { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; padding: 0.75rem 0.9rem; border-radius: 1rem; background: #fff; border: 1px solid var(--hb-line); }
+.hadm-booking > div, .hadm-hotel > div { display: grid; gap: 0.15rem; flex: 1; min-width: 14rem; }
+.hadm-booking strong, .hadm-hotel strong { display: flex; align-items: center; gap: 0.4rem; font-size: 0.92rem; }
+.hadm-booking small, .hadm-hotel small { display: flex; align-items: center; gap: 0.25rem; font-size: 0.76rem; color: var(--hb-muted); }
+.hadm-hotel small svg { width: 0.8rem; height: 0.8rem; }
+.hadm-status { padding: 0.2rem 0.65rem; border-radius: 999px; background: #eff6ff; color: #1d4ed8; font-size: 0.74rem; font-weight: 900; }
+.hadm-status.is-good { background: var(--hb-soft); color: var(--hb-green); }
+.hadm-status.is-warn { background: #fffbeb; color: #b45309; }
+.hadm-status.is-bad { background: #fff1f2; color: #be123c; }
+.hadm-money { display: grid; text-align: end; }
+.hadm-money b { font-size: 0.95rem; }
+.hadm-money small { font-size: 0.72rem; color: var(--hb-muted); }
+.hadm-past summary { margin-top: 0.8rem; cursor: pointer; font-size: 0.85rem; font-weight: 800; color: var(--hb-muted); }
+.hadm-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.hadm-chips span { padding: 0.15rem 0.55rem; border-radius: 999px; background: #f1f5f9; font-size: 0.72rem; font-weight: 800; color: #64748b; }
+.hadm-chips .is-ok { background: #eff6ff; color: #1d4ed8; }
+.hadm-chips .is-good { background: var(--hb-soft); color: var(--hb-green); }
+.hadm-chips .is-off { background: #f8fafc; color: #94a3b8; }
+.hadm-import-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.5rem; }
+.hadm-import-bar select, .hadm-import-bar input { height: 2.4rem; padding: 0 0.7rem; border-radius: 0.7rem; border: 1px solid #cbd5e1; background: #fff; font-size: 0.86rem; }
+.hadm-import-bar label { display: grid; gap: 0.2rem; font-size: 0.75rem; font-weight: 800; color: #475569; }
+.hadm-msg { margin: 0.7rem 0 0; font-size: 0.84rem; font-weight: 800; color: var(--hb-green); }
+.hadm-import-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.8rem; }
+.hadm-import-acts > button:not(.hadm-btn) { font-size: 0.8rem; font-weight: 800; color: var(--hb-green); }
+.hadm-import-acts span { margin-inline-start: auto; font-size: 0.8rem; color: var(--hb-muted); }
+.hadm-cands { max-height: 28rem; overflow: auto; }
+.hadm-cands li { padding: 0.5rem 0.7rem; border-radius: 0.8rem; background: #fff; border: 1px solid var(--hb-line); }
+.hadm-cands li.is-imported { opacity: 0.55; }
+.hadm-cands label { display: flex; align-items: center; gap: 0.6rem; cursor: pointer; }
+.hadm-cands label > span { display: grid; gap: 0.1rem; }
+.hadm-cands strong { display: flex; align-items: center; gap: 0.35rem; font-size: 0.88rem; }
+.hadm-cands small { font-size: 0.74rem; color: var(--hb-muted); }
+.hadm-attr { margin: 0.6rem 0 0; font-size: 0.7rem; color: #94a3b8; }
