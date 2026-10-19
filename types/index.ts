@@ -363,6 +363,8 @@ export interface Reservation {
   /** Tourist trips: visa follow-up (lib/visa.ts). */
   visa_status?: string;
   visa_note?: string;
+  /** Kind of the booked program (lib/tour.ts). */
+  trip_kind?: 'UMRAH' | 'HAJJ' | 'TOURISM';
 }
 
 /** Pending Umrah demand with linked customer account info (for agency review). */

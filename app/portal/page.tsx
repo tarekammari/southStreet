@@ -16,6 +16,7 @@ import SessionHeartbeat from '@/components/SessionHeartbeat';
 import LoginModal from '@/components/LoginModal';
 import PilgrimProgram from '@/components/dashboards/PilgrimProgram';
 import PortalHotelBookings from '@/components/hotels/PortalHotelBookings';
+import TripTravelersCard from '@/components/booking/TripTravelersCard';
 import { logoutAndReload, syncSessionProfile } from '@/lib/client-session';
 import { isImageSource } from '@/lib/user-access-view';
 
@@ -586,6 +587,9 @@ function CustomerPortalContent() {
             uploading={isUploading}
           />
         )}
+        {viewTab === 'program' && isPilgrim && activeReservation?.trip_kind === 'TOURISM' ? (
+          <TripTravelersCard key={activeReservation.reservation_id} reservation={activeReservation} onChanged={loadBookings} />
+        ) : null}
         {viewTab === 'program' && isPilgrim ? <PortalHotelBookings /> : null}
 
         {viewTab === 'account' && isPilgrim && (

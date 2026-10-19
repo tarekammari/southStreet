@@ -573,7 +573,7 @@ export default function BookingWizard() {
                       <span className="book-choice-price">{money(from)}</span>
                     </button>
                     <Link
-                      href={`${country ? '/packages?kind=tourism' : '/packages'}#${encodeURIComponent(pkg.package_id)}`}
+                      href={`/packages/${encodeURIComponent(pkg.package_id)}`}
                       className="book-pkg-details"
                     >
                       {country ? 'تفاصيل الرحلة' : 'تفاصيل البرنامج'}

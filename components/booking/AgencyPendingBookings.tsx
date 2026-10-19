@@ -20,6 +20,7 @@ import {
 import { AgencyDemand, Reservation } from '@/types';
 import { ROOM_LABELS, reservationStatusLabel } from '@/lib/booking-catalog';
 import PrintMenu from '@/components/booking/PrintMenu';
+import VisaControl from '@/components/booking/VisaControl';
 import { authHeaders } from '@/lib/api-client';
 import RejectRequestDialog from '@/components/booking/RejectRequestDialog';
 import ClientPaymentModal from '@/components/accountant/ClientPaymentModal';
@@ -348,6 +349,9 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
                         <p className="pipe-wait">بانتظار قرار المشرف.</p>
                       )}
 
+                      {res.trip_kind === 'TOURISM' ? (
+                        <VisaControl reservationId={res.reservation_id} status={res.visa_status} note={res.visa_note} />
+                      ) : null}
                       <div className="pipe-actions">
                         {perms.canApprove ? (
                           <>
@@ -414,6 +418,9 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
                       </dl>
                       {!perms.canCollectDeposit ? (
                         <p className="pipe-wait">بانتظار تسجيل العربون من المحاسب.</p>
+                      ) : null}
+                      {res.trip_kind === 'TOURISM' ? (
+                        <VisaControl reservationId={res.reservation_id} status={res.visa_status} note={res.visa_note} />
                       ) : null}
                       <div className="pipe-actions">
                         {perms.canCollectDeposit ? (
@@ -534,6 +541,9 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
                           )
                         ) : null}
                       </dl>
+                      {res.trip_kind === 'TOURISM' ? (
+                        <VisaControl reservationId={res.reservation_id} status={res.visa_status} note={res.visa_note} />
+                      ) : null}
                       <div className="pipe-actions">
                         <PrintMenu reservationId={res.reservation_id} status={status} className={PRINT_BTN} />
                       </div>

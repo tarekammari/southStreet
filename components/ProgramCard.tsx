@@ -24,9 +24,8 @@ export default function ProgramCard({ pkg, index }: { pkg: Package; index: numbe
   const tour = tourism ? tourOf(pkg) : null;
   const dest = tour ? destinationOf(tour.country) : null;
   const ownPhoto = Boolean(pkg.image_url) && !/kaaba|maka0/i.test(String(pkg.image_url));
-  const href = bookable
-    ? `/book?package=${encodeURIComponent(pkg.package_id)}`
-    : `${tourism ? '/packages?kind=tourism' : '/packages'}#${encodeURIComponent(pkg.package_id)}`;
+  // The card opens the program page (details, day plan, booking card).
+  const href = `/packages/${encodeURIComponent(pkg.package_id)}`;
 
   return (
     <Link href={href} className={`prog-card is-${availability}${tourism ? ' is-tour' : ''}`}>
@@ -72,7 +71,7 @@ export default function ProgramCard({ pkg, index }: { pkg: Package; index: numbe
             <em>السعر عند الطلب</em>
           )}
         </strong>
-        <span className={`prog-book${bookable ? '' : ' is-ghost'}`}>{bookable ? 'احجز' : 'التفاصيل'}</span>
+        <span className={`prog-book${bookable ? '' : ' is-ghost'}`}>{bookable ? 'التفاصيل والحجز' : 'التفاصيل'}</span>
       </div>
     </Link>
   );

@@ -224,6 +224,10 @@ export default function ProgramProductCard({ pkg, index }: { pkg: Package; index
           </div>
         ) : null}
 
+        <Link href={`/packages/${encodeURIComponent(pkg.package_id)}`} className="pcard-more">
+          {tourism ? 'تفاصيل الرحلة والبرنامج الكامل' : 'تفاصيل البرنامج'} <ArrowLeft size={14} aria-hidden />
+        </Link>
+
         <div className="pcard-foot">
           <div className="pcard-price">
             {price > 0 ? (

@@ -19,6 +19,7 @@ import {
 } from '@/lib/booking-catalog';
 import { documentVerifyCode } from '@/lib/booking-documents';
 import { dbSaveMessage } from '@/lib/db';
+import { tripKindOf, type TripKind } from '@/lib/tour';
 import { buildDmChatId } from '@/lib/chat-utils';
 
 export {
@@ -139,6 +140,24 @@ export function parseJson<T>(value: unknown, fallback: T): T {
   }
 }
 
+/** UMRAH / HAJJ / TOURISM of a program (cached a few seconds; one query per program). */
+const kindCache = new Map<string, { at: number; kind: TripKind | undefined }>();
+function packageKind(packageId?: string | null): TripKind | undefined {
+  const id = String(packageId || '');
+  if (!id || id.startsWith('hotel:')) return undefined;
+  const hit = kindCache.get(id);
+  if (hit && Date.now() - hit.at < 15_000) return hit.kind;
+  let kind: TripKind | undefined;
+  try {
+    const row = getSqliteDb().prepare('SELECT * FROM packages WHERE package_id = ?').get(id) as any;
+    kind = row ? tripKindOf(row) : undefined;
+  } catch {
+    kind = undefined;
+  }
+  kindCache.set(id, { at: Date.now(), kind });
+  return kind;
+}
+
 export function mapReservationRow(row: any): Reservation {
   return {
     reservation_id: row.reservation_id,
@@ -171,6 +190,7 @@ export function mapReservationRow(row: any): Reservation {
     hotel_stay: parseJson<import('@/lib/hotels/types').HotelStay | null>(row.hotel_stay, null) || undefined,
     visa_status: row.visa_status || undefined,
     visa_note: row.visa_note || undefined,
+    trip_kind: row.booking_kind === 'HOTEL' ? undefined : packageKind(row.package_id),
   };
 }
 
