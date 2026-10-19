@@ -354,3 +354,136 @@
 .tour-tile { box-shadow: 0 16px 28px -22px rgba(15, 23, 42, 0.55); }
 .tour-tile:hover { box-shadow: 0 24px 38px -22px rgba(15, 23, 42, 0.6); }
 .tour-show-trips h3 { color: var(--text-primary, #0f172a); }
+
+/* ---- Showcase tiles v2: bigger, 3D tilt, light sweep, glass footer ---- */
+.tour-show-grid { gap: 1rem; perspective: 1200px; }
+@media (min-width: 900px) { .tour-show-grid { grid-auto-rows: 19rem; gap: 1.15rem; } }
+.tour-tile-cell { min-height: 15rem; }
+@media (max-width: 899px) { .tour-show-grid { grid-template-columns: 1fr; } .tour-tile-cell { min-height: 16rem; } }
+@media (min-width: 560px) and (max-width: 899px) { .tour-show-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.tour-tile {
+  --rx: 0deg;
+  --ry: 0deg;
+  --mx: 50%;
+  --my: 50%;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: space-between;
+  padding: 1.15rem;
+  border-radius: 1.6rem;
+  transform: rotateX(var(--rx)) rotateY(var(--ry));
+  transform-style: preserve-3d;
+  transition: transform 0.25s ease-out, box-shadow 0.35s;
+  background:
+    radial-gradient(120% 90% at 85% 0%, rgba(255, 255, 255, 0.28), transparent 55%),
+    linear-gradient(155deg, var(--tile), color-mix(in srgb, var(--tile) 50%, #020617));
+  background-size: 140% 140%;
+  animation: tour-tile-breathe 9s ease-in-out infinite alternate;
+}
+.tour-tile:hover { transform: rotateX(var(--rx)) rotateY(var(--ry)) translateY(-6px); box-shadow: 0 34px 50px -28px color-mix(in srgb, var(--tile) 70%, #000); }
+@keyframes tour-tile-breathe { from { background-position: 0% 0%; } to { background-position: 100% 100%; } }
+.tour-tile.has-photo { animation: none; }
+.tour-tile.has-photo::before { background: linear-gradient(180deg, rgba(2, 6, 23, 0.15) 0%, transparent 35%, rgba(2, 6, 23, 0.82) 100%); }
+
+/* soft light orb on colour tiles */
+.tour-tile-orb {
+  position: absolute;
+  z-index: -1;
+  width: 70%;
+  aspect-ratio: 1;
+  inset-inline-start: -15%;
+  bottom: -35%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.28), transparent 65%);
+  animation: tour-orb 7s ease-in-out infinite alternate;
+}
+@keyframes tour-orb { from { transform: translate(0, 0) scale(1); } to { transform: translate(12%, -10%) scale(1.15); } }
+
+/* light that follows the pointer + a sweep on hover */
+.tour-tile-shine {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(420px circle at var(--mx) var(--my), rgba(255, 255, 255, 0.22), transparent 45%);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.tour-tile:hover .tour-tile-shine { opacity: 1; }
+.tour-tile::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.28) 48%, transparent 66%);
+  transform: translateX(120%);
+}
+.tour-tile:hover::after { transform: translateX(-120%); transition: transform 1s ease; }
+
+.tour-tile-mark { top: 0.9rem; font-size: clamp(2.6rem, 5vw, 4.2rem); animation: tour-mark-drift 14s ease-in-out infinite alternate; }
+@keyframes tour-mark-drift { from { transform: translateX(0); } to { transform: translateX(-14%); } }
+.tour-tile:hover .tour-tile-mark { transform: none; }
+
+.tour-tile-top { position: relative; z-index: 1; display: flex; justify-content: flex-start; transform: translateZ(30px); }
+.tour-tile-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.32);
+  backdrop-filter: blur(8px);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+.tour-tile-badge.is-live { background: rgba(255, 255, 255, 0.92); color: #065f46; }
+.tour-tile-badge i { width: 7px; height: 7px; border-radius: 50%; background: #10b981; box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6); animation: tour-pulse 1.8s ease-out infinite; }
+@keyframes tour-pulse { to { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); } }
+
+.tour-tile-body { position: relative; z-index: 1; gap: 0.3rem; transform: translateZ(40px); }
+.tour-tile-body strong,
+.tour-tile-cell.is-lead .tour-tile-body strong { font-size: clamp(1.6rem, 2.6vw, 2.1rem); line-height: 1.15; }
+.tour-tile-body small { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.82rem; }
+.tour-tile-body small svg { width: 0.85rem; height: 0.85rem; opacity: 0.8; }
+.tour-tile-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-top: 0.65rem;
+  padding: 0.55rem 0.55rem 0.55rem 0.8rem;
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(10px);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+.tour-tile-foot b { font-size: 1rem; font-weight: 900; padding-inline-start: 0.25rem; }
+.tour-tile-foot b em { font-style: normal; font-size: 0.75rem; font-weight: 700; opacity: 0.85; }
+.tour-tile-foot b.is-ask { font-size: 0.82rem; font-weight: 800; opacity: 0.9; }
+.tour-tile-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 0.75rem;
+  background: #fff;
+  color: color-mix(in srgb, var(--tile) 80%, #000);
+  font-size: 0.8rem;
+  font-weight: 900;
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+.tour-tile-cta svg { width: 0.9rem; height: 0.9rem; transition: transform 0.3s; }
+.tour-tile:hover .tour-tile-cta { box-shadow: 0 8px 18px -8px rgba(0, 0, 0, 0.5); }
+.tour-tile:hover .tour-tile-cta svg { transform: translateX(-4px); }
+.tour-tile-foot b em { justify-self: auto; margin: 0; padding: 0; border-radius: 0; background: none; backdrop-filter: none; }
+.tour-tile-go { display: none; }
+.tour-tile.is-soon { filter: saturate(0.85); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-tile, .tour-tile-orb, .tour-tile-mark, .tour-tile-badge i { animation: none; }
+  .tour-tile { transform: none; }
+  .tour-tile:hover::after { transition: none; transform: translateX(120%); }
+}
