@@ -31,6 +31,11 @@ export type Destination = {
   keywords: string[];
   /** Default visa note; the agency handles visas. */
   visa: string;
+  /**
+   * false: never guessed from free text. Algeria's names (الجزائر، الوادي…) also
+   * appear in Umrah program names as the departure, so its trips must pick it explicitly.
+   */
+  guess?: boolean;
 };
 
 /** The destinations the agency sells. Staff can still type another country. */
@@ -88,6 +93,16 @@ export const DESTINATIONS: Destination[] = [
     cities: ['لندن', 'مانشستر', 'إدنبرة', 'أكسفورد'],
     keywords: ['لندن', 'بريطانيا', 'المملكة المتحدة', 'london', 'uk', 'england'],
     visa: 'تأشيرة المملكة المتحدة — الوكالة تجهّز الملف وتحجز الموعد.',
+  },
+  {
+    id: 'DZ',
+    label: 'الجزائر',
+    color: '#15803d',
+    latin: 'ALGÉRIE',
+    cities: ['الجزائر العاصمة', 'وهران', 'قسنطينة', 'الوادي', 'غرداية', 'جانت', 'تلمسان', 'بجاية'],
+    keywords: [],
+    visa: 'سياحة داخلية — بدون تأشيرة.',
+    guess: false,
   },
 ];
 
@@ -170,8 +185,9 @@ export function guessDestination(text?: string | null): Destination | null {
   const n = String(text || '').toLowerCase();
   if (!n) return null;
   return (
-    DESTINATIONS.find((d) => d.keywords.some((k) => n.includes(k.toLowerCase())) || d.cities.some((c) => n.includes(c.toLowerCase()))) ||
-    null
+    DESTINATIONS.find(
+      (d) => d.guess !== false && (d.keywords.some((k) => n.includes(k.toLowerCase())) || d.cities.some((c) => n.includes(c.toLowerCase())))
+    ) || null
   );
 }
 
@@ -216,5 +232,5 @@ export function looksLikeTourName(name?: string | null): boolean {
   const n = String(name || '').toLowerCase();
   if (!n) return false;
   if (/سياح|رحلة سياحية|tour/i.test(n)) return true;
-  return DESTINATIONS.some((d) => d.keywords.some((k) => n.includes(k.toLowerCase())));
+  return DESTINATIONS.some((d) => d.guess !== false && d.keywords.some((k) => n.includes(k.toLowerCase())));
 }

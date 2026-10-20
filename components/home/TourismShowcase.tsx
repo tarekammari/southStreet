@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { motion, MotionValue, useReducedMotion, useScroll, useTransform } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowLeft, MapPin } from 'lucide-react';
 import type { Package } from '@/types';
 import { publicList } from '@/lib/public-catalog';
@@ -16,14 +16,12 @@ type Tile = { d: Destination; count: number; from: number; photo: string };
 /**
  * Home page: the tourist-trip offer — one full-height card per destination
  * (photo of a trip there, else a stock photo, else the destination colour),
- * busiest first. Cards stay pinned and stack: each new one slides over the
- * previous, which shrinks back into the deck.
+ * busiest first. Cards stay pinned and each new one slides over the previous,
+ * covering it. A card opens its destination page.
  */
 export default function TourismShowcase() {
   const [trips, setTrips] = useState<Package[] | null>(null);
   const reduce = useReducedMotion();
-  const deck = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({ target: deck, offset: ['start start', 'end end'] });
 
   useEffect(() => {
     let live = true;
@@ -75,9 +73,9 @@ export default function TourismShowcase() {
           اكتشف العالم مع ساوث ستريت
         </motion.h2>
 
-        <div className="tour-show-grid" ref={deck}>
+        <div className="tour-show-grid">
           {tiles.map((tile, i) => (
-            <DeckCard key={tile.d.id} tile={tile} index={i} total={tiles.length} progress={scrollYProgress} still={!!reduce} />
+            <DeckCard key={tile.d.id} tile={tile} index={i} total={tiles.length} />
           ))}
         </div>
       </div>
@@ -85,16 +83,14 @@ export default function TourismShowcase() {
   );
 }
 
-function DeckCard({ tile, index, total, progress, still }: { tile: Tile; index: number; total: number; progress: MotionValue<number>; still: boolean }) {
+function DeckCard({ tile, index, total }: { tile: Tile; index: number; total: number }) {
   const { d, count, from, photo } = tile;
-  // Shrinks from the moment it is pinned to the end of the deck; cards lower in the deck shrink less.
-  const scale = useTransform(progress, [index / total, 1], [1, 1 - (total - index - 1) * 0.035]);
 
   return (
-    <div className="tour-tile-cell" style={{ ['--i' as string]: index }}>
-      <motion.div className="tour-tile-frame" style={still ? undefined : { scale }}>
+    <div className="tour-tile-cell">
+      <div className="tour-tile-frame">
         <Link
-          href={`/packages?kind=tourism&dest=${d.id}`}
+          href={`/destinations/${d.id}`}
           className={`tour-tile${photo ? ' has-photo' : ''}${count ? ' is-live' : ' is-soon'}`}
           style={{ ['--tile' as string]: d.color }}
         >
@@ -115,7 +111,7 @@ function DeckCard({ tile, index, total, progress, still }: { tile: Tile; index: 
             </span>
           </span>
         </Link>
-      </motion.div>
+      </div>
     </div>
   );
 }

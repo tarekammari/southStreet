@@ -527,14 +527,14 @@
 }
 .tour-tile-cell {
   position: sticky;
-  top: calc(var(--deck-top) + var(--i) * 0.9rem);
+  top: var(--deck-top);
   display: block;
   height: calc(100svh - var(--deck-top) - 1.5rem);
   min-height: 26rem;
   margin-bottom: 2.5rem;
 }
 .tour-tile-cell:last-child { margin-bottom: 0; }
-.tour-tile-frame { height: 100%; transform-origin: 50% 0; will-change: transform; }
+.tour-tile-frame { height: 100%; }
 
 .tour-tile {
   height: 100%;

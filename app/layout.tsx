@@ -4,6 +4,7 @@ import './fonts.css';
 import './globals.css';
 import './programs.css';
 import './hotels-booking.css';
+import './destinations.css';
 import './home.css';
 import './security.css';
 import './sakhr.css';
