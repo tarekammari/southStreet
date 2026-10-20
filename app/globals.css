@@ -65,8 +65,13 @@ section { scroll-margin-top: 88px; }
 
 .page-shell-home {
   --nav-height: 64px;
-  --promo-height: 42px;
+  --promo-height: 0px;
   background: #fbfbfd;
+}
+
+/* On phones the pending-request banner and the trip chip sit in a strip under the navbar. */
+@media (max-width: 1023px) {
+  .page-shell-home:has(.request-pending-shell, .home-trip-chip) { --promo-height: 42px; }
 }
 
 .page-shell-home .page-main {

@@ -16,7 +16,7 @@ import PendingRequestBanner from '@/components/booking/PendingRequestBanner';
 import WelcomeBanner from '@/components/WelcomeBanner';
 import { User } from '@/types';
 import { publicList } from '@/lib/public-catalog';
-import { PageContentRow, pickPageContent } from '@/lib/page-content';
+import type { PageContentRow } from '@/lib/page-content';
 import { logoutAndReload, syncSessionProfile } from '@/lib/client-session';
 
 export default function HomePage() {
@@ -44,22 +44,20 @@ export default function HomePage() {
     if (session) setCurrentUser(JSON.parse(session));
   };
 
-  const navPromo = pickPageContent(pageContent, 'nav_promo', { title: '' });
-
   return (
     <div className="page-shell page-shell-home min-h-screen bg-slate-app">
-      <Navbar currentUser={currentUser} onLogout={handleLogout} onSelectRole={restoreUser} variant="light" showPromo promoLine={navPromo.title || undefined} />
+      <Navbar currentUser={currentUser} onLogout={handleLogout} onSelectRole={restoreUser} variant="light" />
       <PendingRequestBanner user={currentUser} variant="home" />
       {currentUser ? <div className="max-w-5xl mx-auto px-4 pt-3"><WelcomeBanner /></div> : null}
       <main className="page-main relative overflow-x-clip pb-6">
         <HeroSection content={pageContent} />
-        <TourismShowcase />
         <section id="agency-section" className="relative z-10 w-full px-3 py-8 sm:px-6 sm:py-12">
           <AgencySection />
         </section>
         <section id="promo-section">
           <PromoBillboard content={pageContent} />
         </section>
+        <TourismShowcase />
         <AboutSection content={pageContent} />
         <TestimonialsSection />
         <HomeCta />

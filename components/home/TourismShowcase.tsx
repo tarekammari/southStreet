@@ -3,20 +3,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { motion, MotionValue, useReducedMotion, useScroll, useTransform } from 'framer-motion';
-import { ArrowLeft, CalendarDays, Hotel, MapPin, Plane, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, MapPin } from 'lucide-react';
 import type { Package } from '@/types';
 import { publicList } from '@/lib/public-catalog';
-import { DEPOSIT_PERCENT, parseTripDate } from '@/lib/booking-catalog';
+import { parseTripDate } from '@/lib/booking-catalog';
 import { isBookable, programAvailability, programMinPrice } from '@/lib/program-display';
 import { Destination, DESTINATIONS, isTourism, tourOf } from '@/lib/tour';
 import { destinationPhoto } from '@/lib/destination-photos';
-
-const PERKS = [
-  { icon: ShieldCheck, text: 'الوكالة تتكفّل بالتأشيرة' },
-  { icon: CalendarDays, text: 'برنامج يوماً بيوم' },
-  { icon: Hotel, text: 'فنادق مختارة' },
-  { icon: Plane, text: `عربون ${Math.round(DEPOSIT_PERCENT * 100)}٪ بعد قبول الطلب` },
-];
 
 type Tile = { d: Destination; count: number; from: number; photo: string };
 
@@ -78,24 +71,9 @@ export default function TourismShowcase() {
   return (
     <section id="tourism-section" className="tour-show" aria-labelledby="tourism-title">
       <div className="tour-show-inner">
-        <motion.header className="tour-show-head" {...rise(0)}>
-          <div>
-            <p className="tour-show-eyebrow"><Plane aria-hidden /> رحلات سياحية منظّمة</p>
-            <h2 id="tourism-title">اكتشف العالم مع ساوث ستريت</h2>
-            <p className="tour-show-lead">من إسطنبول إلى لندن: الطيران والفنادق والجولات في برنامج واحد منظّم، تحجزه وتتابعه مع الوكالة.</p>
-          </div>
-          <Link href="/packages?kind=tourism" className="tour-show-all">
-            كل الرحلات <ArrowLeft className="w-4 h-4" aria-hidden />
-          </Link>
-        </motion.header>
-
-        <ul className="tour-show-perks">
-          {PERKS.map(({ icon: Icon, text }, i) => (
-            <motion.li key={text} {...rise(i + 1)}>
-              <Icon aria-hidden /> {text}
-            </motion.li>
-          ))}
-        </ul>
+        <motion.h2 id="tourism-title" className="tour-show-title" {...rise(0)}>
+          اكتشف العالم مع ساوث ستريت
+        </motion.h2>
 
         <div className="tour-show-grid" ref={deck}>
           {tiles.map((tile, i) => (
