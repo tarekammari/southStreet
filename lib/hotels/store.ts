@@ -7,6 +7,7 @@
  */
 import { getSqliteDb } from '@/lib/sqlite';
 import { HOTEL_COUNTRIES, hotelCityLabel, hotelCountryOf } from '@/lib/tour';
+import { seedShowcaseHotels } from '@/lib/hotels/showcase-seed';
 import {
   BOARD_TYPES,
   DAY,
@@ -95,6 +96,11 @@ export function ensureHotelSchema() {
   add('agency_settings', 'hotel_margin_percent', 'REAL DEFAULT 10');
   add('agency_settings', 'supplier_rate_eur', 'REAL');
   ready = true;
+  try {
+    seedShowcaseHotels(db);
+  } catch (err) {
+    console.error('[hotels] showcase seed failed', err);
+  }
 }
 
 const json = <T>(v: unknown, fallback: T): T => {

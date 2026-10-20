@@ -305,6 +305,7 @@ function HotelsTab({ hotels }: { hotels: HotelSummary[] | null }) {
               <span className={h.rates ? 'is-ok' : ''}>{h.rates} أسعار</span>
               <span className={h.bookable && h.rooms && h.rates ? 'is-good' : 'is-off'}>{h.bookable ? (h.rooms && h.rates ? 'يُحجز' : 'مفعّل — ناقص') : 'غير مفعّل'}</span>
               <span className={h.shown ? 'is-ok' : 'is-off'}>{h.shown ? 'ظاهر في صفحة الفنادق' : 'مخفي'}</span>
+              {h.source_type === 'sample' ? <span className="is-sample">نموذجي — راجع الاسم والأسعار</span> : null}
             </span>
           </li>
         ))}

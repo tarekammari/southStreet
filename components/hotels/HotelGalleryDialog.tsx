@@ -2,9 +2,12 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Film, MapPin, Star, X } from 'lucide-react';
+import Link from 'next/link';
+import { CalendarCheck, ChevronLeft, ChevronRight, Film, MapPin, Star, X } from 'lucide-react';
 import type { Hotel } from '@/types';
 import GoogleMapPinLink, { hasMapPoint } from '@/components/hotels/GoogleMapPinLink';
+import { defaultDates } from '@/components/hotels/HotelSearchBar';
+import { encodeRooms } from '@/lib/hotels/types';
 import { videoEmbedUrl } from '@/lib/video-url';
 
 const FALLBACK = 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200&auto=format&fit=crop';
@@ -69,6 +72,11 @@ export default function HotelGalleryDialog({
   }, [count, onClose, step]);
 
   const mark = categoryMark(hotel.category);
+  const bookable = Number((hotel as Hotel & { bookable?: unknown }).bookable) === 1 || (hotel as Hotel & { bookable?: unknown }).bookable === true;
+  const dates = defaultDates();
+  const bookHref = bookable
+    ? `/hotels/${encodeURIComponent(hotel.hotel_id)}?${new URLSearchParams({ checkIn: dates.checkIn, checkOut: dates.checkOut, rooms: encodeRooms([{ adults: 2, children: 0, childAges: [] }]) })}`
+    : '';
 
   return (
     <motion.div
@@ -207,6 +215,11 @@ export default function HotelGalleryDialog({
               </button>
             ))}
           </div>
+          {bookHref ? (
+            <Link href={bookHref} className="hotel-detail-book">
+              <CalendarCheck className="h-4 w-4" /> اختر الغرفة واحجز الآن
+            </Link>
+          ) : null}
           {hotel.services?.length > 0 ? (
             <div className="mt-3 flex flex-wrap gap-1.5">
               {hotel.services.map((s) => (

@@ -27,6 +27,7 @@ import HotelSearchBar from '@/components/hotels/HotelSearchBar';
 import { openLogin } from '@/components/auth/openLogin';
 import { HOTEL_COUNTRIES } from '@/lib/tour';
 import { DEPOSIT_PERCENT } from '@/lib/booking-catalog';
+import { hotelFacilities } from '@/lib/hotels/facilities';
 import {
   BOARD_LABEL,
   arDate,
@@ -176,6 +177,7 @@ function HotelInner() {
   if (!hotel) return <div className="hdet-loading"><Loader2 className="animate-spin" aria-hidden /> جاري تحميل الفندق…</div>;
 
   const images = hotel.images.length ? hotel.images : [];
+  const facilities = hotelFacilities(hotel.hotel_id, hotel.amenities, hotel.offers.flat().map((o) => o.board));
   const filteredClients = (clients || []).filter((c) => !clientQuery || `${c.name} ${c.phone || ''} ${c.email || ''}`.toLowerCase().includes(clientQuery.toLowerCase())).slice(0, 8);
 
   return (
@@ -255,6 +257,23 @@ function HotelInner() {
                 </section>
               ) : null}
 
+              {facilities.length ? (
+                <section className="hdet-block">
+                  <h2>المطعم والمرافق</h2>
+                  <div className="hdet-facilities">
+                    {facilities.map((f) => (
+                      <figure key={f.id} className="hdet-facility">
+                        <img src={f.photo} alt={f.title} loading="lazy" />
+                        <figcaption>
+                          <b>{f.title}</b>
+                          <small>{f.text}</small>
+                        </figcaption>
+                      </figure>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+
               {step === 'rooms' ? (
                 <section className="hdet-block" id="rooms">
                   <h2>اختر غرفتك</h2>
@@ -280,6 +299,8 @@ function HotelInner() {
                               >
                                 <span className="hdet-radio" aria-hidden>{on ? <Check /> : null}</span>
                                 <span className="hdet-offer-main">
+                                  {o.photos[0] ? <img className="hdet-offer-photo" src={o.photos[0]} alt={o.room_name} loading="lazy" /> : null}
+                                  <span className="hdet-offer-info">
                                   <b><BedDouble aria-hidden /> {o.room_name}</b>
                                   <small>
                                     {o.beds ? `${o.beds} · ` : ''}حتى {o.max_adults} بالغ{o.max_children ? ` + ${o.max_children} طفل` : ''}
@@ -289,6 +310,8 @@ function HotelInner() {
                                     <span className="is-board"><UtensilsCrossed aria-hidden /> {BOARD_LABEL[o.board]}</span>
                                     <span className={o.free_cancel_until ? 'is-free' : 'is-nonref'}>{o.free_cancel_until ? <BadgeCheck aria-hidden /> : null} {cancelText(o)}</span>
                                     {o.left <= 3 ? <span className="is-left">{roomsLeftText(o.left)}</span> : null}
+                                  </span>
+                                  {o.amenities.length ? <small className="hdet-offer-amen">{o.amenities.slice(0, 5).join(' · ')}</small> : null}
                                   </span>
                                 </span>
                                 <span className="hdet-offer-price">
