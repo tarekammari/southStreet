@@ -99,6 +99,31 @@
 .dst-hotel-cta:hover { background: #047857; }
 .dst-hotel-cta svg { width: 1rem; height: 1rem; }
 
+button.dst-city { width: 100%; border: 0; padding: 0; font: inherit; text-align: start; cursor: pointer; }
+
+.dst-chips { position: sticky; top: calc(var(--nav-height, 64px) + 0.4rem); z-index: 5; display: flex; gap: 0.45rem; overflow-x: auto; margin: 0 0 1.2rem; padding: 0.45rem; border-radius: 999px; background: rgba(255, 255, 255, 0.92); backdrop-filter: blur(10px); box-shadow: 0 10px 30px -22px rgba(15, 23, 42, 0.6); scrollbar-width: none; }
+.dst-chips::-webkit-scrollbar { display: none; }
+.dst-chips button { flex: none; display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 1rem; border-radius: 999px; border: 1px solid #e2e8f0; background: #fff; font-size: 0.85rem; font-weight: 800; color: #334155; cursor: pointer; transition: background 0.2s, color 0.2s, border-color 0.2s; }
+.dst-chips button span { min-width: 1.4rem; padding: 0 0.35rem; border-radius: 999px; background: #f1f5f9; font-size: 0.72rem; text-align: center; }
+.dst-chips button[aria-pressed='true'] { background: #0f172a; border-color: #0f172a; color: #fff; }
+.dst-chips button[aria-pressed='true'] span { background: rgba(255, 255, 255, 0.18); }
+
+.dst-citygroup { margin-bottom: 2.2rem; scroll-margin-top: calc(var(--nav-height, 64px) + 4.5rem); }
+.dst-citygroup-head { position: relative; isolation: isolate; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 0.8rem; min-height: 8.5rem; margin-bottom: 1rem; padding: 1.1rem 1.3rem; overflow: hidden; border-radius: 1.4rem; color: #fff; background: linear-gradient(150deg, var(--tile), color-mix(in srgb, var(--tile) 45%, #020617)); }
+.dst-citygroup-head > img { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; }
+.dst-citygroup-shade { position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgba(2, 6, 23, 0.15), rgba(2, 6, 23, 0.75)); }
+[dir='rtl'] .dst-citygroup-shade { background: linear-gradient(270deg, rgba(2, 6, 23, 0.15), rgba(2, 6, 23, 0.75)); }
+.dst-citygroup-head h3 { margin: 0; font-size: clamp(1.4rem, 3vw, 2rem); font-weight: 900; }
+.dst-citygroup-head p { margin: 0.2rem 0 0; font-size: 0.88rem; font-weight: 700; color: rgba(255, 255, 255, 0.9); }
+.dst-citygroup-link { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.5rem 1rem; border-radius: 999px; background: rgba(255, 255, 255, 0.16); backdrop-filter: blur(8px); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3); color: #fff; font-size: 0.82rem; font-weight: 800; text-decoration: none; }
+.dst-citygroup-link svg { width: 0.95rem; height: 0.95rem; }
+
+.dst-room-media { position: relative; }
+.dst-room-left { position: absolute; top: 0.45rem; inset-inline-start: 0.45rem; padding: 0.15rem 0.5rem; border-radius: 999px; background: #be123c; color: #fff; font-size: 0.68rem; font-weight: 800; }
+.dst-room-text small.is-free { color: #047857; font-weight: 700; }
+.dst-room-book { margin-top: 0.35rem; padding: 0.4rem; border-radius: 0.6rem; background: #ecfdf5; color: #047857; font-size: 0.76rem; font-weight: 800; text-align: center; transition: background 0.2s, color 0.2s; }
+.dst-room:hover .dst-room-book { background: #047857; color: #fff; }
+
 .dst-skel { border-radius: 1.4rem; background: linear-gradient(90deg, #f1f5f9, #e2e8f0, #f1f5f9); background-size: 200% 100%; animation: dst-skel 1.4s ease-in-out infinite; }
 .dst-skel.is-trip { height: 24rem; }
 .dst-skel.is-hotel { height: 15rem; margin-bottom: 1.2rem; }

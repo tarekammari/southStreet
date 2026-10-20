@@ -70,7 +70,7 @@ function HotelInner() {
   const [clientQuery, setClientQuery] = useState('');
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState('');
-  const [booked, setBooked] = useState<{ number: string; total: number } | null>(null);
+  const [booked, setBooked] = useState<{ id: string; number: string; total: number } | null>(null);
 
   useEffect(() => {
     try {
@@ -93,11 +93,12 @@ function HotelInner() {
         if (!r.ok) throw new Error(d.error || 'تعذّر تحميل الفندق');
         const h: HotelDetail = d.hotel;
         setHotel(h);
-        setPicked(h.offers.map((list) => list[0]?.offer_id || ''));
+        const wanted = p.get('room');
+        setPicked(h.offers.map((list) => (wanted && list.find((o) => o.room_id === wanted)?.offer_id) || list[0]?.offer_id || ''));
         setGuests(search.rooms.map(() => ({ name: '', passport: '' })));
       })
       .catch((e) => setError(e.message));
-  }, [id, search]);
+  }, [id, search, p]);
 
   const staff = Boolean(me?.role && STAFF.has(String(me.role)));
   useEffect(() => {
@@ -153,7 +154,7 @@ function HotelInner() {
         return;
       }
       if (!res.ok) throw new Error(d.error || 'تعذّر إرسال الحجز');
-      setBooked({ number: d.reservation?.reservation_number, total: d.reservation?.total_amount });
+      setBooked({ id: d.reservation?.reservation_id, number: d.reservation?.reservation_number, total: d.reservation?.total_amount });
       setStep('done');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (e: any) {
@@ -193,7 +194,7 @@ function HotelInner() {
             <li>قسيمة الفندق في حسابك</li>
           </ol>
           <div className="hdet-done-acts">
-            {staff ? <Link href="/admin" className="hdet-cta">لوحة الطلبات</Link> : <Link href="/portal?tab=program" className="hdet-cta">متابعة الحجز في حسابي</Link>}
+            {staff ? <Link href="/admin" className="hdet-cta">لوحة الطلبات</Link> : <Link href={`/my-bookings?id=${encodeURIComponent(booked.id)}`} className="hdet-cta">تابع حالة الحجز</Link>}
             <Link href="/hotels" className="hdet-ghost">بحث جديد</Link>
           </div>
         </motion.section>

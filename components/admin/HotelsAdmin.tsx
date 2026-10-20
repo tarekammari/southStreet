@@ -1,13 +1,32 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { BedDouble, Building2, Download, Globe2, Loader2, MapPin, Percent, RefreshCw, Search, Star } from 'lucide-react';
+import {
+  BedDouble,
+  Building2,
+  CalendarDays,
+  CheckCircle2,
+  ChevronDown,
+  Download,
+  Globe2,
+  Loader2,
+  MapPin,
+  MessageCircle,
+  Percent,
+  Phone,
+  RefreshCw,
+  Search,
+  Star,
+  XCircle,
+} from 'lucide-react';
+import PrintMenu from '@/components/booking/PrintMenu';
 import { adminFetch } from '@/lib/webauthn-client';
 import { jsonAuthHeaders } from '@/lib/api-client';
 import { HOTEL_COUNTRIES } from '@/lib/tour';
-import { reservationStatusLabel } from '@/lib/booking-catalog';
-import { arDate, formatDzd } from '@/lib/hotels/types';
+import { DEPOSIT_PERCENT, reservationStatusLabel } from '@/lib/booking-catalog';
+import { waLink } from '@/lib/social';
+import { BOARD_LABEL, arDate, formatDzd } from '@/lib/hotels/types';
 import type { Reservation } from '@/types';
 
 type Tab = 'bookings' | 'hotels' | 'import' | 'prices';
@@ -69,7 +88,7 @@ export default function HotelsAdmin({ isSuperAdmin }: { isSuperAdmin: boolean })
       </nav>
       {error ? <p className="pkg-offer-error">{error}</p> : null}
 
-      {tab === 'bookings' ? <BookingsTab bookings={bookings} /> : null}
+      {tab === 'bookings' ? <BookingsTab bookings={bookings} onChanged={load} /> : null}
       {tab === 'hotels' ? <HotelsTab hotels={hotels} /> : null}
       {tab === 'import' && isSuperAdmin ? <ImportTab onImported={load} /> : null}
       {tab === 'prices' && isSuperAdmin ? <PricesTab /> : null}
@@ -85,36 +104,182 @@ function tone(status: string) {
   return '';
 }
 
-function BookingsTab({ bookings }: { bookings: Reservation[] | null }) {
-  if (!bookings) return <p className="hadm-muted"><Loader2 className="animate-spin" aria-hidden /> جاري التحميل…</p>;
-  if (!bookings.length) return <p className="hadm-muted">لا حجوزات فنادق بعد. الطلبات الجديدة تظهر أيضاً في «طلبات العمرة» لقبولها، ثم عند المحاسب للعربون.</p>;
+type BookingFilter = 'new' | 'deposit' | 'confirmed' | 'past' | 'closed';
+
+const PAID_STATES = ['CONFIRMED', 'PARTIALLY_PAID', 'PAID', 'DOCUMENTS_PENDING', 'READY_FOR_TRAVEL', 'COMPLETED'];
+
+function bookingStage(b: Reservation, today: string): BookingFilter {
+  const s = String(b.status).toUpperCase();
+  if (s === 'REJECTED' || s === 'CANCELLED') return 'closed';
+  if (s === 'REQUESTED' || s === 'PENDING') return 'new';
+  if ((b.hotel_stay?.check_out || '9') <= today) return 'past';
+  if (PAID_STATES.includes(s) && (Number(b.paid_amount) || 0) > 0) return 'confirmed';
+  return 'deposit';
+}
+
+function BookingsTab({ bookings, onChanged }: { bookings: Reservation[] | null; onChanged: () => void }) {
+  const [filter, setFilter] = useState<BookingFilter | null>(null);
+  const [openId, setOpenId] = useState('');
+  const [canApprove, setCanApprove] = useState(false);
+  const [busyId, setBusyId] = useState('');
+  const [rejectFor, setRejectFor] = useState('');
+  const [reason, setReason] = useState('');
+  const [msg, setMsg] = useState('');
   const today = new Date().toISOString().slice(0, 10);
-  const upcoming = bookings.filter((b) => (b.hotel_stay?.check_out || '') >= today);
-  const past = bookings.filter((b) => (b.hotel_stay?.check_out || '') < today);
+
+  useEffect(() => {
+    fetch('/api/bookings/confirm', { headers: jsonAuthHeaders(), cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d) => setCanApprove(Boolean(d.permissions?.canApprove)))
+      .catch(() => setCanApprove(false));
+  }, []);
+
+  const groups = useMemo(() => {
+    const g: Record<BookingFilter, Reservation[]> = { new: [], deposit: [], confirmed: [], past: [], closed: [] };
+    for (const b of bookings || []) g[bookingStage(b, today)].push(b);
+    const byCheckIn = (a: Reservation, b: Reservation) => String(a.hotel_stay?.check_in || '').localeCompare(String(b.hotel_stay?.check_in || ''));
+    g.new.sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+    g.deposit.sort(byCheckIn);
+    g.confirmed.sort(byCheckIn);
+    g.past.sort((a, b) => byCheckIn(b, a));
+    g.closed.sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
+    return g;
+  }, [bookings, today]);
+
+  if (!bookings) return <p className="hadm-muted"><Loader2 className="animate-spin" aria-hidden /> جاري التحميل…</p>;
+  if (!bookings.length) return <p className="hadm-muted">لا حجوزات فنادق بعد. كل طلب جديد من صفحة الفنادق يظهر هنا لقبوله، ثم عند المحاسب للعربون.</p>;
+
+  const active = filter || (groups.new.length ? 'new' : groups.deposit.length ? 'deposit' : 'confirmed');
+  const filters: { id: BookingFilter; label: string }[] = [
+    { id: 'new', label: 'طلبات جديدة' },
+    { id: 'deposit', label: 'بانتظار العربون' },
+    { id: 'confirmed', label: 'مؤكدة قادمة' },
+    { id: 'past', label: 'منتهية' },
+    { id: 'closed', label: 'ملغاة / مرفوضة' },
+  ];
+
+  const act = async (b: Reservation, action: 'confirm' | 'reject') => {
+    if (action === 'reject' && reason.trim().length < 3) {
+      setMsg('اكتب سبب الرفض — يصل إلى العميل');
+      return;
+    }
+    setBusyId(b.reservation_id);
+    setMsg('');
+    try {
+      const r = await fetch('/api/bookings/confirm', {
+        method: 'POST',
+        headers: jsonAuthHeaders(),
+        body: JSON.stringify({ reservationId: b.reservation_id, action, note: action === 'reject' ? reason.trim() : '' }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || 'تعذّر معالجة الطلب');
+      setMsg(`${b.reservation_number}: ${d.message || 'تم'}`);
+      setRejectFor('');
+      setReason('');
+      window.dispatchEvent(new CustomEvent('southstreet:bookings-updated'));
+      onChanged();
+    } catch (e: any) {
+      setMsg(e.message);
+    } finally {
+      setBusyId('');
+    }
+  };
+
   const row = (b: Reservation) => {
     const s = b.hotel_stay;
+    const open = openId === b.reservation_id;
+    const stage = bookingStage(b, today);
+    const guests = s ? s.rooms.reduce((n, r) => n + r.adults + r.children, 0) : b.travelers_count;
+    const remaining = Math.max(0, (Number(b.total_amount) || 0) - (Number(b.paid_amount) || 0));
+    const wa = waLink(b.customer_phone || '', `مرحباً ${b.customer_name}، بخصوص حجز الفندق ${b.reservation_number} — ${s?.hotel_name || ''}`);
     return (
-      <li key={b.reservation_id} className="hadm-booking">
-        <div>
-          <strong>{s?.hotel_name || b.package_name}</strong>
-          <small>{b.customer_name} · <span dir="ltr">{b.reservation_number}</span></small>
-          {s ? <small>{arDate(s.check_in, { day: 'numeric', month: 'short' })} ← {arDate(s.check_out, { day: 'numeric', month: 'short' })} · {s.nights} ليالٍ · {s.rooms.map((r) => r.room_name).join(' + ')}{s.free_cancel_until ? ` · إلغاء مجاني حتى ${arDate(s.free_cancel_until, { day: 'numeric', month: 'short' })}` : ''}</small> : null}
-        </div>
-        <span className={`hadm-status ${tone(String(b.status))}`}>{reservationStatusLabel(String(b.status))}</span>
-        <span className="hadm-money"><b>{formatDzd(b.total_amount)}</b><small>مدفوع {formatDzd(b.paid_amount)}</small></span>
+      <li key={b.reservation_id} className={`hadm-booking${open ? ' is-open' : ''}${stage === 'new' ? ' is-new' : ''}`}>
+        <button type="button" className="hadm-booking-row" aria-expanded={open} onClick={() => setOpenId(open ? '' : b.reservation_id)}>
+          <div>
+            <strong>{s?.hotel_name || b.package_name}</strong>
+            <small>{b.customer_name} · <span dir="ltr">{b.reservation_number}</span>{s ? ` · ${s.city}` : ''}</small>
+            {s ? <small><CalendarDays aria-hidden /> {arDate(s.check_in, { day: 'numeric', month: 'short' })} ← {arDate(s.check_out, { day: 'numeric', month: 'short' })} · {s.nights} ليالٍ · {guests} ضيوف · {s.rooms.map((r) => r.room_name).join(' + ')}</small> : null}
+          </div>
+          <span className={`hadm-status ${tone(String(b.status))}`}>{reservationStatusLabel(String(b.status))}</span>
+          <span className="hadm-money"><b>{formatDzd(b.total_amount)}</b><small>مدفوع {formatDzd(b.paid_amount)}</small></span>
+          <ChevronDown className="hadm-chev" aria-hidden />
+        </button>
+        {open ? (
+          <div className="hadm-booking-more">
+            <div className="hadm-booking-grid">
+              <section>
+                <h4>العميل</h4>
+                <p><b>{b.customer_name}</b></p>
+                {b.customer_phone ? (
+                  <p className="hadm-contact">
+                    <a href={`tel:${b.customer_phone}`} dir="ltr"><Phone aria-hidden /> {b.customer_phone}</a>
+                    {wa ? <a href={wa} target="_blank" rel="noreferrer"><MessageCircle aria-hidden /> واتساب</a> : null}
+                  </p>
+                ) : null}
+                {b.customer_email ? <p dir="ltr" className="hadm-dim">{b.customer_email}</p> : null}
+                {s?.guests?.length ? <p className="hadm-dim">الضيوف: {s.guests.map((g) => `${g.name}${g.passport ? ` (${g.passport})` : ''}`).join('، ')}</p> : null}
+              </section>
+              <section>
+                <h4>الغرف</h4>
+                <ul className="hadm-rooms">
+                  {s?.rooms.map((r, i) => (
+                    <li key={i}><span>{r.room_name} · {BOARD_LABEL[r.board]} · {r.adults} بالغ{r.children ? ` + ${r.children} طفل` : ''}</span><b>{formatDzd(r.total)}</b></li>
+                  ))}
+                </ul>
+                <p className="hadm-dim">{s?.free_cancel_until ? `إلغاء مجاني حتى ${arDate(s.free_cancel_until, { day: 'numeric', month: 'long' })}` : 'غير قابل للاسترداد'}</p>
+                {s?.requests ? <p className="hadm-req">طلبات خاصة: {s.requests}</p> : null}
+              </section>
+              <section>
+                <h4>المبالغ</h4>
+                <p>المجموع <b>{formatDzd(b.total_amount)}</b></p>
+                <p>العربون <b>{formatDzd(b.invoice?.depositAmount ?? Math.round((Number(b.total_amount) || 0) * DEPOSIT_PERCENT))}</b></p>
+                <p>المتبقي <b>{formatDzd(remaining)}</b></p>
+                <p className="hadm-dim">أُرسل {b.created_at ? arDate(b.created_at.slice(0, 10), { day: 'numeric', month: 'short' }) : ''}{b.agency_confirmed_by ? ` · عالجه ${b.agency_confirmed_by}` : ''}</p>
+              </section>
+            </div>
+            {stage === 'closed' && b.agency_note ? <p className="hadm-req">{b.agency_note.split('\n')[0]}</p> : null}
+            <div className="hadm-booking-acts">
+              {stage === 'new' && canApprove ? (
+                rejectFor === b.reservation_id ? (
+                  <>
+                    <input value={reason} autoFocus placeholder="سبب الرفض (يصل إلى العميل) — مثلاً: الفندق ممتلئ في هذه التواريخ" onChange={(e) => setReason(e.target.value)} />
+                    <button type="button" className="hadm-btn is-danger" disabled={busyId === b.reservation_id} onClick={() => act(b, 'reject')}>
+                      {busyId === b.reservation_id ? <Loader2 className="animate-spin" aria-hidden /> : <XCircle aria-hidden />} تأكيد الرفض
+                    </button>
+                    <button type="button" className="hadm-btn" onClick={() => { setRejectFor(''); setReason(''); }}>تراجع</button>
+                  </>
+                ) : (
+                  <>
+                    <button type="button" className="hadm-btn is-primary" disabled={busyId === b.reservation_id} onClick={() => act(b, 'confirm')}>
+                      {busyId === b.reservation_id ? <Loader2 className="animate-spin" aria-hidden /> : <CheckCircle2 aria-hidden />} قبول — الغرف متوفرة
+                    </button>
+                    <button type="button" className="hadm-btn is-danger" onClick={() => { setRejectFor(b.reservation_id); setReason(''); }}>
+                      <XCircle aria-hidden /> رفض
+                    </button>
+                  </>
+                )
+              ) : null}
+              {stage === 'new' && !canApprove ? <p className="hadm-dim">قبول الطلب أو رفضه من صلاحية المشرف.</p> : null}
+              {stage === 'deposit' ? <p className="hadm-dim">مقبول — يسجّل المحاسب العربون من «الطلبات ← بانتظار العربون» فيتأكد الحجز تلقائياً ويُبلَّغ العميل.</p> : null}
+              <PrintMenu reservationId={b.reservation_id} status={String(b.status)} className="hadm-btn" />
+            </div>
+          </div>
+        ) : null}
       </li>
     );
   };
+
   return (
     <>
-      <h3 className="hadm-sub">القادمة ({upcoming.length})</h3>
-      <ul className="hadm-list">{upcoming.map(row)}</ul>
-      {past.length ? (
-        <details className="hadm-past">
-          <summary>المنتهية ({past.length})</summary>
-          <ul className="hadm-list">{past.map(row)}</ul>
-        </details>
-      ) : null}
+      <nav className="hadm-filters" aria-label="تصفية الحجوزات">
+        {filters.map((f) => (
+          <button key={f.id} type="button" aria-pressed={active === f.id} className={f.id === 'new' && groups.new.length ? 'has-new' : ''} onClick={() => setFilter(f.id)}>
+            {f.label} <span>{groups[f.id].length}</span>
+          </button>
+        ))}
+      </nav>
+      {msg ? <p className="hadm-msg">{msg}</p> : null}
+      {groups[active].length ? <ul className="hadm-list">{groups[active].map(row)}</ul> : <p className="hadm-muted">لا حجوزات في هذه القائمة.</p>}
     </>
   );
 }

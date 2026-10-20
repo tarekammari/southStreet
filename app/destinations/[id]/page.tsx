@@ -16,11 +16,11 @@ import { isBookable, programAvailability } from '@/lib/program-display';
 import { destinationOf, isTourism, tourOf, type Destination } from '@/lib/tour';
 import { cityPhoto, destinationPhoto } from '@/lib/destination-photos';
 import { AGENCY_PHONE, AGENCY_PHONE_TEL } from '@/lib/agency-contact';
-import { BOARD_LABEL, arDate, encodeRooms, formatDzd, normAr, type HotelDetail, type HotelOffer, type RoomOffer } from '@/lib/hotels/types';
+import { BOARD_LABEL, arDate, encodeRooms, formatDzd, normAr, roomsLeftText, type HotelDetail, type HotelOffer, type RoomOffer } from '@/lib/hotels/types';
 
 const ROOMS = [{ adults: 2, children: 0, childAges: [] as number[] }];
 /** Hotels whose rooms are loaded on the page; the rest open the hotel page. */
-const DETAILED = 6;
+const DETAILED = 24;
 
 type HotelCard = HotelOffer & { rooms: RoomOffer[] };
 
@@ -100,11 +100,30 @@ function DestinationView({ dest }: { dest: Destination }) {
     };
   }, [dest.id, dates]);
 
+  const [cityFilter, setCityFilter] = useState('');
   const cities = useMemo(() => {
     const listed = dest.cities.map((name) => ({ name, photo: cityPhoto(name) }));
     return [...listed.filter((c) => c.photo), ...listed.filter((c) => !c.photo)];
   }, [dest]);
-  const hotelsIn = (city: string) => (hotels || []).filter((h) => normAr(h.city_label).includes(normAr(city)) || normAr(h.city).includes(normAr(city))).length;
+  /** Hotels grouped under the destination's cities, in the order of the city cards; unlisted cities last. */
+  const byCity = useMemo(() => {
+    const groups = new Map<string, HotelCard[]>();
+    for (const h of hotels || []) {
+      const listed = cities.find((c) => normAr(h.city_label).includes(normAr(c.name)) || normAr(h.city).includes(normAr(c.name)));
+      const key = listed?.name || h.city_label || h.city;
+      groups.set(key, [...(groups.get(key) || []), h]);
+    }
+    const order = cities.map((c) => c.name);
+    return [...groups.entries()]
+      .sort(([a], [b]) => (order.indexOf(a) < 0 ? 99 : order.indexOf(a)) - (order.indexOf(b) < 0 ? 99 : order.indexOf(b)))
+      .map(([city, list]) => ({ city, photo: cityPhoto(city), hotels: [...list].sort((a, b) => a.total_from - b.total_from) }));
+  }, [hotels, cities]);
+  const hotelsIn = (city: string) => byCity.find((g) => g.city === city)?.hotels.length || 0;
+  const cityAnchor = (city: string) => `dst-city-${Math.max(0, byCity.findIndex((g) => g.city === city))}`;
+  const showCity = (city: string) => {
+    setCityFilter(city);
+    window.setTimeout(() => document.getElementById(cityAnchor(city))?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+  };
   const hotelHref = (h: HotelOffer) =>
     `/hotels/${encodeURIComponent(h.hotel_id)}?${new URLSearchParams({ checkIn: dates.checkIn, checkOut: dates.checkOut, rooms: encodeRooms(ROOMS) })}`;
   const cover = destinationPhoto(dest.id, 1920);
@@ -160,20 +179,22 @@ function DestinationView({ dest }: { dest: Destination }) {
             <div className="dst-grid-cities">
               {cities.map((c) => {
                 const n = hotelsIn(c.name);
-                return (
-                  <Link
-                    key={c.name}
-                    href={searchHref({ dest: c.name, label: c.name, ...dates, rooms: ROOMS })}
-                    className={`dst-city${c.photo ? '' : ' is-plain'}`}
-                    style={{ ['--tile' as string]: dest.color }}
-                  >
+                const inner = (
+                  <>
                     {c.photo ? <img src={c.photo} alt="" loading="lazy" /> : null}
                     <span className="dst-city-shade" aria-hidden />
                     <span className="dst-city-text">
                       <strong>{c.name}</strong>
-                      <small>{n ? `${n} ${n === 1 ? 'فندق' : n === 2 ? 'فندقان' : 'فنادق'}` : 'فنادق عند الطلب'}</small>
+                      <small>{n ? `${n} ${n === 1 ? 'فندق' : n === 2 ? 'فندقان' : 'فنادق'} · الغرف والأسعار` : 'فنادق عند الطلب'}</small>
                     </span>
-                  </Link>
+                  </>
+                );
+                const cls = `dst-city${c.photo ? '' : ' is-plain'}`;
+                const style = { ['--tile' as string]: dest.color };
+                return n ? (
+                  <button key={c.name} type="button" className={cls} style={style} onClick={() => showCity(c.name)}>{inner}</button>
+                ) : (
+                  <Link key={c.name} href={searchHref({ dest: c.name, label: c.name, ...dates, rooms: ROOMS })} className={cls} style={style}>{inner}</Link>
                 );
               })}
             </div>
@@ -187,7 +208,31 @@ function DestinationView({ dest }: { dest: Destination }) {
             {hotels === null ? (
               [0, 1].map((i) => <div key={i} className="dst-skel is-hotel" />)
             ) : hotels.length ? (
-              hotels.map((h) => (
+              <>
+                {byCity.length > 1 ? (
+                  <nav className="dst-chips" aria-label="المدن">
+                    <button type="button" aria-pressed={!cityFilter} onClick={() => setCityFilter('')}>كل المدن <span>{hotels.length}</span></button>
+                    {byCity.map((g) => (
+                      <button key={g.city} type="button" aria-pressed={cityFilter === g.city} onClick={() => setCityFilter(g.city)}>
+                        {g.city} <span>{g.hotels.length}</span>
+                      </button>
+                    ))}
+                  </nav>
+                ) : null}
+                {byCity.filter((g) => !cityFilter || g.city === cityFilter).map((g) => (
+                  <section key={g.city} id={cityAnchor(g.city)} className="dst-citygroup" aria-label={`فنادق ${g.city}`}>
+                    <header className="dst-citygroup-head" style={{ ['--tile' as string]: dest.color }}>
+                      {g.photo ? <img src={g.photo} alt="" loading="lazy" /> : null}
+                      <span className="dst-citygroup-shade" aria-hidden />
+                      <div>
+                        <h3>{g.city}</h3>
+                        <p>{g.hotels.length} {g.hotels.length === 1 ? 'فندق' : g.hotels.length === 2 ? 'فندقان' : 'فنادق'} · من {formatDzd(Math.min(...g.hotels.map((h) => h.total_from / Math.max(1, h.nights))))} لليلة</p>
+                      </div>
+                      <Link href={searchHref({ dest: g.city, label: g.city, ...dates, rooms: ROOMS })} className="dst-citygroup-link">
+                        تواريخ أخرى <ArrowLeft aria-hidden />
+                      </Link>
+                    </header>
+              {g.hotels.map((h) => (
                 <article key={h.hotel_id} className="dst-hotel">
                   <Link href={hotelHref(h)} className="dst-hotel-media" style={{ ['--tile' as string]: dest.color }}>
                     {h.photo ? <img src={h.photo} alt="" loading="lazy" /> : <span className="dst-noimg"><Building2 aria-hidden /></span>}
@@ -208,25 +253,31 @@ function DestinationView({ dest }: { dest: Destination }) {
                     {h.rooms.length ? (
                       <div className="dst-rooms">
                         {h.rooms.map((r) => (
-                          <Link key={r.room_id} href={hotelHref(h)} className="dst-room">
+                          <Link key={r.room_id} href={`${hotelHref(h)}&room=${encodeURIComponent(r.room_id)}`} className="dst-room">
                             <span className="dst-room-media">
                               {r.photos[0] || h.photo ? <img src={r.photos[0] || h.photo} alt="" loading="lazy" /> : <BedDouble aria-hidden />}
+                              {r.left <= 3 ? <span className="dst-room-left">{roomsLeftText(r.left)}</span> : null}
                             </span>
                             <span className="dst-room-text">
                               <strong>{r.room_name}</strong>
-                              <small>{[r.beds, BOARD_LABEL[r.board]].filter(Boolean).join(' · ')}</small>
+                              <small>{[r.beds, `حتى ${r.max_adults} بالغ`, BOARD_LABEL[r.board]].filter(Boolean).join(' · ')}</small>
+                              <small className={r.free_cancel_until ? 'is-free' : ''}>{r.free_cancel_until ? 'إلغاء مجاني' : 'غير قابل للاسترداد'}</small>
                               <b>{formatDzd(r.per_night)} <em>لليلة</em></b>
+                              <span className="dst-room-book">اختر هذه الغرفة</span>
                             </span>
                           </Link>
                         ))}
                       </div>
                     ) : null}
                     <Link href={hotelHref(h)} className="dst-hotel-cta">
-                      اختر غرفتك واحجز <ArrowLeft aria-hidden />
+                      {h.rooms.length ? 'احجز الآن' : 'اختر غرفتك واحجز'} <ArrowLeft aria-hidden />
                     </Link>
                   </div>
                 </article>
-              ))
+              ))}
+                  </section>
+                ))}
+              </>
             ) : (
               <div className="dst-empty">
                 <Building2 aria-hidden />

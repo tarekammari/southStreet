@@ -474,6 +474,12 @@ export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 
                       <UserIcon className="w-4 h-4 text-slate-400" />
                       <span>{pilgrim ? 'برنامجي' : 'بوابة الوكالة'}</span>
                     </Link>
+                    {pilgrim ? (
+                      <Link href="/my-bookings" onClick={() => setProfileOpen(false)} className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition ${isLight ? 'hover:bg-slate-50 text-slate-700' : 'hover:bg-slate-800 text-slate-200'}`}>
+                        <BedDouble className="w-4 h-4 text-slate-400" />
+                        <span>حجوزاتي</span>
+                      </Link>
+                    ) : null}
                     <Link href={pilgrim ? '/portal?tab=account' : '/portal?tab=security'} onClick={() => setProfileOpen(false)} className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition ${isLight ? 'hover:bg-slate-50 text-slate-700' : 'hover:bg-slate-800 text-slate-200'}`}>
                       <Settings className="w-4 h-4 text-slate-400" />
                       <span>{pilgrim ? 'حسابي' : 'أمان الحساب'}</span>

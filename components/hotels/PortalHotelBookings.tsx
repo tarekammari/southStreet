@@ -60,6 +60,7 @@ export default function PortalHotelBookings() {
               <small>المجموع {formatDzd(r.total_amount)} · المدفوع {formatDzd(r.paid_amount)}</small>
               <div className="phb-actions">
                 <PrintMenu reservationId={r.reservation_id} status={String(r.status)} className="pipe-btn" />
+                <Link href={`/my-bookings?id=${encodeURIComponent(r.reservation_id)}`} className="pipe-btn">تابع الحجز</Link>
               </div>
             </article>
           );

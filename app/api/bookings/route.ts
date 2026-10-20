@@ -705,13 +705,13 @@ export async function DELETE(req: NextRequest) {
 
     notifyAgency(
       account,
-      `تم إلغاء طلب العمرة رقم ${reservation.reservation_number} (${reservation.package_name}) بناءً على طلب المعتمر.`
+      `تم إلغاء ${reservation.booking_kind === 'HOTEL' ? 'حجز الفندق' : 'طلب العمرة'} رقم ${reservation.reservation_number} (${reservation.package_name}) بناءً على طلب العميل.`
     );
 
     return NextResponse.json({
       status: 'CANCELLED',
       reservation,
-      user: { redirect: '/book' },
+      user: { redirect: reservation.booking_kind === 'HOTEL' ? '/my-bookings' : '/book' },
     });
   } catch (error: any) {
     return NextResponse.json({ error: error?.message || 'تعذّر إلغاء الطلب' }, { status: 500 });

@@ -8,7 +8,8 @@ import { getSqliteDb } from '@/lib/sqlite';
 import { dbLogAudit } from '@/lib/db';
 import { DEPOSIT_PERCENT } from '@/lib/booking-catalog';
 import { documentVerifyCode } from '@/lib/booking-documents';
-import { getReservationById, nextReservationNumber } from '@/lib/booking';
+import { getReservationById, nextReservationNumber, notifyPilgrimAndAgency } from '@/lib/booking';
+import { notifyBookingSubmitted } from '@/lib/notifications';
 import { ensureHotelSchema } from '@/lib/hotels/store';
 import { HotelSearchError, repriceSelection } from '@/lib/hotels/engine';
 import { BOARD_LABEL, arDate, type HotelSearch, type HotelStay } from '@/lib/hotels/types';
@@ -142,5 +143,15 @@ export function createHotelBooking(
   } catch {
     /* audit is best-effort */
   }
+  notifyBookingSubmitted({ reservationId: id, reservationNumber: number, customerName: lead.name.trim(), packageName });
+  const when = `${arDate(input.search.checkIn, { day: 'numeric', month: 'long' })} ← ${arDate(input.search.checkOut, { day: 'numeric', month: 'long' })}`;
+  notifyPilgrimAndAgency({
+    customerId: customer.id,
+    customerName: customer.name || lead.name.trim(),
+    reservationNumber: number,
+    pilgrimText: `مرحباً ${lead.name.trim()}، استلمنا طلب حجز الفندق رقم ${number} — ${detail.name} (${when}). تؤكد الوكالة التوفر مع الفندق خلال 24 ساعة، وتتابع حالة الطلب من «حجوزاتي».`,
+    agentText: `طلب حجز فندق جديد ${number}: ${detail.name}، ${detail.city_label} — ${when} · ${nights} ${nights === 1 ? 'ليلة' : 'ليالٍ'} · ${chosen.map((o) => o.room_name).join(' + ')}. المجموع ${total.toLocaleString('ar-DZ')} دج. الهاتف ${phone}.`,
+    packageName,
+  });
   return getReservationById(id) as Reservation;
 }

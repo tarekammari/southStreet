@@ -484,7 +484,7 @@ function agencySender(db: ReturnType<typeof getSqliteDb>): any | null {
   return byRole(['AGENCY_AGENT', 'AGENT', 'STAFF']) || byRole(['AGENCY_MANAGER', 'MANAGER']) || byRole(['SUPER_ADMIN', 'ADMIN']) || null;
 }
 
-function notifyPilgrimAndAgency(input: {
+export function notifyPilgrimAndAgency(input: {
   customerId: string;
   customerName: string;
   reservationNumber: string;
