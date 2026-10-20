@@ -7,7 +7,6 @@ import AgencySection from '@/components/AgencySection';
 import PromoBillboard from '@/components/PromoBillboard';
 import AboutSection from '@/components/AboutSection';
 import TestimonialsSection from '@/components/TestimonialsSection';
-import TravelProgramsSection from '@/components/TravelProgramsSection';
 import TourismShowcase from '@/components/home/TourismShowcase';
 import SakhrAgent from '@/components/lazy/LazySakhrAgent';
 import Footer from '@/components/Footer';
@@ -54,7 +53,6 @@ export default function HomePage() {
       {currentUser ? <div className="max-w-5xl mx-auto px-4 pt-3"><WelcomeBanner /></div> : null}
       <main className="page-main relative overflow-x-clip pb-6">
         <HeroSection content={pageContent} />
-        <TravelProgramsSection content={pageContent} />
         <TourismShowcase />
         <section id="agency-section" className="relative z-10 w-full px-3 py-8 sm:px-6 sm:py-12">
           <AgencySection />

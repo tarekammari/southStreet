@@ -6,19 +6,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Hotel } from '@/types';
 import { DESTINATIONS, hotelCityLabel, hotelCountryOf } from '@/lib/tour';
 import { defaultDates, searchHref } from '@/components/hotels/HotelSearchBar';
-
-const unsplash = (id: string) => `https://images.unsplash.com/${id}?w=640&auto=format&fit=crop&q=70`;
-
-/** Cover photos by destination id; a destination without one gets its colour and Latin name. */
-const PHOTOS: Record<string, string> = {
-  MAKKAH: unsplash('photo-1565552645632-d725f8bfc19a'),
-  MADINAH: unsplash('photo-1591604129939-f1efa4d9f7fa'),
-  TR: unsplash('photo-1524231757912-21f4fe3a7200'),
-  MY: unsplash('photo-1596422846543-75c6fc197f07'),
-  EG: unsplash('photo-1539650116574-8efeb43e2750'),
-  ES: unsplash('photo-1583422409516-2895a77efded'),
-  GB: unsplash('photo-1513635269975-59663e0ac1ad'),
-};
+import { destinationPhoto } from '@/lib/destination-photos';
 
 type Card = {
   id: string;
@@ -115,7 +103,7 @@ export default function PopularDestinations({ hotels }: { hotels: Hotel[] }) {
       <div className="hdest-track" ref={track} onScroll={measure}>
         {CARDS.map((c) => {
           const n = hotels.filter(c.match).length;
-          const photo = broken[c.id] ? '' : PHOTOS[c.id];
+          const photo = broken[c.id] ? '' : destinationPhoto(c.id);
           return (
             <Link
               key={c.id}

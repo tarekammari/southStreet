@@ -487,3 +487,68 @@
   .tour-tile { transform: none; }
   .tour-tile:hover::after { transition: none; transform: translateX(120%); }
 }
+
+/* ---- Showcase v3: full-width band, a deck of full-height cards stacked on scroll ---- */
+.tour-show { --deck-top: 7rem; padding: 1.5rem 0 2.5rem; }
+.tour-show-inner {
+  max-width: none;
+  padding: 2.4rem clamp(1rem, 4vw, 3.5rem) 2.6rem;
+  border-radius: 0;
+  border-inline: 0;
+  overflow: visible;
+}
+
+.tour-show-grid {
+  display: block;
+  padding: 1.4rem 0 0;
+  perspective: none;
+}
+.tour-tile-cell {
+  position: sticky;
+  top: calc(var(--deck-top) + var(--i) * 0.9rem);
+  display: block;
+  height: calc(100svh - var(--deck-top) - 1.5rem);
+  min-height: 26rem;
+  margin-bottom: 2.5rem;
+}
+.tour-tile-cell:last-child { margin-bottom: 0; }
+.tour-tile-frame { height: 100%; transform-origin: 50% 0; will-change: transform; }
+
+.tour-tile {
+  height: 100%;
+  padding: clamp(1.4rem, 3.5vw, 3rem);
+  border-radius: clamp(1.5rem, 2.5vw, 2.4rem);
+  transform: none;
+  box-shadow: 0 -18px 40px -24px rgba(15, 23, 42, 0.45), 0 30px 60px -36px rgba(15, 23, 42, 0.55);
+}
+.tour-tile:hover { transform: none; box-shadow: 0 -18px 40px -24px rgba(15, 23, 42, 0.45), 0 30px 60px -30px color-mix(in srgb, var(--tile) 70%, #000); }
+.tour-tile:hover > img { transform: scale(1.04); }
+.tour-tile.has-photo::before { background: linear-gradient(180deg, rgba(2, 6, 23, 0.25) 0%, transparent 30%, rgba(2, 6, 23, 0.85) 100%); }
+.tour-tile-orb { width: 55%; }
+
+.tour-tile-mark {
+  top: auto;
+  bottom: 32%;
+  inset-inline-end: -1rem;
+  font-size: clamp(4rem, 15vw, 13rem);
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+.tour-tile-top { align-items: center; justify-content: space-between; gap: 1rem; transform: none; }
+.tour-tile-num { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 0.85rem; font-weight: 800; letter-spacing: 0.12em; color: rgba(255, 255, 255, 0.8); direction: ltr; }
+.tour-tile-badge { font-size: 0.85rem; padding: 0.4rem 0.95rem; }
+
+.tour-tile-body { gap: 0.6rem; max-width: 46rem; transform: none; }
+.tour-tile-body strong,
+.tour-tile-cell.is-lead .tour-tile-body strong { font-size: clamp(2.6rem, 7vw, 5.5rem); line-height: 1.05; letter-spacing: -0.01em; }
+.tour-tile-body small { font-size: clamp(0.9rem, 1.4vw, 1.1rem); }
+.tour-tile-body small svg { width: 1.1rem; height: 1.1rem; }
+.tour-tile-foot { margin-top: 1rem; padding: 0.7rem 0.7rem 0.7rem 1.1rem; border-radius: 1.2rem; max-width: 30rem; }
+.tour-tile-foot b { font-size: 1.15rem; white-space: nowrap; }
+.tour-tile-foot b.is-ask { font-size: 0.95rem; }
+.tour-tile-cta { padding: 0.65rem 1.2rem; border-radius: 0.9rem; font-size: 0.92rem; white-space: nowrap; }
+
+@media (max-width: 639px) {
+  .tour-show { --deck-top: 5.5rem; }
+  .tour-tile-cell { margin-bottom: 1.5rem; }
+}

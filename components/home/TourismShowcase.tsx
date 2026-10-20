@@ -1,14 +1,15 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { motion, useReducedMotion } from 'framer-motion';
+import { motion, MotionValue, useReducedMotion, useScroll, useTransform } from 'framer-motion';
 import { ArrowLeft, CalendarDays, Hotel, MapPin, Plane, ShieldCheck } from 'lucide-react';
 import type { Package } from '@/types';
 import { publicList } from '@/lib/public-catalog';
 import { DEPOSIT_PERCENT, parseTripDate } from '@/lib/booking-catalog';
 import { isBookable, programAvailability, programMinPrice } from '@/lib/program-display';
-import { DESTINATIONS, isTourism, tourOf } from '@/lib/tour';
+import { Destination, DESTINATIONS, isTourism, tourOf } from '@/lib/tour';
+import { destinationPhoto } from '@/lib/destination-photos';
 
 const PERKS = [
   { icon: ShieldCheck, text: 'الوكالة تتكفّل بالتأشيرة' },
@@ -17,14 +18,19 @@ const PERKS = [
   { icon: Plane, text: `عربون ${Math.round(DEPOSIT_PERCENT * 100)}٪ بعد قبول الطلب` },
 ];
 
+type Tile = { d: Destination; count: number; from: number; photo: string };
+
 /**
- * Home page: the tourist-trip offer at a glance — six destination tiles
- * (photo of a trip there when one exists, otherwise the destination colour).
- * Tiles tilt toward the pointer and open the programs page on that destination.
+ * Home page: the tourist-trip offer — one full-height card per destination
+ * (photo of a trip there, else a stock photo, else the destination colour),
+ * busiest first. Cards stay pinned and stack: each new one slides over the
+ * previous, which shrinks back into the deck.
  */
 export default function TourismShowcase() {
   const [trips, setTrips] = useState<Package[] | null>(null);
   const reduce = useReducedMotion();
+  const deck = useRef<HTMLDivElement>(null);
+  const { scrollYProgress } = useScroll({ target: deck, offset: ['start start', 'end end'] });
 
   useEffect(() => {
     let live = true;
@@ -48,33 +54,16 @@ export default function TourismShowcase() {
     };
   }, []);
 
-  const tiles = useMemo(
+  const tiles: Tile[] = useMemo(
     () =>
       DESTINATIONS.map((d) => {
         const here = (trips || []).filter((p) => tourOf(p).country === d.id);
         const prices = here.map(programMinPrice).filter((n) => n > 0);
-        const photo = here.find((p) => p.image_url && !/kaaba|maka0/i.test(String(p.image_url)))?.image_url || '';
+        const photo = here.find((p) => p.image_url && !/kaaba|maka0/i.test(String(p.image_url)))?.image_url || destinationPhoto(d.id, 1600);
         return { d, count: here.length, from: prices.length ? Math.min(...prices) : 0, photo };
       }).sort((a, b) => b.count - a.count),
     [trips]
   );
-
-  // 3D tilt toward the pointer (CSS reads --rx / --ry / --mx / --my).
-  const tilt = (e: React.PointerEvent<HTMLAnchorElement>) => {
-    const el = e.currentTarget;
-    const r = el.getBoundingClientRect();
-    const x = (e.clientX - r.left) / r.width;
-    const y = (e.clientY - r.top) / r.height;
-    el.style.setProperty('--ry', `${(x - 0.5) * 10}deg`);
-    el.style.setProperty('--rx', `${(0.5 - y) * 8}deg`);
-    el.style.setProperty('--mx', `${x * 100}%`);
-    el.style.setProperty('--my', `${y * 100}%`);
-  };
-  const untilt = (e: React.PointerEvent<HTMLAnchorElement>) => {
-    const el = e.currentTarget;
-    el.style.setProperty('--rx', '0deg');
-    el.style.setProperty('--ry', '0deg');
-  };
 
   const rise = (i: number) =>
     reduce
@@ -108,38 +97,47 @@ export default function TourismShowcase() {
           ))}
         </ul>
 
-        <div className="tour-show-grid">
-          {tiles.map(({ d, count, from, photo }, i) => (
-            <motion.div key={d.id} className={`tour-tile-cell${i === 0 ? ' is-lead' : ''}`} {...rise(i)}>
-              <Link
-                href={`/packages?kind=tourism&dest=${d.id}`}
-                className={`tour-tile${photo ? ' has-photo' : ''}${count ? ' is-live' : ' is-soon'}`}
-                style={{ ['--tile' as string]: d.color }}
-                onPointerMove={reduce ? undefined : tilt}
-                onPointerLeave={reduce ? undefined : untilt}
-              >
-                {photo ? <img src={photo} alt="" loading="lazy" /> : <span className="tour-tile-orb" aria-hidden />}
-                <span className="tour-tile-mark" aria-hidden>{d.latin}</span>
-                <span className="tour-tile-shine" aria-hidden />
-                <span className="tour-tile-top">
-                  <span className={`tour-tile-badge${count ? ' is-live' : ''}`}>
-                    {count ? <><i aria-hidden /> {count} {count === 1 ? 'رحلة متاحة' : 'رحلات متاحة'}</> : 'قريباً'}
-                  </span>
-                </span>
-                <span className="tour-tile-body">
-                  <strong>{d.label}</strong>
-                  <small><MapPin aria-hidden /> {d.cities.slice(0, 3).join(' · ')}</small>
-                  <span className="tour-tile-foot">
-                    {from ? <b>من {from.toLocaleString('ar-DZ')} <em>دج</em></b> : <b className="is-ask">{count ? 'السعر عند الطلب' : 'برامج قريباً'}</b>}
-                    <span className="tour-tile-cta">استكشف <ArrowLeft aria-hidden /></span>
-                  </span>
-                </span>
-              </Link>
-            </motion.div>
+        <div className="tour-show-grid" ref={deck}>
+          {tiles.map((tile, i) => (
+            <DeckCard key={tile.d.id} tile={tile} index={i} total={tiles.length} progress={scrollYProgress} still={!!reduce} />
           ))}
         </div>
-
       </div>
     </section>
+  );
+}
+
+function DeckCard({ tile, index, total, progress, still }: { tile: Tile; index: number; total: number; progress: MotionValue<number>; still: boolean }) {
+  const { d, count, from, photo } = tile;
+  // Shrinks from the moment it is pinned to the end of the deck; cards lower in the deck shrink less.
+  const scale = useTransform(progress, [index / total, 1], [1, 1 - (total - index - 1) * 0.035]);
+
+  return (
+    <div className="tour-tile-cell" style={{ ['--i' as string]: index }}>
+      <motion.div className="tour-tile-frame" style={still ? undefined : { scale }}>
+        <Link
+          href={`/packages?kind=tourism&dest=${d.id}`}
+          className={`tour-tile${photo ? ' has-photo' : ''}${count ? ' is-live' : ' is-soon'}`}
+          style={{ ['--tile' as string]: d.color }}
+        >
+          {photo ? <img src={photo} alt="" loading="lazy" /> : <span className="tour-tile-orb" aria-hidden />}
+          <span className="tour-tile-mark" aria-hidden>{d.latin}</span>
+          <span className="tour-tile-top">
+            <span className="tour-tile-num" aria-hidden>{String(index + 1).padStart(2, '0')} / {String(total).padStart(2, '0')}</span>
+            <span className={`tour-tile-badge${count ? ' is-live' : ''}`}>
+              {count ? <><i aria-hidden /> {count} {count === 1 ? 'رحلة متاحة' : 'رحلات متاحة'}</> : 'قريباً'}
+            </span>
+          </span>
+          <span className="tour-tile-body">
+            <strong>{d.label}</strong>
+            <small><MapPin aria-hidden /> {d.cities.join(' · ')}</small>
+            <span className="tour-tile-foot">
+              {from ? <b>من {from.toLocaleString('ar-DZ')} <em>دج</em></b> : <b className="is-ask">{count ? 'السعر عند الطلب' : 'برامج قريباً'}</b>}
+              <span className="tour-tile-cta">استكشف الرحلات <ArrowLeft aria-hidden /></span>
+            </span>
+          </span>
+        </Link>
+      </motion.div>
+    </div>
   );
 }
