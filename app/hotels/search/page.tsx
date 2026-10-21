@@ -10,6 +10,7 @@ import Footer from '@/components/Footer';
 import SakhrAgent from '@/components/lazy/LazySakhrAgent';
 import HotelSearchBar from '@/components/hotels/HotelSearchBar';
 import { HOTEL_COUNTRIES } from '@/lib/tour';
+import { lightPhoto } from '@/lib/destination-photos';
 import { AGENCY_PHONE, AGENCY_PHONE_TEL } from '@/lib/agency-contact';
 import {
   BOARD_LABEL,
@@ -203,7 +204,7 @@ function ResultsInner() {
                       transition={{ duration: 0.4, delay: Math.min(i, 6) * 0.05 }}
                     >
                       <Link href={detailHref(h)} className="hres-media" style={{ ['--tile' as string]: color }}>
-                        {h.photo ? <img src={h.photo} alt="" loading={i < 3 ? 'eager' : 'lazy'} /> : <span className="hres-noimg"><Building2 aria-hidden />{h.city_label}</span>}
+                        {h.photo ? <img src={lightPhoto(h.photo, 'sm')} alt="" loading={i < 3 ? 'eager' : 'lazy'} decoding="async" /> : <span className="hres-noimg"><Building2 aria-hidden />{h.city_label}</span>}
                         {h.supplier === 'test' ? <span className="hres-test">تجريبي — للموظفين</span> : null}
                       </Link>
                       <div className="hres-body">

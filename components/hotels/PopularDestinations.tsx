@@ -6,7 +6,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Hotel } from '@/types';
 import { DESTINATIONS, hotelCityLabel, hotelCountryOf } from '@/lib/tour';
 import { defaultDates, searchHref } from '@/components/hotels/HotelSearchBar';
-import { destinationPhoto } from '@/lib/destination-photos';
+import { destinationPhoto, lightPhoto } from '@/lib/destination-photos';
 
 type Card = {
   id: string;
@@ -112,7 +112,7 @@ export default function PopularDestinations({ hotels }: { hotels: Hotel[] }) {
               href={searchHref({ dest: c.dest, label: c.title, ...dates, rooms: [{ adults: 2, children: 0, childAges: [] }] })}
             >
               {photo ? (
-                <img src={photo} alt="" loading="lazy" onError={() => setBroken((b) => ({ ...b, [c.id]: true }))} />
+                <img src={lightPhoto(photo, 'sm')} alt="" loading="lazy" decoding="async" onError={() => setBroken((b) => ({ ...b, [c.id]: true }))} />
               ) : (
                 <span className="hdest-latin" aria-hidden>{c.latin}</span>
               )}

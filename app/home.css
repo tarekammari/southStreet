@@ -533,7 +533,9 @@
   min-height: 26rem;
   margin-bottom: 2.5rem;
 }
-.tour-tile-cell:last-child { margin-bottom: 0; }
+.tour-tile-cell:nth-last-child(2) { margin-bottom: 0; }
+/* Scroll room after the last card: it stays pinned over the others for a moment before the deck leaves. */
+.tour-deck-tail { height: 38svh; }
 .tour-tile-frame { height: 100%; }
 
 .tour-tile {

@@ -9,7 +9,7 @@ import { publicList } from '@/lib/public-catalog';
 import { parseTripDate } from '@/lib/booking-catalog';
 import { isBookable, programAvailability, programMinPrice } from '@/lib/program-display';
 import { Destination, DESTINATIONS, isTourism, tourOf } from '@/lib/tour';
-import { destinationPhoto } from '@/lib/destination-photos';
+import { destinationPhoto, photoProps } from '@/lib/destination-photos';
 
 type Tile = { d: Destination; count: number; from: number; photo: string };
 
@@ -77,6 +77,7 @@ export default function TourismShowcase() {
           {tiles.map((tile, i) => (
             <DeckCard key={tile.d.id} tile={tile} index={i} total={tiles.length} />
           ))}
+          <div className="tour-deck-tail" aria-hidden />
         </div>
       </div>
     </section>
@@ -94,7 +95,7 @@ function DeckCard({ tile, index, total }: { tile: Tile; index: number; total: nu
           className={`tour-tile${photo ? ' has-photo' : ''}${count ? ' is-live' : ' is-soon'}`}
           style={{ ['--tile' as string]: d.color }}
         >
-          {photo ? <img src={photo} alt="" loading="lazy" /> : <span className="tour-tile-orb" aria-hidden />}
+          {photo ? <img {...photoProps(photo)} alt="" loading="lazy" decoding="async" /> : <span className="tour-tile-orb" aria-hidden />}
           <span className="tour-tile-mark" aria-hidden>{d.latin}</span>
           <span className="tour-tile-top">
             <span className="tour-tile-num" aria-hidden>{String(index + 1).padStart(2, '0')} / {String(total).padStart(2, '0')}</span>

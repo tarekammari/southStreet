@@ -83,14 +83,14 @@ export function ensureHotelSchema() {
   // booking_kind is encrypted at rest (not a plaintext column name), so it
   // cannot be filtered in SQL; booking_type (…_type stays plaintext) can.
   add('reservations', 'booking_type', 'TEXT');
+  add('reservations', 'hotel_id', 'TEXT');
+  add('reservations', 'hotel_stay', 'TEXT');
   for (const r of db.prepare('SELECT reservation_id, booking_kind, booking_type, hotel_stay FROM reservations').all() as any[]) {
     if (r.booking_type) continue;
     if (r.booking_kind === 'HOTEL' || (r.hotel_stay && String(r.hotel_stay).includes('hotel_id'))) {
       db.prepare("UPDATE reservations SET booking_type = 'HOTEL' WHERE reservation_id = ?").run(r.reservation_id);
     }
   }
-  add('reservations', 'hotel_id', 'TEXT');
-  add('reservations', 'hotel_stay', 'TEXT');
   add('reservations', 'visa_status', 'TEXT');
   add('reservations', 'visa_note', 'TEXT');
   add('agency_settings', 'hotel_margin_percent', 'REAL DEFAULT 10');

@@ -11,6 +11,7 @@ import { cityPhoto } from '@/lib/destination-photos';
 import { isoDay, DAY, type BoardType } from '@/lib/hotels/types';
 
 const SEED_KEY = 'showcase-v1';
+const PHOTOS_KEY = 'showcase-photos-v2';
 const IMG = '/images/hotels';
 
 /** Double room, breakfast included, per night (DZD). */
@@ -61,18 +62,23 @@ type RoomSpec = {
 
 const BASIC_AMEN = ['تكييف', 'واي فاي مجاني', 'تلفاز بشاشة مسطحة', 'خزنة', 'ميني بار', 'مجفف شعر'];
 
-function roomSet(stars: 4 | 5, opts: { makkah?: boolean; view?: string }): RoomSpec[] {
+/** Decor of a sample hotel: on the sea, North African / Sahara, or city. */
+type Style = 'sea' | 'oriental' | 'city';
+
+function roomSet(stars: 4 | 5, opts: { makkah?: boolean; view?: string; style?: Style }): RoomSpec[] {
   const bath = `${IMG}/facility-bathroom.jpg`;
+  const deluxe = `${IMG}/${opts.style === 'sea' ? 'room-sea' : opts.style === 'oriental' ? 'room-oriental' : 'room-deluxe'}.jpg`;
   const rooms: RoomSpec[] = [
     { key: 'dbl', name: 'غرفة كلاسيك مزدوجة', beds: 'سرير كبير', adults: 2, children: 1, size: stars === 5 ? 30 : 25, photos: [`${IMG}/room-standard.jpg`, bath], amenities: BASIC_AMEN, mult: 1, qty: 12 },
     { key: 'twn', name: 'غرفة توأم', beds: 'سريران منفصلان', adults: 2, children: 1, size: stars === 5 ? 30 : 25, photos: [`${IMG}/room-twin.jpg`, bath], amenities: BASIC_AMEN, mult: 1, qty: 8 },
     opts.makkah
       ? { key: 'vw', name: 'غرفة بإطلالة على الحرم', beds: 'سرير كبير أو سريران', adults: 2, children: 1, size: 34, photos: [`${IMG}/room-makkah.jpg`, bath], amenities: [...BASIC_AMEN, 'إطلالة على الحرم'], mult: 1.45, qty: 6 }
-      : { key: 'dlx', name: `غرفة ديلوكس ${opts.view || 'بإطلالة'}`, beds: 'سرير كبير', adults: 2, children: 1, size: stars === 5 ? 38 : 32, photos: [`${IMG}/room-deluxe.jpg`, bath], amenities: [...BASIC_AMEN, 'شرفة', 'ماكينة قهوة'], mult: 1.35, qty: 6 },
+      : { key: 'dlx', name: `غرفة ديلوكس ${opts.view || 'بإطلالة'}`, beds: 'سرير كبير', adults: 2, children: 1, size: stars === 5 ? 38 : 32, photos: [deluxe, bath], amenities: [...BASIC_AMEN, 'شرفة', 'ماكينة قهوة'], mult: 1.35, qty: 6 },
     { key: 'fam', name: 'غرفة عائلية', beds: 'سرير كبير + سريران', adults: 4, children: 2, size: stars === 5 ? 48 : 40, photos: [`${IMG}/room-family.jpg`, bath], amenities: [...BASIC_AMEN, 'مساحة جلوس'], mult: 1.75, qty: 4 },
   ];
   if (stars === 5) {
-    rooms.push({ key: 'ste', name: 'جناح تنفيذي', beds: 'سرير كبير + صالون منفصل', adults: 2, children: 2, size: 72, photos: [`${IMG}/room-suite.jpg`, `${IMG}/room-deluxe.jpg`, bath], amenities: [...BASIC_AMEN, 'صالون منفصل', 'حوض استحمام', 'خدمة كونسيرج'], mult: 2.6, qty: 2 });
+    const suite = opts.style === 'sea' ? [`${IMG}/suite-sea.jpg`, `${IMG}/room-sea.jpg`] : [`${IMG}/room-suite.jpg`, deluxe];
+    rooms.push({ key: 'ste', name: 'جناح تنفيذي', beds: 'سرير كبير + صالون منفصل', adults: 2, children: 2, size: 72, photos: [...suite, bath], amenities: [...BASIC_AMEN, 'صالون منفصل', 'حوض استحمام', 'خدمة كونسيرج'], mult: 2.6, qty: 2 });
   }
   return rooms;
 }
@@ -85,7 +91,7 @@ function boardsFor(country: string): [BoardType, number, number | null][] {
 
 const round100 = (n: number) => Math.round(n / 100) * 100;
 
-function addRooms(db: Database.Database, hotelId: string, priceKey: string, stars: 4 | 5, opts: { makkah?: boolean; view?: string }) {
+function addRooms(db: Database.Database, hotelId: string, priceKey: string, stars: 4 | 5, opts: { makkah?: boolean; view?: string; style?: Style }) {
   const base = BASE[priceKey]?.[stars];
   if (!base) return;
   const from = isoDay(new Date());
@@ -113,21 +119,27 @@ const POLICIES = 'الدخول من الساعة 14:00 والمغادرة قبل
 
 function sampleHotels(): {
   id: string; name: string; city: string; country: string; stars: 4 | 5; area: string;
-  images: string[]; services: string[]; description: string; view: string;
+  images: string[]; services: string[]; description: string; view: string; style: Style;
 }[] {
   const out = [];
   for (const d of DESTINATIONS) {
     for (const city of d.cities) {
       const resort = RESORT.has(city);
       const sahara = SAHARA.has(city);
+      const oriental = ORIENTAL.has(d.id) || sahara;
+      const style: Style = resort ? 'sea' : oriental ? 'oriental' : 'city';
       const view = resort ? 'بإطلالة على البحر' : sahara ? 'بإطلالة على الواحة' : 'بإطلالة على المدينة';
       const slug = hash(city) % 99991;
       const photo = cityPhoto(city);
       const restaurant = (k: string) => `${IMG}/restaurant-${['fine', 'buffet', 'terrace'][hash(k) % 3]}.jpg`;
       const five = exterior(d.id, 5, city);
       const four = exterior(d.id, 4, city);
-      const lobby = `${IMG}/lobby-${ORIENTAL.has(d.id) || sahara ? 'oriental' : 'modern'}.jpg`;
+      const lobby = `${IMG}/lobby-${oriental ? 'oriental' : 'modern'}.jpg`;
+      const reception = `${IMG}/reception-desk.jpg`;
       const pool = `${IMG}/facility-${resort || sahara ? 'pool' : 'pool-indoor'}.jpg`;
+      const rooms5 = roomSet(5, { view, style });
+      const rooms4 = roomSet(4, { view, style });
+      const roomPhoto = (rooms: RoomSpec[], key: string) => rooms.find((r) => r.key === key)!.photos[0];
       out.push({
         id: `smp_${d.id}_${slug}_5`,
         name: resort ? `منتجع ${city} رويال` : sahara ? `فندق قصر ${city}` : `فندق ${city} جراند بالاس`,
@@ -135,9 +147,13 @@ function sampleHotels(): {
         country: d.id,
         stars: 5 as const,
         area: resort ? 'على البحر' : sahara ? 'قرب الواحة' : 'وسط المدينة',
-        images: [five, lobby, `${IMG}/room-deluxe.jpg`, restaurant(`${city}5`), `${IMG}/facility-breakfast.jpg`, pool, `${IMG}/facility-spa.jpg`, `${IMG}/room-suite.jpg`, ...(photo ? [photo] : [])],
+        images: [
+          five, lobby, reception, roomPhoto(rooms5, 'dlx'), oriental ? `${IMG}/restaurant-oriental.jpg` : restaurant(`${city}5`),
+          `${IMG}/facility-breakfast.jpg`, pool, `${IMG}/facility-spa.jpg`, roomPhoto(rooms5, 'ste'), ...(photo ? [photo] : []),
+        ],
         services: SERVICES_5,
         view,
+        style,
         description: `فندق خمس نجوم ${resort ? 'على البحر' : sahara ? 'بين النخيل قرب الواحة' : 'في قلب المدينة'} في ${city}، يجمع الفخامة والراحة: غرف وأجنحة واسعة، مطعم يقدّم المطبخ المحلي والعالمي، إفطار بوفيه يومي، مسبح وسبا ونادٍ رياضي، واستقبال على مدار الساعة. خيار مثالي للعائلات والأزواج.`,
       });
       const sameFront = five === four;
@@ -148,9 +164,13 @@ function sampleHotels(): {
         country: d.id,
         stars: 4 as const,
         area: resort ? 'قرب الشاطئ' : sahara ? 'وسط المدينة' : 'قرب المعالم التاريخية',
-        images: [sameFront ? (resort ? `${IMG}/facility-pool.jpg` : lobby) : four, `${IMG}/room-standard.jpg`, restaurant(`${city}4`), `${IMG}/facility-breakfast.jpg`, sameFront ? four : lobby, `${IMG}/room-family.jpg`, ...(photo ? [photo] : [])],
+        images: [
+          sameFront ? (resort ? `${IMG}/facility-pool.jpg` : lobby) : four, reception, roomPhoto(rooms4, 'dlx'), `${IMG}/room-standard.jpg`,
+          restaurant(`${city}4`), `${IMG}/facility-breakfast.jpg`, sameFront ? four : lobby, `${IMG}/room-family.jpg`, ...(photo ? [photo] : []),
+        ],
         services: SERVICES_4(resort || sahara),
         view,
+        style,
         description: `فندق أربع نجوم مريح ${resort ? 'على بعد خطوات من الشاطئ' : 'في موقع ممتاز'} في ${city}، بغرف أنيقة ومطعم وإفطار بوفيه يومي${resort || sahara ? ' ومسبح' : ''}، وفريق استقبال يساعدك في التنقل وزيارة المعالم. قيمة ممتازة مقابل السعر.`,
       });
     }
@@ -160,8 +180,36 @@ function sampleHotels(): {
 
 export function seedShowcaseHotels(db: Database.Database) {
   db.exec('CREATE TABLE IF NOT EXISTS hotel_seeds (seed_key TEXT PRIMARY KEY, applied_at TEXT)');
-  if (db.prepare('SELECT seed_key FROM hotel_seeds WHERE seed_key = ?').get(SEED_KEY)) return;
+  const applied = (key: string) => Boolean(db.prepare('SELECT seed_key FROM hotel_seeds WHERE seed_key = ?').get(key));
+  if (!applied(SEED_KEY)) seedV1(db);
+  if (!applied(PHOTOS_KEY)) refreshSamplePhotos(db);
+}
 
+/**
+ * Sample hotels created by v1 get the photo set of their style (sea-view
+ * rooms, North African decor, reception…). Photos the agency uploaded are kept.
+ */
+function refreshSamplePhotos(db: Database.Database) {
+  const shipped = (json: unknown) => !String(json || '').includes('/uploads/');
+  const getHotel = db.prepare(`SELECT images FROM hotels WHERE hotel_id = ? AND source_type = 'sample'`);
+  const setHotel = db.prepare('UPDATE hotels SET images = ? WHERE hotel_id = ?');
+  const getRoom = db.prepare('SELECT photos FROM hotel_rooms WHERE room_id = ?');
+  const setRoom = db.prepare('UPDATE hotel_rooms SET photos = ? WHERE room_id = ?');
+  db.transaction(() => {
+    for (const s of sampleHotels()) {
+      const h = getHotel.get(s.id) as { images?: string } | undefined;
+      if (!h || !shipped(h.images)) continue;
+      setHotel.run(JSON.stringify(s.images), s.id);
+      for (const r of roomSet(s.stars, { view: s.view, style: s.style })) {
+        const room = getRoom.get(`${s.id}_${r.key}`) as { photos?: string } | undefined;
+        if (room && shipped(room.photos)) setRoom.run(JSON.stringify(r.photos), `${s.id}_${r.key}`);
+      }
+    }
+    db.prepare('INSERT INTO hotel_seeds (seed_key, applied_at) VALUES (?, ?)').run(PHOTOS_KEY, new Date().toISOString());
+  })();
+}
+
+function seedV1(db: Database.Database) {
   const hasRooms = (id: string) => Boolean(db.prepare('SELECT room_id FROM hotel_rooms WHERE hotel_id = ? LIMIT 1').get(id));
 
   db.transaction(() => {
@@ -196,7 +244,7 @@ export function seedShowcaseHotels(db: Database.Database) {
       const country = DESTINATIONS.find((d) => d.id === s.country);
       ins.run(s.id, s.name, s.city, `${s.stars}_STAR`, `${s.area}، ${s.city}، ${country?.label || ''}`, s.description,
         JSON.stringify(s.services), JSON.stringify(s.images), s.country, s.area, s.stars, POLICIES, SEED_KEY);
-      if (!hasRooms(s.id)) addRooms(db, s.id, s.country, s.stars, { view: s.view });
+      if (!hasRooms(s.id)) addRooms(db, s.id, s.country, s.stars, { view: s.view, style: s.style });
     }
 
     db.prepare('INSERT INTO hotel_seeds (seed_key, applied_at) VALUES (?, ?)').run(SEED_KEY, new Date().toISOString());
