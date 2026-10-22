@@ -7,7 +7,6 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
   ArrowRight,
   BadgeCheck,
-  BedDouble,
   Building2,
   CalendarDays,
   Check,
@@ -17,17 +16,16 @@ import {
   Images,
   Loader2,
   MapPin,
-  Maximize2,
   Plane,
   ShieldAlert,
   Star,
   Users,
-  UtensilsCrossed,
 } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import SakhrAgent from '@/components/lazy/LazySakhrAgent';
 import HotelSearchBar from '@/components/hotels/HotelSearchBar';
+import RoomOptions, { amenityIcon } from '@/components/hotels/RoomOptions';
 import { openLogin } from '@/components/auth/openLogin';
 import { HOTEL_COUNTRIES, destinationOf } from '@/lib/tour';
 import { DEPOSIT_PERCENT } from '@/lib/booking-catalog';
@@ -41,7 +39,6 @@ import {
   encodeRooms,
   formatDzd,
   guestsSummary,
-  roomsLeftText,
   type HotelDetail,
   type RoomOffer,
 } from '@/lib/hotels/types';
@@ -315,33 +312,9 @@ function HotelInner() {
                 />
               </details>
 
-              {hotel.amenities.length ? (
-                <section className="hdet-block">
-                  <h2>المرافق</h2>
-                  <ul className="hdet-amen">{hotel.amenities.map((a) => <li key={a}><Check aria-hidden /> {a}</li>)}</ul>
-                </section>
-              ) : null}
-
-              {facilities.length ? (
-                <section className="hdet-block">
-                  <h2>المطعم والمرافق</h2>
-                  <div className="hdet-facilities">
-                    {facilities.map((f) => (
-                      <figure key={f.id} className="hdet-facility">
-                        <img src={lightPhoto(f.photo, 'sm')} alt={f.title} loading="lazy" decoding="async" />
-                        <figcaption>
-                          <b>{f.title}</b>
-                          <small>{f.text}</small>
-                        </figcaption>
-                      </figure>
-                    ))}
-                  </div>
-                </section>
-              ) : null}
-
               {step === 'rooms' ? (
                 <section className="hdet-block" id="rooms">
-                  <h2>اختر غرفتك</h2>
+                  <h2>اختر غرفتك ونوع الإقامة</h2>
                   {hotel.offers.map((list, i) => (
                     <div key={i} className="hdet-roomset">
                       {search.rooms.length > 1 ? (
@@ -350,43 +323,12 @@ function HotelInner() {
                       {list.length === 0 ? (
                         <p className="hdet-none">لا توجد غرفة تناسب هذا العدد في هذه التواريخ.</p>
                       ) : (
-                        <div className="hdet-offers" role="radiogroup">
-                          {list.map((o) => {
-                            const on = picked[i] === o.offer_id;
-                            return (
-                              <button
-                                key={o.offer_id}
-                                type="button"
-                                role="radio"
-                                aria-checked={on}
-                                className={`hdet-offer${on ? ' is-on' : ''}`}
-                                onClick={() => setPicked((ps) => ps.map((x, j) => (j === i ? o.offer_id : x)))}
-                              >
-                                <span className="hdet-radio" aria-hidden>{on ? <Check /> : null}</span>
-                                <span className="hdet-offer-main">
-                                  {o.photos[0] ? <img className="hdet-offer-photo" src={lightPhoto(o.photos[0], 'sm')} alt={o.room_name} loading="lazy" decoding="async" /> : null}
-                                  <span className="hdet-offer-info">
-                                  <b><BedDouble aria-hidden /> {o.room_name}</b>
-                                  <small>
-                                    {o.beds ? `${o.beds} · ` : ''}حتى {o.max_adults} بالغ{o.max_children ? ` + ${o.max_children} طفل` : ''}
-                                    {o.size_m2 ? <> · <Maximize2 aria-hidden /> {o.size_m2} م²</> : null}
-                                  </small>
-                                  <span className="hdet-tags">
-                                    <span className="is-board"><UtensilsCrossed aria-hidden /> {BOARD_LABEL[o.board]}</span>
-                                    <span className={o.free_cancel_until ? 'is-free' : 'is-nonref'}>{o.free_cancel_until ? <BadgeCheck aria-hidden /> : null} {cancelText(o)}</span>
-                                    {o.left <= 3 ? <span className="is-left">{roomsLeftText(o.left)}</span> : null}
-                                  </span>
-                                  {o.amenities.length ? <small className="hdet-offer-amen">{o.amenities.slice(0, 5).join(' · ')}</small> : null}
-                                  </span>
-                                </span>
-                                <span className="hdet-offer-price">
-                                  <strong>{formatDzd(o.total)}</strong>
-                                  <small>{formatDzd(o.per_night)} لليلة</small>
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
+                        <RoomOptions
+                          offers={list}
+                          picked={picked[i]}
+                          fallbackPhoto={hotel.images[0]}
+                          onPick={(offerId) => setPicked((ps) => ps.map((x, j) => (j === i ? offerId : x)))}
+                        />
                       )}
                     </div>
                   ))}
@@ -432,6 +374,35 @@ function HotelInner() {
                   {formError ? <p className="hdet-form-error" role="alert">{formError}</p> : null}
                 </section>
               )}
+
+              {facilities.length ? (
+                <section className="hdet-block">
+                  <h2>المطعم والمرافق</h2>
+                  <div className="hdet-facilities">
+                    {facilities.map((f) => (
+                      <figure key={f.id} className="hdet-facility">
+                        <img src={lightPhoto(f.photo, 'sm')} alt={f.title} loading="lazy" decoding="async" />
+                        <figcaption>
+                          <b>{f.title}</b>
+                          <small>{f.text}</small>
+                        </figcaption>
+                      </figure>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+
+              {hotel.amenities.length ? (
+                <section className="hdet-block">
+                  <h2>خدمات الفندق</h2>
+                  <ul className="hdet-amen">
+                    {hotel.amenities.map((a) => {
+                      const Icon = amenityIcon(a);
+                      return <li key={a}><span><Icon aria-hidden /></span> {a}</li>;
+                    })}
+                  </ul>
+                </section>
+              ) : null}
 
               <section className="hdet-block" id="conditions">
                 <h2>شروط الحجز والسفر</h2>
