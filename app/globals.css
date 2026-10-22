@@ -798,6 +798,12 @@ body {
   line-height: 1.65;
   color: #64748b;
 }
+.pilgrim-empty.is-expired { background: linear-gradient(160deg, #fffbeb 0%, #ffffff 60%); border-color: #fde68a; }
+.pilgrim-empty.is-expired .pilgrim-empty-icon { color: #b45309; background: linear-gradient(135deg, #fef3c7, #fde68a); }
+.pilgrim-empty.is-expired p { max-width: 30rem; margin-bottom: 0.75rem; }
+.pilgrim-empty-tag { display: inline-block; margin-bottom: 0.6rem; padding: 0.2rem 0.75rem; border-radius: 999px; background: #fef3c7; color: #92400e; font-size: 0.75rem; font-weight: 800; }
+.pilgrim-empty .pilgrim-empty-note { margin-bottom: 1.4rem; padding: 0.7rem 1rem; border-radius: 0.9rem; background: #f0fdf4; color: #047857; font-weight: 700; }
+.pilgrim-empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.6rem; }
 .pilgrim-card {
   background: #fff;
   border: 1px solid #e2e8f0;
@@ -9685,6 +9691,29 @@ body.modal-open .sakhr-panel-shell {
 .pipe-outcomes button.is-refused.is-on { background: #e11d48; border-color: #e11d48; }
 .pipe-outcomes button.is-on b { background: rgba(255, 255, 255, 0.22); color: #fff; }
 .pipe-empty { padding: 2rem 1rem; text-align: center; font-size: 0.85rem; color: #94a3b8; }
+.pipe-kinds { display: flex; gap: 0.45rem; overflow-x: auto; padding-bottom: 0.15rem; scrollbar-width: none; }
+.pipe-kinds::-webkit-scrollbar { display: none; }
+.pipe-kinds button {
+  flex: none; display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.45rem 0.8rem;
+  border-radius: 999px; border: 1px solid #e2e8f0; background: #fff; color: #334155;
+  font-size: 0.78rem; font-weight: 800; transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+.pipe-kinds button svg { width: 0.95rem; height: 0.95rem; }
+.pipe-kinds button b { min-width: 1.35rem; padding: 0 0.35rem; border-radius: 999px; background: #f1f5f9; font-size: 0.7rem; text-align: center; }
+.pipe-kinds button:hover { border-color: #a7f3d0; }
+.pipe-kinds button.is-on { background: #0f172a; border-color: #0f172a; color: #fff; }
+.pipe-kinds button.is-umrah.is-on, .pipe-kinds button.is-hajj.is-on { background: #047857; border-color: #047857; }
+.pipe-kinds button.is-trip.is-on { background: #0369a1; border-color: #0369a1; }
+.pipe-kinds button.is-hotel.is-on { background: #7c3aed; border-color: #7c3aed; }
+.pipe-kinds button.is-on b { background: rgba(255, 255, 255, 0.22); color: #fff; }
+.pipe-kind {
+  flex-shrink: 0; display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.15rem 0.5rem;
+  border-radius: 999px; font-size: 0.68rem; font-weight: 800; border: 1px solid transparent;
+}
+.pipe-kind svg { width: 0.8rem; height: 0.8rem; }
+.pipe-kind.is-umrah, .pipe-kind.is-hajj { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+.pipe-kind.is-trip { background: #f0f9ff; color: #0369a1; border-color: #bae6fd; }
+.pipe-kind.is-hotel { background: #f5f3ff; color: #6d28d9; border-color: #ddd6fe; }
 @media (max-width: 639px) {
   .pipe-steps { grid-template-columns: 1fr; }
   .pipe-tag { display: none; }

@@ -12,6 +12,7 @@ import {
   rejectReservationByAgency,
 } from '@/lib/booking';
 import { notifyBookingConfirmed } from '@/lib/notifications';
+import { sweepBookingLifecycle } from '@/lib/booking-lifecycle';
 
 import { requireSession } from '@/lib/staff-gate';
 
@@ -45,6 +46,7 @@ function requireAgencyStaff(req: NextRequest, acting = false) {
 export async function GET(req: NextRequest) {
   const gate = requireAgencyStaff(req);
   if ('error' in gate) return gate.error;
+  sweepBookingLifecycle();
   const demands = listAgencyDemandQueue();
   const awaitingDeposit = listAwaitingDepositReservations();
   const recent = listRecentAgencyReservations();

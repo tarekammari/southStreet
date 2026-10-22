@@ -4,13 +4,16 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   BadgeCheck,
+  BedDouble,
   CheckCircle,
   CheckCircle2,
   ChevronLeft,
   Inbox,
   Loader2,
   Mail,
+  MoonStar,
   Phone,
+  Plane,
   RefreshCw,
   ShieldAlert,
   UserRound,
@@ -64,9 +67,36 @@ function loginStatusLabel(demand: AgencyDemand): string {
   return demand.customer_status || '—';
 }
 
+type Kind = 'umrah' | 'hajj' | 'trip' | 'hotel';
+type KindFilter = 'all' | Kind;
+
+function kindOf(res: Reservation): Kind {
+  if (res.booking_kind === 'HOTEL') return 'hotel';
+  if (res.trip_kind === 'TOURISM') return 'trip';
+  if (res.trip_kind === 'HAJJ') return 'hajj';
+  return 'umrah';
+}
+
+const KIND_META: Record<Kind, { label: string; icon: typeof Plane }> = {
+  umrah: { label: 'عمرة', icon: MoonStar },
+  hajj: { label: 'حج', icon: MoonStar },
+  trip: { label: 'رحلة سياحية', icon: Plane },
+  hotel: { label: 'فندق', icon: BedDouble },
+};
+
+function KindTag({ res }: { res: Reservation }) {
+  const kind = kindOf(res);
+  const { label, icon: Icon } = KIND_META[kind];
+  return (
+    <span className={`pipe-kind is-${kind}`}>
+      <Icon aria-hidden /> {label}
+    </span>
+  );
+}
+
 function outcomeTone(status: string): string {
   const s = status.toUpperCase();
-  if (s === 'REJECTED' || s === 'CANCELLED') return 'is-bad';
+  if (s === 'REJECTED' || s === 'CANCELLED' || s === 'EXPIRED') return 'is-bad';
   if (s === 'PAID' || s === 'READY_FOR_TRAVEL' || s === 'COMPLETED') return 'is-good';
   return 'is-ok';
 }
@@ -134,6 +164,7 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
   const [stage, setStage] = useState<Stage | null>(null);
   const [openId, setOpenId] = useState('');
   const [doneFilter, setDoneFilter] = useState<'all' | 'accepted' | 'refused'>('all');
+  const [kind, setKind] = useState<KindFilter>('all');
   const [depositFor, setDepositFor] = useState<(DepositPreset & { override?: boolean }) | null>(null);
 
   const load = useCallback(() => {
@@ -200,6 +231,11 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
     }
   };
 
+  const shown = useMemo(() => {
+    const pick = <T extends Reservation>(list: T[]) => (kind === 'all' ? list : list.filter((r) => kindOf(r) === kind));
+    return { demands: pick(demands), awaiting: pick(awaiting), recent: pick(recent) };
+  }, [kind, demands, awaiting, recent]);
+
   const stages = useMemo(
     () => [
       {
@@ -207,7 +243,7 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
         step: 1,
         label: 'طلبات جديدة',
         owner: 'المشرف',
-        count: demands.length,
+        count: shown.demands.length,
         icon: Inbox,
         mine: perms.canApprove,
       },
@@ -216,7 +252,7 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
         step: 2,
         label: 'بانتظار العربون',
         owner: 'المحاسب',
-        count: awaiting.length,
+        count: shown.awaiting.length,
         icon: Wallet,
         mine: perms.canCollectDeposit,
       },
@@ -225,26 +261,30 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
         step: 3,
         label: 'مؤكدة ومعالجة',
         owner: 'الأرشيف',
-        count: recent.length,
+        count: shown.recent.length,
         icon: BadgeCheck,
         mine: false,
       },
     ],
-    [demands.length, awaiting.length, recent.length, perms]
+    [shown, perms]
   );
 
   const toggle = (id: string) => setOpenId((prev) => (prev === id ? '' : id));
   const current = stage || 'demand';
-  const rows = current === 'demand' ? demands.length : current === 'deposit' ? awaiting.length : recent.length;
+  const stageList: Reservation[] = current === 'demand' ? demands : current === 'deposit' ? awaiting : recent;
+  const rows = current === 'demand' ? shown.demands.length : current === 'deposit' ? shown.awaiting.length : shown.recent.length;
+  const kindFilters = (['all', 'umrah', 'hajj', 'trip', 'hotel'] as const)
+    .map((id) => ({ id, n: id === 'all' ? stageList.length : stageList.filter((r) => kindOf(r) === id).length }))
+    .filter((f) => f.id === 'all' || f.id === 'umrah' || f.id === 'trip' || f.id === 'hotel' || f.n > 0);
 
   return (
     <>
       <div className={`${compact ? '' : 'luxury-card p-4 sm:p-5'} pipe space-y-4 animate-fade-up`} dir="rtl">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <h2 className="text-base font-bold font-cairo text-slate-900">مسار طلبات العمرة</h2>
+            <h2 className="text-base font-bold font-cairo text-slate-900">مسار الحجوزات — عمرة، رحلات، فنادق</h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              المعتمر يطلب ← المشرف يقبل ← المحاسب يسجّل العربون فيتأكد الحجز
+              العميل يطلب ← المشرف يقبل ← المحاسب يسجّل العربون فيتأكد الحجز ويُضاف المسافر لمجموعة رحلته مع المرشد
             </p>
           </div>
           <button type="button" className="pipe-btn" onClick={load} disabled={loading} aria-label="تحديث">
@@ -283,6 +323,29 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
           })}
         </ol>
 
+        <div className="pipe-kinds" role="tablist" aria-label="نوع الحجز">
+          {kindFilters.map((f) => {
+            const Icon = f.id === 'all' ? Inbox : KIND_META[f.id].icon;
+            return (
+              <button
+                key={f.id}
+                type="button"
+                role="tab"
+                aria-selected={kind === f.id}
+                className={`is-${f.id}${kind === f.id ? ' is-on' : ''}`}
+                onClick={() => {
+                  setKind(f.id);
+                  setOpenId('');
+                }}
+              >
+                <Icon aria-hidden />
+                {f.id === 'all' ? 'كل الحجوزات' : KIND_META[f.id].label}
+                <b>{f.n}</b>
+              </button>
+            );
+          })}
+        </div>
+
         {error ? <p className="book-error" role="alert">{error}</p> : null}
         {flash ? <p className="pipe-flash" role="status">{flash}</p> : null}
 
@@ -293,7 +356,7 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
         ) : (
           <ul className="pipe-list">
             {current === 'demand'
-              ? demands.map((res) => {
+              ? shown.demands.map((res) => {
                   const open = openId === res.reservation_id;
                   const busy = busyId === res.reservation_id;
                   return (
@@ -302,7 +365,7 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
                       reference={res.reservation_number}
                       name={res.customer_name}
                       amount={res.total_amount}
-                      badge={res.booking_kind === 'HOTEL' ? <span className="pipe-tag is-ok">فندق</span> : undefined}
+                      badge={<KindTag res={res} />}
                       open={open}
                       onToggle={() => toggle(res.reservation_id)}
                     >
@@ -392,7 +455,7 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
               : null}
 
             {current === 'deposit'
-              ? awaiting.map((res) => {
+              ? shown.awaiting.map((res) => {
                   const open = openId === res.reservation_id;
                   const due = depositDue(res);
                   const paid = Number(res.paid_amount) || 0;
@@ -402,7 +465,7 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
                       reference={res.reservation_number}
                       name={res.customer_name}
                       amount={due}
-                      badge={<span className="pipe-tag is-warn">عربون</span>}
+                      badge={<><KindTag res={res} /><span className="pipe-tag is-warn">عربون</span></>}
                       open={open}
                       onToggle={() => toggle(res.reservation_id)}
                     >
@@ -481,12 +544,12 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
                 })
               : null}
 
-            {current === 'done' && recent.length ? (
+            {current === 'done' && shown.recent.length ? (
               <li className="pipe-outcomes" role="tablist" aria-label="تصفية حسب النتيجة">
                 {([
-                  { id: 'all', label: 'الكل', n: recent.length },
-                  { id: 'accepted', label: 'المقبولة', n: recent.filter((r) => outcomeTone(String(r.status || '')) !== 'is-bad').length },
-                  { id: 'refused', label: 'المرفوضة', n: recent.filter((r) => outcomeTone(String(r.status || '')) === 'is-bad').length },
+                  { id: 'all', label: 'الكل', n: shown.recent.length },
+                  { id: 'accepted', label: 'المقبولة', n: shown.recent.filter((r) => outcomeTone(String(r.status || '')) !== 'is-bad').length },
+                  { id: 'refused', label: 'المرفوضة والمنتهية', n: shown.recent.filter((r) => outcomeTone(String(r.status || '')) === 'is-bad').length },
                 ] as const).map((f) => (
                   <button
                     key={f.id}
@@ -504,7 +567,7 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
               </li>
             ) : null}
             {current === 'done'
-              ? recent
+              ? shown.recent
                 .filter((res) => {
                   if (doneFilter === 'all') return true;
                   const bad = outcomeTone(String(res.status || '')) === 'is-bad';
@@ -520,7 +583,7 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
                       reference={res.reservation_number}
                       name={res.customer_name}
                       amount={res.total_amount}
-                      badge={<span className={`pipe-tag ${outcomeTone(status)}`}>{reservationStatusLabel(status)}</span>}
+                      badge={<><KindTag res={res} /><span className={`pipe-tag ${outcomeTone(status)}`}>{reservationStatusLabel(status)}</span></>}
                       outcome={outcomeTone(status) === 'is-bad' ? 'refused' : 'accepted'}
                       open={open}
                       onToggle={() => toggle(res.reservation_id)}
@@ -532,7 +595,7 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
                         {res.agency_note ? (
                           outcomeTone(status) === 'is-bad' ? (
                             <div className="sm:col-span-2 pipe-reason">
-                              <strong>سبب الرفض</strong>
+                              <strong>{status.toUpperCase() === 'EXPIRED' ? 'أُغلق تلقائياً' : 'سبب الرفض'}</strong>
                               <span className="whitespace-pre-line">{res.agency_note}</span>
                               {res.agency_confirmed_by ? <em>{res.agency_confirmed_by} · {formatDate(res.agency_confirmed_at)}</em> : null}
                             </div>
@@ -552,13 +615,15 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
                 })
               : null}
 
-            {current === 'done' && recent.length && doneFilter !== 'all' &&
-            !recent.some((r) => (outcomeTone(String(r.status || '')) === 'is-bad') === (doneFilter === 'refused')) ? (
+            {current === 'done' && shown.recent.length && doneFilter !== 'all' &&
+            !shown.recent.some((r) => (outcomeTone(String(r.status || '')) === 'is-bad') === (doneFilter === 'refused')) ? (
               <li className="pipe-empty">{doneFilter === 'refused' ? 'لا توجد طلبات مرفوضة' : 'لا توجد طلبات مقبولة'}</li>
             ) : null}
             {rows === 0 ? (
               <li className="pipe-empty">
-                {current === 'demand'
+                {kind !== 'all' && stageList.length
+                  ? `لا توجد حجوزات «${KIND_META[kind].label}» في هذه المرحلة`
+                  : current === 'demand'
                   ? 'لا توجد طلبات جديدة'
                   : current === 'deposit'
                     ? 'لا توجد حجوزات بانتظار العربون'

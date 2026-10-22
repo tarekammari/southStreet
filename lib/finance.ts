@@ -2146,7 +2146,7 @@ export function collectibleReservations() {
   const credits = new Map(clientAccountBalances().map((c) => [c.key, c.available]));
 
   return rows
-    .filter((r) => !['CANCELLED', 'REJECTED'].includes(String(r.reservation_status || '').toUpperCase()))
+    .filter((r) => !['CANCELLED', 'REJECTED', 'EXPIRED'].includes(String(r.reservation_status || '').toUpperCase()))
     .map((r) => {
       const total = Number(r.total_price) || 0;
       const paid = Number(r.paid_amount) || 0;
@@ -4099,7 +4099,7 @@ export function financeRecap(opts?: { from?: string; to?: string; tripType?: str
   const reservations = db.prepare('SELECT * FROM reservations').all() as any[];
   const isLiveReservation = (r: any) => {
     const status = String(r.reservation_status || '').toUpperCase();
-    return status !== 'CANCELLED' && status !== 'REJECTED';
+    return status !== 'CANCELLED' && status !== 'REJECTED' && status !== 'EXPIRED';
   };
   const allAgencyReservations = reservations.filter(isLiveReservation);
   // Client debt = unpaid balance on live reservations (bookings in selected period).

@@ -195,7 +195,7 @@ function agencyStats(role: Who, months: number) {
     const label = reservationStatusLabel(r.reservation_status);
     byStatus[label] = (byStatus[label] || 0) + 1;
     const key = String(r.created_at || '').slice(0, 7);
-    const refused = ['REJECTED', 'CANCELLED'].includes(String(r.reservation_status || '').toUpperCase());
+    const refused = ['REJECTED', 'CANCELLED', 'EXPIRED'].includes(String(r.reservation_status || '').toUpperCase());
     if (byMonth[key]) {
       byMonth[key].requests += 1;
       if (!refused) byMonth[key].value += totalOf(r);

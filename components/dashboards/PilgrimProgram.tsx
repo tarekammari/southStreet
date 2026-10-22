@@ -6,6 +6,7 @@ import Link from 'next/link';
 import {
   Calendar,
   FileText,
+  Hourglass,
   Loader2,
   MapPin,
   Plane,
@@ -79,12 +80,37 @@ export default function PilgrimProgram({
 
   // A trip whose last day has passed is no longer "active", whatever its status says.
   const active = reservation && isActiveReservation(reservation.status) && !isTripOver(reservation) ? reservation : null;
-  const finished = reservations.filter((r) => isTripOver(r) && String(r.status || '').toUpperCase() !== 'REJECTED' && String(r.status || '').toUpperCase() !== 'CANCELLED');
+  const finished = reservations.filter((r) => isTripOver(r) && isAgencyConfirmed(r.status));
   const completedPast = finished;
+  const lastExpired = reservations
+    .filter((r) => String(r.status || '').toUpperCase() === 'EXPIRED')
+    .sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')))[0];
+  const expiredRecently = Boolean(
+    lastExpired && Date.now() - new Date(lastExpired.updated_at || lastExpired.created_at || 0).getTime() < 30 * 86_400_000
+  );
 
   // Only finished trips: a read-only archive (no edit, cancel, payment or upload).
-  if (!active && finished.length) {
+  if (!active && finished.length && !expiredRecently) {
     return <TripArchive trips={finished} receipts={receipts} />;
+  }
+
+  if (!active && lastExpired && expiredRecently) {
+    return (
+      <div className="pilgrim-empty is-expired" dir="rtl">
+        <Hourglass className="pilgrim-empty-icon" />
+        <span className="pilgrim-empty-tag">انتهت فترة الحجز</span>
+        <h2>انطلق «{lastExpired.package_name}» قبل تأكيد طلبك</h2>
+        <p>
+          لم يُسجَّل العربون قبل موعد السفر ({formatLongDate(lastExpired.program?.start_date)})، فأُغلق الطلب{' '}
+          {lastExpired.reservation_number} تلقائياً ولم يُخصم منك أي مبلغ.
+        </p>
+        <p className="pilgrim-empty-note">حسابك مفتوح كعميل جديد: اختر برنامجاً قادماً وأرسل طلباً جديداً، والوكالة تؤكده هنا.</p>
+        <div className="pilgrim-empty-actions">
+          <Link href="/packages" className="btn-pro-primary pilgrim-cta">البرامج القادمة</Link>
+          <Link href="/portal?tab=chat" className="btn-pro-outline pilgrim-cta">راسل الوكالة</Link>
+        </div>
+      </div>
+    );
   }
 
   if (!active) {

@@ -25,7 +25,7 @@ import Footer from '@/components/Footer';
 import PrintMenu from '@/components/booking/PrintMenu';
 import { openLogin } from '@/components/auth/openLogin';
 import { authHeaders } from '@/lib/api-client';
-import { DEPOSIT_PERCENT, reservationStatusLabel } from '@/lib/booking-catalog';
+import { DEPOSIT_PERCENT, isClosedReservation, reservationStatusLabel } from '@/lib/booking-catalog';
 import { AGENCY_ADDRESS, AGENCY_PHONE, AGENCY_PHONE_TEL } from '@/lib/agency-contact';
 import { HOTEL_COUNTRIES } from '@/lib/tour';
 import { cityPhoto, destinationPhoto } from '@/lib/destination-photos';
@@ -37,7 +37,7 @@ const REFRESH_MS = 30_000;
 const PAID_STATES = ['CONFIRMED', 'PARTIALLY_PAID', 'PAID', 'DOCUMENTS_PENDING', 'READY_FOR_TRAVEL', 'COMPLETED'];
 
 const today = () => new Date().toISOString().slice(0, 10);
-const isClosed = (r: Reservation) => ['CANCELLED', 'REJECTED'].includes(String(r.status).toUpperCase());
+const isClosed = (r: Reservation) => isClosedReservation(r.status);
 
 function photoFor(r: Reservation): string {
   const city = r.hotel_stay?.city || '';
@@ -76,6 +76,17 @@ function NextStep({ r }: { r: Reservation }) {
   const p = progress(r);
   const stay = r.hotel_stay;
   const remaining = Math.max(0, (Number(r.total_amount) || 0) - (Number(r.paid_amount) || 0));
+  if (s === 'EXPIRED') {
+    return (
+      <div className="mbk-next is-bad">
+        <Hourglass aria-hidden />
+        <div>
+          <strong>انتهى موعد هذا الحجز قبل تأكيده</strong>
+          <p>حلّ تاريخ الدخول قبل تسجيل العربون، فأُغلق الطلب تلقائياً دون أي خصم. يمكنك اختيار تاريخ جديد أو فندق آخر وإرسال طلب جديد.</p>
+        </div>
+      </div>
+    );
+  }
   if (s === 'REJECTED' || s === 'CANCELLED') {
     const reason = String(r.agency_note || '').split('\n')[0];
     return (

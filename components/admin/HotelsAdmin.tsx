@@ -24,7 +24,7 @@ import PrintMenu from '@/components/booking/PrintMenu';
 import { adminFetch } from '@/lib/webauthn-client';
 import { jsonAuthHeaders } from '@/lib/api-client';
 import { HOTEL_COUNTRIES } from '@/lib/tour';
-import { DEPOSIT_PERCENT, reservationStatusLabel } from '@/lib/booking-catalog';
+import { DEPOSIT_PERCENT, isClosedReservation, reservationStatusLabel } from '@/lib/booking-catalog';
 import { waLink } from '@/lib/social';
 import { BOARD_LABEL, arDate, formatDzd } from '@/lib/hotels/types';
 import type { Reservation } from '@/types';
@@ -98,7 +98,7 @@ export default function HotelsAdmin({ isSuperAdmin }: { isSuperAdmin: boolean })
 
 function tone(status: string) {
   const s = status.toUpperCase();
-  if (s === 'REJECTED' || s === 'CANCELLED') return 'is-bad';
+  if (isClosedReservation(s)) return 'is-bad';
   if (['CONFIRMED', 'PAID', 'PARTIALLY_PAID', 'READY_FOR_TRAVEL', 'COMPLETED'].includes(s)) return 'is-good';
   if (s === 'PAYMENT_PENDING') return 'is-warn';
   return '';
@@ -110,7 +110,7 @@ const PAID_STATES = ['CONFIRMED', 'PARTIALLY_PAID', 'PAID', 'DOCUMENTS_PENDING',
 
 function bookingStage(b: Reservation, today: string): BookingFilter {
   const s = String(b.status).toUpperCase();
-  if (s === 'REJECTED' || s === 'CANCELLED') return 'closed';
+  if (isClosedReservation(s)) return 'closed';
   if (s === 'REQUESTED' || s === 'PENDING') return 'new';
   if ((b.hotel_stay?.check_out || '9') <= today) return 'past';
   if (PAID_STATES.includes(s) && (Number(b.paid_amount) || 0) > 0) return 'confirmed';

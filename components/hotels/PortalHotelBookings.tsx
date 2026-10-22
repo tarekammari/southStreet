@@ -5,13 +5,13 @@ import Link from 'next/link';
 import { BedDouble, CalendarDays, Search } from 'lucide-react';
 import PrintMenu from '@/components/booking/PrintMenu';
 import { authHeaders } from '@/lib/api-client';
-import { reservationStatusLabel } from '@/lib/booking-catalog';
+import { isClosedReservation, reservationStatusLabel } from '@/lib/booking-catalog';
 import { BOARD_LABEL, arDate, formatDzd } from '@/lib/hotels/types';
 import type { Reservation } from '@/types';
 
 function tone(status: string) {
   const s = status.toUpperCase();
-  if (s === 'REJECTED' || s === 'CANCELLED') return 'is-bad';
+  if (isClosedReservation(s)) return 'is-bad';
   if (['CONFIRMED', 'PAID', 'PARTIALLY_PAID', 'READY_FOR_TRAVEL', 'COMPLETED'].includes(s)) return 'is-good';
   return '';
 }

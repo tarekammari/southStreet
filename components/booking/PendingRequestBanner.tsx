@@ -58,7 +58,7 @@ export function dismissRefusal(reservationId: string) {
 export function latestRefusal(list: Reservation[]): Reservation | null {
   const hidden = new Set(dismissedRefusals());
   const refused = list
-    .filter((row) => String(row.status || '').toUpperCase() === 'REJECTED' && !hidden.has(row.reservation_id))
+    .filter((row) => ['REJECTED', 'EXPIRED'].includes(String(row.status || '').toUpperCase()) && !hidden.has(row.reservation_id))
     .sort((a, b) => String(b.updated_at || b.created_at || '').localeCompare(String(a.updated_at || a.created_at || '')));
   const latest = refused[0];
   if (!latest) return null;
@@ -198,7 +198,7 @@ export function AwaitingDepositStrip({
   );
 }
 
-/** The agency refused (or cancelled) the request: say so, show why, offer the next step. */
+/** The agency refused the request, or its programme left before it was confirmed: say so, offer the next step. */
 export function RefusedRequestStrip({
   reservation,
   home = false,
@@ -208,6 +208,7 @@ export function RefusedRequestStrip({
   home?: boolean;
   onDismiss: () => void;
 }) {
+  const expired = String(reservation.status || '').toUpperCase() === 'EXPIRED';
   return (
     <motion.div
       className={`request-status is-refused${home ? ' is-home' : ' is-panel'}`}
@@ -219,14 +220,18 @@ export function RefusedRequestStrip({
     >
       <span className="request-status-badge is-bad">
         <span className="request-status-dot" aria-hidden />
-        تعذّر إتمام طلبك
+        {expired ? 'انتهت فترة الحجز' : 'تعذّر إتمام طلبك'}
       </span>
       <span className="request-status-copy">
         <strong title={reservation.package_name}>{reservation.package_name}</strong>
-        <em>{reservation.agency_note ? `السبب: ${reservation.agency_note}` : 'تواصل معنا لمعرفة التفاصيل.'}</em>
+        <em>
+          {expired
+            ? 'انطلق البرنامج قبل تأكيد طلبك بالعربون، فأُغلق دون أي خصم. أنت الآن عميل جديد ويمكنك الحجز في برنامج قادم.'
+            : reservation.agency_note ? `السبب: ${reservation.agency_note}` : 'تواصل معنا لمعرفة التفاصيل.'}
+        </em>
       </span>
       <Link href="/packages" className="request-status-cta">
-        اختر برنامجاً آخر
+        {expired ? 'البرامج القادمة' : 'اختر برنامجاً آخر'}
         <ArrowLeft className="w-3.5 h-3.5" aria-hidden />
       </Link>
       <Link href="/portal?tab=chat" className="request-status-cta is-ghost" aria-label="مراسلة الوكالة">

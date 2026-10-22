@@ -36,6 +36,7 @@ import {
 import { pilgrimSignupStatus } from '@/lib/feature-flags';
 import { notifyBookingSubmitted, notifySignup } from '@/lib/notifications';
 import { isPackageExpired } from '@/lib/booking-catalog';
+import { sweepBookingLifecycle } from '@/lib/booking-lifecycle';
 import { documentVerifyCode } from '@/lib/booking-documents';
 import { tokenVersionOf } from '@/lib/webauthn';
 
@@ -259,6 +260,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'يلزم تسجيل الدخول' }, { status: 401 });
   }
 
+  sweepBookingLifecycle();
   const db = getSqliteDb();
   const account = db.prepare('SELECT * FROM users WHERE id = ?').get(auth.id) as any;
   const reservations = listCustomerReservations(auth.id);

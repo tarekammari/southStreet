@@ -108,7 +108,7 @@ function loadClientTrips(sqlite: any): Map<string, TripInfo> {
     for (const r of rows) {
       if (!r.customer_id || r.booking_kind === 'HOTEL') continue;
       const status = String(r.status || '').toUpperCase();
-      if (status === 'REJECTED' || status === 'CANCELLED') continue;
+      if (status === 'REJECTED' || status === 'CANCELLED' || status === 'EXPIRED') continue;
       const prev = out.get(r.customer_id) || { state: 'none' as const };
       if (isCurrentReservation(r)) {
         out.set(r.customer_id, { ...prev, state: 'current', program: tripProgram(r) });

@@ -21,6 +21,7 @@ import { documentVerifyCode } from '@/lib/booking-documents';
 import { dbSaveMessage } from '@/lib/db';
 import { tripKindOf, type TripKind } from '@/lib/tour';
 import { buildDmChatId } from '@/lib/chat-utils';
+import { joinTripGroup } from '@/lib/trip-groups';
 
 export {
   BOOKING_EXTRAS,
@@ -663,12 +664,20 @@ export function completeConfirmationAfterDeposit(
     reservationId
   );
 
+  let joined: ReturnType<typeof joinTripGroup> = null;
+  try {
+    joined = joinTripGroup(reservationId);
+  } catch (err) {
+    console.error('[booking] trip group', err);
+  }
+
   if (status === 'PAYMENT_PENDING') {
+    const groupLine = joined ? ` أُضفت إلى «${joined.group.name}» في تطبيق Connect مع المرشد وفريق الوكالة.` : '';
     notifyPilgrimAndAgency({
       customerId: row.customer_id,
       customerName: row.customer_name,
       reservationNumber: row.reservation_number,
-      pilgrimText: `مرحباً ${row.customer_name}، أكمل المحاسب تأكيد حجزك رقم ${row.reservation_number} بعد تسجيل العربون. المدفوع ${paid.toLocaleString('ar-DZ')} دج، والمتبقي ${Math.max(0, total - paid).toLocaleString('ar-DZ')} دج. برنامجك جاهز في بوابة المعتمر.`,
+      pilgrimText: `مرحباً ${row.customer_name}، أكمل المحاسب تأكيد حجزك رقم ${row.reservation_number} بعد تسجيل العربون. المدفوع ${paid.toLocaleString('ar-DZ')} دج، والمتبقي ${Math.max(0, total - paid).toLocaleString('ar-DZ')} دج. برنامجك جاهز في بوابة المعتمر.${groupLine}`,
       groupText: `تأكيد نهائي (محاسب) لـ ${row.customer_name} — ${row.package_name} (${row.reservation_number}).`,
       packageName: row.package_name,
     });

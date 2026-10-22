@@ -3,13 +3,14 @@
  *
  * A group is a conversation `grp:<id>` in the same `messages` table as the
  * one-to-one chats; its members are in connect_group_members. A group can be
- * tied to a programme (package): "sync" adds its pilgrims (bookings that are
- * not cancelled) and its guide. Group admins (and the Super Admin) manage it;
+ * tied to a programme (package): "sync" adds its pilgrims (bookings finally
+ * confirmed) and its guide; lib/trip-groups does it when a booking is confirmed. Group admins (and the Super Admin) manage it;
  * in "admins" mode only they can write (announcements). A closed group stays
  * readable but nobody can write. Tables are added on first use.
  */
 import crypto from 'crypto';
 import { getSqliteDb } from '../sqlite';
+import { isAgencyConfirmed, isAwaitingDepositConfirmation } from '../booking-catalog';
 import { publish } from './bus';
 import { pushTo } from './push';
 import { activeUsers, messagesFor, readTs, saveConnectMessage, userById, type ConnectMessage, type ConnectUser } from './store';
@@ -172,11 +173,11 @@ export function setMuted(id: string, userId: string, muted: boolean) {
   db().prepare('UPDATE connect_group_members SET muted = ? WHERE member_id = ?').run(muted ? 1 : 0, `${id}|${userId}`);
 }
 
-/** The people of a programme: its pilgrims (bookings not cancelled) and its guide. */
+/** The people of a programme: its pilgrims whose booking is finally confirmed (deposit recorded) and its guide. */
 export function programPeople(packageId: string): string[] {
   const d = getSqliteDb();
-  const pilgrims = (d.prepare("SELECT customer_id, reservation_status FROM reservations WHERE package_id = ?").all(packageId) as any[])
-    .filter((r) => r.customer_id && !['CANCELLED', 'REJECTED'].includes(String(r.reservation_status || '').toUpperCase()))
+  const pilgrims = (d.prepare('SELECT customer_id, reservation_status, payment_status, paid_amount FROM reservations WHERE package_id = ?').all(packageId) as any[])
+    .filter((r) => r.customer_id && isAgencyConfirmed(r.reservation_status) && !isAwaitingDepositConfirmation(r.reservation_status, r.payment_status, Number(r.paid_amount) || 0))
     .map((r) => String(r.customer_id));
   const pkg = d.prepare('SELECT morshid_id FROM packages WHERE package_id = ?').get(packageId) as { morshid_id?: string } | undefined;
   const guide = pkg?.morshid_id ? (d.prepare('SELECT id FROM users WHERE staffId = ?').get(pkg.morshid_id) as { id?: string } | undefined) : undefined;

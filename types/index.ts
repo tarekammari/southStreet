@@ -273,7 +273,8 @@ export type ReservationStatus =
   | 'READY_FOR_TRAVEL'
   | 'COMPLETED'
   | 'CANCELLED'
-  | 'REJECTED';
+  | 'REJECTED'
+  | 'EXPIRED';
 
 export interface InvoiceLine {
   id: string;
