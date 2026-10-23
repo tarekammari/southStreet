@@ -570,6 +570,11 @@ export function RecordBigCard({ card, columns, tableName, tableLabel, onClose, o
   const previewUrlRef = useRef('');
   const photoCol = useMemo(() => primaryPhotoColumn(columns.map((c) => c.name)), [columns]);
   const isGallery = photoCol?.toLowerCase() === 'images';
+  /** Tables whose cover lives in image_url (packages) keep their extra photos in `images`. */
+  const extraGalleryCol = useMemo(
+    () => (isGallery ? null : columns.find((c) => c.name.toLowerCase() === 'images')?.name ?? null),
+    [columns, isGallery]
+  );
   const [heroIndex, setHeroIndex] = useState(0);
 
   const initialForm = useMemo(() => {
@@ -1238,6 +1243,11 @@ export function RecordBigCard({ card, columns, tableName, tableLabel, onClose, o
     [editing, layout.primary, isNew]
   );
 
+  const secondaryFields = useMemo(
+    () => layout.secondary.filter((f) => f.name !== extraGalleryCol),
+    [layout.secondary, extraGalleryCol]
+  );
+
   const galleryUrls = useMemo(
     () => (isGallery && photoCol ? extractImageUrls(form[photoCol], photoCol) : []),
     [isGallery, photoCol, form]
@@ -1411,6 +1421,21 @@ export function RecordBigCard({ card, columns, tableName, tableLabel, onClose, o
               />
             </div>
           ) : null}
+          {extraGalleryCol ? (
+            <div className="record-gallery-panel">
+              <p className="record-gallery-title">صور إضافية (الغرف، المطعم، الأماكن…)</p>
+              <RecordImagesGalleryField
+                value={String(form[extraGalleryCol] ?? '')}
+                readOnly={!editing}
+                withMain={false}
+                onChange={editing ? (json) => setField(extraGalleryCol, json) : undefined}
+                hint={editing
+                  ? 'تظهر هذه الصور بعد الصورة الرئيسية في واجهة الصفحة الرئيسية. يمكنك إضافة عدة صور وسحبها لإعادة الترتيب.'
+                  : 'تظهر هذه الصور بعد الصورة الرئيسية في واجهة الصفحة الرئيسية.'}
+                emptyText="لا صور إضافية بعد — اضغط «تعديل البيانات» ثم أضف صور الغرف والمطعم وغيرها."
+              />
+            </div>
+          ) : null}
           {waitingApproval && tableName === 'users' && String(card.row.id || card.keyValue || '') && (
             <PendingApprovalActions
               userId={String(card.row.id || card.keyValue)}
@@ -1455,7 +1480,7 @@ export function RecordBigCard({ card, columns, tableName, tableLabel, onClose, o
             </div>
           )}
 
-          {!isNew && tableName !== 'hotels' && layout.secondary.length > 0 && (
+          {!isNew && tableName !== 'hotels' && secondaryFields.length > 0 && (
             <section className="record-big-more">
               <button
                 type="button"
@@ -1466,11 +1491,11 @@ export function RecordBigCard({ card, columns, tableName, tableLabel, onClose, o
                 <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${showTechnical ? 'rotate-180' : ''}`} />
                 {showTechnical
                   ? 'إخفاء الحقول التقنية'
-                  : `حقول تقنية وبيانات فارغة (${layout.secondary.length})`}
+                  : `حقول تقنية وبيانات فارغة (${secondaryFields.length})`}
               </button>
 
               {showTechnical && (
-                <div className="record-big-grid mt-2.5">{layout.secondary.map(renderField)}</div>
+                <div className="record-big-grid mt-2.5">{secondaryFields.map(renderField)}</div>
               )}
             </section>
           )}

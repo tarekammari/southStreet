@@ -2878,6 +2878,12 @@ body.modal-open .sakhr-panel-shell {
   flex-direction: column;
   gap: 0.65rem;
 }
+.record-gallery-title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #0f172a;
+}
 .record-gallery-hint {
   margin: 0;
   font-size: 0.75rem;

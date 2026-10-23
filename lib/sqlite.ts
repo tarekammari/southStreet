@@ -826,6 +826,7 @@ function migrateFinanceCategories(db: Database.Database) {
   ensureColumn('finance_client_payments', 'status', "TEXT DEFAULT 'POSTED'");
   ensureColumn('packages', 'annex_options', 'TEXT');
   ensureColumn('packages', 'featured', 'INTEGER DEFAULT 0');
+  ensureColumn('packages', 'images', 'TEXT');
   normalizePackageRows(db);
   ensureColumn('finance_staff_salaries', 'kind', "TEXT DEFAULT 'salary'");
   try {

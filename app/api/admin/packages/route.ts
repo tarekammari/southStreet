@@ -62,6 +62,7 @@ export async function GET(req: Request) {
       included_services: parsePackageList(p.included_services),
       excluded_services: parsePackageList(p.excluded_services),
       booking_conditions: parsePackageList(p.booking_conditions),
+      images: parsePackageList(p.images),
       prices: priceRowsAfter.filter(pr => pr.package_id === p.package_id),
       annex_options: parseAnnexes(p.annex_options),
     }));

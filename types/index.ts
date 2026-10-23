@@ -246,6 +246,8 @@ export interface Package {
   status: 'DRAFT' | 'PUBLISHED' | 'FULL' | 'CLOSED';
   published: boolean;
   image_url: string;
+  /** Extra photos (rooms, restaurant, sights…) after the main image_url. */
+  images?: string[];
 }
 
 export interface TravelerInfo {

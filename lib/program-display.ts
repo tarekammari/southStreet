@@ -62,21 +62,24 @@ export function isPilgrimageProgram(pkg: Parameters<typeof programKind>[0]): boo
   return programKind(pkg) !== 'tourism';
 }
 
-/** image_url may hold one link or several (JSON array, commas or new lines). */
-export function programImages(pkg: Pick<Package, 'image_url'>): string[] {
-  const raw = String(pkg.image_url || '').trim();
+function imageList(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map((v) => String(v || '').trim()).filter(Boolean);
+  const raw = String(value || '').trim();
   if (!raw) return [];
-  let list: unknown[] = [];
   if (raw.startsWith('[')) {
     try {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) list = parsed;
+      if (Array.isArray(parsed)) return imageList(parsed);
     } catch {
-      list = [];
+      /* plain text below */
     }
   }
-  if (!list.length) list = raw.split(/[\n,]+/);
-  return Array.from(new Set(list.map((v) => String(v || '').trim()).filter(Boolean)));
+  return raw.split(/[\n,]+/).map((v) => v.trim()).filter(Boolean);
+}
+
+/** The main image_url first, then the gallery; either may also be a list of links. */
+export function programImages(pkg: Pick<Package, 'image_url'> & { images?: unknown }): string[] {
+  return Array.from(new Set([...imageList(pkg.image_url), ...imageList(pkg.images)]));
 }
 
 function isStockHotelPhoto(src?: string): boolean {

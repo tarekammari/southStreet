@@ -11,9 +11,13 @@ type Props = {
   readOnly?: boolean;
   activeIndex?: number;
   onSelect?: (index: number) => void;
+  hint?: string;
+  emptyText?: string;
+  /** false when the cover lives in another column, so no tile is "the main photo". */
+  withMain?: boolean;
 };
 
-export default function RecordImagesGalleryField({ value, onChange, readOnly = false, activeIndex = 0, onSelect }: Props) {
+export default function RecordImagesGalleryField({ value, onChange, readOnly = false, activeIndex = 0, onSelect, hint, emptyText, withMain = true }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const replaceRef = useRef<HTMLInputElement>(null);
   const replaceAt = useRef<number | null>(null);
@@ -106,9 +110,9 @@ export default function RecordImagesGalleryField({ value, onChange, readOnly = f
   return (
     <div className="record-gallery">
       <p className="record-gallery-hint">
-        {readOnly
+        {hint ?? (readOnly
           ? 'الصورة ذات الشارة هي الرئيسية. اختر أي صورة لعرضها في الأعلى.'
-          : 'الصورة الأولى هي الرئيسية. يمكنك إضافة صور، استبدال أي صورة، أو سحبها لإعادة الترتيب.'}
+          : 'الصورة الأولى هي الرئيسية. يمكنك إضافة صور، استبدال أي صورة، أو سحبها لإعادة الترتيب.')}
       </p>
       <input
         ref={replaceRef}
@@ -122,7 +126,7 @@ export default function RecordImagesGalleryField({ value, onChange, readOnly = f
         {items.map((url, index) => (
           <article
             key={`${url}-${index}`}
-            className={`record-gallery-tile ${index === 0 ? 'is-main' : ''} ${index === activeIndex ? 'is-active' : ''} ${dragIndex === index ? 'is-dragging' : ''}`}
+            className={`record-gallery-tile ${withMain && index === 0 ? 'is-main' : ''} ${withMain && index === activeIndex ? 'is-active' : ''} ${dragIndex === index ? 'is-dragging' : ''}`}
             onClick={() => onSelect?.(index)}
             draggable={!readOnly}
             onDragStart={() => setDragIndex(index)}
@@ -136,7 +140,7 @@ export default function RecordImagesGalleryField({ value, onChange, readOnly = f
             }}
           >
             <img src={url} alt="" loading="lazy" decoding="async" />
-            {index === 0 ? (
+            {!withMain ? null : index === 0 ? (
               <span className="record-gallery-main-badge">
                 <Star className="w-3 h-3 fill-current" aria-hidden />
                 رئيسية
@@ -218,7 +222,7 @@ export default function RecordImagesGalleryField({ value, onChange, readOnly = f
 
       {error ? <p className="record-gallery-error">{error}</p> : null}
       {items.length === 0 && !uploading ? (
-        <p className="record-gallery-empty">لا صور بعد — أضف على الأقل صورة رئيسية للفندق.</p>
+        <p className="record-gallery-empty">{emptyText ?? 'لا صور بعد — أضف على الأقل صورة رئيسية للفندق.'}</p>
       ) : null}
     </div>
   );
