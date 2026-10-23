@@ -4046,6 +4046,30 @@ body.modal-open .sakhr-panel-shell {
   width: 100%;
 }
 
+.hero-headline-word.is-tourism {
+  font-size: clamp(2.5rem, 6.5vw, 4.25rem);
+}
+
+.hero-offer-name {
+  margin: 0.5rem 0 0;
+  font-family: var(--font-cairo), 'Cairo', sans-serif;
+  font-size: clamp(1.15rem, 2.2vw, 1.5rem);
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.hero-no-offer {
+  font-family: var(--font-cairo), 'Cairo', sans-serif;
+  font-size: clamp(1.6rem, 3.6vw, 2.4rem);
+  font-weight: 800;
+  line-height: 1.3;
+  color: #334155;
+}
+
+.hero-apple-inner:has(> .hero-apple-copy-col:only-child) {
+  justify-content: center;
+}
+
 .hero-offer-date {
   margin: 0.55rem 0 0;
   font-family: var(--font-tajawal), 'Tajawal', sans-serif;
@@ -4720,6 +4744,10 @@ body.modal-open .sakhr-panel-shell {
 
   .hero-headline-word {
     font-size: clamp(2.6rem, 13vw, 3.75rem);
+  }
+
+  .hero-headline-word.is-tourism {
+    font-size: clamp(2.1rem, 10vw, 3rem);
   }
 
   .hero-offer-date {

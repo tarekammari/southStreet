@@ -21,6 +21,64 @@ export const PROGRAM_TYPE_LABEL: Record<string, string> = {
   CUSTOM: 'خاصة',
 };
 
+export type ProgramKind = 'umrah' | 'hajj' | 'tourism';
+
+export const PROGRAM_KIND_LABEL: Record<ProgramKind, string> = {
+  umrah: 'عمرة',
+  hajj: 'حج',
+  tourism: 'رحلة سياحية',
+};
+
+const UMRAH_WORD = /عمر[ةهت]|umrah|omra|omrah|oumra/i;
+// Whole word only: "حجز" (booking) and "حجوزات" must not read as Hajj.
+const HAJJ_WORD = /(?:^|[^\u0600-\u06FF])(?:[وفبل]?ال|لل)?حج(?:ة|اج)?(?![\u0600-\u06FF])|hajj/i;
+const TOURISM_WORD = /سياح|tour|voyage|excursion|[اإ]سطنبول|تركيا|istanbul|turquie|turkey/i;
+const HOLY_PLACE = /مكة|مكه|المدينة|المدينه|جدة|جده|makkah|mecca|madin|jeddah|\bJED\b|\bMED\b/i;
+
+/**
+ * Packages carry no trip-kind column, so it is read from what the admin typed. The name
+ * wins; a Madinah hotel or a hotel/arrival naming a holy city marks a pilgrimage (the
+ * "Makkah hotel" slot alone may hold a tourism hotel); descriptions are only trusted for
+ * Umrah/Hajj words first, since Umrah programs mention "حافلات سياحية".
+ */
+export function programKind(pkg: Partial<Pick<Package, 'name' | 'description' | 'season_name' | 'makkah_hotel_name' | 'madinah_hotel_name' | 'arrival_airport'>>): ProgramKind {
+  const name = String(pkg.name || '');
+  if (TOURISM_WORD.test(name)) return 'tourism';
+  if (HAJJ_WORD.test(name)) return 'hajj';
+  if (UMRAH_WORD.test(name)) return 'umrah';
+
+  const travel = [pkg.makkah_hotel_name, pkg.madinah_hotel_name, pkg.arrival_airport].map((v) => String(v || '')).join(' ');
+  if (String(pkg.madinah_hotel_name || '').trim() || HOLY_PLACE.test(travel)) return 'umrah';
+
+  const description = String(pkg.description || '');
+  if (HAJJ_WORD.test(description)) return 'hajj';
+  if (UMRAH_WORD.test(description)) return 'umrah';
+  if (TOURISM_WORD.test(description)) return 'tourism';
+
+  return UMRAH_WORD.test(String(pkg.season_name || '')) ? 'umrah' : 'tourism';
+}
+
+export function isPilgrimageProgram(pkg: Parameters<typeof programKind>[0]): boolean {
+  return programKind(pkg) !== 'tourism';
+}
+
+/** image_url may hold one link or several (JSON array, commas or new lines). */
+export function programImages(pkg: Pick<Package, 'image_url'>): string[] {
+  const raw = String(pkg.image_url || '').trim();
+  if (!raw) return [];
+  let list: unknown[] = [];
+  if (raw.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) list = parsed;
+    } catch {
+      list = [];
+    }
+  }
+  if (!list.length) list = raw.split(/[\n,]+/);
+  return Array.from(new Set(list.map((v) => String(v || '').trim()).filter(Boolean)));
+}
+
 function isStockHotelPhoto(src?: string): boolean {
   return /unsplash\.com|photo-1566073771259|photo-1582719478250|photo-1542314831|photo-1571896349842/.test(String(src || ''));
 }

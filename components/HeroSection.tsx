@@ -10,13 +10,18 @@ import { isOpenPackageStatus } from '@/lib/package-status';
 import { SOCIAL_LABELS } from '@/lib/social';
 import { useAgencyInfo } from '@/components/social/useAgencyInfo';
 import { SOCIAL_ICON } from '@/components/social/SocialIcons';
+import { PROGRAM_KIND_LABEL, ProgramKind, programImages, programKind } from '@/lib/program-display';
 
 type HeroOffer = {
   id: string;
   name: string;
+  kind: ProgramKind;
   date: string;
   priceFrom: number | null;
+  images: string[];
 };
+
+type Postcard = { src: string; alt: string; place: string; line: string };
 
 function formatOfferDate(value?: string, seasonName?: string): string {
   if (value) {
@@ -64,68 +69,76 @@ function isUpcomingPackage(pkg: { start_date?: string; end_date?: string }): boo
   return true;
 }
 
-function pickNearestOffer(packages: any[]): HeroOffer | null {
-  if (!packages.length) return null;
-
-  const withDate = packages
-    .filter((pkg) => pkg.published !== false && (pkg.start_date || pkg.season_name))
+function pickNearestAvailable(packages: any[]): any | null {
+  const open = packages
+    .filter((pkg) => isAvailablePackage(pkg) && isUpcomingPackage(pkg))
     .sort((a, b) => {
       const ta = a.start_date ? new Date(a.start_date).getTime() : Number.MAX_SAFE_INTEGER;
       const tb = b.start_date ? new Date(b.start_date).getTime() : Number.MAX_SAFE_INTEGER;
       return ta - tb;
     });
+  return open.find((pkg) => pkg.featured) || open[0] || null;
+}
 
-  const upcoming = withDate.filter((pkg) => isUpcomingPackage(pkg));
-  const available = upcoming.filter((pkg) => isAvailablePackage(pkg));
-  const featured = packages.find((pkg) => pkg.featured && isAvailablePackage(pkg) && isUpcomingPackage(pkg));
-  const chosen = featured || available[0] || upcoming[0] || withDate.find((pkg) => isAvailablePackage(pkg));
+/** An open Umrah/Hajj program comes first; a tourism trip only when no pilgrimage is open. */
+function pickHeroOffer(packages: any[]): HeroOffer | null {
+  const pilgrimages = packages.filter((pkg) => programKind(pkg) !== 'tourism');
+  const tours = packages.filter((pkg) => programKind(pkg) === 'tourism');
+  const chosen = pickNearestAvailable(pilgrimages) || pickNearestAvailable(tours);
   if (!chosen) return null;
 
   return {
     id: chosen.package_id,
-    name: chosen.name,
+    name: String(chosen.name || ''),
+    kind: programKind(chosen),
     date: formatOfferDate(chosen.start_date, chosen.season_name),
     priceFrom: lowestOfferPrice(chosen.prices),
+    images: programImages(chosen),
   };
 }
 
-const POSTCARDS = [
+function offerPostcards(offer: HeroOffer | null | undefined): readonly Postcard[] {
+  if (!offer || offer.kind !== 'tourism') return POSTCARDS;
+  return offer.images.map((src, i) => ({
+    src,
+    alt: `${offer.name} — صورة ${i + 1}`,
+    place: offer.name,
+    line: offer.date,
+  }));
+}
+
+const POSTCARDS: readonly Postcard[] = [
   {
     src: '/images/kaaba_sharifa_home_page.webp',
     alt: 'الكعبة المشرفة عن قرب',
     place: 'مكة المكرمة',
     line: 'الكعبة المشرفة',
-    year: '١٤٤٨',
   },
   {
     src: '/images/kaaba_sharifa_home_page0.jpg',
     alt: 'طواف الليل حول الكعبة',
     place: 'المسجد الحرام',
     line: 'ليلة مباركة',
-    year: '١٤٤٨',
   },
   {
     src: '/images/maka01.webp',
     alt: 'صحن المطاف من بين الحجاج',
     place: 'صحن المطاف',
     line: 'بين جموع الطائفين',
-    year: '١٤٤٨',
   },
   {
     src: '/images/maka06.webp',
     alt: 'الكعبة من أروقة الحرم',
     place: 'أروقة الحرم',
     line: 'من بين الأعمدة',
-    year: '١٤٤٨',
   },
   {
     src: '/images/maka05.webp',
     alt: 'منظر علوي للمسجد الحرام',
     place: 'مكة من الأعلى',
     line: 'الحرم الشريف',
-    year: '١٤٤٨',
   },
-] as const;
+];
 
 const heroEase = [0.16, 1, 0.3, 1] as const;
 
@@ -175,14 +188,15 @@ const heroPricePop = {
 
 export default function HeroSection({ content: _content }: { content?: PageContentRow[] }) {
   const introDone = useIntroDone();
-  const [offer, setOffer] = useState<HeroOffer | null>(null);
+  /** undefined while the catalog loads, null when no trip is open. */
+  const [offer, setOffer] = useState<HeroOffer | null | undefined>(undefined);
 
   useEffect(() => {
     let cancelled = false;
     publicList<any>('packages')
       .then((data) => {
         if (cancelled) return;
-        setOffer(pickNearestOffer(data));
+        setOffer(pickHeroOffer(Array.isArray(data) ? data : []));
       })
       .catch(() => {
         if (!cancelled) setOffer(null);
@@ -192,6 +206,7 @@ export default function HeroSection({ content: _content }: { content?: PageConte
     };
   }, []);
 
+  const cards = offer === undefined ? [] : offerPostcards(offer);
   const social = useAgencyInfo()?.social;
   const profiles = social
     ? (Object.keys(SOCIAL_LABELS) as (keyof typeof SOCIAL_LABELS)[]).filter((k) => social[k]).map((k) => ({ key: k, url: social[k], label: SOCIAL_LABELS[k] }))
@@ -213,23 +228,30 @@ export default function HeroSection({ content: _content }: { content?: PageConte
       transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
     >
       <div className="hero-apple-inner">
-        <PostcardCoverFlow />
+        {cards.length ? <PostcardCoverFlow key={offer?.id || 'default'} cards={cards} /> : null}
 
         <div className="hero-apple-copy-col">
           <motion.div
             variants={heroStagger}
             initial="hidden"
-            animate={introDone ? 'show' : 'hidden'}
+            animate={introDone && offer !== undefined ? 'show' : 'hidden'}
             className="hero-apple-copy"
             dir="rtl"
           >
             <motion.div variants={heroFadeUp} className="hero-branding">
-              <h1 className="hero-headline">
-                <motion.span variants={heroHeadlinePop} className="hero-headline-word">
-                  عمرة
-                </motion.span>
-              </h1>
-              {offer?.date ? <p className="hero-offer-date">{offer.date}</p> : null}
+              {offer ? (
+                <>
+                  <h1 className="hero-headline">
+                    <motion.span variants={heroHeadlinePop} className={`hero-headline-word${offer.kind === 'tourism' ? ' is-tourism' : ''}`}>
+                      {PROGRAM_KIND_LABEL[offer.kind]}
+                    </motion.span>
+                  </h1>
+                  {offer.kind === 'tourism' && offer.name ? <p className="hero-offer-name">{offer.name}</p> : null}
+                  {offer.date ? <p className="hero-offer-date">{offer.date}</p> : null}
+                </>
+              ) : offer === null ? (
+                <h1 className="hero-headline hero-no-offer">لا توجد رحلات متاحة حالياً</h1>
+              ) : null}
             </motion.div>
 
             {offer ? (
@@ -357,10 +379,10 @@ function coverStyle(offset: number, mobile: boolean): React.CSSProperties {
   };
 }
 
-function PostcardCoverFlow() {
+function PostcardCoverFlow({ cards }: { cards: readonly Postcard[] }) {
   // Each card's distance from the centre on first render sets its entrance delay.
   const introOrder = useRef<Map<string, number> | null>(null);
-  const count = POSTCARDS.length;
+  const count = cards.length;
   const pointerId = useRef<number | null>(null);
   const dragStartX = useRef(0);
   const dragStartT = useRef(0);
@@ -468,7 +490,7 @@ function PostcardCoverFlow() {
           className="hero-postcard-stage"
           role="region"
           aria-roledescription="معرض ألبومات"
-          aria-label="ألبومات صور الحرم الشريف"
+          aria-label="ألبوم صور الرحلة"
           tabIndex={0}
           onPointerMove={onPointerMove}
           onPointerDown={(e) => {
@@ -494,7 +516,7 @@ function PostcardCoverFlow() {
         >
           <div className="hero-album-reflection" aria-hidden="true" />
 
-          {POSTCARDS.map((card, index) => {
+          {cards.map((card, index) => {
             const offset = circularOffset(index, active, count) + shift;
             const isFront = Math.abs(offset) < 0.45;
             const isVisible = Math.abs(offset) <= 2.2;
@@ -532,13 +554,13 @@ function PostcardCoverFlow() {
         </div>
       </div>
 
-      <div className="hero-postcard-nav" dir="rtl">
-        {POSTCARDS.map((card, index) => (
+      {count > 1 ? <div className="hero-postcard-nav" dir="rtl">
+        {cards.map((card, index) => (
           <button
             key={card.src}
             type="button"
             className={`hero-postcard-dot${index === active ? ' is-active' : ''}`}
-            aria-label={card.place}
+            aria-label={card.alt}
             aria-current={index === active ? 'true' : undefined}
             onClick={() => goTo(index)}
           />
@@ -549,7 +571,7 @@ function PostcardCoverFlow() {
         <span className="hero-postcard-hint hero-postcard-hint-active">
           حرّك المؤشر أو اسحب بنفس الاتجاه
         </span>
-      </div>
+      </div> : null}
     </motion.div>
   );
 }
