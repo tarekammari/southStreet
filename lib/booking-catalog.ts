@@ -76,6 +76,13 @@ export function isActiveReservation(status?: string | null): boolean {
   return ACTIVE_RESERVATION_STATUSES.includes(String(status || '').toUpperCase() as (typeof ACTIVE_RESERVATION_STATUSES)[number]);
 }
 
+/** Closed without travelling: refused by the agency, cancelled, or the date came before it was confirmed. */
+export const CLOSED_RESERVATION_STATUSES = ['REJECTED', 'CANCELLED', 'EXPIRED'] as const;
+
+export function isClosedReservation(status?: string | null): boolean {
+  return CLOSED_RESERVATION_STATUSES.includes(String(status || '').toUpperCase() as (typeof CLOSED_RESERVATION_STATUSES)[number]);
+}
+
 /**
  * Program dates are entered by staff, so both ISO (2026-10-10) and the local
  * day-first form (10-10-2026, 10/10/2026) exist in the data. `new Date()` reads
@@ -143,6 +150,8 @@ export function reservationStatusLabel(status?: string | null): string {
       return 'ملغى';
     case 'REJECTED':
       return 'مرفوض من الوكالة';
+    case 'EXPIRED':
+      return 'انتهى قبل التأكيد';
     default:
       return status || '—';
   }

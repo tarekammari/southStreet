@@ -7,19 +7,28 @@ import { markWelcomePending } from '@/components/WelcomeBanner';
 import { enterSessionAndReload } from '@/lib/client-session';
 import Image from 'next/image';
 import SecurityKeyPrompt from '@/components/auth/SecurityKeyPrompt';
+import type { LoginRequest } from '@/components/auth/openLogin';
 
 interface LoginModalProps {
   onClose: () => void;
   onSelectRole?: (code: string, name: string) => void;
   /** Stay on this page after signing in (e.g. the Connect app) instead of going to the portal. */
   redirectTo?: string;
+  /** Opened for a chosen method (e.g. by Sakhr): Google ready, username prefilled, or sign-up. */
+  request?: LoginRequest;
 }
 
 type Mode = 'password' | 'qr';
 type Screen = 'login' | 'register';
 
-export default function LoginModal({ onClose, onSelectRole, redirectTo }: LoginModalProps) {
-  const [identifier, setIdentifier] = useState('');
+const REQUEST_HINT: Partial<Record<LoginRequest['method'], string>> = {
+  google: 'اضغط «المتابعة باستخدام Google» لإكمال الدخول بحسابك في Google.',
+  password: 'اكتب كلمة المرور هنا في هذه النافذة فقط، ولا تكتبها في المحادثة.',
+};
+
+export default function LoginModal({ onClose, onSelectRole, redirectTo, request }: LoginModalProps) {
+  const googleFirst = request?.method === 'google';
+  const [identifier, setIdentifier] = useState(request?.username || '');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [fileKey, setFileKey] = useState('');
@@ -27,9 +36,9 @@ export default function LoginModal({ onClose, onSelectRole, redirectTo }: LoginM
   const [isDragging, setIsDragging] = useState(false);
   const [step, setStep] = useState<1 | 2>(1);
   const [mode, setMode] = useState<Mode>('password');
-  const [screen, setScreen] = useState<Screen>('login');
+  const [screen, setScreen] = useState<Screen>(request?.method === 'register' ? 'register' : 'login');
   const [error, setError] = useState('');
-  const [info, setInfo] = useState('');
+  const [info, setInfo] = useState(request ? REQUEST_HINT[request.method] || '' : '');
   const [loading, setLoading] = useState(false);
   const [qrHint, setQrHint] = useState('وجّه الكاميرا نحو رمز QR الخاص بالحساب');
   const [waiting, setWaiting] = useState(false);
@@ -238,7 +247,7 @@ export default function LoginModal({ onClose, onSelectRole, redirectTo }: LoginM
   useEffect(() => () => stopCamera(), []);
 
   const googleBlock = () => (
-    <div className="space-y-4">
+    <div className={`space-y-4${googleFirst ? ' login-google-focus' : ''}`}>
       <GoogleContinueButton disabled={loading} onToken={processGoogle} />
       <div className="login-or">أو</div>
     </div>
@@ -428,6 +437,7 @@ export default function LoginModal({ onClose, onSelectRole, redirectTo }: LoginM
                     onChange={(e) => setIdentifier(e.target.value)}
                     dir="ltr"
                     autoComplete="username"
+                    autoFocus={request?.method === 'password' && !request.username}
                     autoCapitalize="none"
                     spellCheck={false}
                     maxLength={120}
@@ -442,6 +452,7 @@ export default function LoginModal({ onClose, onSelectRole, redirectTo }: LoginM
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       dir="ltr"
+                      autoFocus={Boolean(request?.username)}
                       autoComplete="current-password"
                       maxLength={128}
                     />

@@ -137,3 +137,9 @@
   .cx-blobs span, .cx-live, .cx-avatar i, .cx-btn.is-accept { animation: none !important; }
   .cx-feature, .cx-cta { transition: none; }
 }
+
+/* Install started by Sakhr: what happens next */
+.cx-install-note {
+  margin: 4px 0 12px; padding: 10px 14px; border-radius: 14px; font-weight: 700; font-size: .9rem; line-height: 1.7;
+  background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0;
+}

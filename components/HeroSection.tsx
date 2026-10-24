@@ -7,7 +7,7 @@ import { publicList } from '@/lib/public-catalog';
 import { PageContentRow } from '@/lib/page-content';
 import { useIntroDone } from '@/lib/intro';
 import { isOpenPackageStatus } from '@/lib/package-status';
-import { SOCIAL_LABELS } from '@/lib/social';
+import { socialProfiles } from '@/lib/social';
 import { useAgencyInfo } from '@/components/social/useAgencyInfo';
 import { SOCIAL_ICON } from '@/components/social/SocialIcons';
 import { PROGRAM_KIND_LABEL, ProgramKind, programImages, programKind } from '@/lib/program-display';
@@ -208,9 +208,7 @@ export default function HeroSection({ content: _content }: { content?: PageConte
 
   const cards = offer === undefined ? [] : offerPostcards(offer);
   const social = useAgencyInfo()?.social;
-  const profiles = social
-    ? (Object.keys(SOCIAL_LABELS) as (keyof typeof SOCIAL_LABELS)[]).filter((k) => social[k]).map((k) => ({ key: k, url: social[k], label: SOCIAL_LABELS[k] }))
-    : [];
+  const profiles = socialProfiles(social);
 
   const scrollToAgency = () => {
     const el = document.getElementById('agency-section');

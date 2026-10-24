@@ -8,10 +8,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import dynamic from 'next/dynamic';
-import { Bell, BellOff, Download, Info, Loader2, RefreshCw, MessageCircle, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Search, Star, UserPlus, Users } from 'lucide-react';
+import { Ban, Bell, BellOff, Download, Info, Loader2, LogOut, RefreshCw, MessageCircle, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Search, Star, UserPlus, Users } from 'lucide-react';
 import { authHeaders, jsonAuthHeaders } from '@/lib/api-client';
-import { VoiceCall, startTone, stopTone, type CallEndReason, type CallPhase } from '@/lib/connect/rtc';
+import { logoutAndReload } from '@/lib/client-session';
+import { VoiceCall, playMessageSound, startTone, stopTone, warmRingtone, type CallEndReason, type CallPhase } from '@/lib/connect/rtc';
+import { setForcedRelay, tellAndroid } from '@/lib/connect/device-prefs';
 import type { ConnectContact, ConnectUser } from '@/lib/connect/store';
+import type { MyGroup } from '@/lib/connect/groups';
 import ChatView from './ChatView';
 import AboutSheet from './AboutSheet';
 import AndroidSetup from './AndroidSetup';
@@ -28,16 +31,38 @@ const LoginModal = dynamic(() => import('@/components/LoginModal'), { ssr: false
 
 type Tab = 'chats' | 'contacts' | 'calls';
 type CallLog = { id: string; peerId: string; peerName: string; outgoing: boolean; state: string; createdTs: number; seconds: number };
-type Incoming = { id: string; offer: string; caller: { id: string; name: string; roleLabel: string; photo: string } };
+/** `key` / `sig`: the caller's device key and signature (end-to-end check). */
+type Incoming = { id: string; offer: string; key?: string; sig?: string; caller: { id: string; name: string; roleLabel: string; photo: string } };
+/** A conversation in the list: a person, or a group chat (id `grp:…`, made in /connect-admin). */
+export type ChatItem = ConnectContact & { group?: MyGroup };
+
+/** A group as a row of the chat list. */
+function groupItem(g: MyGroup): ChatItem {
+  return {
+    id: g.chatId, name: g.name, role: 'PILGRIM_USER', roleLabel: `${g.members} عضو`, photo: '', chatId: g.chatId,
+    online: false, lastSeen: 0, lastText: g.lastText, lastTs: g.lastTs, unread: g.unread, friend: false, affinity: 0, group: g,
+  };
+}
+
+/** A new message in a chat that is not on screen. */
+type Banner = { from: string; name: string; preview: string; key: number };
 
 const END_NOTE: Record<CallEndReason, string> = {
   hangup: 'انتهت المكالمة',
   'remote-ended': 'أنهى الطرف الآخر المكالمة',
   declined: 'رُفضت المكالمة',
   missed: 'لم يتم الرد',
+  unreachable: 'تعذّر الوصول — هاتفه مغلق أو بلا إنترنت',
   busy: 'الطرف الآخر في مكالمة أخرى',
   failed: 'تعذّر الاتصال — تحقق من الشبكة',
+  blocked: 'المكالمات موقوفة حاليًا',
+  elsewhere: 'تم الرد من جهاز آخر',
+  insecure: 'أُوقفت المكالمة: تعذّر التحقق من تشفيرها',
+  rate: 'محاولات اتصال كثيرة — انتظر دقيقة',
 };
+
+/** No device of the other person confirmed ringing after this long: say so (the call keeps trying). */
+const UNREACHABLE_HINT_MS = 12_000;
 
 function shortTime(ts: number) {
   if (!ts) return '';
@@ -108,9 +133,15 @@ export default function ConnectApp() {
   const [iceServers, setIceServers] = useState<RTCIceServer[]>([]);
   const [vapid, setVapid] = useState<string | null>(null);
   const [contacts, setContacts] = useState<ConnectContact[]>([]);
+  const [groups, setGroups] = useState<MyGroup[]>([]);
+  /** Stopped by the Super Admin: why, and until when. */
+  const [suspended, setSuspended] = useState<{ reason: string; untilTs: number | null } | null>(null);
+  /** The Super Admin's rules for this account (calls allowed). */
+  const [callsAllowed, setCallsAllowed] = useState(true);
   const [people, setPeople] = useState<PeopleData>(EMPTY_PEOPLE);
   const [addOpen, setAddOpen] = useState(false);
   const [toast, setToast] = useState('');
+  const [banner, setBanner] = useState<Banner | null>(null);
   const [found, setFound] = useState<PeopleData['everyone'] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [setupDone, setSetupDone] = useState(false);
@@ -130,6 +161,8 @@ export default function ConnectApp() {
   const [standalone, setStandalone] = useState(true);
   const [updateReady, setUpdateReady] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [logoutOpen, setLogoutOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [live, setLive] = useState(false);
   const [minimized, setMinimized] = useState(false);
   const pip = usePipWindow();
@@ -143,13 +176,20 @@ export default function ConnectApp() {
 
   /* ---------- start ---------- */
   useEffect(() => {
-    void fetch('/api/connect/config', { headers: authHeaders(), cache: 'no-store' })
+    // Stay signed in on this device until the user signs out here
+    // (lib/connect/device-session.ts): start or renew it before anything else.
+    void fetch('/api/connect/session', { method: 'POST', headers: authHeaders(), cache: 'no-store' })
+      .catch(() => undefined)
+      .then(() => fetch('/api/connect/config', { headers: authHeaders(), cache: 'no-store' }))
       .then(async (r) => {
+        const data = await r.json().catch(() => ({}));
+        if (r.status === 403 && data.code === 'CONNECT_SUSPENDED') return setSuspended({ reason: data.reason || '', untilTs: data.untilTs || null });
         if (r.status === 401 || r.status === 403) return setNeedLogin(true);
-        const data = await r.json();
         setMe(data.me);
         setIceServers(data.iceServers || []);
         setVapid(data.vapidPublicKey || null);
+        setCallsAllowed(data.policy?.calls !== false);
+        setForcedRelay(Boolean(data.policy?.relayOnly));
       })
       .catch(() => setNeedLogin(true));
     setStandalone(window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true);
@@ -159,6 +199,9 @@ export default function ConnectApp() {
     };
     window.addEventListener('beforeinstallprompt', onPrompt);
     if ('serviceWorker' in navigator) void navigator.serviceWorker.register('/connect-sw.js', { scope: '/connect' }).catch(() => undefined);
+    // The chosen ringtone: ready to ring at once, and known to the Android app.
+    warmRingtone();
+    tellAndroid();
     return () => window.removeEventListener('beforeinstallprompt', onPrompt);
   }, []);
 
@@ -169,6 +212,13 @@ export default function ConnectApp() {
     const original = window.fetch;
     window.fetch = async (...args: Parameters<typeof fetch>) => {
       const res = await original(...args);
+      // Suspended by the Super Admin while the app is open: show why, at once.
+      if (res.status === 403) {
+        const url = typeof args[0] === 'string' ? args[0] : args[0] instanceof Request ? args[0].url : String(args[0]);
+        if (url.includes('/api/connect/') && !url.includes('/api/connect/admin')) {
+          void res.clone().json().then((d) => d?.code === 'CONNECT_SUSPENDED' && setSuspended({ reason: d.reason || '', untilTs: d.untilTs || null })).catch(() => undefined);
+        }
+      }
       if (res.status === 401) {
         const url = typeof args[0] === 'string' ? args[0] : args[0] instanceof Request ? args[0].url : String(args[0]);
         if (url.includes('/api/connect/') && !url.includes('/api/connect/download')) {
@@ -195,6 +245,7 @@ export default function ConnectApp() {
     if (!res.ok) return;
     const data = await res.json();
     setContacts(data.contacts || []);
+    setGroups(data.groups || []);
     setCalls(data.calls || []);
   }, []);
 
@@ -273,39 +324,45 @@ export default function ConnectApp() {
     () => ({
       onPhase: (phase: CallPhase) => {
         if (phase === 'active' || phase === 'connecting') stopTone();
-        if (phase !== 'ended') setCallView((v) => (v ? { ...v, phase } : v));
+        // The other phone really rings: now the caller hears the ringback.
+        if (phase === 'ringing') startTone('ringback');
+        if (phase !== 'ended') setCallView((v) => (v ? { ...v, phase, note: undefined } : v));
       },
       onEnd: endUi,
       onConnectedAt: (ts: number) => setCallView((v) => (v ? { ...v, connectedAt: ts } : v)),
+      onQuality: (quality: CallView['quality']) => setCallView((v) => (v && v.quality?.level !== quality?.level ? { ...v, quality } : v)),
+      onSecurity: (security: CallView['security']) => setCallView((v) => (v ? { ...v, security } : v)),
     }),
     [endUi]
   );
 
   const placeCall = async (peer: ConnectContact) => {
-    if (callRef.current) return;
+    if (callRef.current || !me) return;
     setCallView({ peerName: peer.name, peerPhoto: peer.photo, peerRole: peer.roleLabel, phase: 'calling', muted: false });
-    const call = new VoiceCall(iceServers, handlers);
+    const call = new VoiceCall(iceServers, handlers, me.id);
     callRef.current = call;
+    // Still no device of theirs rings: tell the caller why it is taking long.
+    window.setTimeout(() => {
+      setCallView((v) => (v && callRef.current === call && v.phase === 'calling' ? { ...v, note: 'لم يصل الاتصال إلى هاتفه بعد — قد يكون مغلقًا أو بلا إنترنت' } : v));
+    }, UNREACHABLE_HINT_MS);
     try {
       await call.call(peer.id);
-      if (callRef.current !== call) return; // hung up while dialling
-      setCallView((v) => (v ? { ...v, phase: 'ringing' } : v));
-      startTone('ringback');
     } catch (err) {
-      if (callRef.current === call) endUi((err as { code?: string }).code === 'BUSY' ? 'busy' : 'failed');
+      const code = (err as { code?: string }).code;
+      if (callRef.current === call) endUi(code === 'BUSY' ? 'busy' : code === 'RATE' ? 'rate' : code === 'CALLS_OFF' ? 'blocked' : 'failed');
     }
   };
 
   const acceptCall = async () => {
     const inc = incomingRef.current;
-    if (!inc) return;
+    if (!inc || !me) return;
     stopTone();
     clearCallNotifications(inc.id);
-    const call = new VoiceCall(iceServers, handlers);
+    const call = new VoiceCall(iceServers, handlers, me.id);
     callRef.current = call;
     setCallView((v) => (v ? { ...v, phase: 'connecting' } : v));
     try {
-      await call.answer(inc.id, inc.offer);
+      await call.answer(inc.id, inc.offer, inc.caller.id, inc.key, inc.sig);
     } catch {
       endUi('failed');
     }
@@ -375,6 +432,8 @@ export default function ConnectApp() {
     incomingRef.current = inc;
     setMinimized(false);
     setCallView({ peerName: inc.caller.name, peerPhoto: inc.caller.photo, peerRole: inc.caller.roleLabel, phase: 'incoming', muted: false });
+    // Tell the caller this device rings («يرنّ…»).
+    VoiceCall.ringing(inc.id);
     // Opened from the notification's "رد" button: answer straight away.
     if (autoAnswer.current && autoAnswer.current === inc.id) {
       autoAnswer.current = null;
@@ -385,6 +444,27 @@ export default function ConnectApp() {
       if (!nativePlatform() && document.visibilityState !== 'visible') ringWhileHidden(inc);
     }
   }, []);
+
+  /* ---------- new messages: banner, sound, badge ---------- */
+  // A message in a chat that is not on screen: a banner at the top (tap to open), a short
+  // sound and a buzz — quietly, during a call. The chat on screen stays silent.
+  const announce = useRef<(m: Omit<Banner, 'key'>) => void>(() => undefined);
+  announce.current = (m) => {
+    const visible = document.visibilityState === 'visible';
+    if (visible && openId === m.from) return;
+    if (!visible && !nativePlatform()) return; // the system notification (push) shows it
+    setBanner({ ...m, key: Date.now() });
+    if (!callRef.current && !incomingRef.current) {
+      playMessageSound();
+      navigator.vibrate?.(80);
+    }
+  };
+
+  useEffect(() => {
+    if (!banner) return;
+    const t = window.setTimeout(() => setBanner(null), 4500);
+    return () => window.clearTimeout(t);
+  }, [banner]);
 
   /* ---------- native apps (Windows / Android) ---------- */
   // Every call change goes to the app shell: floating card, ongoing-call service…
@@ -416,10 +496,30 @@ export default function ConnectApp() {
   };
   useEffect(() => onNativeCallAction((action) => nativeActions.current[action]?.()), []);
 
+  // Renewed while the app stays open (and when it comes back to the screen).
+  useEffect(() => {
+    if (!me) return;
+    let last = Date.now();
+    const renew = () => {
+      if (Date.now() - last < 3_600_000) return;
+      last = Date.now();
+      void fetch('/api/connect/session', { method: 'POST', headers: authHeaders(), cache: 'no-store' }).catch(() => undefined);
+    };
+    const timer = window.setInterval(renew, 3_600_000);
+    const onVisible = () => document.visibilityState === 'visible' && renew();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [me]);
+
   // Android: tie this phone's push token to the signed-in account.
+  const androidToken = useRef('');
   useEffect(() => {
     if (!me) return;
     return onAndroidToken((token) => {
+      androidToken.current = token;
       void fetch('/api/connect/push', { method: 'POST', headers: jsonAuthHeaders(), body: JSON.stringify({ subscription: { fcm: token, platform: 'android' } }) });
     });
   }, [me]);
@@ -487,10 +587,18 @@ export default function ConnectApp() {
         stopFallback();
         void pollOnce(); // catch up on anything missed while disconnected
       });
-      es.addEventListener('chat', () => {
+      es.addEventListener('chat', (ev) => {
         void loadContacts();
         setRefreshKey((k) => k + 1);
+        try {
+          const d = JSON.parse((ev as MessageEvent).data);
+          if (d.from && d.name) announce.current({ from: d.from, name: d.name, preview: d.preview || '' });
+        } catch {
+          /* ignore */
+        }
       });
+      // The other side received / read my messages: ✓✓ in the open chat.
+      es.addEventListener('receipt', () => setRefreshKey((k) => k + 1));
       es.addEventListener('people', () => {
         void loadPeople();
         void loadContacts();
@@ -506,7 +614,7 @@ export default function ConnectApp() {
         try {
           const data = JSON.parse((ev as MessageEvent).data);
           if (callRef.current) void callRef.current.signal(data);
-          else if (data.type === 'call' && incomingRef.current?.id === data.id && data.state !== 'ringing') endUi('missed');
+          else if (data.type === 'call' && incomingRef.current?.id === data.id && data.state !== 'ringing') endUi(data.state === 'active' ? 'elsewhere' : 'missed');
         } catch {
           /* ignore */
         }
@@ -612,16 +720,42 @@ export default function ConnectApp() {
   };
 
   /* ---------- view ---------- */
-  const open = contacts.find((c) => c.id === openId) || null;
-  const totalUnread = contacts.reduce((n, c) => n + c.unread, 0);
+  const groupItems = groups.map(groupItem);
+  const open: ChatItem | null = contacts.find((c) => c.id === openId) || groupItems.find((g) => g.id === openId) || null;
+  const totalUnread = contacts.reduce((n, c) => n + c.unread, 0) + groups.reduce((n, g) => n + g.unread, 0);
+
+  // Unread count on the app icon (installed app) and in the window title.
+  useEffect(() => {
+    const nav = navigator as Navigator & { setAppBadge?: (n?: number) => Promise<void>; clearAppBadge?: () => Promise<void> };
+    if (totalUnread) void nav.setAppBadge?.(totalUnread).catch(() => undefined);
+    else void nav.clearAppBadge?.().catch(() => undefined);
+    const base = document.title.replace(/^\(\d+\) /, '');
+    document.title = totalUnread ? `(${totalUnread}) ${base}` : base;
+  }, [totalUnread]);
   const q = query.trim().toLowerCase();
   const filtered = contacts.filter((c) => !q || c.name.toLowerCase().includes(q) || c.roleLabel.includes(q));
-  const chats = filtered.filter((c) => c.lastTs);
+  // Chats: people I talked to and my groups, newest first.
+  const chats: ChatItem[] = [...filtered.filter((c) => c.lastTs), ...groupItems.filter((g) => !q || g.name.toLowerCase().includes(q))].sort((a, b) => b.lastTs - a.lastTs);
   const team = filtered.filter((c) => c.role !== 'PILGRIM_USER');
   const clients = filtered.filter((c) => c.role === 'PILGRIM_USER');
   // Favourites: the clients I accepted, the ones I talk to most (lately) first.
   const favourites = clients.filter((c) => c.friend).sort((a, b) => b.affinity - a.affinity || Number(b.online) - Number(a.online) || a.name.localeCompare(b.name, 'ar'));
   const requestCount = people.requests.length;
+
+  if (suspended) {
+    return (
+      <div className="cn-app cn-login" dir="rtl">
+        <div className="cn-login-card">
+          <span className="cn-gate-icon is-stop"><Ban className="w-8 h-8" /></span>
+          <h1>تم إيقاف حسابك في SS Connect</h1>
+          <p>{suspended.reason ? `السبب: ${suspended.reason}` : 'أوقفت إدارة الوكالة استعمالك للتطبيق مؤقتًا.'}</p>
+          {suspended.untilTs ? <p>ينتهي الإيقاف {new Date(suspended.untilTs).toLocaleString('ar-DZ', { dateStyle: 'medium', timeStyle: 'short' })}.</p> : null}
+          <p>للاستفسار تواصل مع الوكالة.</p>
+          <button type="button" className="cn-sheet-btn" onClick={() => window.location.reload()}><RefreshCw className="w-5 h-5" /> إعادة المحاولة</button>
+        </div>
+      </div>
+    );
+  }
 
   if (needLogin) {
     return (
@@ -641,10 +775,10 @@ export default function ConnectApp() {
     return <div className="cn-app cn-center" dir="rtl"><Loader2 className="w-6 h-6 animate-spin" /></div>;
   }
 
-  const row = (c: ConnectContact, showLast: boolean) => (
+  const row = (c: ChatItem, showLast: boolean) => (
     <li key={c.id}>
       <button type="button" className="cn-row" onClick={() => setOpenId(c.id)}>
-        <span className="cn-avatar">{c.photo ? <img src={c.photo} alt="" /> : c.name.charAt(0)}{c.online ? <i className="cn-dot" /> : null}</span>
+        <span className={`cn-avatar${c.group ? ' is-group' : ''}`}>{c.group ? <Users className="w-5 h-5" /> : c.photo ? <img src={c.photo} alt="" /> : c.name.charAt(0)}{c.online ? <i className="cn-dot" /> : null}</span>
         <span className="cn-row-main">
           <span className="cn-row-top"><b>{c.name}</b>{showLast ? <small>{shortTime(c.lastTs)}</small> : null}</span>
           <span className="cn-row-sub">
@@ -653,11 +787,36 @@ export default function ConnectApp() {
           </span>
         </span>
       </button>
-      {!showLast ? (
+      {!showLast && callsAllowed ? (
         <button type="button" className="cn-icon is-call" onClick={() => void placeCall(c)} aria-label={`اتصال بـ ${c.name}`}><Phone className="w-5 h-5" /></button>
       ) : null}
     </li>
   );
+
+  // Sign out on this device only: no more messages or calls here, other devices stay signed in.
+  const logout = async () => {
+    setLoggingOut(true);
+    const unsubscribe = (subscription: unknown) =>
+      fetch('/api/connect/push', { method: 'DELETE', headers: jsonAuthHeaders(), body: JSON.stringify({ subscription }) }).catch(() => undefined);
+    try {
+      callRef.current?.hangup();
+    } catch {
+      /* no call */
+    }
+    if (androidToken.current) await unsubscribe({ fcm: androidToken.current, platform: 'android' });
+    try {
+      const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration('/connect') : undefined;
+      const sub = await reg?.pushManager.getSubscription();
+      if (sub) {
+        await unsubscribe(sub.toJSON());
+        await sub.unsubscribe();
+      }
+    } catch {
+      /* push not available */
+    }
+    await fetch('/api/connect/session', { method: 'DELETE', headers: authHeaders() }).catch(() => undefined);
+    await logoutAndReload('/connect');
+  };
 
   return (
     <div className={`cn-app${open ? ' has-chat' : ''}`} dir="rtl">
@@ -673,6 +832,9 @@ export default function ConnectApp() {
             </button>
             <button type="button" className="cn-icon" onClick={() => setAboutOpen(true)} title="حول التطبيق" aria-label="حول التطبيق">
               <Info className="w-5 h-5" />
+            </button>
+            <button type="button" className="cn-icon" onClick={() => setLogoutOpen(true)} title="تسجيل الخروج" aria-label="تسجيل الخروج">
+              <LogOut className="w-5 h-5" />
             </button>
             {!standalone && installEvt ? (
               <button type="button" className="cn-pill" onClick={async () => { installEvt.prompt(); await installEvt.userChoice; setInstallEvt(null); }}>
@@ -775,7 +937,7 @@ export default function ConnectApp() {
                           <span className="cn-row-sub"><small>{missed ? (c.outgoing ? 'لم يُرد' : 'فائتة') : c.seconds ? `${Math.floor(c.seconds / 60)}:${String(c.seconds % 60).padStart(2, '0')}` : 'ملغاة'}</small></span>
                         </span>
                       </div>
-                      {peer ? <button type="button" className="cn-icon is-call" onClick={() => void placeCall(peer)} aria-label="معاودة الاتصال"><Phone className="w-5 h-5" /></button> : null}
+                      {peer && callsAllowed ? <button type="button" className="cn-icon is-call" onClick={() => void placeCall(peer)} aria-label="معاودة الاتصال"><Phone className="w-5 h-5" /></button> : null}
                     </li>
                   );
                 })}
@@ -799,7 +961,8 @@ export default function ConnectApp() {
             me={me}
             peer={open}
             onBack={() => setOpenId(null)}
-            onCall={() => void placeCall(open)}
+            onCall={callsAllowed && !open.group ? () => void placeCall(open) : undefined}
+            group={open.group}
             refreshKey={refreshKey}
             onChanged={() => void loadContacts()}
             menu={isClient && open.friend ? <PersonMenu name={open.name} onAction={(a) => onPeopleAction(open.id, a)} /> : null}
@@ -828,8 +991,46 @@ export default function ConnectApp() {
 
       {toast ? <div className="cn-toast" role="status">{toast}</div> : null}
 
+      {banner && !(callView && !minimized) ? (
+        <button
+          key={banner.key}
+          type="button"
+          className="cn-msg-banner"
+          role="status"
+          onClick={() => {
+            setOpenId(banner.from);
+            setBanner(null);
+          }}
+        >
+          <span className="cn-avatar">
+            {(() => {
+              const c = contacts.find((p) => p.id === banner.from);
+              return c?.photo ? <img src={c.photo} alt="" /> : banner.name.charAt(0);
+            })()}
+          </span>
+          <span className="cn-msg-banner-text">
+            <b>{banner.name}</b>
+            <small>{banner.preview}</small>
+          </span>
+          <MessageCircle className="w-5 h-5" aria-hidden />
+        </button>
+      ) : null}
+
+      {logoutOpen ? (
+        <div className="cn-sheet" role="dialog" aria-modal="true" aria-label="تسجيل الخروج" onClick={() => !loggingOut && setLogoutOpen(false)}>
+          <div className="cn-sheet-card cn-logout" onClick={(e) => e.stopPropagation()}>
+            <span className="cn-logout-icon" aria-hidden><LogOut className="w-6 h-6" /></span>
+            <h2>تسجيل الخروج من SS Connect؟</h2>
+            <p className="cn-sheet-hint">لن تصلك الرسائل والمكالمات على هذا الجهاز حتى تسجّل الدخول من جديد. أجهزتك الأخرى تبقى متصلة.</p>
+            <button type="button" className="cn-sheet-btn is-danger" disabled={loggingOut} onClick={() => void logout()}>
+              {loggingOut ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />} تسجيل الخروج
+            </button>
+            <button type="button" className="cn-sheet-btn" disabled={loggingOut} onClick={() => setLogoutOpen(false)}>إلغاء</button>
+          </div>
+        </div>
+      ) : null}
       {aboutOpen ? (
-        <AboutSheet onClose={() => setAboutOpen(false)} live={live} serverPush={Boolean(vapid)} pushState={pushState === 'denied' ? 'off' : pushState} onEnablePush={enablePush} onApplyWebUpdate={() => void applyUpdate()} />
+        <AboutSheet onClose={() => setAboutOpen(false)} busy={Boolean(callView)} relay={iceServers.some((s) => ([] as string[]).concat(s.urls).some((u) => /^turns?:/.test(u)))} live={live} serverPush={Boolean(vapid)} pushState={pushState === 'denied' ? 'off' : pushState} onEnablePush={enablePush} onApplyWebUpdate={() => void applyUpdate()} />
       ) : null}
 
       {me && vapid && (pushState === 'off' || pushState === 'denied') && !gateLater && !callView ? (

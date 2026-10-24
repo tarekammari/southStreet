@@ -104,3 +104,44 @@ export function shareUrl(target: ShareTarget, url: string, text: string): string
       return `https://twitter.com/intent/tweet?url=${encodeURIComponent(tagged)}&text=${encodeURIComponent(text)}`;
   }
 }
+
+type ProfileKey = keyof typeof SOCIAL_LABELS;
+
+const PROFILE_BASE: Record<ProfileKey, { profile: (h: string) => string; search: (q: string) => string }> = {
+  facebook: { profile: (h) => `https://www.facebook.com/${h}`, search: (q) => `https://www.facebook.com/search/top?q=${q}` },
+  instagram: { profile: (h) => `https://www.instagram.com/${h}/`, search: (q) => `https://www.instagram.com/explore/search/keyword/?q=${q}` },
+  tiktok: { profile: (h) => `https://www.tiktok.com/@${h}`, search: (q) => `https://www.tiktok.com/search/user?q=${q}` },
+  youtube: { profile: (h) => `https://www.youtube.com/@${h}`, search: (q) => `https://www.youtube.com/results?search_query=${q}` },
+  telegram: { profile: (h) => `https://t.me/${h}`, search: (q) => `https://t.me/s/${q}` },
+  x: { profile: (h) => `https://x.com/${h}`, search: (q) => `https://x.com/search?q=${q}&f=user` },
+};
+
+/**
+ * A real link to the agency's profile on that network, whatever the admin typed:
+ * a full URL, a bare domain (facebook.com/…), a @handle, or just a page name
+ * (then the network's search for that name, never a link inside this site).
+ */
+export function profileUrl(key: ProfileKey, raw: string): string {
+  const v = String(raw || '').trim();
+  if (!v) return '';
+  if (/^https?:\/\//i.test(v)) return v;
+  if (/^(www\.)?[a-z0-9-]+(\.[a-z0-9-]+)+\//i.test(v) || /^(www\.)?[a-z0-9-]+\.(com|me|be|net|org)$/i.test(v)) return `https://${v}`;
+  const handle = v.replace(/^@/, '');
+  if (/^[\w.-]+$/.test(handle)) return PROFILE_BASE[key].profile(handle);
+  return PROFILE_BASE[key].search(encodeURIComponent(v));
+}
+
+export type SocialProfile = { key: ProfileKey | 'whatsapp'; url: string; label: string };
+
+/** Every configured channel as a clickable profile, WhatsApp (chat with the agency) first. */
+export function socialProfiles(social: SocialLinks | undefined | null): SocialProfile[] {
+  if (!social) return [];
+  const out: SocialProfile[] = [];
+  const wa = social.whatsapp ? waLink(social.whatsapp, social.welcome) : '';
+  if (wa) out.push({ key: 'whatsapp', url: wa, label: 'واتساب' });
+  for (const k of Object.keys(SOCIAL_LABELS) as ProfileKey[]) {
+    const url = profileUrl(k, social[k]);
+    if (url) out.push({ key: k, url, label: SOCIAL_LABELS[k] });
+  }
+  return out;
+}

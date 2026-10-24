@@ -95,6 +95,7 @@
 }
 .hero-social svg { width: 18px; height: 18px; }
 .hero-social:hover { transform: translateY(-3px); color: #fff; }
+.hero-social.is-whatsapp:hover { background: #25d366; }
 .hero-social.is-facebook:hover { background: #1877f2; }
 .hero-social.is-instagram:hover { background: linear-gradient(45deg, #f58529, #dd2a7b 50%, #8134af); }
 .hero-social.is-tiktok:hover { background: #000; }

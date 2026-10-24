@@ -36,6 +36,9 @@ export type PushPayload = {
   photo?: string;
   role?: string;
   outcome?: 'answered' | 'missed' | 'declined' | 'ended';
+  /** Messages: the device shows one notification per message even when both paths deliver it. */
+  msgId?: string;
+  chatId?: string;
 };
 
 export const pushReady = () => ready() || fcmReady();
@@ -69,14 +72,19 @@ export async function pushTo(userId: string, payload: PushPayload): Promise<void
 }
 
 /**
- * STUN always; TURN (relay through firewalls / mobile networks) when configured.
+ * Our own relay (deploy/coturn-setup.sh) when configured: its STUN finds each
+ * phone's public address and its TURN carries the call when the phones cannot
+ * reach each other (carrier NAT, strict Wi-Fi) — over UDP, TCP and TLS 5349.
+ * Nobody else learns who calls whom. Without it, Google's public STUN is used.
  * With TURN_SECRET (coturn "use-auth-secret") every user gets a password valid
  * for 12 hours only; TURN_USERNAME / TURN_CREDENTIAL remain for a fixed account.
  */
 export function iceServers(userId = 'connect'): RTCIceServerLike[] {
-  const servers: RTCIceServerLike[] = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
   const urls = (process.env.TURN_URLS || '').split(',').map((s) => s.trim()).filter(Boolean);
-  if (!urls.length) return servers;
+  if (!urls.length) return [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
+  const hosts = [...new Set(urls.map((u) => u.match(/^turns?:([^:?]+)/)?.[1]).filter(Boolean))];
+  const stun = (process.env.STUN_URLS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const servers: RTCIceServerLike[] = [{ urls: stun.length ? stun : hosts.map((h) => `stun:${h}:3478`) }];
   const secret = process.env.TURN_SECRET?.trim();
   if (secret) {
     const username = `${Math.floor(Date.now() / 1000) + 12 * 3600}:${userId}`;

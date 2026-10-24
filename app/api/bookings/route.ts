@@ -25,6 +25,7 @@ import {
   getOwnedReservation,
   isActiveReservation,
   listCustomerReservations,
+  listCustomerHotelBookings,
   loadPublishedPackage,
   lookupMorshidPhone,
   mapReservationRow,
@@ -35,6 +36,7 @@ import {
 import { pilgrimSignupStatus } from '@/lib/feature-flags';
 import { notifyBookingSubmitted, notifySignup } from '@/lib/notifications';
 import { isPackageExpired } from '@/lib/booking-catalog';
+import { sweepBookingLifecycle } from '@/lib/booking-lifecycle';
 import { documentVerifyCode } from '@/lib/booking-documents';
 import { tokenVersionOf } from '@/lib/webauthn';
 
@@ -258,9 +260,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'يلزم تسجيل الدخول' }, { status: 401 });
   }
 
+  sweepBookingLifecycle();
   const db = getSqliteDb();
   const account = db.prepare('SELECT * FROM users WHERE id = ?').get(auth.id) as any;
   const reservations = listCustomerReservations(auth.id);
+  const hotelBookings = listCustomerHotelBookings(auth.id);
   const activeReservation = reservations.find((row) => isActiveReservation(row.status)) || null;
 
   const allReceipts = db.prepare('SELECT * FROM receipts').all() as any[];
@@ -268,11 +272,11 @@ export async function GET(req: NextRequest) {
     .filter((row) =>
       row.pilgrimCode === account?.code ||
       row.pilgrimName === account?.name ||
-      reservations.some((res) => row.packageName === res.package_name && row.pilgrimName === res.customer_name)
+      [...reservations, ...hotelBookings].some((res) => row.packageName === res.package_name && row.pilgrimName === res.customer_name)
     )
     .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
 
-  return NextResponse.json({ reservations, receipts, activeReservation });
+  return NextResponse.json({ reservations, hotelBookings, receipts, activeReservation });
 }
 
 export async function POST(req: NextRequest) {
@@ -703,13 +707,13 @@ export async function DELETE(req: NextRequest) {
 
     notifyAgency(
       account,
-      `تم إلغاء طلب العمرة رقم ${reservation.reservation_number} (${reservation.package_name}) بناءً على طلب المعتمر.`
+      `تم إلغاء ${reservation.booking_kind === 'HOTEL' ? 'حجز الفندق' : 'طلب العمرة'} رقم ${reservation.reservation_number} (${reservation.package_name}) بناءً على طلب العميل.`
     );
 
     return NextResponse.json({
       status: 'CANCELLED',
       reservation,
-      user: { redirect: '/book' },
+      user: { redirect: reservation.booking_kind === 'HOTEL' ? '/my-bookings' : '/book' },
     });
   } catch (error: any) {
     return NextResponse.json({ error: error?.message || 'تعذّر إلغاء الطلب' }, { status: 500 });

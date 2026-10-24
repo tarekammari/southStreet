@@ -65,8 +65,13 @@ section { scroll-margin-top: 88px; }
 
 .page-shell-home {
   --nav-height: 64px;
-  --promo-height: 42px;
+  --promo-height: 0px;
   background: #fbfbfd;
+}
+
+/* On phones the pending-request banner and the trip chip sit in a strip under the navbar. */
+@media (max-width: 1023px) {
+  .page-shell-home:has(.request-pending-shell, .home-trip-chip) { --promo-height: 42px; }
 }
 
 .page-shell-home .page-main {
@@ -793,6 +798,12 @@ body {
   line-height: 1.65;
   color: #64748b;
 }
+.pilgrim-empty.is-expired { background: linear-gradient(160deg, #fffbeb 0%, #ffffff 60%); border-color: #fde68a; }
+.pilgrim-empty.is-expired .pilgrim-empty-icon { color: #b45309; background: linear-gradient(135deg, #fef3c7, #fde68a); }
+.pilgrim-empty.is-expired p { max-width: 30rem; margin-bottom: 0.75rem; }
+.pilgrim-empty-tag { display: inline-block; margin-bottom: 0.6rem; padding: 0.2rem 0.75rem; border-radius: 999px; background: #fef3c7; color: #92400e; font-size: 0.75rem; font-weight: 800; }
+.pilgrim-empty .pilgrim-empty-note { margin-bottom: 1.4rem; padding: 0.7rem 1rem; border-radius: 0.9rem; background: #f0fdf4; color: #047857; font-weight: 700; }
+.pilgrim-empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.6rem; }
 .pilgrim-card {
   background: #fff;
   border: 1px solid #e2e8f0;
@@ -3138,6 +3149,71 @@ body.modal-open .sakhr-panel-shell {
 .pkg-offer-note { margin: 0 0 0.5rem; color: #047857; font-size: 0.8rem; font-weight: 700; }
 .pkg-offer-block h4 { margin: 0 0 0.45rem; font-size: 0.78rem; font-weight: 700; color: #475569; }
 .pkg-offer-block + .pkg-offer-block { margin-top: 0.85rem; }
+/* Tables → programs: Umrah / Hajj vs tourist trips */
+.pkg-kind-tabs { display: inline-flex; gap: 0.3rem; padding: 0.25rem; margin: 0 0 1rem; border-radius: 999px; background: #f1f5f9; }
+.pkg-kind-tabs button { display: inline-flex; align-items: center; gap: 0.4rem; height: 36px; padding: 0 1rem; border-radius: 999px; font-size: 0.85rem; font-weight: 800; color: #475569; transition: background 0.2s, color 0.2s, box-shadow 0.2s; }
+.pkg-kind-tabs button span { min-width: 1.5rem; padding: 0 0.35rem; border-radius: 999px; background: #e2e8f0; font-size: 0.72rem; text-align: center; }
+.pkg-kind-tabs button.is-on { background: #fff; color: #047857; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12); }
+.pkg-kind-tabs button.is-on span { background: #d1fae5; color: #047857; }
+
+/* Hotels card: rooms, rates, availability (HotelInventoryPanel) */
+.hinv-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.5rem; }
+.hinv-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.75rem; }
+.hinv-switch { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.8rem 0.35rem 0.4rem; border-radius: 999px; background: #f1f5f9; font-size: 0.78rem; font-weight: 800; color: #64748b; }
+.hinv-switch span { position: relative; width: 34px; height: 20px; border-radius: 999px; background: #cbd5e1; transition: background 0.2s; }
+.hinv-switch span::after { content: ''; position: absolute; top: 2px; right: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform 0.2s; }
+.hinv-switch.is-on { background: #ecfdf5; color: #047857; }
+.hinv-switch.is-on span { background: #10b981; }
+.hinv-switch.is-on span::after { transform: translateX(-14px); }
+.hinv-rooms { display: grid; gap: 0.6rem; }
+.hinv-room { padding: 0.75rem; border-radius: 12px; border: 1px solid #e2e8f0; background: #fff; }
+.hinv-room.is-off { opacity: 0.6; }
+.hinv-room > header { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; }
+.hinv-room > header svg { color: #047857; }
+.hinv-room > header strong { font-size: 0.9rem; }
+.hinv-room > header small { font-size: 0.72rem; color: #64748b; }
+.hinv-room-acts { display: inline-flex; gap: 0.3rem; margin-inline-start: auto; }
+.hinv-room-acts button { display: inline-flex; align-items: center; gap: 0.2rem; padding: 0.2rem 0.55rem; border-radius: 8px; background: #f1f5f9; font-size: 0.72rem; font-weight: 700; color: #334155; }
+.hinv-room-acts button:hover { background: #e2e8f0; }
+.hinv-room-acts button.is-del { color: #be123c; background: #fff1f2; }
+.hinv-rates { list-style: none; margin: 0.5rem 0 0; padding: 0; display: grid; gap: 0.35rem; }
+.hinv-rates li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.5rem; padding: 0.4rem 0.6rem; border-radius: 9px; background: #f8fafc; font-size: 0.8rem; }
+.hinv-rates li b { color: #047857; }
+.hinv-rates li small { flex-basis: 100%; font-size: 0.7rem; color: #64748b; }
+.hinv-empty { margin: 0.45rem 0 0; font-size: 0.75rem; color: #b45309; }
+.hinv-dialog { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 1rem; background: rgba(15, 23, 42, 0.45); }
+.hinv-dialog form { width: min(560px, 100%); max-height: 90vh; overflow: auto; padding: 1.1rem; border-radius: 16px; background: #fff; box-shadow: 0 24px 50px -20px rgba(15, 23, 42, 0.5); animation: trip-in 0.2s ease; }
+.hinv-dialog h4 { margin: 0 0 0.5rem; font-size: 1rem; font-weight: 800; }
+.hinv-check { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.6rem; font-size: 0.82rem; font-weight: 700; color: #334155; }
+.hinv-ghost { padding: 0.45rem 0.9rem; border-radius: 10px; font-size: 0.82rem; font-weight: 700; color: #475569; }
+.hinv-del { margin-inline-end: auto; padding: 0.45rem 0.9rem; border-radius: 10px; background: #fff1f2; color: #be123c; font-size: 0.82rem; font-weight: 800; }
+
+/* Program card: kind + tourist-trip details (TripDetailsPanel) */
+.trip-panel { margin-bottom: 0.85rem; }
+.trip-kinds { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.35rem; padding: 0.25rem; margin-bottom: 0.85rem; border-radius: 12px; background: #f1f5f9; }
+.trip-kinds button { height: 36px; border-radius: 9px; font-size: 0.82rem; font-weight: 800; color: #475569; transition: background 0.2s, color 0.2s, box-shadow 0.2s; }
+.trip-kinds button.is-on { background: #fff; color: #047857; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12); }
+.trip-form { display: grid; gap: 0.85rem; animation: trip-in 0.25s ease; }
+.trip-form .pkg-offer-block + .pkg-offer-block { margin-top: 0; }
+@keyframes trip-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.trip-dests { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.6rem; }
+.trip-dests button { display: inline-flex; align-items: center; gap: 0.35rem; height: 36px; padding: 0 0.85rem; border-radius: 999px; border: 1px solid #e2e8f0; background: #fff; font-size: 0.82rem; font-weight: 700; color: #334155; transition: all 0.2s; }
+.trip-dests button:hover { border-color: #6ee7b7; }
+.trip-dests button i { width: 9px; height: 9px; border-radius: 50%; }
+.trip-dests button.is-on { background: #047857; border-color: #047857; color: #fff; box-shadow: 0 6px 14px -8px rgba(4, 120, 87, 0.8); }
+.trip-label { display: grid; gap: 0.3rem; margin-top: 0.55rem; font-size: 0.75rem; font-weight: 700; color: #475569; }
+.trip-suggest { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.4rem; }
+.trip-suggest button { padding: 0.2rem 0.6rem; border-radius: 999px; background: #ecfdf5; color: #047857; font-size: 0.72rem; font-weight: 700; }
+.trip-block-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.5rem; }
+.trip-block-head h4 { margin: 0 !important; }
+.trip-add { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.3rem 0.7rem; border-radius: 9px; border: 1px solid #6ee7b7; background: #ecfdf5; color: #047857; font-size: 0.75rem; font-weight: 800; }
+.trip-days { display: grid; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
+.trip-days li { position: relative; display: grid; gap: 0.35rem; padding: 0.65rem 0.65rem 0.65rem 2.4rem; border-radius: 12px; border: 1px solid #e2e8f0; background: #fff; }
+.trip-day-n { font-size: 0.72rem; font-weight: 800; color: #047857; }
+.trip-hotel { display: grid; grid-template-columns: 1fr 1.4fr 0.8fr 0.6fr auto; gap: 0.35rem; align-items: center; margin-bottom: 0.4rem; }
+@media (max-width: 640px) { .trip-hotel { grid-template-columns: 1fr 1fr; } }
+.trip-del { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; color: #be123c; background: #fff1f2; }
+.trip-days .trip-del { position: absolute; top: 0.55rem; left: 0.55rem; }
 .pkg-offer-rooms,
 .pkg-offer-annexes {
   display: grid;
@@ -9593,7 +9669,85 @@ body.modal-open .sakhr-panel-shell {
   font-size: 0.78rem;
   font-weight: 700;
 }
+/* Archive: accepted vs refused at a glance (stripe on the reading side, tinted avatar, muted amount). */
+.pipe-row.is-accepted,
+.pipe-row.is-refused { position: relative; }
+.pipe-row.is-accepted::before,
+.pipe-row.is-refused::before {
+  content: '';
+  position: absolute;
+  inset-block: 0.55rem;
+  inset-inline-start: 0;
+  width: 4px;
+  border-radius: 999px;
+  background: #10b981;
+}
+.pipe-row.is-refused::before { background: #f43f5e; }
+.pipe-row.is-refused .pipe-row-head { background: linear-gradient(to left, rgba(254, 242, 242, 0.85), transparent 55%); }
+.pipe-row.is-accepted .pipe-row-head { background: linear-gradient(to left, rgba(236, 253, 245, 0.75), transparent 55%); }
+.pipe-row.is-refused .pipe-row-head:hover { background: #fef2f2; }
+.pipe-row.is-accepted .pipe-row-head:hover { background: #ecfdf5; }
+.pipe-row.is-accepted .pipe-row-avatar { background: #d1fae5; color: #047857; }
+.pipe-row.is-refused .pipe-row-avatar { background: #ffe4e6; color: #be123c; }
+.pipe-row.is-accepted .pipe-row-avatar svg,
+.pipe-row.is-refused .pipe-row-avatar svg { width: 1.05rem; height: 1.05rem; }
+.pipe-row.is-refused .pipe-row-amount { color: #9f1239; opacity: 0.7; text-decoration: line-through; text-decoration-thickness: 1.5px; }
+.pipe-row.is-refused .pipe-row-head .text-slate-900 { color: #881337; }
+.pipe-outcomes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid #f1f5f9;
+  list-style: none;
+}
+.pipe-outcomes button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: 32px;
+  padding: 0 0.8rem;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #475569;
+  font-size: 0.75rem;
+  font-weight: 800;
+  transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.2s;
+}
+.pipe-outcomes button:hover { transform: translateY(-1px); }
+.pipe-outcomes button svg { width: 0.95rem; height: 0.95rem; }
+.pipe-outcomes button b { min-width: 1.35rem; padding: 0 0.35rem; border-radius: 999px; background: #f1f5f9; font-size: 0.7rem; text-align: center; }
+.pipe-outcomes button.is-accepted { color: #047857; }
+.pipe-outcomes button.is-refused { color: #be123c; }
+.pipe-outcomes button.is-on { background: #0f172a; border-color: #0f172a; color: #fff; }
+.pipe-outcomes button.is-accepted.is-on { background: #059669; border-color: #059669; }
+.pipe-outcomes button.is-refused.is-on { background: #e11d48; border-color: #e11d48; }
+.pipe-outcomes button.is-on b { background: rgba(255, 255, 255, 0.22); color: #fff; }
 .pipe-empty { padding: 2rem 1rem; text-align: center; font-size: 0.85rem; color: #94a3b8; }
+.pipe-kinds { display: flex; gap: 0.45rem; overflow-x: auto; padding-bottom: 0.15rem; scrollbar-width: none; }
+.pipe-kinds::-webkit-scrollbar { display: none; }
+.pipe-kinds button {
+  flex: none; display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.45rem 0.8rem;
+  border-radius: 999px; border: 1px solid #e2e8f0; background: #fff; color: #334155;
+  font-size: 0.78rem; font-weight: 800; transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+.pipe-kinds button svg { width: 0.95rem; height: 0.95rem; }
+.pipe-kinds button b { min-width: 1.35rem; padding: 0 0.35rem; border-radius: 999px; background: #f1f5f9; font-size: 0.7rem; text-align: center; }
+.pipe-kinds button:hover { border-color: #a7f3d0; }
+.pipe-kinds button.is-on { background: #0f172a; border-color: #0f172a; color: #fff; }
+.pipe-kinds button.is-umrah.is-on, .pipe-kinds button.is-hajj.is-on { background: #047857; border-color: #047857; }
+.pipe-kinds button.is-trip.is-on { background: #0369a1; border-color: #0369a1; }
+.pipe-kinds button.is-hotel.is-on { background: #7c3aed; border-color: #7c3aed; }
+.pipe-kinds button.is-on b { background: rgba(255, 255, 255, 0.22); color: #fff; }
+.pipe-kind {
+  flex-shrink: 0; display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.15rem 0.5rem;
+  border-radius: 999px; font-size: 0.68rem; font-weight: 800; border: 1px solid transparent;
+}
+.pipe-kind svg { width: 0.8rem; height: 0.8rem; }
+.pipe-kind.is-umrah, .pipe-kind.is-hajj { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+.pipe-kind.is-trip { background: #f0f9ff; color: #0369a1; border-color: #bae6fd; }
+.pipe-kind.is-hotel { background: #f5f3ff; color: #6d28d9; border-color: #ddd6fe; }
 @media (max-width: 639px) {
   .pipe-steps { grid-template-columns: 1fr; }
   .pipe-tag { display: none; }
@@ -9854,3 +10008,11 @@ body.modal-open .sakhr-panel-shell {
 @media (min-width: 768px) and (max-width: 1023px) {
   .ss-footer-cols.has-qr { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Sign-in opened for Google (e.g. by Sakhr): the Google button glows until tapped. */
+.login-google-focus > :first-child { border-radius: 14px; animation: login-google-glow 1.8s ease-in-out infinite; }
+@keyframes login-google-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(66, 133, 244, 0); }
+  50% { box-shadow: 0 0 0 5px rgba(66, 133, 244, .28); }
+}
+@media (prefers-reduced-motion: reduce) { .login-google-focus > :first-child { animation: none; box-shadow: 0 0 0 3px rgba(66, 133, 244, .3); } }

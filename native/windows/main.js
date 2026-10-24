@@ -20,6 +20,10 @@ const fs = require('node:fs');
 const { spawn } = require('node:child_process');
 
 const ORIGIN = process.env.SS_CONNECT_ORIGIN || 'https://southstreet.1zayd1.tech';
+const updates = require('./updates');
+const { pathToFileURL } = require('url');
+/** Ringtones: resources/sounds in the installed app (outside app.asar), assets/ while developing. */
+const SOUNDS = app.isPackaged ? path.join(process.resourcesPath, 'sounds') : path.join(__dirname, 'assets');
 const START_URL = `${ORIGIN}/connect`;
 const ICON = path.join(__dirname, 'assets', 'icon.png');
 
@@ -77,7 +81,8 @@ if (!app.requestSingleInstanceLock()) {
 
   /* ---------------- self-update ---------------- */
 
-  const UPDATE_EVERY_MS = 6 * 60 * 60 * 1000;
+  // Often enough that a new version is usually downloaded before anyone asks for it.
+  const UPDATE_EVERY_MS = 2 * 60 * 60 * 1000;
   const attemptFile = () => path.join(app.getPath('userData'), 'update-attempt.json');
 
   /** "1.10.0" > "1.9.2" */
@@ -91,45 +96,78 @@ if (!app.requestSingleInstanceLock()) {
   };
 
   /**
-   * Looks for a newer version; [force]: asked from "التحقق من التحديثات".
-   * Returns { state: 'latest' | 'ready' | 'busy' | 'error', version }.
+   * Looks for a newer version; [force]: asked from "التحقق من التحديثات" — then it
+   * answers at once ("downloading") and the download goes on in the background
+   * (progress % in the page, then the "update ready" question).
+   * Returns { state: 'latest' | 'downloading' | 'ready' | 'busy' | 'error', version }.
    */
   async function checkForUpdate(force = false) {
     if (!app.isPackaged) return { state: 'latest', version: app.getVersion() };
-    if (updateChecking) return { state: 'busy', version: '' };
     if (update) {
       void installWhenQuiet();
       return { state: 'ready', version: update.version };
     }
-    updateChecking = true;
+    if (updateChecking) return { state: 'downloading', version: updateChecking };
+    let latest;
     try {
       const res = await net.fetch(`${ORIGIN}/api/connect/app-version`, { cache: 'no-store' });
-      const latest = (await res.json()).windows;
-      if (!latest || !isNewer(latest.version, app.getVersion())) return { state: 'latest', version: app.getVersion() };
-      // An installer that did not lead to the new version is not retried for a day (unless asked).
-      try {
-        const last = JSON.parse(fs.readFileSync(attemptFile(), 'utf8'));
-        if (!force && last.version === latest.version && Date.now() - last.ts < 24 * 60 * 60 * 1000) return { state: 'error', version: latest.version };
-      } catch {
-        /* no earlier attempt */
-      }
-      const file = path.join(app.getPath('temp'), `SouthStreetConnect-Setup-${latest.version}.exe`);
-      if (!fs.existsSync(file)) {
-        // Signed-in download (the app is only for account holders): net.fetch uses the app's cookies.
-        const dl = await net.fetch(new URL(latest.url, ORIGIN).href, { cache: 'no-store' });
-        if (!dl.ok) return { state: 'error', version: latest.version };
-        const part = `${file}.part`;
-        fs.writeFileSync(part, Buffer.from(await dl.arrayBuffer()));
-        fs.renameSync(part, file);
-      }
-      update = { version: latest.version, file };
-      void installWhenQuiet();
-      return { state: 'ready', version: latest.version };
+      latest = (await res.json()).windows;
     } catch {
       return { state: 'error', version: '' }; // offline: next check
-    } finally {
-      updateChecking = false;
     }
+    if (!latest || !isNewer(latest.version, app.getVersion())) return { state: 'latest', version: app.getVersion() };
+    // An update that did not lead to the new version is not retried for a day (unless asked).
+    try {
+      const last = JSON.parse(fs.readFileSync(attemptFile(), 'utf8'));
+      if (!force && last.version === latest.version && Date.now() - last.ts < 24 * 60 * 60 * 1000) return { state: 'error', version: latest.version };
+    } catch {
+      /* no earlier attempt */
+    }
+    updateChecking = latest.version;
+    const job = fetchUpdate(latest)
+      .then((u) => {
+        if (u) {
+          update = u;
+          void installWhenQuiet();
+        }
+        return u;
+      })
+      .catch(() => null)
+      .finally(() => {
+        updateChecking = false;
+      });
+    if (force) return { state: 'downloading', version: latest.version };
+    const u = await job;
+    return u ? { state: 'ready', version: u.version } : { state: 'error', version: latest.version };
+  }
+
+  const progress = (version) => (pct) => {
+    if (main && !main.isDestroyed()) main.webContents.send('ss:update-progress', { version, pct });
+  };
+
+  /**
+   * Light update when only the app's own files changed (same Electron runtime):
+   * ~100–200 KB, checked by SHA-256. Otherwise the full installer.
+   */
+  async function fetchUpdate(latest) {
+    const light = latest.app && latest.app.version === latest.version && latest.app.electron === process.versions.electron && latest.app.sha256;
+    if (light) {
+      const file = path.join(app.getPath('temp'), `SouthStreetConnect-app-${latest.version}.asar`);
+      if (fs.existsSync(file) && updates.sha256(file) === latest.app.sha256) return { version: latest.version, file, kind: 'app' };
+      // Signed-in download (the app is only for account holders): net.fetch uses the app's cookies.
+      const dl = await net.fetch(new URL(latest.app.url, ORIGIN).href, { cache: 'no-store' });
+      if (dl.ok && dl.body && (await updates.saveDownload(dl, `${file}.gz`, progress(latest.version))) && updates.unpackApp(`${file}.gz`, file, latest.app.sha256)) {
+        return { version: latest.version, file, kind: 'app' };
+      }
+      // The light package did not work out: fall back to the full installer.
+    }
+    const file = path.join(app.getPath('temp'), `SouthStreetConnect-Setup-${latest.version}.exe`);
+    if (!fs.existsSync(file)) {
+      const dl = await net.fetch(new URL(latest.url, ORIGIN).href, { cache: 'no-store' });
+      if (!dl.ok || !dl.body) return null;
+      if (!(await updates.saveDownload(dl, file, progress(latest.version)))) return null;
+    }
+    return { version: latest.version, file, kind: 'installer' };
   }
 
   /** In the tray: install at once. Window open: ask once. In a call: wait for it to end. */
@@ -155,8 +193,15 @@ if (!app.requestSingleInstanceLock()) {
   function runInstaller() {
     try {
       fs.writeFileSync(attemptFile(), JSON.stringify({ version: update.version, ts: Date.now() }));
-      // Silent install, then the installer starts the new version (--force-run).
-      spawn(update.file, ['/S', '--force-run'], { detached: true, stdio: 'ignore' }).unref();
+      if (update.kind === 'app') {
+        // Light update: a tiny script swaps the app files once this app has closed, then starts it again.
+        const script = path.join(app.getPath('temp'), 'SouthStreetConnect-apply-update.cmd');
+        fs.writeFileSync(script, updates.applyScript({ pid: process.pid, newFile: update.file, target: path.join(process.resourcesPath, 'app.asar'), exe: process.execPath }), 'utf8');
+        spawn('cmd.exe', ['/d', '/c', script], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+      } else {
+        // Silent install, then the installer starts the new version (--force-run).
+        spawn(update.file, ['/S', '--force-run'], { detached: true, stdio: 'ignore' }).unref();
+      }
       quitting = true;
       app.quit();
     } catch {
@@ -295,7 +340,13 @@ if (!app.requestSingleInstanceLock()) {
       roundedCorners: true,
       hasShadow: true,
       icon: ICON,
-      webPreferences: { preload: path.join(__dirname, 'call-preload.js'), contextIsolation: true, sandbox: false },
+      webPreferences: {
+        preload: path.join(__dirname, 'call-preload.js'),
+        contextIsolation: true,
+        sandbox: false,
+        // Where the ringtones are (outside the app files, so light updates stay small).
+        additionalArguments: [`--ss-sounds=${pathToFileURL(SOUNDS).href}`],
+      },
     });
     card.loadFile(path.join(__dirname, 'call.html'));
     card.webContents.on('did-finish-load', () => call && card.webContents.send('call', call));

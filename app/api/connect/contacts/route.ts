@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { connectSession } from '@/lib/connect/session';
 import { callHistory, contactsFor, userById } from '@/lib/connect/store';
+import { groupsFor } from '@/lib/connect/groups';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,5 +25,5 @@ export async function GET(req: Request) {
         seconds: c.answeredTs && c.endedTs ? Math.round((c.endedTs - c.answeredTs) / 1000) : 0,
       };
     });
-  return NextResponse.json({ contacts, calls }, { headers: { 'Cache-Control': 'no-store' } });
+  return NextResponse.json({ contacts, calls, groups: groupsFor(s.me) }, { headers: { 'Cache-Control': 'no-store' } });
 }

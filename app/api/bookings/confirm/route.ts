@@ -12,6 +12,7 @@ import {
   rejectReservationByAgency,
 } from '@/lib/booking';
 import { notifyBookingConfirmed } from '@/lib/notifications';
+import { sweepBookingLifecycle } from '@/lib/booking-lifecycle';
 
 import { requireSession } from '@/lib/staff-gate';
 
@@ -21,8 +22,9 @@ const AGENCY_VIEW_ROLES = new Set(['SUPER_ADMIN', 'AGENCY_MANAGER', 'AGENCY_AGEN
 // Stage 1 (accept / reject a demand) belongs to the director only.
 const AGENCY_ACT_ROLES = new Set(['SUPER_ADMIN', 'AGENCY_MANAGER']);
 // Stage 2 (record the deposit) belongs to the accountant — separation of duties:
-// whoever approves a demand is not the one booking its money.
-const DEPOSIT_ROLES = new Set(['SUPER_ADMIN', 'ACCOUNTANT']);
+// whoever approves a demand is not the one booking its money. The Super Admin
+// only has the audited override (reason + security key), see lib/finance-approvals.
+const DEPOSIT_ROLES = new Set(['ACCOUNTANT']);
 const MAX_NOTE = 500;
 
 function requireAgencyStaff(req: NextRequest, acting = false) {
@@ -44,6 +46,7 @@ function requireAgencyStaff(req: NextRequest, acting = false) {
 export async function GET(req: NextRequest) {
   const gate = requireAgencyStaff(req);
   if ('error' in gate) return gate.error;
+  sweepBookingLifecycle();
   const demands = listAgencyDemandQueue();
   const awaitingDeposit = listAwaitingDepositReservations();
   const recent = listRecentAgencyReservations();
@@ -57,6 +60,7 @@ export async function GET(req: NextRequest) {
       role: gate.role,
       canApprove: AGENCY_ACT_ROLES.has(gate.role),
       canCollectDeposit: DEPOSIT_ROLES.has(gate.role),
+      canOverride: gate.role === 'SUPER_ADMIN',
     },
   });
 }

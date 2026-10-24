@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { motion, useReducedMotion, useScroll, useSpring } from 'framer-motion';
 import { ArrowLeft, ArrowUp, Phone } from 'lucide-react';
 import KaabaIcon from '@/components/icons/KaabaIcon';
+import { AGENCY_PHONE, AGENCY_PHONE_TEL } from '@/lib/agency-contact';
 
 /** Thin brand-coloured bar under the navbar showing how far down the page you are. */
 export function ScrollProgress() {
@@ -61,9 +62,9 @@ export function HomeCta() {
             تصفّح البرامج
             <ArrowLeft className="w-4 h-4" aria-hidden />
           </Link>
-          <a href="tel:+21321554433" className="home-cta-btn">
+          <a href={`tel:${AGENCY_PHONE_TEL}`} className="home-cta-btn">
             <Phone className="w-4 h-4" aria-hidden />
-            <span dir="ltr">+213 21 55 44 33</span>
+            <span dir="ltr">{AGENCY_PHONE}</span>
           </a>
         </div>
       </motion.div>

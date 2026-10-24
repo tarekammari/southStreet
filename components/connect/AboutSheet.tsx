@@ -1,15 +1,18 @@
 'use client';
 
-import { useState } from 'react';
-import { BellRing, CheckCircle2, Download, Loader2, RefreshCw, X, XCircle } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { BellRing, CheckCircle2, Download, EyeOff, Loader2, RefreshCw, X, XCircle } from 'lucide-react';
+import { relayOnly, saveRelayOnly } from '@/lib/connect/device-prefs';
 import { jsonAuthHeaders } from '@/lib/api-client';
 import { versionLabel } from '@/lib/connect/version';
-import { checkAppUpdate, downloadNewApp, nativePlatform, nativeVersion, type UpdateCheck } from '@/lib/connect/native-bridge';
+import RingtonePicker from './RingtonePicker';
+import { checkAppUpdate, downloadNewApp, nativePlatform, nativeVersion, onUpdateProgress, type UpdateCheck } from '@/lib/connect/native-bridge';
 
 const APP_VERSION = process.env.APP_VERSION || '';
 
 const UPDATE_NOTE: Record<UpdateCheck['state'], string> = {
   latest: 'لديك أحدث إصدار ✓',
+  downloading: 'يُنزَّل التحديث في الخلفية — يمكنك متابعة عملك، وسيُعرض عليك التثبيت عند جاهزيته',
   ready: 'تحديث جديد جاهز — وافق على «تحديث الآن» ثم «تثبيت»',
   busy: 'جارٍ البحث عن تحديث…',
   error: 'تعذّر التحقق الآن — تأكد من الاتصال وحاول مرة أخرى',
@@ -19,9 +22,11 @@ const UPDATE_NOTE: Record<UpdateCheck['state'], string> = {
 
 type Check = { label: string; ok: boolean; hint?: string };
 
-/** "حول التطبيق": versions, check for updates, what works on this device, and a ringing test. */
+/** "حول التطبيق": versions, check for updates, the ringtone, what works on this device, and a ringing test. */
 export default function AboutSheet({
   onClose,
+  busy,
+  relay,
   live,
   serverPush,
   pushState,
@@ -29,6 +34,10 @@ export default function AboutSheet({
   onApplyWebUpdate,
 }: {
   onClose: () => void;
+  /** A call is ringing or in progress (no ringtone previews over it). */
+  busy: boolean;
+  /** The call relay (TURN) is set up on the server. */
+  relay: boolean;
   live: boolean;
   serverPush: boolean;
   pushState: 'unknown' | 'on' | 'off' | 'unsupported';
@@ -40,6 +49,11 @@ export default function AboutSheet({
   const [error, setError] = useState('');
   const [checking, setChecking] = useState(false);
   const [update, setUpdate] = useState<UpdateCheck | null>(null);
+  const [hideIp, setHideIp] = useState(false);
+  useEffect(() => setHideIp(relayOnly()), []);
+  // Windows: the new version downloading in the background (%).
+  const [progress, setProgress] = useState<{ version: string; pct: number } | null>(null);
+  useEffect(() => onUpdateProgress((p) => setProgress(p.pct >= 100 ? null : p)), []);
   const platform = nativePlatform();
   const shell = nativeVersion();
   const appLabel = platform ? `${platform === 'android' ? 'أندرويد' : 'ويندوز'} ${shell || 'قديم'}` : 'تطبيق الويب';
@@ -56,6 +70,7 @@ export default function AboutSheet({
   const checks: Check[] = [
     { label: 'الاتصال المباشر', ok: live, hint: 'الرسائل والمكالمات تصل فورًا. إن لم يعمل يُستعمل التحديث الدوري.' },
     { label: 'الرنين على الخادم', ok: serverPush, hint: 'مفاتيح الإشعارات (VAPID) غير مضافة على الخادم.' },
+    { label: 'خادم وصل المكالمات', ok: relay, hint: 'بدونه قد لا تتصل المكالمات بين شبكتي هاتف (4G).' },
     {
       label: 'الإشعارات على هذا الجهاز',
       ok: pushState === 'on',
@@ -97,6 +112,12 @@ export default function AboutSheet({
         <button type="button" className="cn-sheet-btn" disabled={checking} onClick={() => void checkUpdates()}>
           {checking ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />} التحقق من التحديثات
         </button>
+        {progress ? (
+          <div className="cn-update-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress.pct} aria-label="تنزيل التحديث">
+            <span>جارٍ تنزيل الإصدار <bdi dir="ltr">{progress.version}</bdi>… <bdi dir="ltr">{progress.pct}%</bdi></span>
+            <i style={{ width: `${progress.pct}%` }} />
+          </div>
+        ) : null}
         {update ? (
           <p className={`cn-sheet-note${update.state === 'error' || update.state === 'old-app' ? ' is-error' : ''}`}>
             {UPDATE_NOTE[update.state]}
@@ -107,6 +128,26 @@ export default function AboutSheet({
           <button type="button" className="cn-sheet-btn is-main" onClick={() => void downloadNewApp()}>
             <Download className="w-5 h-5" /> تنزيل الإصدار الجديد
           </button>
+        ) : null}
+
+        <RingtonePicker busy={busy} />
+
+        {relay ? (
+          <label className="cn-switch">
+            <EyeOff className="w-5 h-5" />
+            <span>
+              <b>إخفاء عنواني في المكالمات</b>
+              <small>تمرّ المكالمات عبر خادم الوصل فقط، فلا يرى الطرف الآخر عنوان IP جهازك. الصوت يبقى مشفّرًا بين الهاتفين.</small>
+            </span>
+            <input
+              type="checkbox"
+              checked={hideIp}
+              onChange={(e) => {
+                setHideIp(e.target.checked);
+                saveRelayOnly(e.target.checked);
+              }}
+            />
+          </label>
         ) : null}
 
         <ul className="cn-checks">

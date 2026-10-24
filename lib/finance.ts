@@ -52,6 +52,26 @@ export type LedgerDirection = 'in' | 'out';
 export type PaymentMethod = 'CASH' | 'CCP' | 'BANK_TRANSFER' | 'CHECK' | 'OTHER';
 export type ServiceFrequency = 'MONTHLY' | 'QUARTERLY' | 'YEARLY' | 'ONE_OFF';
 
+/** Names of programs marked as tourist trips (cached briefly; reports call this per row). */
+let tourismCache: { at: number; names: Set<string> } | null = null;
+function tourismProgramNames(): Set<string> {
+  if (tourismCache && Date.now() - tourismCache.at < 30_000) return tourismCache.names;
+  let names = new Set<string>();
+  try {
+    const rows = getSqliteDb().prepare("SELECT name FROM packages WHERE trip_type = 'TOURISM'").all() as { name: string }[];
+    names = new Set(rows.map((r) => String(r.name || '').trim()).filter(Boolean));
+  } catch {
+    /* older database without trip_type */
+  }
+  tourismCache = { at: Date.now(), names };
+  return names;
+}
+
+/** Trip line of a program name: tourism (programs table or destination words), Hajj, Umrah. */
+function tripTypeOf(packageName?: string | null) {
+  return classifyTripType(packageName, tourismProgramNames());
+}
+
 export function newId(prefix: string) {
   return `${prefix}_${Date.now().toString(36)}_${randomUUID().slice(0, 8)}`;
 }
@@ -2126,7 +2146,7 @@ export function collectibleReservations() {
   const credits = new Map(clientAccountBalances().map((c) => [c.key, c.available]));
 
   return rows
-    .filter((r) => !['CANCELLED', 'REJECTED'].includes(String(r.reservation_status || '').toUpperCase()))
+    .filter((r) => !['CANCELLED', 'REJECTED', 'EXPIRED'].includes(String(r.reservation_status || '').toUpperCase()))
     .map((r) => {
       const total = Number(r.total_price) || 0;
       const paid = Number(r.paid_amount) || 0;
@@ -2146,7 +2166,7 @@ export function collectibleReservations() {
         customer_code: r.customer_id || '',
         customer_avatar: resolveClientAvatar(r.customer_id, r.customer_name),
         package_name: r.package_name || '',
-        trip_type: classifyTripType(r.package_name),
+        trip_type: tripTypeOf(r.package_name),
         status,
         deposit_due: depositDue,
         awaiting_deposit,
@@ -3492,7 +3512,7 @@ export function receiptsIncomeForPeriod(from: string, to: string, tripType?: Tri
   const all = db.prepare('SELECT * FROM receipts').all() as any[];
   let rows = all.filter((r) => inRange(String(r.date || '').slice(0, 10), from, to));
   if (tripType) {
-    rows = rows.filter((r) => classifyTripType(String(r.packageName || '')) === tripType);
+    rows = rows.filter((r) => tripTypeOf(String(r.packageName || '')) === tripType);
   }
 
   const contractCtx = buildReceiptContractContext(listClientPayments(), collectibleReservations());
@@ -4072,14 +4092,14 @@ export function financeRecap(opts?: { from?: string; to?: string; tripType?: str
     id: t.id,
     label: t.label,
     amount: receiptsInPeriod
-      .filter((r) => classifyTripType(r.packageName) === t.id)
+      .filter((r) => tripTypeOf(r.packageName) === t.id)
       .reduce((s, r) => s + (Number(r.paidAmount) || 0), 0),
   }));
 
   const reservations = db.prepare('SELECT * FROM reservations').all() as any[];
   const isLiveReservation = (r: any) => {
     const status = String(r.reservation_status || '').toUpperCase();
-    return status !== 'CANCELLED' && status !== 'REJECTED';
+    return status !== 'CANCELLED' && status !== 'REJECTED' && status !== 'EXPIRED';
   };
   const allAgencyReservations = reservations.filter(isLiveReservation);
   // Client debt = unpaid balance on live reservations (bookings in selected period).
@@ -4092,7 +4112,7 @@ export function financeRecap(opts?: { from?: string; to?: string; tripType?: str
     id: t.id,
     label: t.label,
     amount: liveReservations
-      .filter((r) => classifyTripType(r.package_name) === t.id)
+      .filter((r) => tripTypeOf(r.package_name) === t.id)
       .reduce((s, r) => s + clientDebtRow(r), 0),
   }));
 
@@ -4103,7 +4123,7 @@ export function financeRecap(opts?: { from?: string; to?: string; tripType?: str
       reference: r.reservation_number || '',
       name: r.customer_name || '',
       package_name: r.package_name || '',
-      trip_type: classifyTripType(r.package_name),
+      trip_type: tripTypeOf(r.package_name),
       total: Number(r.total_price) || 0,
       paid: Number(r.paid_amount) || 0,
       remaining: clientDebtRow(r),
@@ -4223,7 +4243,7 @@ export function financeRecap(opts?: { from?: string; to?: string; tripType?: str
     /** Positive means clients owe the agency more than it owes its suppliers. */
     receivables_net: clientReceivables - supplierDebt,
     reservations_count: tripType
-      ? liveReservations.filter((r) => classifyTripType(r.package_name) === tripType).length
+      ? liveReservations.filter((r) => tripTypeOf(r.package_name) === tripType).length
       : liveReservations.length,
     collected_by_type: collectedByType,
     client_debt_by_type: clientDebtByType,

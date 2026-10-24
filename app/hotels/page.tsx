@@ -10,12 +10,12 @@ import { ArrowLeft, MapPin, Star } from 'lucide-react';
 import Link from 'next/link';
 import HotelGalleryDialog from '@/components/hotels/HotelGalleryDialog';
 import { publicList } from '@/lib/public-catalog';
+import { HOTEL_COUNTRIES, hotelCityLabel, hotelCountryOf } from '@/lib/tour';
+import HotelSearchBar from '@/components/hotels/HotelSearchBar';
+import PopularDestinations from '@/components/hotels/PopularDestinations';
 
 const FALLBACK = 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=900&auto=format&fit=crop';
 
-function cityWord(city: string) {
-  return city === 'MAKKAH' ? 'مكة' : city === 'MADINAH' ? 'المدينة' : city;
-}
 
 function starMark(category: string) {
   if (category === 'VIP') return 'VIP';
@@ -23,14 +23,15 @@ function starMark(category: string) {
   return digit ? digit[1] : '';
 }
 
-type PlaceFilter = 'ALL' | 'MAKKAH' | 'MADINAH';
 type ClassFilter = 'ALL' | 'VIP' | 'ECONOMY';
 
 export default function HotelsPage() {
   const [hotels, setHotels] = useState<Hotel[]>([]);
   const [loading, setLoading] = useState(true);
   const [openHotel, setOpenHotel] = useState<Hotel | null>(null);
-  const [place, setPlace] = useState<PlaceFilter>('ALL');
+  // Country first (السعودية, تركيا…), then its cities.
+  const [country, setCountry] = useState('ALL');
+  const [place, setPlace] = useState('ALL');
   const [tier, setTier] = useState<ClassFilter>('ALL');
   const reduce = useReducedMotion();
   const ease = [0.22, 1, 0.36, 1] as const;
@@ -44,7 +45,15 @@ export default function HotelsPage() {
       .catch(() => setLoading(false));
   }, []);
 
-  const visible = hotels.filter((htl) => {
+  const countries = HOTEL_COUNTRIES.map((c) => ({
+    ...c,
+    n: hotels.filter((h) => hotelCountryOf(h.city) === c.id).length,
+  })).filter((c) => c.n > 0);
+  const others = hotels.filter((h) => !hotelCountryOf(h.city)).length;
+  const inCountry = hotels.filter((h) => country === 'ALL' || (hotelCountryOf(h.city) || 'OTHER') === country);
+  const cities = [...new Set(inCountry.map((h) => h.city))];
+
+  const visible = inCountry.filter((htl) => {
     if (place !== 'ALL' && htl.city !== place) return false;
     if (tier === 'VIP' && htl.category !== 'VIP') return false;
     if (tier === 'ECONOMY' && String(htl.category) !== 'ECONOMY') return false;
@@ -56,15 +65,36 @@ export default function HotelsPage() {
       <Navbar variant="light" />
 
       <main className="page-main pb-16 max-w-7xl mx-auto px-4 sm:px-6">
-        <h1 className="hotel-page-title">فنادق الحرمين الشريفين</h1>
+        <section className="hhero" aria-labelledby="hhero-title">
+          <h1 id="hhero-title">احجز فندقك بسهولة</h1>
+          <p>ابحث بالبلد أو المدينة أو اسم الفندق، قارن الغرف والأسعار للإقامة كاملة بالدينار، وأرسل طلبك — تؤكده الوكالة مع الفندق.</p>
+          <HotelSearchBar />
+        </section>
+        <PopularDestinations hotels={hotels} />
+        <h2 className="hotel-page-title">
+          {country === 'SA' ? 'فنادق الحرمين الشريفين' : country === 'ALL' ? 'فنادقنا في الحرمين وحول العالم' : `فنادق ${countries.find((c) => c.id === country)?.label || ''}`}
+        </h2>
+        {countries.length + (others ? 1 : 0) > 1 ? (
+          <div className="hotel-countries" role="tablist" aria-label="البلد">
+            <button type="button" role="tab" aria-selected={country === 'ALL'} onClick={() => { setCountry('ALL'); setPlace('ALL'); }}>
+              كل البلدان <span>{hotels.length}</span>
+            </button>
+            {countries.map((c) => (
+              <button key={c.id} type="button" role="tab" aria-selected={country === c.id} onClick={() => { setCountry(c.id); setPlace('ALL'); }}>
+                <i style={{ background: c.color }} aria-hidden /> {c.label} <span>{c.n}</span>
+              </button>
+            ))}
+            {others ? (
+              <button type="button" role="tab" aria-selected={country === 'OTHER'} onClick={() => { setCountry('OTHER'); setPlace('ALL'); }}>
+                بلدان أخرى <span>{others}</span>
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         <section className="hotel-stage">
           <div className="hotel-filter-row">
-            <div className="hotel-filter-side is-places" role="group" aria-label="المكان">
-              {([
-                ['ALL', 'الكل'],
-                ['MAKKAH', 'مكة'],
-                ['MADINAH', 'المدينة'],
-              ] as const).map(([id, label]) => (
+            <div className="hotel-filter-side is-places" role="group" aria-label="المدينة">
+              {(cities.length > 1 ? ['ALL', ...cities] : ['ALL']).map((id) => (
                 <button
                   key={id}
                   type="button"
@@ -72,7 +102,7 @@ export default function HotelsPage() {
                   aria-pressed={place === id}
                   onClick={() => setPlace(id)}
                 >
-                  {label}
+                  {id === 'ALL' ? 'كل المدن' : hotelCityLabel(id)}
                 </button>
               ))}
             </div>
@@ -129,7 +159,12 @@ export default function HotelsPage() {
                       <img src={htl.images?.[0] || FALLBACK} alt={htl.name} />
                       <div className="hotel-shot-shade" />
                       <div className="hotel-shot-top">
-                        <span className="hotel-shot-city">{cityWord(htl.city)}</span>
+                        <span className="hotel-shot-city">
+                          {hotelCityLabel(htl.city)}
+                          {country === 'ALL' && hotelCountryOf(htl.city) && hotelCountryOf(htl.city) !== 'SA'
+                            ? ` · ${HOTEL_COUNTRIES.find((c) => c.id === hotelCountryOf(htl.city))?.label}`
+                            : ''}
+                        </span>
                         {mark ? (
                           <span className={`hotel-shot-rate${mark === 'VIP' ? ' is-vip' : ''}`}>
                             <Star />

@@ -1,6 +1,6 @@
 import { after, NextResponse } from 'next/server';
 import { connectSession } from '@/lib/connect/session';
-import { pushTargets, savePush } from '@/lib/connect/store';
+import { pushTargets, removePush, savePush } from '@/lib/connect/store';
 import { pushReady, pushTo } from '@/lib/connect/push';
 
 export const dynamic = 'force-dynamic';
@@ -35,6 +35,19 @@ export async function POST(req: Request) {
 
   try {
     savePush(s.me.id, body.subscription);
+    return NextResponse.json({ success: true });
+  } catch {
+    return NextResponse.json({ error: 'اشتراك غير صالح' }, { status: 400 });
+  }
+}
+
+/** DELETE {subscription} — this device signed out: no more notifications for this account here. */
+export async function DELETE(req: Request) {
+  const s = connectSession(req);
+  if ('error' in s) return s.error;
+  const body = await req.json().catch(() => ({}));
+  try {
+    removePush(s.me.id, body.subscription);
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: 'اشتراك غير صالح' }, { status: 400 });

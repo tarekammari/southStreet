@@ -4,6 +4,7 @@
  * Always labels the source clearly.
  */
 
+import { AGENCY_PHONE } from './agency-contact';
 import { toolGetAgencySettings } from './ai-tools';
 import {
   sanitizeSakhrReply,
@@ -91,7 +92,7 @@ function buildSystemInstruction(agency: { agency_name?: string; phone?: string }
     '1. استخدم معرفتك في أحكام العمرة والحج والفقه والسفر.\n' +
     '2. لا تخترع أسعاراً أو باقات محددة.\n' +
     '3. للسياسات الخاصة بالوكالة، اقترح التواصل: ' +
-    (agency.phone || '+213 21 55 44 33') +
+    (agency.phone || AGENCY_PHONE) +
     '.\n' +
     '4. كن مختصراً ومفيداً.' +
     buildGroundedSystemExtras()
@@ -400,7 +401,7 @@ export async function callExternalAI(
         'عذراً، لم أتمكن من جلب إجابة من الخدمات الخارجية الآن.\n\n' +
         'جرّب سؤالاً عن العمرة/الحج أو بيانات الوكالة، أو أعد المحاولة بعد لحظات.\n\n' +
         'للاستفسار المباشر: ' +
-        (agency.phone || '+213 21 55 44 33') +
+        (agency.phone || AGENCY_PHONE) +
         '.'
       ),
       source: LOCAL_FAQ_SOURCE,
