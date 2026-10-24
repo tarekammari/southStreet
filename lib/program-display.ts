@@ -1,5 +1,7 @@
 import type { Package } from '@/types';
 import { isPackageExpired, parseTripDate } from '@/lib/booking-catalog';
+import { DESTINATIONS, destinationOf } from '@/lib/tour';
+import { cityPhoto, lightPhoto } from '@/lib/destination-photos';
 
 /** Shared presentation helpers for Umrah/Hajj programs (home rail + /packages catalog). */
 
@@ -86,6 +88,47 @@ function imageList(value: unknown): string[] {
 /** The main image_url first, then the gallery; either may also be a list of links. */
 export function programImages(pkg: Pick<Package, 'image_url'> & { images?: unknown }): string[] {
   return Array.from(new Set([...imageList(pkg.image_url), ...imageList(pkg.images)]));
+}
+
+export type TripPhoto = { src: string; place: string };
+
+const fold = (v: string) => v.toLowerCase().replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي');
+
+/**
+ * A tourist trip's photos for the home hero: its own photos first, then — when
+ * it has fewer than `min` — the site's photos of its destination's cities, so a
+ * trip with a single picture still shows a full album. The destination is the
+ * one chosen in the trip details, else the country or city named in the trip.
+ */
+export function tripGallery(
+  pkg: Pick<Package, 'image_url' | 'name'> & { images?: unknown; description?: string; tour?: { country?: string; cities?: string[] } | null },
+  min = 5
+): TripPhoto[] {
+  const name = String(pkg.name || '');
+  const own = programImages(pkg).map((src) => ({ src, place: name }));
+  if (own.length >= min) return own;
+
+  const text = fold(`${name} ${pkg.description || ''} ${(pkg.tour?.cities || []).join(' ')}`);
+  const dest = destinationOf(pkg.tour?.country)
+    || DESTINATIONS.find((d) => [d.label, ...d.keywords, ...d.cities].some((w) => text.includes(fold(w))));
+  if (!dest) return own;
+
+  // Cities the trip names come first, then the rest of the country.
+  const named = dest.cities.filter((c) => (pkg.tour?.cities || []).includes(c) || text.includes(fold(c)));
+  const cities = [...named, ...dest.cities.filter((c) => !named.includes(c))];
+  const extra: TripPhoto[] = cities
+    .map((c) => ({ src: lightPhoto(cityPhoto(c), 'lg'), place: c }))
+    .filter((p) => p.src);
+  const seen = new Set(own.map((p) => p.src));
+  const out = [...own];
+  for (const p of extra) {
+    if (out.length >= min) break;
+    if (!seen.has(p.src)) {
+      seen.add(p.src);
+      out.push(p);
+    }
+  }
+  return out;
 }
 
 function isStockHotelPhoto(src?: string): boolean {

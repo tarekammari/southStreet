@@ -7,16 +7,10 @@ import { authHeaders } from '@/lib/api-client';
 import { publicList } from '@/lib/public-catalog';
 import { isClosedReservation } from '@/lib/booking-catalog';
 import { formatProgramDate, programAvailability, programKind, seatFillPercent, isBookable } from '@/lib/program-display';
+import { bookingKindOf, type BookingKind } from '@/lib/booking-progress';
 import type { Package, Reservation } from '@/types';
 
-export type BookingKind = 'umrah' | 'hajj' | 'trip' | 'hotel';
-
-export function bookingKindOf(res: Pick<Reservation, 'booking_kind' | 'trip_kind'>): BookingKind {
-  if (res.booking_kind === 'HOTEL') return 'hotel';
-  if (res.trip_kind === 'TOURISM') return 'trip';
-  if (res.trip_kind === 'HAJJ') return 'hajj';
-  return 'umrah';
-}
+export { bookingKindOf, type BookingKind };
 
 export const BOOKING_KIND_META: Record<BookingKind, { label: string; plural: string; icon: LucideIcon }> = {
   umrah: { label: 'عمرة', plural: 'العمرة', icon: MoonStar },

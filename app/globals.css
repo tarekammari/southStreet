@@ -508,6 +508,31 @@ body {
   border-color: #334155;
   background: #1e293b;
 }
+/* Bag: kind chip, mini steps, empty-state actions */
+.demand-bag-panel { width: min(340px, calc(100vw - 24px)); }
+.demand-bag-list { max-height: min(420px, 60vh); }
+.demand-bag-tags { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.demand-bag-kind {
+  display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px; border-radius: 999px;
+  font-size: 9px; font-weight: 800; border: 1px solid transparent;
+}
+.demand-bag-kind svg { width: 10px; height: 10px; }
+.demand-bag-kind.is-umrah, .demand-bag-kind.is-hajj { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+.demand-bag-kind.is-trip { background: #f0f9ff; color: #0369a1; border-color: #bae6fd; }
+.demand-bag-kind.is-hotel { background: #f5f3ff; color: #6d28d9; border-color: #ddd6fe; }
+.demand-bag-steps { margin: 0 0 8px; }
+.demand-bag-steps ol { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 0 0 4px; padding: 0; list-style: none; }
+.demand-bag-steps li { height: 4px; border-radius: 999px; background: #e2e8f0; }
+.demand-bag-steps li.is-done { background: #10b981; }
+.demand-bag-steps li.is-next { background: linear-gradient(90deg, #10b981 0%, #fbbf24 100%); animation: bagPulse 1.6s ease-in-out infinite; }
+.demand-bag-steps.is-closed li { background: #fecdd3; }
+.demand-bag-steps small { display: block; font-size: 10px; font-weight: 700; color: #475569; line-height: 1.5; }
+.demand-bag-steps.is-closed small { color: #be123c; }
+.demand-bag-panel-dark .demand-bag-steps small { color: #cbd5e1; }
+@keyframes bagPulse { 50% { opacity: 0.55; } }
+.demand-bag-empty p { margin: 0; line-height: 1.7; }
+.demand-bag-empty-acts { display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; }
+.demand-bag-cta.is-ghost { background: #f5f3ff; color: #6d28d9 !important; }
 
 /* â”€â”€ Apple-like home navbar + promo strip â”€â”€ */
 .nav-chrome-promo {
@@ -1106,7 +1131,8 @@ body {
 /* Segmented pill control */
 .pilgrim-seg {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   gap: 0.35rem;
   background: #f1f5f9;
   padding: 0.3rem;
@@ -10143,3 +10169,35 @@ body.modal-open .sakhr-panel-shell {
   50% { box-shadow: 0 0 0 5px rgba(66, 133, 244, .28); }
 }
 @media (prefers-reduced-motion: reduce) { .login-google-focus > :first-child { animation: none; box-shadow: 0 0 0 3px rgba(66, 133, 244, .3); } }
+
+/* Client «حجوزاتي» strip on top of «رحلتي» (components/booking/ClientBookingsStrip.tsx) */
+.cbs { max-width: 46rem; margin: 0 auto 1rem; }
+.cbs-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.6rem; margin-bottom: 0.55rem; }
+.cbs-head b { font-size: 0.95rem; font-weight: 900; color: #0f172a; }
+.cbs-head span { font-size: 0.72rem; color: #64748b; font-weight: 600; }
+.cbs-add { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.25rem 0.6rem; border-radius: 999px; border: 1px solid #e2e8f0; background: #fff; color: #334155; font-size: 0.7rem; font-weight: 800; text-decoration: none; }
+.cbs-add:first-of-type { margin-inline-start: auto; }
+.cbs-add svg { width: 0.8rem; height: 0.8rem; }
+.cbs-list { display: flex; gap: 0.6rem; margin: 0; padding: 0.15rem 0.1rem 0.4rem; list-style: none; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: thin; }
+.cbs-list > li { flex: 0 0 min(15.5rem, 78%); scroll-snap-align: start; }
+.cbs-card {
+  --k: #047857; --k-soft: #ecfdf5; --k-line: #a7f3d0;
+  display: flex; flex-direction: column; gap: 0.35rem; width: 100%; height: 100%; padding: 0.75rem 0.85rem;
+  border-radius: 1rem; border: 1px solid var(--k-line); background: linear-gradient(160deg, var(--k-soft), #fff 65%);
+  color: #0f172a; text-align: right; text-decoration: none; cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.cbs-card.is-trip { --k: #0369a1; --k-soft: #f0f9ff; --k-line: #bae6fd; }
+.cbs-card.is-hotel { --k: #6d28d9; --k-soft: #f5f3ff; --k-line: #ddd6fe; }
+.cbs-card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08); }
+.cbs-card.is-on { border-color: var(--k); box-shadow: 0 0 0 2px var(--k) inset; }
+.cbs-top { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.cbs-kind { display: inline-flex; align-items: center; gap: 0.2rem; padding: 0.12rem 0.5rem; border-radius: 999px; background: var(--k); color: #fff; font-size: 0.66rem; font-weight: 800; }
+.cbs-kind svg { width: 0.75rem; height: 0.75rem; }
+.cbs-status { padding: 0.12rem 0.5rem; border-radius: 999px; background: #fff; border: 1px solid #e2e8f0; color: #334155; font-size: 0.66rem; font-weight: 800; }
+.cbs-card strong { font-size: 0.86rem; font-weight: 900; line-height: 1.4; }
+.cbs-card small { font-size: 0.7rem; color: #64748b; }
+.cbs-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 0.15rem; }
+.cbs-steps i { height: 5px; border-radius: 999px; background: #e2e8f0; }
+.cbs-steps i.is-done { background: var(--k); }
+.cbs-card small.cbs-next { color: #334155; font-weight: 700; line-height: 1.5; }

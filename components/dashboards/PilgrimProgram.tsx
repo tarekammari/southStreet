@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import PrintMenu from '@/components/booking/PrintMenu';
 import Link from 'next/link';
 import {
@@ -30,6 +30,8 @@ import PayActions from '@/components/booking/PayActions';
 import UmrahCountdown from '@/components/booking/UmrahCountdown';
 import UmrahCounter from '@/components/UmrahCounter';
 import { authHeaders, getAuthToken, apiFetch, jsonAuthHeaders } from '@/lib/api-client';
+import { publicList } from '@/lib/public-catalog';
+import { tripGallery } from '@/lib/program-display';
 
 function formatLongDate(value?: string): string {
   if (!value) return '—';
@@ -77,6 +79,24 @@ export default function PilgrimProgram({
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState('');
+  const isTour = reservation?.trip_kind === 'TOURISM';
+  /** A tourist trip shows its own photo (or its destination's), not the Kaaba. */
+  const [tourPhoto, setTourPhoto] = useState('');
+  const packageId = isTour ? reservation?.package_id : '';
+
+  useEffect(() => {
+    if (!packageId) return;
+    let off = false;
+    publicList<any>('packages')
+      .then((list) => {
+        const pkg = (Array.isArray(list) ? list : []).find((p) => p.package_id === packageId);
+        if (!off && pkg) setTourPhoto(tripGallery(pkg, 1)[0]?.src || '');
+      })
+      .catch(() => {});
+    return () => {
+      off = true;
+    };
+  }, [packageId]);
 
   // A trip whose last day has passed is no longer "active", whatever its status says.
   const active = reservation && isActiveReservation(reservation.status) && !isTripOver(reservation) ? reservation : null;
@@ -175,16 +195,18 @@ export default function PilgrimProgram({
           <span aria-hidden>💳</span>
           دفع
         </button>
-        <button type="button" className={section === 'rites' ? 'is-on' : ''} onClick={() => setSection('rites')}>
-          <span aria-hidden>🕌</span>
-          مناسك
-        </button>
+        {!isTour ? (
+          <button type="button" className={section === 'rites' ? 'is-on' : ''} onClick={() => setSection('rites')}>
+            <span aria-hidden>🕌</span>
+            مناسك
+          </button>
+        ) : null}
       </div>
 
       {section === 'trip' ? (
         <div className="trip-board">
           <header className="trip-hero">
-            <img className="trip-hero-photo" src="/images/kaaba_sharifa_home_page.webp" alt="" />
+            {!isTour || tourPhoto ? <img className="trip-hero-photo" src={isTour ? tourPhoto : '/images/kaaba_sharifa_home_page.webp'} alt="" /> : null}
             <div className="trip-hero-veil" />
             <div className="trip-hero-body">
               <div className="trip-hero-top">
@@ -366,7 +388,7 @@ export default function PilgrimProgram({
         </div>
       ) : null}
 
-      {section === 'rites' ? (
+      {section === 'rites' && !isTour ? (
         <div className="pilgrim-panel">
           <UmrahCounter />
         </div>

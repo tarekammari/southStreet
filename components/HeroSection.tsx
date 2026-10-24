@@ -11,7 +11,7 @@ import { isOpenPackageStatus } from '@/lib/package-status';
 import { socialProfiles } from '@/lib/social';
 import { useAgencyInfo } from '@/components/social/useAgencyInfo';
 import { SOCIAL_ICON } from '@/components/social/SocialIcons';
-import { PROGRAM_KIND_LABEL, ProgramKind, programImages, programKind } from '@/lib/program-display';
+import { PROGRAM_KIND_LABEL, ProgramKind, programImages, programKind, tripGallery, type TripPhoto } from '@/lib/program-display';
 
 type HeroOffer = {
   id: string;
@@ -19,7 +19,8 @@ type HeroOffer = {
   kind: ProgramKind;
   date: string;
   priceFrom: number | null;
-  images: string[];
+  /** Pilgrimages use the Makkah album; trips their own photos, filled with their destination's cities. */
+  photos: TripPhoto[];
   /** When a pilgrimage leads, the nearest open tourism trip is offered under it. */
   alsoTrip: { id: string; name: string; date: string } | null;
 };
@@ -98,7 +99,7 @@ function pickHeroOffer(packages: any[]): HeroOffer | null {
     kind: programKind(chosen),
     date: formatOfferDate(chosen.start_date, chosen.season_name),
     priceFrom: lowestOfferPrice(chosen.prices),
-    images: programImages(chosen),
+    photos: programKind(chosen) === 'tourism' ? tripGallery(chosen) : programImages(chosen).map((src) => ({ src, place: String(chosen.name || '') })),
     alsoTrip: pilgrimage && tour
       ? { id: tour.package_id, name: String(tour.name || ''), date: formatOfferDate(tour.start_date, tour.season_name) }
       : null,
@@ -113,11 +114,11 @@ function offerHref(offer: HeroOffer): string {
 
 function offerPostcards(offer: HeroOffer | null | undefined): readonly Postcard[] {
   if (!offer || offer.kind !== 'tourism') return POSTCARDS;
-  return offer.images.map((src, i) => ({
-    src,
-    alt: `${offer.name} — صورة ${i + 1}`,
-    place: offer.name,
-    line: offer.date,
+  return offer.photos.map((p, i) => ({
+    src: p.src,
+    alt: `${p.place} — صورة ${i + 1}`,
+    place: p.place,
+    line: p.place === offer.name ? offer.date : offer.name,
   }));
 }
 

@@ -16,6 +16,7 @@ import SessionHeartbeat from '@/components/SessionHeartbeat';
 import LoginModal from '@/components/LoginModal';
 import PilgrimProgram from '@/components/dashboards/PilgrimProgram';
 import PortalHotelBookings from '@/components/hotels/PortalHotelBookings';
+import ClientBookingsStrip from '@/components/booking/ClientBookingsStrip';
 import TripTravelersCard from '@/components/booking/TripTravelersCard';
 import { logoutAndReload, syncSessionProfile } from '@/lib/client-session';
 import { isImageSource } from '@/lib/user-access-view';
@@ -85,6 +86,13 @@ function CustomerPortalContent() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [hotelBookings, setHotelBookings] = useState<Reservation[]>([]);
+  /** The booking shown in «رحلتي» when the client has more than one (?res= from the navbar bag). */
+  const [pickedId, setPickedId] = useState(searchParams.get('res') || '');
+  useEffect(() => {
+    const res = searchParams.get('res');
+    if (res) setPickedId(res);
+  }, [searchParams]);
   const [documents, setDocuments] = useState<CustomerDocument[]>([]);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [pilgrimsList, setPilgrimsList] = useState<User[]>([]);
@@ -115,6 +123,7 @@ function CustomerPortalContent() {
       .then((data) => {
         if (!data) return;
         if (Array.isArray(data.reservations)) setReservations(data.reservations);
+        if (Array.isArray(data.hotelBookings)) setHotelBookings(data.hotelBookings);
         if (Array.isArray(data.receipts)) setReceipts(data.receipts);
       })
       .catch(() => {});
@@ -380,7 +389,10 @@ function CustomerPortalContent() {
   }
 
   // The current trip: active status and not over yet (ended trips go to the read-only archive).
-  const activeReservation = reservations.find((row) => isCurrentReservation(row)) || null;
+  const activeReservation =
+    reservations.find((row) => row.reservation_id === pickedId && isCurrentReservation(row))
+    || reservations.find((row) => isCurrentReservation(row))
+    || null;
   const pendingLogin = currentUser?.status === 'PENDING_APPROVAL' || currentUser?.status === 'PENDING';
   const showPendingBanner = currentUser?.role === 'pilgrim' && pendingLogin && !activeReservation;
 
@@ -574,8 +586,17 @@ function CustomerPortalContent() {
           </div>
         )}
 
+        {viewTab === 'program' && isPilgrim ? (
+          <ClientBookingsStrip
+            reservations={reservations}
+            hotelBookings={hotelBookings}
+            selectedId={activeReservation?.reservation_id}
+            onSelect={setPickedId}
+          />
+        ) : null}
         {viewTab === 'program' && isPilgrim && (
           <PilgrimProgram
+            key={`program-${activeReservation?.reservation_id || 'none'}`}
             currentUser={currentUser}
             reservation={activeReservation}
             reservations={reservations}
