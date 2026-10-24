@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { loginQrImage } from '@/lib/login-qr';
 import { requireSession } from '@/lib/staff-gate';
 import { isPrivilegedRole } from '@/lib/roles';
 import { checkPrivilegedPassword } from '@/lib/password-policy';
@@ -9,10 +10,6 @@ import {
 } from '@/lib/accounts';
 
 export const dynamic = 'force-dynamic';
-
-function qrImageSrc(payload: string) {
-  return `https://api.qrserver.com/v1/create-qr-code/?size=280x280&ecc=M&margin=8&data=${encodeURIComponent(payload)}`;
-}
 
 /** Shared gate: key-verified sessions for Super Admin / Admin, revocation honoured. */
 function requireUser(req: NextRequest) {
@@ -71,7 +68,7 @@ export async function POST(req: NextRequest) {
         message: 'تم استبدال رمز QR. الرمز السابق لم يعد يعمل.',
         account: getAccountByUserId(auth.id),
         qrPayload: qr.qrPayload,
-        qrImage: qrImageSrc(qr.qrPayload),
+        qrImage: await loginQrImage(qr.qrPayload, req),
       });
     }
 

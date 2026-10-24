@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { FileCheck, X, Upload, AlertTriangle, Clock, Eye, EyeOff } from 'lucide-react';
+import { FileCheck, X, Upload, AlertTriangle, Clock, Eye, EyeOff, QrCode } from 'lucide-react';
+import PhoneSignInPanel from '@/components/auth/PhoneSignInPanel';
 import GoogleContinueButton from '@/components/GoogleContinueButton';
 import { markWelcomePending } from '@/components/WelcomeBanner';
 import { enterSessionAndReload } from '@/lib/client-session';
@@ -18,7 +19,7 @@ interface LoginModalProps {
   request?: LoginRequest;
 }
 
-type Mode = 'password' | 'qr';
+type Mode = 'password' | 'qr' | 'phone';
 type Screen = 'login' | 'register';
 
 const REQUEST_HINT: Partial<Record<LoginRequest['method'], string>> = {
@@ -412,6 +413,8 @@ export default function LoginModal({ onClose, onSelectRole, redirectTo, request 
                 <button type="submit" disabled={loading || Boolean(accountHint)} className="login-simple-submit">{loading ? 'جاري الإنشاء...' : 'إنشاء الحساب'}</button>
                 <button type="button" className="login-simple-switch" onClick={() => { setScreen('login'); setError(''); }}>لديك حساب؟ دخول</button>
               </form>
+            ) : mode === 'phone' ? (
+              <PhoneSignInPanel onSuccess={finishLogin} onBack={() => setMode('password')} />
             ) : mode === 'qr' ? (
               <div className="space-y-3">
                 <div className="rounded-2xl overflow-hidden bg-slate-900 aspect-video relative">
@@ -429,6 +432,13 @@ export default function LoginModal({ onClose, onSelectRole, redirectTo, request 
                 className="login-simple-form"
               >
                 {googleBlock()}
+                <button type="button" className="login-phone-btn" onClick={() => { setMode('phone'); setError(''); setInfo(''); }}>
+                  <span className="login-phone-ico"><QrCode aria-hidden /></span>
+                  <span>
+                    <b>الدخول بالهاتف</b>
+                    <small>حسابك مفتوح على هاتفك؟ امسح رمز QR وادخل دون كلمة مرور</small>
+                  </span>
+                </button>
                 <label>
                   البريد أو اسم المستخدم
                   <input

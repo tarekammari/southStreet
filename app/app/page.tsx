@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import QRCode from 'qrcode';
+import QrLinkSignIn from '@/components/auth/QrLinkSignIn';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
   BatteryCharging,
@@ -310,6 +311,7 @@ export default function DownloadPage() {
   return (
     <div className="page-shell min-h-screen cx-page">
       <Navbar variant="light" />
+      <QrLinkSignIn />
       <main dir="rtl">
         {/* ---------- hero ---------- */}
         <section className="cx-hero">

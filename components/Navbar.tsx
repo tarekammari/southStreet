@@ -22,6 +22,7 @@ import {
   BedDouble,
   BookOpen,
   ChevronLeft,
+  QrCode,
 } from 'lucide-react';
 import { User } from '@/types';
 import LoginModal from './LoginModal';
@@ -484,6 +485,12 @@ export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 
                       <Settings className="w-4 h-4 text-slate-400" />
                       <span>{pilgrim ? 'حسابي' : 'أمان الحساب'}</span>
                     </Link>
+                    {!isAdmin ? (
+                      <Link href="/qr-login" onClick={() => setProfileOpen(false)} className={`nav-qr-link flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition ${isLight ? 'hover:bg-slate-50 text-slate-700' : 'hover:bg-slate-800 text-slate-200'}`}>
+                        <QrCode className="w-4 h-4 text-slate-400" />
+                        <span>ربط جهاز كمبيوتر</span>
+                      </Link>
+                    ) : null}
                   </div>
                   <div className={`pt-2 border-t ${isLight ? 'border-slate-100' : 'border-slate-800'}`}>
                     <button onClick={() => { setProfileOpen(false); void logoutAndReload(); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-red-50 text-red-600 text-xs font-bold cursor-pointer">
