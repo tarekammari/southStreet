@@ -5,6 +5,7 @@ import { normalizeLoginRole } from '@/lib/roles';
 import { dbLogAudit } from '@/lib/db';
 import { resolveRequestIp } from '@/lib/security-threats';
 import {
+  bookingRequestNoun,
   confirmReservationByAgency,
   listAgencyDemandQueue,
   listAwaitingDepositReservations,
@@ -109,7 +110,7 @@ export async function POST(req: NextRequest) {
       dbLogAudit(
         staff.name,
         gate.role,
-        action === 'reject' ? 'رفض طلب عمرة' : 'تأكيد طلب عمرة',
+        `${action === 'reject' ? 'رفض' : 'تأكيد'} ${bookingRequestNoun(reservation || {})}`,
         reservation.reservation_number,
         ip
       );

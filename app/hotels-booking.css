@@ -561,3 +561,14 @@
 .hadm-cands strong { display: flex; align-items: center; gap: 0.35rem; font-size: 0.88rem; }
 .hadm-cands small { font-size: 0.74rem; color: var(--hb-muted); }
 .hadm-attr { margin: 0.6rem 0 0; font-size: 0.7rem; color: #94a3b8; }
+
+/* Booking steps (same four as the Umrah wizard) and the loading skeleton */
+.hdet-flow { max-width: 34rem; margin: 0.4rem auto 1.1rem; }
+.hdet-skel { border-radius: 1rem; background: linear-gradient(90deg, #eef2f7 0%, #f8fafc 50%, #eef2f7 100%); background-size: 200% 100%; animation: hdetSkel 1.2s linear infinite; }
+.hdet-skel-gallery { margin-top: 2.6rem; border-radius: 1.6rem; aspect-ratio: 16 / 8; min-height: 16rem; max-height: 34rem; }
+.hdet-skel-line { height: 1rem; width: 55%; margin-top: 0.8rem; }
+.hdet-skel-line.is-title { height: 2rem; width: 70%; margin-top: 1.4rem; }
+.hdet-skel-card { height: 11rem; margin-top: 1rem; }
+.hdet-skel-aside { height: 20rem; margin-top: 1.4rem; }
+@keyframes hdetSkel { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .hdet-skel { animation: none; } }

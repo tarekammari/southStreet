@@ -4,16 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   BadgeCheck,
-  BedDouble,
   CheckCircle,
   CheckCircle2,
   ChevronLeft,
   Inbox,
   Loader2,
   Mail,
-  MoonStar,
   Phone,
-  Plane,
   RefreshCw,
   ShieldAlert,
   UserRound,
@@ -27,9 +24,10 @@ import VisaControl from '@/components/booking/VisaControl';
 import { authHeaders } from '@/lib/api-client';
 import RejectRequestDialog from '@/components/booking/RejectRequestDialog';
 import ClientPaymentModal from '@/components/accountant/ClientPaymentModal';
+import BookingKindsBoard, { BOOKING_KIND_META, bookingKindOf, type BookingKind } from '@/components/booking/BookingKindsBoard';
 
 /**
- * Umrah request pipeline:
+ * Booking pipeline (Umrah, Hajj, tourist trips, hotels):
  *   1. demand   — the pilgrim sent a request; the director accepts or rejects it.
  *   2. deposit  — accepted; the accountant records the deposit, which finalises it.
  *   3. done     — confirmed / paid, plus closed outcomes (rejected, cancelled).
@@ -67,22 +65,9 @@ function loginStatusLabel(demand: AgencyDemand): string {
   return demand.customer_status || '—';
 }
 
-type Kind = 'umrah' | 'hajj' | 'trip' | 'hotel';
-type KindFilter = 'all' | Kind;
-
-function kindOf(res: Reservation): Kind {
-  if (res.booking_kind === 'HOTEL') return 'hotel';
-  if (res.trip_kind === 'TOURISM') return 'trip';
-  if (res.trip_kind === 'HAJJ') return 'hajj';
-  return 'umrah';
-}
-
-const KIND_META: Record<Kind, { label: string; icon: typeof Plane }> = {
-  umrah: { label: 'عمرة', icon: MoonStar },
-  hajj: { label: 'حج', icon: MoonStar },
-  trip: { label: 'رحلة سياحية', icon: Plane },
-  hotel: { label: 'فندق', icon: BedDouble },
-};
+type KindFilter = 'all' | BookingKind;
+const kindOf = bookingKindOf;
+const KIND_META = BOOKING_KIND_META;
 
 function KindTag({ res }: { res: Reservation }) {
   const kind = kindOf(res);
@@ -322,6 +307,16 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
             );
           })}
         </ol>
+
+        <BookingKindsBoard
+          lists={{ demands, awaiting, recent }}
+          active={kind}
+          role={perms.canApprove ? 'agency' : 'accountant'}
+          onPick={(k) => {
+            setKind((prev) => (prev === k ? 'all' : k));
+            setOpenId('');
+          }}
+        />
 
         <div className="pipe-kinds" role="tablist" aria-label="نوع الحجز">
           {kindFilters.map((f) => {

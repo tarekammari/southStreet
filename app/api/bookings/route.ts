@@ -14,6 +14,7 @@ import { dbLogAudit, dbSaveMessage, dbSaveReceipt } from '@/lib/db';
 import { resolveRequestIp } from '@/lib/security-threats';
 import { buildDmChatId } from '@/lib/chat-utils';
 import {
+  bookingRequestNoun,
   BOOKING_EXTRAS,
   applyReservationChanges,
   buildAppointments,
@@ -39,6 +40,7 @@ import { isPackageExpired } from '@/lib/booking-catalog';
 import { sweepBookingLifecycle } from '@/lib/booking-lifecycle';
 import { documentVerifyCode } from '@/lib/booking-documents';
 import { tokenVersionOf } from '@/lib/webauthn';
+import { tripKindOf } from '@/lib/tour';
 
 export const dynamic = 'force-dynamic';
 
@@ -546,7 +548,7 @@ export async function POST(req: NextRequest) {
           senderName: agent.name,
           senderAvatar: agent.avatar || 'س',
           senderRole: 'agent',
-          text: `مرحباً ${name}، استلمنا طلب عمرتك رقم ${reservationNumber}. فريق الوكالة يراجع الطلب ويؤكده خلال 24–48 ساعة. يمكنك طباعة طلب الحجز من بوابة المعتمر.`,
+          text: `مرحباً ${name}، استلمنا ${tripKindOf(pkg) === 'TOURISM' ? 'طلب رحلتك' : tripKindOf(pkg) === 'HAJJ' ? 'طلب الحج' : 'طلب عمرتك'} رقم ${reservationNumber}. فريق الوكالة يراجع الطلب ويؤكده خلال 24–48 ساعة. يمكنك طباعة طلب الحجز من بوابة المعتمر.`,
           time: '',
         });
         dbSaveMessage({
@@ -598,7 +600,7 @@ export async function POST(req: NextRequest) {
 
     const session = issueSession(account, req);
     try {
-      dbLogAudit(name, 'PILGRIM_USER', 'تقديم طلب عمرة', `${reservationNumber} — ${pkg.name}`, session.ip);
+      dbLogAudit(name, 'PILGRIM_USER', tripKindOf(pkg) === 'TOURISM' ? 'تقديم طلب رحلة سياحية' : 'تقديم طلب عمرة', `${reservationNumber} — ${pkg.name}`, session.ip);
     } catch {
       /* audit optional */
     }
@@ -672,7 +674,7 @@ export async function PUT(req: NextRequest) {
     const priceDelta = reservation.total_amount - existing.total_amount;
     notifyAgency(
       account,
-      `تم تعديل طلب العمرة رقم ${reservation.reservation_number}. المجموع الجديد ${reservation.total_amount.toLocaleString('ar-DZ')} دج. ${reservation.status === 'REQUESTED' ? 'بانتظار إعادة تأكيد الوكالة.' : ''}`
+      `تم تعديل ${bookingRequestNoun(reservation)} رقم ${reservation.reservation_number}. المجموع الجديد ${reservation.total_amount.toLocaleString('ar-DZ')} دج. ${reservation.status === 'REQUESTED' ? 'بانتظار إعادة تأكيد الوكالة.' : ''}`
     );
 
     return NextResponse.json({
@@ -707,7 +709,7 @@ export async function DELETE(req: NextRequest) {
 
     notifyAgency(
       account,
-      `تم إلغاء ${reservation.booking_kind === 'HOTEL' ? 'حجز الفندق' : 'طلب العمرة'} رقم ${reservation.reservation_number} (${reservation.package_name}) بناءً على طلب العميل.`
+      `تم إلغاء ${bookingRequestNoun(reservation)} رقم ${reservation.reservation_number} (${reservation.package_name}) بناءً على طلب العميل.`
     );
 
     return NextResponse.json({

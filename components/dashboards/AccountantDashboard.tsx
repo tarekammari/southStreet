@@ -39,6 +39,7 @@ import ReceiptsPanel from '@/components/accountant/ReceiptsPanel';
 import SakhrFinancePanel from '@/components/accountant/SakhrFinancePanel';
 import TaxesPanel from '@/components/accountant/TaxesPanel';
 import AgencyPendingBookings from '@/components/booking/AgencyPendingBookings';
+import BookingKindsBoard from '@/components/booking/BookingKindsBoard';
 import { ACCOUNTANT_NAV, type AccountantSectionId } from '@/lib/accountant-sections';
 import { SUPPLIER_LANES } from '@/lib/finance-categories';
 
@@ -312,7 +313,14 @@ export default function AccountantDashboard({ currentUser }: AccountantDashboard
 
   const sectionBody = (
     <>
-      {section === 'overview' && <RecapPanel />}
+      {section === 'overview' && (
+        <>
+          <div className="acct-card p-4 sm:p-5 acct-rise mb-4">
+            <BookingKindsBoard role="accountant" onPick={() => goSection('bookings')} />
+          </div>
+          <RecapPanel />
+        </>
+      )}
       {section === 'treasury' && <TreasuryPanel />}
       {section === 'assets' && <AssetsPanel />}
       {section === 'bookings' && (

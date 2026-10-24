@@ -46,6 +46,14 @@ import {
 type Me = { id?: string; name?: string; role?: string; phone?: string } | null;
 type Client = { id: string; name: string; phone?: string; email?: string };
 
+/** Same four steps as the Umrah booking wizard: choose, your details, the agency confirms, the deposit. */
+const HOTEL_STEPS = [
+  { id: 1, label: 'الغرفة' },
+  { id: 2, label: 'بياناتك' },
+  { id: 3, label: 'تأكيد الوكالة' },
+  { id: 4, label: 'العربون' },
+];
+
 const STAFF = new Set(['SUPER_ADMIN', 'AGENCY_MANAGER', 'ACCOUNTANT', 'AGENCY_AGENT', 'admin', 'manager', 'accountant', 'agent']);
 
 function cancelText(o: RoomOffer) {
@@ -139,13 +147,29 @@ function HotelInner() {
         const h: HotelDetail = d.hotel;
         setHotel(h);
         const wanted = p.get('room');
-        setPicked(h.offers.map((list) => (wanted && list.find((o) => o.room_id === wanted)?.offer_id) || list[0]?.offer_id || ''));
+        // `pick` carries the rooms chosen before signing in, so the client comes back to them.
+        const kept = (p.get('pick') || '').split(',');
+        setPicked(h.offers.map((list, i) =>
+          (kept[i] && list.find((o) => o.offer_id === kept[i])?.offer_id)
+          || (wanted && list.find((o) => o.room_id === wanted)?.offer_id)
+          || list[0]?.offer_id || ''));
         setGuests(search.rooms.map(() => ({ name: '', passport: '' })));
       })
       .catch((e) => setError(e.message));
   }, [id, search, p]);
 
   const staff = Boolean(me?.role && STAFF.has(String(me.role)));
+  const signedIn = Boolean(me?.id || me?.role);
+
+  // Back from the sign-in window with rooms already chosen: go straight to the details.
+  useEffect(() => {
+    if (hotel && signedIn && p.get('step') === 'guests') setStep('guests');
+  }, [hotel, signedIn, p]);
+
+  useEffect(() => {
+    if (step !== 'guests' || !me?.name || staff) return;
+    setGuests((gs) => gs.map((g, i) => (i === 0 && !g.name ? { ...g, name: String(me.name) } : g)));
+  }, [step, me, staff]);
   useEffect(() => {
     if (!staff || step !== 'guests' || clients) return;
     fetch('/api/admin/users', { cache: 'no-store' })
@@ -170,6 +194,20 @@ function HotelInner() {
   const backHref = homeDest && homeCity
     ? `/destinations/${homeDest.id}/${cityInfo(homeCity).slug}`
     : `/hotels/search?${new URLSearchParams({ dest: hotel?.city_label || '', checkIn: search.checkIn, checkOut: search.checkOut, rooms: encodeRooms(search.rooms) })}`;
+
+  /** Hotel bookings live in the client's account like Umrah bookings: sign in (or sign up) before the details. */
+  const continueToGuests = () => {
+    if (!signedIn) {
+      const q = new URLSearchParams(window.location.search);
+      q.set('pick', picked.join(','));
+      q.set('step', 'guests');
+      const back = `${window.location.pathname}?${q}`;
+      if (!openLogin({ method: 'choose', redirectTo: back })) window.location.href = `/app?login=1`;
+      return;
+    }
+    setStep('guests');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const book = async () => {
     setFormError('');
@@ -205,6 +243,10 @@ function HotelInner() {
       if (!res.ok) throw new Error(d.error || 'تعذّر إرسال الحجز');
       setBooked({ id: d.reservation?.reservation_id, number: d.reservation?.reservation_number, total: d.reservation?.total_amount });
       setStep('done');
+      const clean = new URLSearchParams(window.location.search);
+      clean.delete('pick');
+      clean.delete('step');
+      window.history.replaceState(null, '', `${window.location.pathname}?${clean}`);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (e: any) {
       setFormError(e.message);
@@ -222,7 +264,22 @@ function HotelInner() {
       </div>
     );
   }
-  if (!hotel) return <div className="hdet-loading"><Loader2 className="animate-spin" aria-hidden /> جاري تحميل الفندق…</div>;
+  if (!hotel) {
+    return (
+      <main className="page-main hdet max-w-7xl mx-auto px-4 sm:px-6 pb-16" aria-busy="true" aria-label="جاري تحميل الفندق">
+        <div className="hdet-skel hdet-skel-gallery" />
+        <div className="hdet-layout">
+          <div className="hdet-main-col">
+            <div className="hdet-skel hdet-skel-line is-title" />
+            <div className="hdet-skel hdet-skel-line" />
+            <div className="hdet-skel hdet-skel-card" />
+            <div className="hdet-skel hdet-skel-card" />
+          </div>
+          <div className="hdet-skel hdet-skel-aside" />
+        </div>
+      </main>
+    );
+  }
 
   const tour = photoTour(hotel);
   const tab = tour.find((t) => t.id === tourTab) || tour[0];
@@ -235,6 +292,20 @@ function HotelInner() {
   return (
     <main className="page-main hdet max-w-7xl mx-auto px-4 sm:px-6 pb-16">
       <Link href={backHref} className="hdet-back"><ArrowRight aria-hidden /> {homeCity ? `فنادق ${homeCity}` : 'كل الفنادق'}</Link>
+
+      {hotel.supplier !== 'test' ? (
+        <ol className="book-steps hdet-flow" aria-label="خطوات الحجز">
+          {HOTEL_STEPS.map((item) => {
+            const current = step === 'rooms' ? 1 : step === 'guests' ? 2 : 3;
+            return (
+              <li key={item.id} className={`book-step${current === item.id ? ' is-current' : ''}${current > item.id ? ' is-done' : ''}`} aria-current={current === item.id ? 'step' : undefined}>
+                <span className="book-step-num">{current > item.id ? <Check className="w-3.5 h-3.5" /> : item.id}</span>
+                <span className="book-step-label">{item.label}</span>
+              </li>
+            );
+          })}
+        </ol>
+      ) : null}
 
       {step === 'done' && booked ? (
         <motion.section className="hdet-done" initial={reduce ? false : { opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }}>
@@ -469,13 +540,13 @@ function HotelInner() {
               </div>
               {complete ? <p className="hdet-deposit">العربون {Math.round(DEPOSIT_PERCENT * 100)}٪ بعد تأكيد الوكالة: <b>{formatDzd(Math.round(total * DEPOSIT_PERCENT))}</b></p> : null}
               {step === 'rooms' ? (
-                <button type="button" className="hdet-cta" disabled={!complete || hotel.supplier === 'test'} onClick={() => { setStep('guests'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
-                  {hotel.supplier === 'test' ? 'تجريبي — لا يُحجز' : 'متابعة الحجز'}
+                <button type="button" className="hdet-cta" disabled={!complete || hotel.supplier === 'test'} onClick={continueToGuests}>
+                  {hotel.supplier === 'test' ? 'تجريبي — لا يُحجز' : signedIn ? 'متابعة الحجز' : 'سجّل الدخول وتابع الحجز'}
                 </button>
               ) : (
                 <>
                   <button type="button" className="hdet-cta" disabled={busy} onClick={book}>
-                    {busy ? <Loader2 className="animate-spin" aria-hidden /> : null} {me?.role ? 'تأكيد طلب الحجز' : 'سجّل الدخول للتأكيد'}
+                    {busy ? <Loader2 className="animate-spin" aria-hidden /> : null} {signedIn ? 'تأكيد طلب الحجز' : 'سجّل الدخول للتأكيد'}
                   </button>
                   <button type="button" className="hdet-ghost" onClick={() => setStep('rooms')}>تغيير الغرف</button>
                 </>

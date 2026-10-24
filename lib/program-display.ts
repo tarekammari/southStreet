@@ -36,12 +36,18 @@ const TOURISM_WORD = /سياح|tour|voyage|excursion|[اإ]سطنبول|تركي
 const HOLY_PLACE = /مكة|مكه|المدينة|المدينه|جدة|جده|makkah|mecca|madin|jeddah|\bJED\b|\bMED\b/i;
 
 /**
- * Packages carry no trip-kind column, so it is read from what the admin typed. The name
+ * Programs saved before trip_type existed are read from what the admin typed. The name
  * wins; a Madinah hotel or a hotel/arrival naming a holy city marks a pilgrimage (the
  * "Makkah hotel" slot alone may hold a tourism hotel); descriptions are only trusted for
  * Umrah/Hajj words first, since Umrah programs mention "حافلات سياحية".
  */
-export function programKind(pkg: Partial<Pick<Package, 'name' | 'description' | 'season_name' | 'makkah_hotel_name' | 'madinah_hotel_name' | 'arrival_airport'>>): ProgramKind {
+export function programKind(pkg: Partial<Pick<Package, 'name' | 'description' | 'season_name' | 'makkah_hotel_name' | 'madinah_hotel_name' | 'arrival_airport' | 'trip_type'>>): ProgramKind {
+  // The kind the admin chose in the program form wins over any guess from the text.
+  const typed = String(pkg.trip_type || '').toUpperCase();
+  if (typed === 'TOURISM') return 'tourism';
+  if (typed === 'HAJJ') return 'hajj';
+  if (typed === 'UMRAH') return 'umrah';
+
   const name = String(pkg.name || '');
   if (TOURISM_WORD.test(name)) return 'tourism';
   if (HAJJ_WORD.test(name)) return 'hajj';
