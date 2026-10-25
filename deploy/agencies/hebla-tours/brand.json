@@ -1,6 +1,6 @@
 {
-  "slug": "rhtours",
-  "suggestedHost": "rhtours.1zayd1.tech",
+  "slug": "hebla-tours",
+  "suggestedHost": "hebla-tours.1zayd1.tech",
   "name": {
     "ar": "وكالة رزاق هبلة تور",
     "latin": "Rezzag Hebla Tours",
@@ -16,7 +16,7 @@
     "accentLight": "#f1d27a"
   },
   "headquarters": {
-    "address": "ص ب 7، شارع القدس، المصاعبة، الوادي، الجزائر",
+    "address": "ص ب 7 شارع القدس الصناعية - الوادي - الجزائر",
     "city": "الوادي",
     "country": "DZ"
   },
@@ -28,15 +28,7 @@
     "main": "0550 96 39 03",
     "whatsapp": ["0550 96 39 03", "0550 96 39 04"],
     "bookings": "0556 04 01 11",
-    "other": [
-      "0770 07 29 42",
-      "0661 38 52 47",
-      "0666 46 57 46",
-      "0799 89 89 74",
-      "0770 08 36 95",
-      "0782 47 47 37",
-      "0798 86 86 85"
-    ]
+    "other": ["0770 07 29 42", "0661 38 52 47"]
   },
   "email": "rh-tours@yahoo.fr",
   "services": [
@@ -54,23 +46,29 @@
     "posts": ["images/visa-denmark.jpg", "images/notice-currency.jpg", "images/notice-flight-time.jpg"]
   },
   "starterProgram": {
+    "id": "pac_hebla_tours_umrah_nov_2026",
     "kind": "UMRAH",
     "name": "عمرة أهل القرآن — عمرة الحفاظ 6",
+    "season": "عمرة نوفمبر 2026",
     "start_date": "2026-11-21",
-    "departure": "مطار قمار",
-    "notes": "بالتنسيق مع مسجد المصطفى، برفقة القارئ ياسين الجزائري والشيخ أحمد دوش. مفاجآت عديدة في انتظاركم.",
+    "departure_city": "الوادي",
+    "departure_airport": "مطار قمار",
+    "guides": "القارئ ياسين الجزائري والشيخ أحمد دوش",
+    "description": "عمرة أهل القرآن — عمرة الحفاظ 6، بالتنسيق مع مسجد المصطفى، برفقة القارئ ياسين الجزائري والشيخ أحمد دوش. الانطلاق من مطار قمار يوم 21 نوفمبر 2026. مفاجآت عديدة في انتظاركم. للحجز: 0556 04 01 11.",
     "image": "images/umrah-ahl-al-quran.jpg",
-    "price": null
+    "seats": 45,
+    "price": null,
+    "featured": true
   },
   "knowledge": [
     "التصريح بالعملة إجباري لدى الجمارك الجزائرية (المطارات والمنافذ البرية والبحرية) عند الخروج إذا تجاوز المبلغ 1000 يورو أو دولار، أو 10000 دينار جزائري. يُستثنى من لا يتجاوز هذه المبالغ.",
-    "يرجى التحقق من توقيت الرحلة قبل 24 ساعة من المغادرة."
+    "يرجى التحقق من توقيت الرحلة قبل 24 ساعة من المغادرة.",
+    "عمرة نوفمبر 2026: «عمرة أهل القرآن — عمرة الحفاظ 6» بالتنسيق مع مسجد المصطفى، برفقة القارئ ياسين الجزائري والشيخ أحمد دوش. الانطلاق من مطار قمار يوم 21 نوفمبر 2026. للحجز: 0556 04 01 11."
   ],
   "toConfirmWithAgency": [
+    "Price, hotels (Makkah / Madinah) and duration of «عمرة أهل القرآن» (not on the poster): the site shows «السعر عند الطلب» until set.",
+    "Seats in the November Umrah: set to 45 until the agency gives the real number (editable in the dashboard).",
     "Exact branch address in Ouargla (text on the banner is small: «عنقود الطرق على الملح 2»).",
-    "Which phone is the main line and which numbers are WhatsApp.",
-    "Price of «عمرة أهل القرآن» and its hotels / duration (not on the poster).",
-    "Domain: their own domain or rhtours.1zayd1.tech.",
     "Social media links (none in the images)."
   ]
 }

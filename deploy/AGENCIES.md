@@ -71,7 +71,7 @@ Encrypt and push notification contact), `--profile deploy/agencies/<slug>` (see 
 (names, colours, phones, branches, `suggestedHost`), `logo.jpg` and `images/`. For example:
 
 ```bash
-bash deploy/agency-add.sh rhtours --profile deploy/agencies/rhtours
+bash deploy/agency-add.sh hebla-tours --profile deploy/agencies/hebla-tours
 ```
 
 The `slug` in `brand.json` must match. The folder is copied to

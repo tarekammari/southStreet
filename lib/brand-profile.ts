@@ -25,6 +25,25 @@ export type BrandProfile = {
   departureAirports?: string[];
   images?: { hero?: string; programs?: string[]; posts?: string[] };
   knowledge?: string[];
+  /** The agency's current programme, created by `npm run brand:import` (not by the dashboard button). */
+  starterProgram?: {
+    id?: string;
+    kind?: 'UMRAH' | 'HAJJ' | 'TOURISM';
+    name?: string;
+    season?: string;
+    start_date?: string;
+    end_date?: string;
+    duration_days?: number;
+    departure_city?: string;
+    departure_airport?: string;
+    guides?: string;
+    description?: string;
+    image?: string;
+    seats?: number;
+    /** DZD per person; null until the agency gives it (the site shows «السعر عند الطلب»). */
+    price?: number | null;
+    featured?: boolean;
+  };
   toConfirmWithAgency?: string[];
 };
 
