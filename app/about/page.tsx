@@ -39,7 +39,7 @@ import { socialProfiles } from '@/lib/social';
 import { publicList, publicReviews } from '@/lib/public-catalog';
 import type { PageContentRow } from '@/lib/page-content';
 import { readAboutContent } from '@/lib/about-content';
-import { agencyLabel, brandGeo, brandMapEmbed, brandMapUrl, connectName, telHref } from '@/lib/brand';
+import { agencyLabel, brandCoordinates, brandDirectionsUrl, brandGeo, brandMapEmbed, brandMapUrl, connectName, telHref } from '@/lib/brand';
 import '@/app/info-pages.css';
 import './about.css';
 
@@ -101,6 +101,8 @@ export default function AboutPage() {
   const address = joinAddress([agency.address, agency.city, agency.country]);
   const geo = brandGeo(agency);
   const mapUrl = brandMapUrl(agency);
+  const directionsUrl = brandDirectionsUrl(agency);
+  const coordinates = brandCoordinates(agency);
   const details = [
     { icon: MapPin, label: 'العنوان', value: address, href: mapUrl, ltr: false },
     phone && { icon: Phone, label: 'الهاتف', value: phone, href: telHref(phone), ltr: true },
@@ -370,13 +372,34 @@ export default function AboutPage() {
             <div className="ab-visit ip-reveal">
               <div className="ab-map">
                 {geo ? (
-                  <iframe
-                    title="موقع الوكالة على الخريطة"
-                    src={brandMapEmbed(agency)}
-                    loading="lazy"
-                    referrerPolicy="no-referrer-when-downgrade"
-                    allowFullScreen
-                  />
+                  <>
+                    <iframe
+                      title="موقع الوكالة على الخريطة"
+                      src={brandMapEmbed(agency)}
+                      loading="lazy"
+                      referrerPolicy="no-referrer-when-downgrade"
+                      allowFullScreen
+                    />
+                    {/* Place card over the map, as in the big map apps: who, where, and the route. */}
+                    <div className="ab-place">
+                      <div className="ab-place-head">
+                        {agency.mark_url || agency.logo_url ? <img src={agency.mark_url || agency.logo_url} alt="" className="ab-place-logo" /> : <span className="ab-place-logo is-pin"><MapPin className="w-5 h-5" /></span>}
+                        <div>
+                          <b>{name}</b>
+                          <small>{address}</small>
+                        </div>
+                      </div>
+                      {coordinates ? <p className="ab-place-geo" dir="ltr"><MapPin className="w-3.5 h-3.5" aria-hidden /> {coordinates}</p> : null}
+                      <div className="ab-place-acts">
+                        <a href={directionsUrl} target="_blank" rel="noreferrer" className="ab-place-go">
+                          <Navigation className="w-4 h-4" /> الاتجاهات
+                        </a>
+                        <a href={mapUrl} target="_blank" rel="noreferrer" className="ab-place-open" aria-label="فتح الموقع في الخرائط">
+                          <ExternalLink className="w-4 h-4" /> الخريطة
+                        </a>
+                      </div>
+                    </div>
+                  </>
                 ) : (
                   <a className="ab-map-cover" href={mapUrl} target="_blank" rel="noreferrer">
                     <span className="ab-map-pin" aria-hidden><MapPin className="w-6 h-6" /></span>
@@ -419,8 +442,8 @@ export default function AboutPage() {
                     })}
                   </div>
                 ) : null}
-                <a href={mapUrl} target="_blank" rel="noreferrer" className="ip-btn is-primary ab-shine ab-visit-btn">
-                  <Navigation className="w-4 h-4" /> الاتجاهات في خرائط Google <ExternalLink className="w-3.5 h-3.5" />
+                <a href={directionsUrl} target="_blank" rel="noreferrer" className="ip-btn is-primary ab-shine ab-visit-btn">
+                  <Navigation className="w-4 h-4" /> الاتجاهات إلى الوكالة <ExternalLink className="w-3.5 h-3.5" />
                 </a>
               </div>
             </div>

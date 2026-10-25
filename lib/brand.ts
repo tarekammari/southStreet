@@ -247,6 +247,22 @@ export function brandMapUrl(brand: Brand): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress(brand))}`;
 }
 
+/**
+ * Route to the office from where the visitor is: on a phone it opens the Maps
+ * app in navigation, on a computer Google Maps with the route.
+ */
+export function brandDirectionsUrl(brand: Brand): string {
+  const geo = brandGeo(brand);
+  const destination = geo ? `${geo.latitude},${geo.longitude}` : fullAddress(brand);
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
+}
+
+/** "33.365444, 6.860796" for the map card ('' without a position). */
+export function brandCoordinates(brand: Pick<Brand, 'map_lat' | 'map_lng'>): string {
+  const geo = brandGeo(brand);
+  return geo ? `${geo.latitude.toFixed(6)}, ${geo.longitude.toFixed(6)}` : '';
+}
+
 /** Embedded map for the About page. */
 export function brandMapEmbed(brand: Brand): string {
   const geo = brandGeo(brand);
