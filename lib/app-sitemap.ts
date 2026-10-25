@@ -35,9 +35,10 @@ export const APP_PAGES: AppPage[] = [
       {
         id: 'hero',
         title: 'قسم البطل — عروض العمرة',
-        description: 'عرض رحلة أوت 2026 المميزة ابتداءً من 215,000 دج مع طيران مباشر وإقامة فاخرة.',
+        // Generic: the offer shown there comes from the agency's own programmes.
+        description: 'العرض الحالي في الصفحة الرئيسية: البرنامج المفتوح للحجز وصوره، مع زر الحجز.',
         anchor: '#hero-section',
-        keywords: ['البطل', 'hero', 'العرض', '215000', 'أوت', 'احجز الآن', 'الكعبة'],
+        keywords: ['البطل', 'hero', 'العرض', 'العرض الحالي', 'احجز الآن', 'الكعبة'],
       },
       {
         id: 'agency',
@@ -49,9 +50,9 @@ export const APP_PAGES: AppPage[] = [
       {
         id: 'promo',
         title: 'عرض الطيران المباشر',
-        description: 'بانر رحلة طيران مباشرة إلى البقاع المقدسة عبر Air Algérie.',
+        description: 'بانر العرض الترويجي للوكالة (مثل رحلات الطيران المباشر إلى البقاع المقدسة).',
         anchor: '#promo-section',
-        keywords: ['طيران', 'air algeria', 'الخطوط', 'مباشر', 'عرض الطيران'],
+        keywords: ['طيران', 'الخطوط', 'مباشر', 'عرض الطيران', 'بانر'],
       },
       {
         id: 'about',
@@ -91,7 +92,7 @@ export const APP_PAGES: AppPage[] = [
     title: 'صفحة الفنادق',
     titleEn: 'Hotels',
     description: 'فنادق مكة المكرمة والمدينة المنورة المعتمدة مع المسافات من الحرم والخدمات.',
-    keywords: ['فنادق', 'فندق', 'hotels', 'مكة', 'المدينة', 'سويس', 'منارات', 'إقامة', 'صفحة الفنادق'],
+    keywords: ['فنادق', 'فندق', 'hotels', 'مكة', 'المدينة', 'الحرم', 'إقامة', 'صفحة الفنادق'],
   },
   {
     id: 'book',
