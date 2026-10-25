@@ -4,6 +4,7 @@ import { ensureUserAccount, isEmailTaken, updateUserAccess, updateUserProfile, d
 import { getSqliteDb } from '@/lib/sqlite';
 import { ensureStaffProfileColumns, staffExtras } from '@/lib/staff-profile';
 import { mapReservationRow } from '@/lib/booking';
+import { archiveClientLedger, postedClientPayments } from '@/lib/finance';
 import { isCurrentReservation, isTripOver, reservationStatusLabel } from '@/lib/booking-catalog';
 import { normalizeLoginRole, LOGIN_ROLE_LABELS, toPortalRole, PORTAL_TABS, isPrivilegedRole } from '@/lib/roles';
 import { enrichUsersWithSessions, isImageSource, resolveUserPhoto } from '@/lib/user-access-view';
@@ -473,10 +474,28 @@ export async function DELETE(req: NextRequest) {
         { status: 409 }
       );
     }
+    // Money already received stays in the books: the accountant cancels or refunds
+    // the client's payments first, then the account can go (as in accounting apps).
+    const reservationIds = (sqliteDb.prepare('SELECT reservation_id FROM reservations WHERE customer_id = ?').all(userId) as { reservation_id: string }[])
+      .map((r) => r.reservation_id);
+    const paid = postedClientPayments(reservationIds);
+    if (paid.count > 0) {
+      return NextResponse.json(
+        {
+          error: `لهذا العميل ${paid.count} ${paid.count === 1 ? 'دفعة مسجّلة' : 'دفعات مسجّلة'} في المحاسبة (${paid.total.toLocaleString('ar-DZ')} دج). يجب أن يلغيها المحاسب أو يسترجعها من «المداخيل» قبل حذف الحساب.`,
+          code: 'CLIENT_HAS_PAYMENTS',
+        },
+        { status: 409 }
+      );
+    }
     resetSecurityFactors(userId);
     deleteUserAccount(userId, gate.account.id);
-    dbLogAudit(gate.account.name, gate.role, 'حذف حساب', `${user.name || userId}`);
-    return NextResponse.json({ success: true, message: 'تم حذف الحساب' });
+    const { archived } = archiveClientLedger(reservationIds, { userId: gate.account.id, userName: gate.account.name || '', role: gate.role });
+    dbLogAudit(gate.account.name, gate.role, 'حذف حساب', `${user.name || userId}${archived ? ` — ${archived} قيد إلى السجل المؤرشف` : ''}`);
+    return NextResponse.json({
+      success: true,
+      message: archived ? `تم حذف الحساب، ونُقلت قيوده (${archived}) إلى السجل المؤرشف في المحاسبة` : 'تم حذف الحساب',
+    });
   } catch (error: any) {
     return NextResponse.json({ error: friendlyError(error, 'تعذّر حذف الحساب') }, { status: 400 });
   }

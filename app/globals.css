@@ -10299,3 +10299,6 @@ body.modal-open .sakhr-panel-shell {
 .qrls-card.is-bad svg { color: #e11d48; }
 .qrls-card p { margin: 0; font-size: 0.92rem; font-weight: 800; color: #0f172a; line-height: 1.7; }
 .qrls-card button { padding: 0.6rem 1.4rem; border-radius: 12px; border: 0; background: #047857; color: #fff; font-weight: 800; cursor: pointer; }
+/* Journal: live lines vs archived history (components/accountant/LedgerPanel.tsx) */
+.acct-ledger-mode { display: flex; gap: 0.4rem; }
+.acct-ledger-archive-note { margin: 0; padding: 0.6rem 0.8rem; border-radius: 12px; background: #fffbeb; border: 1px solid #fde68a; color: #92400e; font-size: 0.75rem; font-weight: 700; line-height: 1.6; }

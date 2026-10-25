@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
       to: searchParams.get('to') || undefined,
       category: searchParams.get('category') || undefined,
       q: searchParams.get('q') || undefined,
+      archived: searchParams.get('archived') === '1',
     })
   );
 }
