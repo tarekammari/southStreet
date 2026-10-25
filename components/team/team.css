@@ -411,6 +411,93 @@
 .tm-trip-past, .tm-trip-now { display: block; margin-top: 4px; font-size: 11.5px; font-weight: 700; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tm-trip-past { color: #64748b; }
 .tm-trip-now { color: var(--tm-brand); }
+.tm-trip-now { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; max-width: 260px; white-space: normal; line-height: 1.4; }
+.tm-trip-now svg { flex-shrink: 0; }
+.tm-trip-dates { display: inline-flex; align-items: center; gap: 3px; font-weight: 600; color: #64748b; font-size: 11px; }
+.tm-trip-none { display: block; margin-top: 4px; font-size: 11px; font-weight: 600; color: #94a3b8; }
+.tm-person-trip { display: none; align-items: center; gap: 4px; margin-top: 3px; font-style: normal; font-size: 11px; font-weight: 700; color: var(--tm-brand); }
+@media (max-width: 640px) { .tm-person-trip { display: inline-flex; } }
+
+/* Program filter (clients tabs) */
+.tm-progfilter {
+  display: flex;
+  gap: 8px;
+  margin: -4px 0 12px;
+  padding: 2px 2px 6px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.tm-progfilter button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #334155;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+.tm-progfilter button:hover { border-color: #a7f3d0; transform: translateY(-1px); }
+.tm-progfilter button svg { color: var(--tm-brand); }
+.tm-progfilter button small { font-size: 11px; font-weight: 600; color: #64748b; }
+.tm-program-name { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tm-progfilter button.is-none { color: #64748b; border-style: dashed; }
+.tm-progfilter button.is-active {
+  background: var(--tm-brand);
+  border-color: var(--tm-brand);
+  color: #fff;
+  box-shadow: 0 6px 16px -8px rgba(4, 120, 87, 0.7);
+}
+.tm-progfilter button.is-active svg,
+.tm-progfilter button.is-active small { color: rgba(255, 255, 255, 0.85); }
+.tm-progfilter button.is-active .tm-tab-count { background: rgba(255, 255, 255, 0.22); color: #fff; }
+
+/* Drawer: the client's Umrah program */
+.tm-trip-card {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid #a7f3d0;
+  background: linear-gradient(135deg, #ecfdf5, #ffffff 70%);
+}
+.tm-trip-card.is-past { border-color: #e2e8f0; background: #f8fafc; }
+.tm-trip-card.is-none { border-style: dashed; border-color: #cbd5e1; background: #fff; }
+.tm-trip-card-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: var(--tm-brand);
+  color: #fff;
+}
+.tm-trip-card.is-past .tm-trip-card-icon,
+.tm-trip-card.is-none .tm-trip-card-icon { background: #e2e8f0; color: #475569; }
+.tm-trip-card small { display: block; font-size: 11px; font-weight: 700; color: #64748b; }
+.tm-trip-card strong { display: block; margin-top: 2px; font-size: 15px; color: #0f172a; }
+.tm-trip-card-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.tm-trip-card-meta > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #334155;
+}
 
 /* Guide: programmes he accompanies */
 .tm-programs { margin-top: 14px; padding: 14px; border: 1px solid var(--tm-line, #e5e7eb); border-radius: 14px; display: flex; flex-direction: column; gap: 10px; }
@@ -428,3 +515,78 @@
 .tm-programs-tag.is-other { background: #fff7e6; color: #92400e; }
 .tm-programs-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .tm-programs-warn { color: #92400e; font-size: 0.78rem; }
+
+/* Super Admin: change / add a client's trip */
+.tm-trip-edit-btn { margin-top: 10px; }
+.tm-trip-editor {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  animation: tm-trip-in 0.25s ease;
+}
+.tm-trip-editor > strong { font-size: 14px; color: #0f172a; }
+.tm-trip-editor label { display: grid; gap: 4px; font-size: 12px; font-weight: 700; color: #475569; }
+.tm-trip-editor select {
+  height: 40px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+}
+.tm-trip-editor select:focus { outline: none; border-color: var(--tm-brand); background: #fff; }
+.tm-trip-editor-sum { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 6px; margin: 0; }
+.tm-trip-editor-sum div { padding: 8px 10px; border-radius: 10px; background: var(--tm-brand-soft); }
+.tm-trip-editor-sum dt { font-size: 11px; font-weight: 700; color: #64748b; }
+.tm-trip-editor-sum dd { margin: 2px 0 0; font-size: 14px; font-weight: 800; color: #065f46; }
+.tm-trip-editor-warn { margin: 0; padding: 8px 10px; border-radius: 10px; background: #fff1f2; color: #be123c; font-size: 12px; font-weight: 700; }
+.tm-trip-editor-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.tm-trip-editor .tm-muted { margin: 0; font-size: 12px; line-height: 1.6; }
+@keyframes tm-trip-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+/* Client's current bookings in the drawer (ClientBookings.tsx) */
+.tm-bookings { display: grid; gap: 0.6rem; margin-top: 0.9rem; }
+.tm-bookings > small { font-size: 0.72rem; font-weight: 800; color: #64748b; }
+.tm-bookings.is-empty { padding: 0.8rem 0.9rem; border-radius: 14px; background: #f8fafc; border: 1px dashed #cbd5e1; }
+.tm-bookings.is-empty strong { font-size: 0.82rem; color: #475569; }
+.tm-booking {
+  --k: #047857; --k-soft: #ecfdf5; --k-line: #a7f3d0;
+  display: grid; gap: 0.45rem; padding: 0.8rem 0.9rem; border-radius: 16px;
+  border: 1px solid var(--k-line); background: linear-gradient(160deg, var(--k-soft), #fff 70%);
+}
+.tm-booking.is-trip { --k: #0369a1; --k-soft: #f0f9ff; --k-line: #bae6fd; }
+.tm-booking.is-hotel { --k: #6d28d9; --k-soft: #f5f3ff; --k-line: #ddd6fe; }
+.tm-booking header { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
+.tm-booking header b { margin-inline-start: auto; font-size: 0.7rem; color: #64748b; font-family: ui-monospace, monospace; }
+.tm-booking-kind { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.15rem 0.55rem; border-radius: 999px; background: var(--k); color: #fff; font-size: 0.68rem; font-weight: 800; }
+.tm-booking-kind svg { width: 0.8rem; height: 0.8rem; }
+.tm-booking-status { padding: 0.15rem 0.55rem; border-radius: 999px; background: #fff; border: 1px solid #e2e8f0; font-size: 0.68rem; font-weight: 800; color: #334155; }
+.tm-booking > strong { font-size: 0.9rem; font-weight: 900; color: #0f172a; }
+.tm-booking-meta { display: flex; flex-wrap: wrap; gap: 0.4rem 0.9rem; font-size: 0.74rem; color: #475569; font-weight: 600; }
+.tm-booking-meta span { display: inline-flex; align-items: center; gap: 0.25rem; }
+.tm-booking-meta svg { width: 0.85rem; height: 0.85rem; color: #94a3b8; }
+.tm-booking-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.35rem; margin: 0; padding: 0; list-style: none; }
+.tm-booking-steps li { padding-top: 0.4rem; border-top: 4px solid #e2e8f0; font-size: 0.66rem; font-weight: 700; color: #94a3b8; }
+.tm-booking-steps li.is-done { border-color: var(--k); color: var(--k); }
+.tm-booking-steps li.is-now { border-color: #f59e0b; color: #b45309; }
+.tm-booking-next { margin: 0; font-size: 0.76rem; font-weight: 800; color: #0f172a; }
+.tm-booking-acts { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+.tm-booking-acts button {
+  display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.5rem 0.9rem; border-radius: 10px;
+  border: 1px solid #e2e8f0; background: #fff; color: #334155; font-size: 0.78rem; font-weight: 800; cursor: pointer;
+}
+.tm-booking-acts button svg { width: 0.95rem; height: 0.95rem; }
+.tm-booking-acts button.is-ok { background: #047857; border-color: #047857; color: #fff; }
+.tm-booking-acts button.is-bad { background: #fff1f2; border-color: #fecdd3; color: #be123c; }
+.tm-booking-acts button:disabled { opacity: 0.6; cursor: wait; }
+.tm-booking-refuse { display: grid; gap: 0.45rem; }
+.tm-booking-refuse textarea { width: 100%; padding: 0.55rem 0.7rem; border-radius: 10px; border: 1px solid #fecdd3; font-size: 0.8rem; resize: vertical; }
+.tm-trip-kind { display: inline-block; margin-top: 0.2rem; padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.68rem; font-weight: 800; background: #ecfdf5; color: #047857; }
+.tm-trip-kind.is-trip { background: #f0f9ff; color: #0369a1; }
+.tm-trip-kind.is-hotel { background: #f5f3ff; color: #6d28d9; }

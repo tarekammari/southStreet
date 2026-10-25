@@ -194,7 +194,10 @@ export function middleware(request: NextRequest, event: NextFetchEvent) {
   // traffic (messages, live stream, call set-up) is authenticated by its routes
   // and is not counted at all — a call must never trip the flood limit.
   const signedIn = Boolean(request.cookies.get('south_street_token')?.value || request.headers.get('authorization'));
-  const uncounted = staticAsset || (signedIn && url.pathname.startsWith('/api/connect/')) || url.pathname === '/api/public/catalog';
+  // The computer waiting for a phone to approve its QR sign-in asks every few
+  // seconds (GET, read-only, single-use requests): not sign-in attempts.
+  const qrLoginPoll = request.method === 'GET' && url.pathname === '/api/auth/qr-login';
+  const uncounted = staticAsset || qrLoginPoll || (signedIn && url.pathname.startsWith('/api/connect/')) || url.pathname === '/api/public/catalog';
   const counters = uncounted ? { count: 0, auth: 0 } : countHit(s, ip, isAuthPath);
   const query = url.search.replace(/^\?/, '').slice(0, 400);
 

@@ -11,6 +11,7 @@ import {
 import {
   DEPOSIT_PERCENT,
   ROOM_LABELS,
+  buildInvoice,
   canSelfManageReservation,
   isActiveReservation,
   isAgencyConfirmed,
@@ -18,7 +19,9 @@ import {
 } from '@/lib/booking-catalog';
 import { documentVerifyCode } from '@/lib/booking-documents';
 import { dbSaveMessage } from '@/lib/db';
+import { tripKindOf, type TripKind } from '@/lib/tour';
 import { buildDmChatId } from '@/lib/chat-utils';
+import { joinTripGroup } from '@/lib/trip-groups';
 
 export {
   BOOKING_EXTRAS,
@@ -138,6 +141,31 @@ export function parseJson<T>(value: unknown, fallback: T): T {
   }
 }
 
+/** «طلب العمرة» / «طلب الرحلة» / «طلب حجز الفندق»… for the messages a client receives about a booking. */
+export function bookingRequestNoun(r: { booking_type?: string | null; booking_kind?: string | null; trip_kind?: string | null; package_id?: string | null }): string {
+  if (r.booking_type === 'HOTEL' || r.booking_kind === 'HOTEL') return 'طلب حجز الفندق';
+  const kind = r.trip_kind || packageKind(r.package_id);
+  return kind === 'TOURISM' ? 'طلب الرحلة' : kind === 'HAJJ' ? 'طلب الحج' : 'طلب العمرة';
+}
+
+/** UMRAH / HAJJ / TOURISM of a program (cached a few seconds; one query per program). */
+const kindCache = new Map<string, { at: number; kind: TripKind | undefined }>();
+function packageKind(packageId?: string | null): TripKind | undefined {
+  const id = String(packageId || '');
+  if (!id || id.startsWith('hotel:')) return undefined;
+  const hit = kindCache.get(id);
+  if (hit && Date.now() - hit.at < 15_000) return hit.kind;
+  let kind: TripKind | undefined;
+  try {
+    const row = getSqliteDb().prepare('SELECT * FROM packages WHERE package_id = ?').get(id) as any;
+    kind = row ? tripKindOf(row) : undefined;
+  } catch {
+    kind = undefined;
+  }
+  kindCache.set(id, { at: Date.now(), kind });
+  return kind;
+}
+
 export function mapReservationRow(row: any): Reservation {
   return {
     reservation_id: row.reservation_id,
@@ -166,6 +194,11 @@ export function mapReservationRow(row: any): Reservation {
     agency_confirmed_by: row.agency_confirmed_by || undefined,
     document_verify_code: row.document_verify_code || undefined,
     agency_note: row.agency_note || undefined,
+    booking_kind: row.booking_type === 'HOTEL' || row.booking_kind === 'HOTEL' ? 'HOTEL' : 'TRIP',
+    hotel_stay: parseJson<import('@/lib/hotels/types').HotelStay | null>(row.hotel_stay, null) || undefined,
+    visa_status: row.visa_status || undefined,
+    visa_note: row.visa_note || undefined,
+    trip_kind: row.booking_type === 'HOTEL' || row.booking_kind === 'HOTEL' ? undefined : packageKind(row.package_id),
   };
 }
 
@@ -203,7 +236,16 @@ export function lookupMorshidPhone(morshidId?: string): string {
   return row?.phone || '';
 }
 
+/** A client's trips (Umrah / Hajj / tourist programs), newest first. Hotel-only bookings: listCustomerHotelBookings. */
 export function listCustomerReservations(customerId: string): Reservation[] {
+  return listAllCustomerReservations(customerId).filter((r) => r.booking_kind !== 'HOTEL');
+}
+
+export function listCustomerHotelBookings(customerId: string): Reservation[] {
+  return listAllCustomerReservations(customerId).filter((r) => r.booking_kind === 'HOTEL');
+}
+
+function listAllCustomerReservations(customerId: string): Reservation[] {
   const db = getSqliteDb();
   const rows = db.prepare('SELECT * FROM reservations WHERE customer_id = ?').all(customerId) as any[];
   return rows
@@ -211,6 +253,7 @@ export function listCustomerReservations(customerId: string): Reservation[] {
     .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
 }
 
+/** The client's active trip (hotel-only bookings never block a trip, and vice versa). */
 export function findActiveReservation(customerId: string): Reservation | null {
   return listCustomerReservations(customerId).find((row) => isActiveReservation(row.status)) || null;
 }
@@ -347,6 +390,10 @@ export function applyReservationChanges(input: {
 export function cancelCustomerReservation(reservation: Reservation): Reservation {
   const guard = selfManageGuard(reservation);
   if (!guard.ok) throw new Error(guard.reason || 'LOCKED');
+  // Money already paid: a refund is prepared by the accountant and approved by the Super Admin.
+  if ((Number(reservation.paid_amount) || 0) > 0) {
+    throw new Error('سُجّلت دفعة على هذا الطلب. للإلغاء واسترجاع المبلغ تواصل مع الوكالة من المحادثة.');
+  }
 
   const db = getSqliteDb();
   const now = new Date().toISOString();
@@ -445,7 +492,7 @@ function agencySender(db: ReturnType<typeof getSqliteDb>): any | null {
   return byRole(['AGENCY_AGENT', 'AGENT', 'STAFF']) || byRole(['AGENCY_MANAGER', 'MANAGER']) || byRole(['SUPER_ADMIN', 'ADMIN']) || null;
 }
 
-function notifyPilgrimAndAgency(input: {
+export function notifyPilgrimAndAgency(input: {
   customerId: string;
   customerName: string;
   reservationNumber: string;
@@ -559,7 +606,7 @@ export function confirmReservationByAgency(
     customerId: row.customer_id,
     customerName: row.customer_name,
     reservationNumber: row.reservation_number,
-    pilgrimText: `مرحباً ${row.customer_name}، قبلت الوكالة طلب عمرتك رقم ${row.reservation_number} وتم تفعيل دخول حسابك. ملاحظة مهمة: لم تُسجَّل بعد دفعة العربون (${deposit.toLocaleString('ar-DZ')} دج — ${Math.round(DEPOSIT_PERCENT * 100)}٪). يكتمل التأكيد النهائي عند المحاسب بعد تحصيل هذه الدفعة.`,
+    pilgrimText: `مرحباً ${row.customer_name}، قبلت الوكالة ${bookingRequestNoun(row)} رقم ${row.reservation_number} وتم تفعيل دخول حسابك. ملاحظة مهمة: لم تُسجَّل بعد دفعة العربون (${deposit.toLocaleString('ar-DZ')} دج — ${Math.round(DEPOSIT_PERCENT * 100)}٪). يكتمل التأكيد النهائي عند المحاسب بعد تحصيل هذه الدفعة.`,
     groupText: `قُبل طلب ${row.customer_name} — ${row.package_name} (${row.reservation_number}) — بانتظار العربون عند المحاسب.`,
     packageName: row.package_name,
   });
@@ -624,12 +671,20 @@ export function completeConfirmationAfterDeposit(
     reservationId
   );
 
+  let joined: ReturnType<typeof joinTripGroup> = null;
+  try {
+    joined = joinTripGroup(reservationId);
+  } catch (err) {
+    console.error('[booking] trip group', err);
+  }
+
   if (status === 'PAYMENT_PENDING') {
+    const groupLine = joined ? ` أُضفت إلى «${joined.group.name}» في تطبيق Connect مع المرشد وفريق الوكالة.` : '';
     notifyPilgrimAndAgency({
       customerId: row.customer_id,
       customerName: row.customer_name,
       reservationNumber: row.reservation_number,
-      pilgrimText: `مرحباً ${row.customer_name}، أكمل المحاسب تأكيد حجزك رقم ${row.reservation_number} بعد تسجيل العربون. المدفوع ${paid.toLocaleString('ar-DZ')} دج، والمتبقي ${Math.max(0, total - paid).toLocaleString('ar-DZ')} دج. برنامجك جاهز في بوابة المعتمر.`,
+      pilgrimText: `مرحباً ${row.customer_name}، أكمل المحاسب تأكيد حجزك رقم ${row.reservation_number} بعد تسجيل العربون. المدفوع ${paid.toLocaleString('ar-DZ')} دج، والمتبقي ${Math.max(0, total - paid).toLocaleString('ar-DZ')} دج. برنامجك جاهز في بوابة المعتمر.${groupLine}`,
       groupText: `تأكيد نهائي (محاسب) لـ ${row.customer_name} — ${row.package_name} (${row.reservation_number}).`,
       packageName: row.package_name,
     });
@@ -676,9 +731,172 @@ export function rejectReservationByAgency(
     customerName: row.customer_name,
     reservationNumber: row.reservation_number,
     pilgrimText: accepted
-      ? `نعتذر ${row.customer_name}، أُلغي طلب العمرة ${row.reservation_number}. ${note ? `السبب: ${note}` : ''} يمكنك اختيار برنامج آخر في أي وقت أو مراسلتنا هنا.`
-      : `نعتذر ${row.customer_name}، لم تتم الموافقة على طلب العمرة ${row.reservation_number}. ${note ? `السبب: ${note}` : ''} يمكنك اختيار برنامج آخر في أي وقت أو مراسلتنا هنا.`,
+      ? `نعتذر ${row.customer_name}، أُلغي ${bookingRequestNoun(row)} ${row.reservation_number}. ${note ? `السبب: ${note}` : ''} يمكنك اختيار برنامج آخر في أي وقت أو مراسلتنا هنا.`
+      : `نعتذر ${row.customer_name}، لم تتم الموافقة على ${bookingRequestNoun(row)} ${row.reservation_number}. ${note ? `السبب: ${note}` : ''} يمكنك اختيار برنامج آخر في أي وقت أو مراسلتنا هنا.`,
   });
 
   return getReservationById(reservationId) as Reservation;
+}
+
+/* ------------------------------------------------------------------ *
+ * Super Admin: give a client a trip, or move their trip to another program.
+ * ------------------------------------------------------------------ */
+
+export type BookableProgram = {
+  package_id: string;
+  name: string;
+  start_date?: string;
+  end_date?: string;
+  duration_days?: number;
+  available?: number;
+  prices: { room_type: string; amount: number }[];
+};
+
+/** Published programs that have not left yet, with their room prices. */
+export function listBookablePrograms(): BookableProgram[] {
+  const db = getSqliteDb();
+  const ids = (db.prepare('SELECT package_id FROM packages').all() as { package_id: string }[]).map((r) => r.package_id);
+  return ids
+    .map((id) => loadPublishedPackage(id))
+    .filter((pkg): pkg is Package => Boolean(pkg && pkg.published !== false && !isPackageExpired(pkg)))
+    .map((pkg) => ({
+      package_id: pkg.package_id,
+      name: pkg.name,
+      start_date: pkg.start_date,
+      end_date: pkg.end_date,
+      duration_days: pkg.duration_days,
+      available: (pkg as any).available != null ? Number((pkg as any).available) : undefined,
+      prices: (pkg.prices || [])
+        .map((p) => ({ room_type: String(p.room_type), amount: Number(p.amount) }))
+        .filter((p) => Number.isFinite(p.amount)),
+    }))
+    .filter((p) => p.prices.length > 0)
+    .sort((a, b) => String(a.start_date || '').localeCompare(String(b.start_date || '')));
+}
+
+function quoteProgram(packageId: string, roomType: string, extras: BookingExtra[]) {
+  const pkg = loadPublishedPackage(packageId);
+  if (!pkg || pkg.published === false) throw new Error('هذا البرنامج غير متاح');
+  if (isPackageExpired(pkg)) throw new Error('هذا البرنامج انتهى ولا يمكن حجزه');
+  const room = String(roomType || '').toUpperCase();
+  const amount = roomPriceFor(pkg, room);
+  if (amount == null) throw new Error('سعر هذا النوع من الغرف غير متوفر في هذا البرنامج');
+  const invoice = buildInvoice(
+    {
+      id: `room_${room}`,
+      title: `${pkg.name} — ${ROOM_LABELS[room] || room}`,
+      detail: `${pkg.duration_days} يوماً · ${pkg.airline || ''}`,
+      amount,
+    },
+    extras
+  );
+  return { pkg, room, invoice };
+}
+
+/**
+ * A client with no active booking gets one, already accepted by the agency
+ * (the Super Admin is the director): it waits for the deposit at the accountant.
+ */
+export function addClientTrip(customerId: string, packageId: string, roomType: string, staff: { id: string; name: string }): Reservation {
+  const db = getSqliteDb();
+  const customer = db.prepare('SELECT * FROM users WHERE id = ?').get(customerId) as any;
+  if (!customer) throw new Error('العميل غير موجود');
+  if (findActiveReservation(customerId)) throw new Error('لهذا العميل رحلة نشطة — غيّر برنامجها بدل إضافة رحلة جديدة');
+  const { pkg, room, invoice } = quoteProgram(packageId, roomType, []);
+
+  const now = new Date().toISOString();
+  const reservationId = `res_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const reservationNumber = nextReservationNumber();
+  const name = String(customer.name || '').trim() || 'معتمر';
+  const [first_name, ...rest] = name.split(/\s+/);
+  const travelers = [{
+    first_name,
+    last_name: rest.join(' '),
+    passport_number: '',
+    passport_expiry: '',
+    birth_date: '',
+    gender: 'MALE' as const,
+    traveler_type: 'ADULT' as const,
+  }];
+  db.transaction(() => {
+    db.prepare(`
+      INSERT INTO reservations (
+        reservation_id, reservation_number, customer_id, customer_name, customer_email, customer_phone,
+        package_id, package_name, room_type, travelers_count, travelers, total_price, paid_amount,
+        payment_status, reservation_status, created_at, updated_at, extras, invoice, appointments, program,
+        document_verify_code
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, 0, 'PENDING', 'REQUESTED', ?, ?, '[]', ?, ?, ?, ?)
+    `).run(
+      reservationId, reservationNumber, customerId, name, customer.email || '', customer.phone || '',
+      pkg.package_id, pkg.name, room, JSON.stringify(travelers), invoice.total, now, now,
+      JSON.stringify(invoice), JSON.stringify(buildAppointments(pkg)),
+      JSON.stringify(buildProgram(pkg, room, lookupMorshidPhone(pkg.morshid_id))),
+      documentVerifyCode(reservationNumber, 'request', invoice.total)
+    );
+    adjustPackageSeat(pkg.package_id, true);
+  })();
+  return confirmReservationByAgency(reservationId, staff, `أضافها ${staff.name} من «الفريق والحسابات».`);
+}
+
+/**
+ * Move the client's active trip to another program / room before departure.
+ * What was paid stays; the total, deposit and appointments follow the new program.
+ */
+export function changeClientTrip(customerId: string, packageId: string, roomType: string, staff: { id: string; name: string }): { before: Reservation; after: Reservation } {
+  const db = getSqliteDb();
+  const existing = findActiveReservation(customerId);
+  if (!existing) throw new Error('لا توجد رحلة نشطة لهذا العميل');
+  const guard = selfManageGuard(existing);
+  if (!guard.ok) throw new Error(guard.reason || 'لا يمكن تعديل هذه الرحلة');
+  const room = String(roomType || '').toUpperCase();
+  if (existing.package_id === packageId && String(existing.room_type).toUpperCase() === room) {
+    throw new Error('هذا هو البرنامج الحالي نفسه');
+  }
+  const extras = Array.isArray(existing.extras) ? (existing.extras as BookingExtra[]) : [];
+  const { pkg, invoice } = quoteProgram(packageId, room, extras);
+  const paid = Number(existing.paid_amount) || 0;
+  if (paid > invoice.total) {
+    throw new Error(`المدفوع (${paid.toLocaleString('ar-DZ')} دج) يتجاوز سعر البرنامج الجديد — الفرق يُسترجع عبر المحاسب أولاً`);
+  }
+  const status = String(existing.status || '').toUpperCase();
+  const paymentStatus = paid >= invoice.total ? 'PAID' : paid > 0 ? 'PARTIALLY_PAID' : 'UNPAID';
+  const reservationStatus = status === 'PAID' || status === 'PARTIALLY_PAID'
+    ? (paid >= invoice.total ? 'PAID' : 'PARTIALLY_PAID')
+    : status;
+  const now = new Date().toISOString();
+  const note = [
+    existing.agency_note || '',
+    `غيّر ${staff.name} البرنامج من «${existing.package_name}» إلى «${pkg.name}» (${ROOM_LABELS[room] || room}) — ${new Date().toLocaleDateString('ar-DZ')}.`,
+  ].filter(Boolean).join('\n');
+  const newInvoice: BookingInvoice = { ...invoice, remainingAmount: Math.max(0, invoice.total - paid) };
+
+  db.transaction(() => {
+    if (existing.package_id !== pkg.package_id) {
+      adjustPackageSeat(existing.package_id, false);
+      adjustPackageSeat(pkg.package_id, true);
+    }
+    db.prepare(`
+      UPDATE reservations SET
+        package_id = ?, package_name = ?, room_type = ?,
+        total_price = ?, payment_status = ?, reservation_status = ?,
+        invoice = ?, appointments = ?, program = ?, agency_note = ?, updated_at = ?
+      WHERE reservation_id = ? AND customer_id = ?
+    `).run(
+      pkg.package_id, pkg.name, room,
+      invoice.total, paymentStatus, reservationStatus,
+      JSON.stringify(newInvoice), JSON.stringify(buildAppointments(pkg)),
+      JSON.stringify(buildProgram(pkg, room, lookupMorshidPhone(pkg.morshid_id))), note, now,
+      existing.reservation_id, customerId
+    );
+  })();
+
+  notifyPilgrimAndAgency({
+    customerId,
+    customerName: existing.customer_name,
+    reservationNumber: existing.reservation_number,
+    pilgrimText: `مرحباً ${existing.customer_name}، تم تغيير برنامج رحلتك رقم ${existing.reservation_number} إلى «${pkg.name}» (${ROOM_LABELS[room] || room}). المجموع الجديد ${invoice.total.toLocaleString('ar-DZ')} دج، والمدفوع ${paid.toLocaleString('ar-DZ')} دج.`,
+    groupText: `تغيير برنامج ${existing.customer_name} (${existing.reservation_number}): «${existing.package_name}» ← «${pkg.name}».`,
+    packageName: pkg.name,
+  });
+  return { before: existing, after: getReservationById(existing.reservation_id) as Reservation };
 }

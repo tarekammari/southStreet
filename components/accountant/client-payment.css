@@ -84,6 +84,19 @@
   outline: none;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
+.cpm-field textarea {
+  width: 100%;
+  border: 1px solid var(--cpm-line);
+  border-radius: 12px;
+  background: var(--cpm-field);
+  padding: 10px 12px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #0f172a;
+  outline: none;
+  resize: vertical;
+}
+.cpm-field textarea:focus,
 .cpm-field select:focus,
 .cpm-field input:focus { border-color: #10b981; box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18); background: #fff; }
 .cpm-segment { display: grid; grid-template-columns: repeat(var(--cpm-n, 3), 1fr); gap: 4px; padding: 4px; background: #f1f5f9; border-radius: 14px; }

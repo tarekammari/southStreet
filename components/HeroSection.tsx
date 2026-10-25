@@ -1,16 +1,17 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { ChevronDown } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { publicList } from '@/lib/public-catalog';
 import { PageContentRow } from '@/lib/page-content';
 import { useIntroDone } from '@/lib/intro';
 import { isOpenPackageStatus } from '@/lib/package-status';
-import { SOCIAL_LABELS } from '@/lib/social';
+import { socialProfiles } from '@/lib/social';
 import { useAgencyInfo } from '@/components/social/useAgencyInfo';
 import { SOCIAL_ICON } from '@/components/social/SocialIcons';
-import { PROGRAM_KIND_LABEL, ProgramKind, programImages, programKind } from '@/lib/program-display';
+import { PROGRAM_KIND_LABEL, ProgramKind, programImages, programKind, tripGallery, type TripPhoto } from '@/lib/program-display';
 
 type HeroOffer = {
   id: string;
@@ -18,7 +19,10 @@ type HeroOffer = {
   kind: ProgramKind;
   date: string;
   priceFrom: number | null;
-  images: string[];
+  /** Pilgrimages use the Makkah album; trips their own photos, filled with their destination's cities. */
+  photos: TripPhoto[];
+  /** When a pilgrimage leads, the nearest open tourism trip is offered under it. */
+  alsoTrip: { id: string; name: string; date: string } | null;
 };
 
 type Postcard = { src: string; alt: string; place: string; line: string };
@@ -84,7 +88,9 @@ function pickNearestAvailable(packages: any[]): any | null {
 function pickHeroOffer(packages: any[]): HeroOffer | null {
   const pilgrimages = packages.filter((pkg) => programKind(pkg) !== 'tourism');
   const tours = packages.filter((pkg) => programKind(pkg) === 'tourism');
-  const chosen = pickNearestAvailable(pilgrimages) || pickNearestAvailable(tours);
+  const pilgrimage = pickNearestAvailable(pilgrimages);
+  const tour = pickNearestAvailable(tours);
+  const chosen = pilgrimage || tour;
   if (!chosen) return null;
 
   return {
@@ -93,17 +99,26 @@ function pickHeroOffer(packages: any[]): HeroOffer | null {
     kind: programKind(chosen),
     date: formatOfferDate(chosen.start_date, chosen.season_name),
     priceFrom: lowestOfferPrice(chosen.prices),
-    images: programImages(chosen),
+    photos: programKind(chosen) === 'tourism' ? tripGallery(chosen) : programImages(chosen).map((src) => ({ src, place: String(chosen.name || '') })),
+    alsoTrip: pilgrimage && tour
+      ? { id: tour.package_id, name: String(tour.name || ''), date: formatOfferDate(tour.start_date, tour.season_name) }
+      : null,
   };
+}
+
+/** Tourism trips open on their own page (itinerary, hotels, visa); Umrah/Hajj go straight to the booking wizard. */
+function offerHref(offer: HeroOffer): string {
+  if (!offer.id) return offer.kind === 'tourism' ? '/packages?kind=tourism' : '/book';
+  return offer.kind === 'tourism' ? `/packages/${encodeURIComponent(offer.id)}` : `/book?package=${encodeURIComponent(offer.id)}`;
 }
 
 function offerPostcards(offer: HeroOffer | null | undefined): readonly Postcard[] {
   if (!offer || offer.kind !== 'tourism') return POSTCARDS;
-  return offer.images.map((src, i) => ({
-    src,
-    alt: `${offer.name} — صورة ${i + 1}`,
-    place: offer.name,
-    line: offer.date,
+  return offer.photos.map((p, i) => ({
+    src: p.src,
+    alt: `${p.place} — صورة ${i + 1}`,
+    place: p.place,
+    line: p.place === offer.name ? offer.date : offer.name,
   }));
 }
 
@@ -208,9 +223,7 @@ export default function HeroSection({ content: _content }: { content?: PageConte
 
   const cards = offer === undefined ? [] : offerPostcards(offer);
   const social = useAgencyInfo()?.social;
-  const profiles = social
-    ? (Object.keys(SOCIAL_LABELS) as (keyof typeof SOCIAL_LABELS)[]).filter((k) => social[k]).map((k) => ({ key: k, url: social[k], label: SOCIAL_LABELS[k] }))
-    : [];
+  const profiles = socialProfiles(social);
 
   const scrollToAgency = () => {
     const el = document.getElementById('agency-section');
@@ -250,7 +263,10 @@ export default function HeroSection({ content: _content }: { content?: PageConte
                   {offer.date ? <p className="hero-offer-date">{offer.date}</p> : null}
                 </>
               ) : offer === null ? (
-                <h1 className="hero-headline hero-no-offer">لا توجد رحلات متاحة حالياً</h1>
+                <>
+                  <h1 className="hero-headline hero-no-offer">لا توجد رحلات متاحة حالياً</h1>
+                  <p className="hero-no-offer-sub">نُحضّر برامج العمرة والرحلات القادمة. يمكنك حجز فندقك الآن في أي وجهة، أو مراسلتنا ليصلك أول برنامج.</p>
+                </>
               ) : null}
             </motion.div>
 
@@ -281,10 +297,10 @@ export default function HeroSection({ content: _content }: { content?: PageConte
             >
               <button
                 type="button"
-                onClick={() => { window.location.href = offer.id ? `/book?package=${encodeURIComponent(offer.id)}` : '/book'; }}
+                onClick={() => { window.location.href = offerHref(offer); }}
                 className="hero-buy-btn hero-buy-btn-primary"
               >
-                ابدأ
+                {offer.kind === 'tourism' ? 'تفاصيل الرحلة' : 'ابدأ'}
               </button>
               <button
                 type="button"
@@ -294,6 +310,33 @@ export default function HeroSection({ content: _content }: { content?: PageConte
                 جميع الرحلات و العروض
               </button>
             </motion.div>
+          ) : offer === null ? (
+            <motion.div
+              variants={heroFadeUp}
+              initial="hidden"
+              animate={introDone ? 'show' : 'hidden'}
+              className="hero-offer-actions"
+              dir="rtl"
+            >
+              <Link href="/hotels" className="hero-buy-btn hero-buy-btn-primary">احجز فندقاً</Link>
+              <Link href="/packages" className="hero-buy-btn hero-buy-btn-secondary">كل البرامج</Link>
+            </motion.div>
+          ) : null}
+
+          {offer?.alsoTrip ? (
+            <motion.a
+              variants={heroFadeUp}
+              initial="hidden"
+              animate={introDone ? 'show' : 'hidden'}
+              href={`/packages/${encodeURIComponent(offer.alsoTrip.id)}`}
+              className="hero-also-trip"
+              dir="rtl"
+            >
+              <span className="hero-also-trip-tag">{PROGRAM_KIND_LABEL.tourism} متاحة أيضاً</span>
+              <span className="hero-also-trip-name">{offer.alsoTrip.name}</span>
+              {offer.alsoTrip.date ? <span className="hero-also-trip-date">{offer.alsoTrip.date}</span> : null}
+              <span className="hero-also-trip-go" aria-hidden>←</span>
+            </motion.a>
           ) : null}
 
           {profiles.length ? (

@@ -2,22 +2,17 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ShoppingBag, Loader2, Calendar, ChevronDown } from 'lucide-react';
+import { BedDouble, Calendar, ChevronDown, Loader2, MoonStar, Plane, ShoppingBag, type LucideIcon } from 'lucide-react';
 import { Reservation, User } from '@/types';
-import { isActiveReservation, reservationStatusLabel } from '@/lib/booking-catalog';
+import { isCurrentReservation, reservationStatusLabel } from '@/lib/booking-catalog';
+import { BOOKING_KIND_LABEL, bookingDateLabel, bookingHref, bookingKindOf, bookingProgress, type BookingKind } from '@/lib/booking-progress';
 import { toPortalRole } from '@/lib/roles';
-import { authHeaders, getAuthToken, apiFetch, jsonAuthHeaders } from '@/lib/api-client';
+import { authHeaders, getAuthToken } from '@/lib/api-client';
 
+const KIND_ICON: Record<BookingKind, LucideIcon> = { umrah: MoonStar, hajj: MoonStar, trip: Plane, hotel: BedDouble };
 
 function money(n: number): string {
   return `${(n || 0).toLocaleString('ar-DZ')} دج`;
-}
-
-function formatDate(value?: string): string {
-  if (!value) return '—';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleDateString('ar-DZ', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 function staffInboxHref(role: ReturnType<typeof toPortalRole>): string {
@@ -25,6 +20,31 @@ function staffInboxHref(role: ReturnType<typeof toPortalRole>): string {
   if (role === 'agent') return '/portal?tab=agent';
   if (role === 'accountant') return '/portal?tab=accountant';
   return '/portal';
+}
+
+function KindChip({ res }: { res: Reservation }) {
+  const kind = bookingKindOf(res);
+  const Icon = KIND_ICON[kind];
+  return (
+    <span className={`demand-bag-kind is-${kind}`}>
+      <Icon aria-hidden /> {BOOKING_KIND_LABEL[kind]}
+    </span>
+  );
+}
+
+/** Four dots: sent → accepted → deposit → travel / stay, as on the booking pages. */
+function MiniSteps({ res }: { res: Reservation }) {
+  const p = bookingProgress(res);
+  return (
+    <div className={`demand-bag-steps${p.closed ? ' is-closed' : ''}`} aria-label={p.next}>
+      <ol>
+        {p.steps.map((label, i) => (
+          <li key={label} className={p.closed ? '' : i <= p.done ? 'is-done' : i === p.done + 1 ? 'is-next' : ''} title={label} />
+        ))}
+      </ol>
+      <small>{p.next}</small>
+    </div>
+  );
 }
 
 export default function DemandBag({
@@ -54,12 +74,16 @@ export default function DemandBag({
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (isStaff) {
-          const pending = (data?.pending || []) as Reservation[];
-          setItems(pending);
+          setItems((data?.pending || []) as Reservation[]);
           return;
         }
-        const list = (data?.reservations || []) as Reservation[];
-        setItems(list.filter((row) => isActiveReservation(row.status)));
+        // Umrah, trips and hotel stays together, nearest date first.
+        const all = [...((data?.reservations || []) as Reservation[]), ...((data?.hotelBookings || []) as Reservation[])];
+        setItems(
+          all
+            .filter((row) => isCurrentReservation(row))
+            .sort((a, b) => String(a.hotel_stay?.check_in || a.program?.start_date || '').localeCompare(String(b.hotel_stay?.check_in || b.program?.start_date || '')))
+        );
       })
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
@@ -94,6 +118,8 @@ export default function DemandBag({
     ? 'demand-bag-btn demand-bag-btn-light'
     : 'demand-bag-btn demand-bag-btn-dark';
   const inbox = staffInboxHref(portalRole || 'pilgrim');
+  const title = isStaff ? 'طلبات الحجز' : 'حجوزاتي';
+  const close = () => setOpen(false);
 
   return (
     <div className="relative" ref={ref}>
@@ -101,8 +127,8 @@ export default function DemandBag({
         type="button"
         className={btnClass}
         onClick={() => setOpen((v) => !v)}
-        aria-label={isStaff ? `طلبات المعتمرين (${count})` : `طلباتي (${count})`}
-        title={isStaff ? 'طلبات المعتمرين' : 'طلبات العمرة'}
+        aria-label={`${title} (${count})`}
+        title={isStaff ? 'طلبات العمرة والرحلات والفنادق' : 'حجوزاتي: عمرة، رحلات، فنادق'}
       >
         <ShoppingBag className="w-[18px] h-[18px]" />
         {count > 0 ? <span className="demand-bag-badge">{count > 9 ? '9+' : count}</span> : null}
@@ -111,66 +137,73 @@ export default function DemandBag({
       {open && (
         <div className={`demand-bag-panel ${isLight ? 'demand-bag-panel-light' : 'demand-bag-panel-dark'}`}>
           <div className="demand-bag-head">
-            <strong>{isStaff ? 'طلبات المعتمرين' : 'طلباتي'}</strong>
-            <span>{count} {isStaff ? 'بانتظار التأكيد' : 'برنامج'}</span>
+            <strong>{title}</strong>
+            <span>{count} {isStaff ? 'بانتظار التأكيد' : count === 1 ? 'حجز' : 'حجوزات'}</span>
           </div>
 
-          {loading ? (
+          {loading && count === 0 ? (
             <p className="demand-bag-empty">
               <Loader2 className="w-4 h-4 animate-spin inline" /> جاري التحميل...
             </p>
           ) : count === 0 ? (
             <div className="demand-bag-empty">
-              <p>{isStaff ? 'لا توجد طلبات معلّقة حالياً' : 'لا توجد طلبات عمرة حالياً'}</p>
+              <p>{isStaff ? 'لا توجد طلبات معلّقة حالياً' : 'لا توجد حجوزات حالياً. اختر عمرة أو رحلة أو فندقاً، وتتابع حالة طلبك هنا خطوة بخطوة.'}</p>
               {!isStaff ? (
-                <Link href="/book" onClick={() => setOpen(false)} className="demand-bag-cta">
-                  ابدأ حجز برنامج
-                </Link>
+                <div className="demand-bag-empty-acts">
+                  <Link href="/packages" onClick={close} className="demand-bag-cta">العمرة والرحلات</Link>
+                  <Link href="/hotels" onClick={close} className="demand-bag-cta is-ghost">احجز فندقاً</Link>
+                </div>
               ) : (
-                <Link href={inbox} onClick={() => setOpen(false)} className="demand-bag-cta">
+                <Link href={inbox} onClick={close} className="demand-bag-cta">
                   فتح صندوق الطلبات
                 </Link>
               )}
             </div>
           ) : (
             <ul className="demand-bag-list">
-              {items.map((res) => (
-                <li key={res.reservation_id} className="demand-bag-item">
-                  <div className="demand-bag-item-top">
-                    <span className="demand-bag-status">{reservationStatusLabel(res.status)}</span>
-                    <strong>{money(res.total_amount)}</strong>
-                  </div>
-                  <h4>{isStaff ? res.customer_name : res.package_name}</h4>
-                  <p className="demand-bag-meta">
-                    <Calendar className="w-3 h-3 inline opacity-60" />
-                    {' '}
-                    {isStaff ? res.package_name : formatDate(res.program?.start_date)} · {res.reservation_number}
-                  </p>
-                  {String(res.status).toUpperCase() === 'REJECTED' && res.agency_note ? (
-                    <p className="refusal-reason">السبب: {res.agency_note}</p>
-                  ) : null}
-                  <div className="demand-bag-actions">
-                    {isStaff ? (
-                      <Link href={inbox} onClick={() => setOpen(false)}>مراجعة الطلب</Link>
-                    ) : (
-                      <>
-                        <Link href="/book" onClick={() => setOpen(false)}>إدارة</Link>
-                        <Link href="/portal?tab=program" onClick={() => setOpen(false)}>التفاصيل</Link>
-                      </>
-                    )}
-                  </div>
-                </li>
-              ))}
+              {items.map((res) => {
+                const hotel = bookingKindOf(res) === 'hotel';
+                return (
+                  <li key={res.reservation_id} className="demand-bag-item">
+                    <div className="demand-bag-item-top">
+                      <span className="demand-bag-tags">
+                        <KindChip res={res} />
+                        <span className="demand-bag-status">{reservationStatusLabel(res.status)}</span>
+                      </span>
+                      <strong>{money(res.total_amount)}</strong>
+                    </div>
+                    <h4>{isStaff ? res.customer_name : res.hotel_stay?.hotel_name || res.package_name}</h4>
+                    <p className="demand-bag-meta">
+                      <Calendar className="w-3 h-3 inline opacity-60" />
+                      {' '}
+                      {isStaff ? res.package_name : bookingDateLabel(res)} · {res.reservation_number}
+                    </p>
+                    {!isStaff ? <MiniSteps res={res} /> : null}
+                    <div className="demand-bag-actions">
+                      {isStaff ? (
+                        <Link href={inbox} onClick={close}>مراجعة الطلب</Link>
+                      ) : (
+                        <>
+                          {!hotel && ['REQUESTED', 'PENDING'].includes(String(res.status).toUpperCase()) ? (
+                            <Link href="/book" onClick={close}>تعديل</Link>
+                          ) : null}
+                          <Link href={bookingHref(res)} onClick={close}>تابع الحالة</Link>
+                        </>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
 
           {count > 0 ? (
             <Link
               href={isStaff ? inbox : '/portal?tab=program'}
-              onClick={() => setOpen(false)}
+              onClick={close}
               className="demand-bag-foot"
             >
-              {isStaff ? 'عرض كل الطلبات' : 'عرض كل الطلبات'}
+              {isStaff ? 'عرض كل الطلبات' : 'كل حجوزاتي'}
               <ChevronDown className="w-3.5 h-3.5 rotate-90" />
             </Link>
           ) : null}

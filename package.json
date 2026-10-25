@@ -14,6 +14,7 @@
     "admin:recover": "tsx scripts/super-admin.ts recover",
     "admin:status": "tsx scripts/super-admin.ts status",
     "db:push-turso": "tsx scripts/turso-push.ts",
+    "connect:ringtones": "tsx scripts/render-ringtones.ts",
     "db:rekey": "tsx scripts/db-rekey.ts",
     "db:backup": "tsx scripts/backup-db.ts",
     "backup:key": "tsx scripts/backup-key.ts",

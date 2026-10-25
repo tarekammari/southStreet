@@ -16,6 +16,8 @@ import { reservationStatusLabel } from '@/lib/booking-catalog';
 import { sanitizeVisual, type VisualSpec } from '@/lib/sakhr/visual';
 import { trustedWebSearch } from '@/lib/sakhr/trusted-search';
 import { findOfficialUpdates } from '@/lib/sakhr/official-updates';
+import { HOTEL_TOOLS } from '@/lib/sakhr/hotel-tools';
+import { isTourism, tourOf, destinationOf } from '@/lib/tour';
 
 /**
  * Sakhr's tools. Each one runs through the app's own API handler with the
@@ -39,7 +41,12 @@ export type ToolResult = { ok: boolean; data?: unknown; error?: string; status?:
 export type ClientAction =
   | { type: 'navigate'; href: string }
   | { type: 'open_table'; table: string }
-  | { type: 'visual'; visual: VisualSpec };
+  | { type: 'visual'; visual: VisualSpec }
+  | { type: 'open_login'; method: LoginMethod; username?: string }
+  | { type: 'connect_app'; action: 'open' | 'download_page' | 'install'; platform: ConnectPlatform };
+
+export type LoginMethod = 'choose' | 'google' | 'password' | 'register';
+export type ConnectPlatform = 'auto' | 'android' | 'windows' | 'iphone';
 
 export type SakhrTool = {
   name: string;
@@ -188,7 +195,7 @@ function agencyStats(role: Who, months: number) {
     const label = reservationStatusLabel(r.reservation_status);
     byStatus[label] = (byStatus[label] || 0) + 1;
     const key = String(r.created_at || '').slice(0, 7);
-    const refused = ['REJECTED', 'CANCELLED'].includes(String(r.reservation_status || '').toUpperCase());
+    const refused = ['REJECTED', 'CANCELLED', 'EXPIRED'].includes(String(r.reservation_status || '').toUpperCase());
     if (byMonth[key]) {
       byMonth[key].requests += 1;
       if (!refused) byMonth[key].value += totalOf(r);
@@ -323,11 +330,12 @@ export const SAKHR_TOOLS: SakhrTool[] = [
   {
     name: 'search_programs',
     description:
-      'Search the agency Umrah/Hajj programs (trips): dates, duration, hotels, airline, price from, seats left and whether booking is open. Use for any question about trips, prices or availability.',
+      'Search the agency programs: Umrah / Hajj and organised tourist trips (Turkey, Malaysia, Egypt, Tunisia, Spain, London…): kind, destination, cities, dates, duration, hotels, airline, price from, seats left, whether booking is open, and the page link. Use for any question about trips, prices or availability. For a hotel-only stay use hotels_search instead.',
     parameters: {
       type: 'object',
       properties: {
-        query: { type: 'string', description: 'Optional words to match in the program name, hotel, airline or season.' },
+        query: { type: 'string', description: 'Optional words to match in the program name, destination, city, hotel, airline or season.' },
+        kind: { type: 'string', enum: ['umrah_hajj', 'tourism'], description: 'Optional: only Umrah/Hajj programs or only tourist trips.' },
         include_past: { type: 'boolean', description: 'Include programs whose departure has passed.' },
       },
     },
@@ -339,7 +347,15 @@ export const SAKHR_TOOLS: SakhrTool[] = [
       const q = String(args?.query || '').trim().toLowerCase();
       const rows = (res.data as any[])
         .filter((p) => args?.include_past || programAvailability(p) !== 'expired')
-        .filter((p) => !q || [p.name, p.makkah_hotel_name, p.madinah_hotel_name, p.airline, p.season_name].join(' ').toLowerCase().includes(q))
+        .filter((p) => !args?.kind || (args.kind === 'tourism') === isTourism(p))
+        .filter((p) => {
+          if (!q) return true;
+          const t = tourOf(p);
+          return [p.name, p.makkah_hotel_name, p.madinah_hotel_name, p.airline, p.season_name, destinationOf(t.country)?.label, t.country, ...t.cities]
+            .join(' ')
+            .toLowerCase()
+            .includes(q);
+        })
         .slice(0, 15)
         .map((p) => ({
           id: p.package_id,
@@ -362,6 +378,12 @@ export const SAKHR_TOOLS: SakhrTool[] = [
           madinah_hotel: p.madinah_hotel_name,
           airline: p.airline,
           departure: p.departure_city,
+          kind: isTourism(p) ? 'tourist trip' : /حج/.test(p.name) ? 'Hajj' : 'Umrah',
+          destination: isTourism(p) ? destinationOf(tourOf(p).country)?.label || tourOf(p).country || undefined : undefined,
+          cities: isTourism(p) ? tourOf(p).cities : undefined,
+          days_plan: isTourism(p) ? tourOf(p).itinerary.slice(0, 10).map((d) => `اليوم ${d.day}: ${d.title}`) : undefined,
+          visa: isTourism(p) ? tourOf(p).visa || undefined : undefined,
+          page: `/packages/${encodeURIComponent(p.package_id)}`,
           book_link: `/book?package=${encodeURIComponent(p.package_id)}`,
         }));
       return { ok: true, data: { count: rows.length, programs: rows } };
@@ -467,7 +489,7 @@ export const SAKHR_TOOLS: SakhrTool[] = [
   },
   {
     name: 'my_bookings',
-    description: "The signed-in user's own Umrah requests and bookings: status, amounts paid and remaining, receipts.",
+    description: "The signed-in user's own bookings: Umrah / Hajj / tourist trips and hotel-only stays — status, amounts paid and remaining, receipts.",
     parameters: { type: 'object', properties: {} },
     roles: SIGNED_IN,
     kind: 'read',
@@ -484,7 +506,15 @@ export const SAKHR_TOOLS: SakhrTool[] = [
         remaining: money((Number(r.total_amount) || 0) - (Number(r.paid_amount) || 0)),
         created: r.created_at,
       }));
-      return { ok: true, data: { reservations, receipts: (res.data.receipts || []).length } };
+      const hotelBookings = (res.data.hotelBookings || []).map((r: any) => ({
+        number: r.reservation_number,
+        hotel: r.hotel_stay?.hotel_name || r.package_name,
+        dates: r.hotel_stay ? `${r.hotel_stay.check_in} → ${r.hotel_stay.check_out}` : '',
+        status: r.status,
+        total: money(r.total_amount),
+        paid: money(r.paid_amount),
+      }));
+      return { ok: true, data: { reservations, hotel_bookings: hotelBookings, receipts: (res.data.receipts || []).length } };
     },
   },
   {
@@ -874,6 +904,47 @@ export const SAKHR_TOOLS: SakhrTool[] = [
     },
   },
   {
+    name: 'open_sign_in',
+    description:
+      'Open the sign-in window on screen. method: "google" (the window opens with the Google button ready — the user taps it to finish), "password" (the user types their password in the window; pass username if they gave it), "register" (create an account), "choose" (let them pick). Never ask for, repeat or store a password in the chat.',
+    parameters: {
+      type: 'object',
+      properties: {
+        method: { type: 'string', enum: ['choose', 'google', 'password', 'register'] },
+        username: { type: 'string', description: 'E-mail or username the user gave, to prefill. Never a password.' },
+      },
+      required: ['method'],
+    },
+    roles: EVERYONE,
+    kind: 'client',
+    clientAction: (a, role) => {
+      if (role !== 'ANON') return { error: 'المستخدم مسجّل الدخول بالفعل' };
+      const method: LoginMethod = ['google', 'password', 'register'].includes(a?.method) ? a.method : 'choose';
+      const username = String(a?.username || '').trim();
+      return { type: 'open_login', method, ...(/^[\w.@+-]{2,120}$/.test(username) ? { username } : {}) };
+    },
+  },
+  {
+    name: 'connect_app',
+    description:
+      'South Street Connect, the agency app for messages and voice calls with the agency team and guides. action: "open" (open Connect in the browser now), "download_page" (the app page with all platforms), "install" (start installing on this device: Android APK, Windows installer, or iPhone add-to-home-screen steps; sign-in comes first if needed). platform: "auto" (this device) unless the user names one.',
+    parameters: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: ['open', 'download_page', 'install'] },
+        platform: { type: 'string', enum: ['auto', 'android', 'windows', 'iphone'] },
+      },
+      required: ['action'],
+    },
+    roles: EVERYONE,
+    kind: 'client',
+    clientAction: (a) => {
+      const action = ['open', 'download_page', 'install'].includes(a?.action) ? a.action : 'download_page';
+      const platform: ConnectPlatform = ['android', 'windows', 'iphone'].includes(a?.platform) ? a.platform : 'auto';
+      return { type: 'connect_app', action, platform };
+    },
+  },
+  {
     name: 'agency_stats',
     description:
       'Agency figures for reports and charts: requests by status and by month, seats per program, and (finance roles) booked value, paid, outstanding and payments per month in DZD. Use it before drawing a chart of agency activity.',
@@ -972,6 +1043,8 @@ export const SAKHR_TOOLS: SakhrTool[] = [
     kind: 'client',
     clientAction: (a, role) => (canReadTable(a.table, role) ? { type: 'open_table', table: a.table } : { error: 'لا يمكن فتح هذا الجدول' }),
   },
+  // Hotels (hotel-only stays) and tourist-trip visa follow-up: lib/sakhr/hotel-tools.ts
+  ...HOTEL_TOOLS,
 ];
 
 export function toolsFor(role: Who): SakhrTool[] {

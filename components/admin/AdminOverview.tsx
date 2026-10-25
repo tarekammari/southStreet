@@ -26,7 +26,7 @@ export default function AdminOverview({
       key: 'bookings',
       label: 'تأكيدات الحجوزات',
       value: kpis.pendingBookings,
-      hint: kpis.pendingBookings > 0 ? 'طلبات عمرة معلّقة' : 'لا حجوزات بانتظار التأكيد',
+      hint: kpis.pendingBookings > 0 ? 'عمرة، رحلات وفنادق بانتظار القبول' : 'لا حجوزات بانتظار التأكيد',
       icon: <CalendarCheck className="w-3.5 h-3.5 text-white/70" />,
       tone: kpis.pendingBookings > 0 ? 'is-alert' : '',
       go: () => onNavigate('bookings'),
@@ -96,7 +96,7 @@ export default function AdminOverview({
             الموافقات
           </button>
           <button type="button" className="adm-btn adm-btn-ghost" onClick={() => onNavigate('bookings')}>
-            طلبات العمرة
+            طلبات الحجز
           </button>
           <button type="button" className="adm-btn adm-btn-ghost" onClick={() => onNavigate('security')}>
             مركز الأمن

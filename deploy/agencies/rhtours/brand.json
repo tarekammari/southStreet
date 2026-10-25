@@ -1,0 +1,76 @@
+{
+  "slug": "rhtours",
+  "suggestedHost": "rhtours.1zayd1.tech",
+  "name": {
+    "ar": "وكالة رزاق هبلة تور",
+    "latin": "Rezzag Hebla Tours",
+    "short": "R.H Tours"
+  },
+  "tagline": "سفرك... راحتك... ثقتنا",
+  "secondaryTagline": "وجهات متعددة... خدمات متميزة... وتجربة لا تُنسى",
+  "logo": "logo.jpg",
+  "colors": {
+    "primary": "#0b3a8c",
+    "primaryDark": "#071f52",
+    "accent": "#c9a227",
+    "accentLight": "#f1d27a"
+  },
+  "headquarters": {
+    "address": "ص ب 7، شارع القدس، المصاعبة، الوادي، الجزائر",
+    "city": "الوادي",
+    "country": "DZ"
+  },
+  "branches": [
+    { "city": "ورقلة", "address": "عنقود الطرق على الملح 2، ورقلة" },
+    { "city": "تقرت", "address": "محل 70-71، عمارة H24، حي 250 مسكن، تسيسيت، تقرت" }
+  ],
+  "phones": {
+    "main": "0550 96 39 03",
+    "whatsapp": ["0550 96 39 03", "0550 96 39 04"],
+    "bookings": "0556 04 01 11",
+    "other": [
+      "0770 07 29 42",
+      "0661 38 52 47",
+      "0666 46 57 46",
+      "0799 89 89 74",
+      "0770 08 36 95",
+      "0782 47 47 37",
+      "0798 86 86 85"
+    ]
+  },
+  "email": "rh-tours@yahoo.fr",
+  "services": [
+    "رحلات سياحية",
+    "تأشيرات سياحية",
+    "عمرة وحج ورحلات دينية",
+    "حجز فنادق",
+    "حجز تذاكر طيران"
+  ],
+  "destinations": ["مكة المكرمة", "المدينة المنورة", "تركيا", "مصر", "باريس"],
+  "departureAirports": ["مطار قمار (الوادي)"],
+  "images": {
+    "hero": "images/banner.jpg",
+    "programs": ["images/umrah-ahl-al-quran.jpg"],
+    "posts": ["images/visa-denmark.jpg", "images/notice-currency.jpg", "images/notice-flight-time.jpg"]
+  },
+  "starterProgram": {
+    "kind": "UMRAH",
+    "name": "عمرة أهل القرآن — عمرة الحفاظ 6",
+    "start_date": "2026-11-21",
+    "departure": "مطار قمار",
+    "notes": "بالتنسيق مع مسجد المصطفى، برفقة القارئ ياسين الجزائري والشيخ أحمد دوش. مفاجآت عديدة في انتظاركم.",
+    "image": "images/umrah-ahl-al-quran.jpg",
+    "price": null
+  },
+  "knowledge": [
+    "التصريح بالعملة إجباري لدى الجمارك الجزائرية (المطارات والمنافذ البرية والبحرية) عند الخروج إذا تجاوز المبلغ 1000 يورو أو دولار، أو 10000 دينار جزائري. يُستثنى من لا يتجاوز هذه المبالغ.",
+    "يرجى التحقق من توقيت الرحلة قبل 24 ساعة من المغادرة."
+  ],
+  "toConfirmWithAgency": [
+    "Exact branch address in Ouargla (text on the banner is small: «عنقود الطرق على الملح 2»).",
+    "Which phone is the main line and which numbers are WhatsApp.",
+    "Price of «عمرة أهل القرآن» and its hotels / duration (not on the poster).",
+    "Domain: their own domain or rhtours.1zayd1.tech.",
+    "Social media links (none in the images)."
+  ]
+}

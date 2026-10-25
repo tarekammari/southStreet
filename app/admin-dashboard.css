@@ -2169,6 +2169,168 @@
   background: var(--srv-lime);
 }
 
+/* ---- Server health: balance + motion ------------------------------------ *
+ * White cards on the soft grey panel, one accent per metric (--kpi), and
+ * entrance motion: cards rise in, lines draw, the donut sweeps, bars grow,
+ * the gauge needle glides. Everything stays still with reduced motion.
+ * ------------------------------------------------------------------------- */
+.srv-panel {
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  --srv-lime: #059669;
+  --srv-card: #ffffff;
+  --srv-line: rgba(15, 23, 42, 0.07);
+  --srv-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+.srv-top { background: rgba(255, 255, 255, 0.7); }
+.srv-live { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+.srv-ticker { background: rgba(255, 255, 255, 0.55); }
+.srv-ticker span { padding: 0.3rem 0.65rem; border-radius: 999px; background: #fff; border: 1px solid var(--srv-line); }
+.srv-ticker svg { color: #059669; }
+
+.srv-kpi,
+.srv-card {
+  background: var(--srv-card);
+  border-color: var(--srv-line);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px -16px rgba(15, 23, 42, 0.18);
+  transition: transform 0.35s var(--srv-ease), box-shadow 0.35s var(--srv-ease), border-color 0.35s;
+  animation: srv-rise 0.7s var(--srv-ease) backwards;
+}
+.srv-kpi:hover,
+.srv-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.05), 0 18px 36px -18px rgba(15, 23, 42, 0.28);
+}
+.srv-kpis > :nth-child(1) { animation-delay: 0.05s; }
+.srv-kpis > :nth-child(2) { animation-delay: 0.12s; }
+.srv-kpis > :nth-child(3) { animation-delay: 0.19s; }
+.srv-kpis > :nth-child(4) { animation-delay: 0.26s; }
+.srv-board > :nth-child(1) { animation-delay: 0.3s; }
+.srv-board > :nth-child(2) { animation-delay: 0.38s; }
+.srv-side > :nth-child(1) { animation-delay: 0.46s; }
+.srv-side > :nth-child(2) { animation-delay: 0.54s; }
+.srv-side { animation: none; }
+.srv-market { animation-delay: 0.6s; }
+
+@keyframes srv-rise {
+  from { opacity: 0; transform: translateY(14px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+
+/* KPI: accent stripe, tinted icon, value in the metric's colour */
+.srv-kpi { position: relative; overflow: hidden; }
+.srv-kpi::before {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--kpi, #10b981), transparent);
+  opacity: 0.85;
+}
+.srv-kpi-label { display: flex !important; align-items: center; gap: 0.45rem; font-weight: 700; color: #334155 !important; }
+.srv-kpi-label i {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 9px;
+  color: var(--kpi, #10b981);
+  background: color-mix(in srgb, var(--kpi, #10b981) 13%, #fff);
+}
+.srv-kpi strong { color: color-mix(in srgb, var(--kpi, #10b981) 55%, #0f172a); transition: color 0.3s; }
+.srv-kpi em.is-up { color: #047857; }
+.srv-kpi em.is-down { color: #be123c; }
+
+/* Sparklines draw themselves, the fill fades in */
+.srv-mini-line {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: srv-draw 1.2s var(--srv-ease) 0.35s forwards;
+}
+.srv-mini-area { opacity: 0; animation: srv-fade 0.9s ease 0.8s forwards; }
+@keyframes srv-draw { to { stroke-dashoffset: 0; } }
+@keyframes srv-fade { to { opacity: 1; } }
+
+/* Donut sweeps in, then follows new values smoothly */
+.srv-donut-ring svg { filter: none; }
+.srv-slice {
+  transition: stroke-dasharray 0.8s var(--srv-ease), stroke-dashoffset 0.8s var(--srv-ease);
+  animation: srv-sweep 1.1s var(--srv-ease) both;
+}
+@keyframes srv-sweep { from { stroke-dasharray: 0 400; } }
+.srv-donut-core strong { color: #0f172a; }
+.srv-legend li {
+  padding: 0.2rem 0.35rem;
+  border-radius: 8px;
+  transition: background 0.2s;
+  animation: srv-rise 0.5s var(--srv-ease) both;
+}
+.srv-legend li:hover { background: #f8fafc; }
+
+/* CPU bars grow from the floor, the latest bar glows */
+.srv-bar {
+  transform-box: fill-box;
+  transform-origin: bottom;
+  transition: y 0.6s var(--srv-ease), height 0.6s var(--srv-ease);
+  animation: srv-grow 0.7s var(--srv-ease) both;
+}
+.srv-bar.is-now { filter: drop-shadow(0 0 6px rgba(16, 185, 129, 0.55)); }
+@keyframes srv-grow { from { transform: scaleY(0); } }
+.srv-chip { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+.srv-chip::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #10b981;
+  animation: srv-pulse 1.6s ease-in-out infinite;
+}
+
+/* Gauge: arc draws, needle glides to the value */
+.srv-semi svg { filter: none; }
+.srv-semi-arc {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: srv-draw 1.1s var(--srv-ease) 0.5s forwards;
+}
+.srv-needle {
+  transform-box: view-box;
+  transform-origin: 120px 118px;
+  transition: transform 1s var(--srv-ease);
+}
+.srv-semi-copy strong { transition: color 0.4s; }
+
+/* Stop card */
+.srv-dot {
+  width: 10px;
+  height: 10px;
+  margin-top: 0.35rem;
+  border-radius: 50%;
+  background: #10b981;
+  color: #10b981;
+  animation: srv-pulse 1.6s ease-in-out infinite;
+}
+.srv-dot.is-hot { background: #e11d48; color: #e11d48; }
+.srv-cta.is-hot { background: #fff1f2; color: #be123c; border: 1px solid #fecdd3; transition: background 0.2s, color 0.2s; }
+.srv-cta.is-hot:hover:not(:disabled) { background: #e11d48; color: #fff; }
+.srv-confirm-row .srv-cta.is-hot { background: #e11d48; color: #fff; }
+
+/* Top users */
+.srv-tr:not(.srv-th) { transition: background 0.2s; border-radius: 10px; }
+.srv-tr:not(.srv-th):hover { background: #f8fafc; }
+.srv-av.is-1 { background: #10b981; color: #fff; }
+.srv-av.is-2 { background: #0ea5e9; color: #fff; }
+.srv-av.is-3 { background: #8b5cf6; color: #fff; }
+.srv-chg i { background: linear-gradient(90deg, #10b981, #0ea5e9); transition: width 0.8s var(--srv-ease); }
+
+@media (prefers-reduced-motion: reduce) {
+  .srv-kpi, .srv-card, .srv-legend li, .srv-bar, .srv-slice { animation: none; }
+  .srv-mini-line, .srv-semi-arc { animation: none; stroke-dashoffset: 0; }
+  .srv-mini-area { animation: none; opacity: 1; }
+  .srv-needle, .srv-bar, .srv-slice, .srv-kpi, .srv-card { transition: none; }
+  .srv-kpi:hover, .srv-card:hover { transform: none; }
+}
+
 @media (max-width: 1180px) {
   .srv-kpis,
   .srv-board {
@@ -3189,8 +3351,31 @@
 }
 
 .inn-side-link.is-active {
-  background: #f1f5f9;
-  color: #0f172a;
+  position: relative;
+  background: linear-gradient(to left, #d1fae5, #ecfdf5 70%);
+  color: #065f46;
+  font-weight: 800;
+  box-shadow: inset 0 0 0 1px #a7f3d0;
+}
+
+/* Bar on the reading side marks the section on screen. */
+.inn-side-link.is-active::before {
+  content: '';
+  position: absolute;
+  inset-block: 8px;
+  inset-inline-start: -2px;
+  width: 4px;
+  border-radius: 999px;
+  background: #059669;
+  animation: inn-active-in 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.inn-side-link.is-active svg { color: #059669; }
+.inn-side-link.is-active:hover { background: linear-gradient(to left, #a7f3d0, #d1fae5 70%); color: #064e3b; }
+
+@keyframes inn-active-in {
+  from { transform: scaleY(0); opacity: 0; }
+  to { transform: scaleY(1); opacity: 1; }
 }
 
 .inn-side-badge {
@@ -7272,3 +7457,16 @@
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
+
+/* ── Way into the SS Connect control room: bottom of the side menu (Super Admin) ── */
+.inn-connect-launch { display: flex; align-items: center; gap: 12px; margin: 14px 4px 6px; padding: 14px; border-radius: 16px; text-decoration: none; color: #fff; background: linear-gradient(135deg, #065f46 0%, #047857 55%, #0d9488 100%); box-shadow: 0 14px 30px -18px rgba(4, 120, 87, 0.8); transition: transform 0.18s ease, box-shadow 0.18s ease; }
+.inn-connect-launch:hover { transform: translateY(-2px); box-shadow: 0 18px 36px -18px rgba(4, 120, 87, 0.9); }
+.inn-connect-launch:focus-visible { outline: 3px solid #a7f3d0; outline-offset: 3px; }
+.inn-connect-launch-icon { flex: none; width: 42px; height: 42px; border-radius: 12px; box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.18); }
+.inn-connect-launch-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.inn-connect-launch-text b { font-size: 1rem; font-weight: 900; }
+.inn-connect-launch-text small { font-size: 0.76rem; opacity: 0.9; font-variant-numeric: tabular-nums; }
+.inn-connect-launch-text small .is-live { background: #fef3c7; color: #92400e; padding: 0 6px; border-radius: 999px; font-weight: 800; }
+.inn-connect-launch-go { flex: none; opacity: 0.9; }
+.inn-side.is-collapsed .inn-connect-launch { justify-content: center; padding: 8px; margin: 12px auto 6px; width: fit-content; }
+.inn-side.is-collapsed .inn-connect-launch-icon { width: 34px; height: 34px; }

@@ -4,7 +4,8 @@ import { ensureUserAccount, isEmailTaken, updateUserAccess, updateUserProfile, d
 import { getSqliteDb } from '@/lib/sqlite';
 import { ensureStaffProfileColumns, staffExtras } from '@/lib/staff-profile';
 import { mapReservationRow } from '@/lib/booking';
-import { isCurrentReservation, isTripOver } from '@/lib/booking-catalog';
+import { archiveClientLedger, postedClientPayments } from '@/lib/finance';
+import { isCurrentReservation, isTripOver, reservationStatusLabel } from '@/lib/booking-catalog';
 import { normalizeLoginRole, LOGIN_ROLE_LABELS, toPortalRole, PORTAL_TABS, isPrivilegedRole } from '@/lib/roles';
 import { enrichUsersWithSessions, isImageSource, resolveUserPhoto } from '@/lib/user-access-view';
 import { generateDeviceFingerprint } from '@/lib/security';
@@ -71,20 +72,96 @@ function loadStaffProfiles(sqlite: any): Map<string, StaffProfile> {
   return profiles;
 }
 
-type TripInfo = { state: 'current' | 'past' | 'none'; lastTrip?: string; lastEnd?: string };
+/** The Umrah program a client goes (or went) with: shown in the Team list and drawer, and used to filter. */
+type TripProgram = {
+  packageId: string;
+  name: string;
+  startDate?: string;
+  endDate?: string;
+  reference?: string;
+  status?: string;
+  statusLabel?: string;
+  roomType?: string;
+};
+type TripInfo = { state: 'current' | 'past' | 'none'; lastTrip?: string; lastEnd?: string; program?: TripProgram };
+/** A client's current booking of any kind (Umrah, trip, hotel) for the team drawer. */
+type ClientBooking = {
+  id: string;
+  reference: string;
+  kind: 'umrah' | 'hajj' | 'trip' | 'hotel';
+  name: string;
+  startDate?: string;
+  endDate?: string;
+  status: string;
+  statusLabel: string;
+  total: number;
+  paid: number;
+  deposit: number;
+  createdAt?: string;
+};
+
+function clientBooking(r: any): ClientBooking {
+  const kind = r.booking_kind === 'HOTEL' ? 'hotel' : r.trip_kind === 'TOURISM' ? 'trip' : r.trip_kind === 'HAJJ' ? 'hajj' : 'umrah';
+  const total = Number(r.total_amount) || 0;
+  return {
+    id: String(r.reservation_id),
+    reference: String(r.reservation_number || ''),
+    kind,
+    name: String(r.hotel_stay?.hotel_name || r.program?.package_name || r.package_name || ''),
+    startDate: r.hotel_stay?.check_in || r.program?.start_date || undefined,
+    endDate: r.hotel_stay?.check_out || r.program?.end_date || undefined,
+    status: String(r.status || ''),
+    statusLabel: reservationStatusLabel(String(r.status || '')),
+    total,
+    paid: Number(r.paid_amount) || 0,
+    deposit: Number(r.invoice?.depositAmount) || Math.round(total * 0.3),
+    createdAt: r.created_at || undefined,
+  };
+}
+
+/** Every client's current bookings (all kinds), nearest date first. */
+function loadClientBookings(sqlite: any): Map<string, ClientBooking[]> {
+  const out = new Map<string, ClientBooking[]>();
+  try {
+    for (const r of (sqlite.prepare('SELECT * FROM reservations').all() as any[]).map(mapReservationRow)) {
+      if (!r.customer_id || !isCurrentReservation(r)) continue;
+      out.set(r.customer_id, [...(out.get(r.customer_id) || []), clientBooking(r)]);
+    }
+    for (const list of out.values()) list.sort((a, b) => String(a.startDate || '').localeCompare(String(b.startDate || '')));
+  } catch {
+    /* bookings are a label only */
+  }
+  return out;
+}
+
+function tripProgram(r: any): TripProgram {
+  const status = String(r.status || '');
+  return {
+    packageId: String(r.package_id || r.program?.package_id || ''),
+    name: String(r.program?.package_name || r.package_name || ''),
+    startDate: r.program?.start_date || undefined,
+    endDate: r.program?.end_date || undefined,
+    reference: r.reservation_number || undefined,
+    status,
+    statusLabel: reservationStatusLabel(status),
+    roomType: r.room_type || undefined,
+  };
+}
 
 /** Clients' trips: current (booked, not over) or past (every trip ended) — for the "سابقون" tab. */
 function loadClientTrips(sqlite: any): Map<string, TripInfo> {
   const out = new Map<string, TripInfo>();
   try {
     const rows = (sqlite.prepare('SELECT * FROM reservations').all() as any[]).map(mapReservationRow);
+    // Oldest first, so the newest current booking is the one kept.
+    rows.sort((x, y) => String(x.created_at || '').localeCompare(String(y.created_at || '')));
     for (const r of rows) {
-      if (!r.customer_id) continue;
+      if (!r.customer_id || r.booking_kind === 'HOTEL') continue;
       const status = String(r.status || '').toUpperCase();
-      if (status === 'REJECTED' || status === 'CANCELLED') continue;
+      if (status === 'REJECTED' || status === 'CANCELLED' || status === 'EXPIRED') continue;
       const prev = out.get(r.customer_id) || { state: 'none' as const };
       if (isCurrentReservation(r)) {
-        out.set(r.customer_id, { ...prev, state: 'current' });
+        out.set(r.customer_id, { ...prev, state: 'current', program: tripProgram(r) });
       } else if (isTripOver(r) && prev.state !== 'current') {
         const end = r.program?.end_date || '';
         const newer = !prev.lastEnd || end > prev.lastEnd;
@@ -92,6 +169,7 @@ function loadClientTrips(sqlite: any): Map<string, TripInfo> {
           state: 'past',
           lastTrip: newer ? r.program?.package_name || r.package_name : prev.lastTrip,
           lastEnd: newer ? end : prev.lastEnd,
+          program: newer ? tripProgram(r) : prev.program,
         });
       }
     }
@@ -101,7 +179,7 @@ function loadClientTrips(sqlite: any): Map<string, TripInfo> {
   return out;
 }
 
-function publicUser(u: any, staffProfiles?: Map<string, StaffProfile>, trips?: Map<string, TripInfo>) {
+function publicUser(u: any, staffProfiles?: Map<string, StaffProfile>, trips?: Map<string, TripInfo>, bookings?: Map<string, ClientBooking[]>) {
   // never expose password hashes or security material
   const role = normalizeLoginRole(u.role);
   const portal = toPortalRole(role);
@@ -128,6 +206,7 @@ function publicUser(u: any, staffProfiles?: Map<string, StaffProfile>, trips?: M
     securityKeys: isPrivilegedRole(role) && u.id ? countCredentials(u.id) : 0,
     staff: staff || null,
     trip: role === 'PILGRIM_USER' ? trips?.get(u.id) || { state: 'none' } : undefined,
+    bookings: role === 'PILGRIM_USER' ? bookings?.get(u.id) || [] : undefined,
   };
 }
 
@@ -194,9 +273,10 @@ export async function GET(req: NextRequest) {
     const rows = sqlite.prepare('SELECT * FROM users').all() as any[];
     const staffProfiles = loadStaffProfiles(sqlite);
     const clientTrips = loadClientTrips(sqlite);
+    const clientBookings = loadClientBookings(sqlite);
     const sessions = listSessions();
     const users = enrichUsersWithSessions(
-      rows.map((row) => publicUser(row, staffProfiles, clientTrips)),
+      rows.map((row) => publicUser(row, staffProfiles, clientTrips, clientBookings)),
       sessions
     );
     const onlineCount = users.filter((u) => u.isOnline).length;
@@ -445,10 +525,28 @@ export async function DELETE(req: NextRequest) {
         { status: 409 }
       );
     }
+    // Money already received stays in the books: the accountant cancels or refunds
+    // the client's payments first, then the account can go (as in accounting apps).
+    const reservationIds = (sqliteDb.prepare('SELECT reservation_id FROM reservations WHERE customer_id = ?').all(userId) as { reservation_id: string }[])
+      .map((r) => r.reservation_id);
+    const paid = postedClientPayments(reservationIds);
+    if (paid.count > 0) {
+      return NextResponse.json(
+        {
+          error: `لهذا العميل ${paid.count} ${paid.count === 1 ? 'دفعة مسجّلة' : 'دفعات مسجّلة'} في المحاسبة (${paid.total.toLocaleString('ar-DZ')} دج). يجب أن يلغيها المحاسب أو يسترجعها من «المداخيل» قبل حذف الحساب.`,
+          code: 'CLIENT_HAS_PAYMENTS',
+        },
+        { status: 409 }
+      );
+    }
     resetSecurityFactors(userId);
     deleteUserAccount(userId, gate.account.id);
-    dbLogAudit(gate.account.name, gate.role, 'حذف حساب', `${user.name || userId}`);
-    return NextResponse.json({ success: true, message: 'تم حذف الحساب' });
+    const { archived } = archiveClientLedger(reservationIds, { userId: gate.account.id, userName: gate.account.name || '', role: gate.role });
+    dbLogAudit(gate.account.name, gate.role, 'حذف حساب', `${user.name || userId}${archived ? ` — ${archived} قيد إلى السجل المؤرشف` : ''}`);
+    return NextResponse.json({
+      success: true,
+      message: archived ? `تم حذف الحساب، ونُقلت قيوده (${archived}) إلى السجل المؤرشف في المحاسبة` : 'تم حذف الحساب',
+    });
   } catch (error: any) {
     return NextResponse.json({ error: friendlyError(error, 'تعذّر حذف الحساب') }, { status: 400 });
   }

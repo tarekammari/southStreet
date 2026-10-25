@@ -114,8 +114,17 @@ object Notify {
         } catch (_: SecurityException) { }
     }
 
-    fun message(ctx: Context, title: String, body: String, url: String, tag: String) {
+    /** Messages already shown: Firebase and the background listener may both bring the same one. */
+    private val shown = LinkedHashSet<String>()
+
+    fun message(ctx: Context, title: String, body: String, url: String, tag: String, msgId: String = "") {
         if (!NotificationManagerCompat.from(ctx).areNotificationsEnabled()) return
+        if (msgId.isNotBlank()) {
+            synchronized(shown) {
+                if (!shown.add(msgId)) return
+                while (shown.size > 60) shown.remove(shown.first())
+            }
+        }
         val n = NotificationCompat.Builder(ctx, CH_MESSAGES)
             .setSmallIcon(R.drawable.ic_stat_call)
             .setContentTitle(title)

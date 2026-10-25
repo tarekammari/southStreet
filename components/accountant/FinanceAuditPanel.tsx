@@ -19,6 +19,8 @@ const ENTITIES: { id: string; label: string }[] = [
   { id: 'income_client', label: 'عملاء المداخيل' },
   { id: 'receipt', label: 'سندات القبض' },
   { id: 'client_payment', label: 'دفعات العملاء' },
+  { id: 'payment_request', label: 'طلبات الاعتماد' },
+  { id: 'approval_threshold', label: 'حد الموافقة' },
   { id: 'ledger', label: 'اليومية' },
   { id: 'supplier', label: 'الموردون' },
   { id: 'supplier_invoice', label: 'فواتير المورد' },
@@ -44,6 +46,14 @@ function actionLabel(action: string) {
       return 'إقفال فترة';
     case 'reopen_period':
       return 'إعادة فتح فترة';
+    case 'validate':
+      return 'اعتماد المحاسب';
+    case 'approve':
+      return 'موافقة المشرف العام';
+    case 'override':
+      return 'تجاوز الإدارة';
+    case 'reject':
+      return 'رفض';
     default:
       return action || '—';
   }

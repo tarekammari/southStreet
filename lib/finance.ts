@@ -2,6 +2,7 @@
  * Finance domain helpers — ledger, suppliers, salaries, services (cash-based, no double-entry).
  */
 import { getSqliteDb } from '@/lib/sqlite';
+import { writeFinanceAuditLog } from '@/lib/finance-audit';
 import {
   ASSET_CATEGORIES,
   TRIP_TYPES,
@@ -51,6 +52,26 @@ export type LedgerStatus = 'DRAFT' | 'POSTED' | 'VOID';
 export type LedgerDirection = 'in' | 'out';
 export type PaymentMethod = 'CASH' | 'CCP' | 'BANK_TRANSFER' | 'CHECK' | 'OTHER';
 export type ServiceFrequency = 'MONTHLY' | 'QUARTERLY' | 'YEARLY' | 'ONE_OFF';
+
+/** Names of programs marked as tourist trips (cached briefly; reports call this per row). */
+let tourismCache: { at: number; names: Set<string> } | null = null;
+function tourismProgramNames(): Set<string> {
+  if (tourismCache && Date.now() - tourismCache.at < 30_000) return tourismCache.names;
+  let names = new Set<string>();
+  try {
+    const rows = getSqliteDb().prepare("SELECT name FROM packages WHERE trip_type = 'TOURISM'").all() as { name: string }[];
+    names = new Set(rows.map((r) => String(r.name || '').trim()).filter(Boolean));
+  } catch {
+    /* older database without trip_type */
+  }
+  tourismCache = { at: Date.now(), names };
+  return names;
+}
+
+/** Trip line of a program name: tourism (programs table or destination words), Hajj, Umrah. */
+function tripTypeOf(packageName?: string | null) {
+  return classifyTripType(packageName, tourismProgramNames());
+}
 
 export function newId(prefix: string) {
   return `${prefix}_${Date.now().toString(36)}_${randomUUID().slice(0, 8)}`;
@@ -337,15 +358,108 @@ function postSupplierInvoiceAccrual(inv: {
   });
 }
 
-/** SCF م2 — post 411/706 (and 419→411 settlement) when the package product is performed. */
-function clientRevenueLedgerPosts(reservationId: string) {
+/**
+ * SCF م2 — the 411/706 line of a reservation, posted or archived (a deleted client's).
+ * ref_table is encrypted at rest: matching it in SQL never hit, so the line was
+ * posted again on every journal load. Match by ref_id, then ref_table in app.
+ */
+function clientRevenueLedgerPosts(reservationId: string, statuses: string[] = ['POSTED', 'ARCHIVED']) {
   const db = getSqliteDb();
-  return db
-    .prepare(
-      `SELECT * FROM finance_ledger
-       WHERE ref_table = 'finance_client_revenue' AND ref_id = ? AND status = 'POSTED'`
+  return (db.prepare('SELECT * FROM finance_ledger WHERE ref_id = ?').all(reservationId) as any[])
+    .filter(
+      (r) =>
+        String(r.ref_table || '') === 'finance_client_revenue' &&
+        statuses.includes(String(r.status || '').toUpperCase())
     )
-    .all(reservationId) as any[];
+    .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')) || String(a.id).localeCompare(String(b.id)));
+}
+
+/** Repair: one revenue line per reservation — the oldest stays, the copies are voided (never deleted). */
+export function dedupeClientRevenueLedger() {
+  const db = getSqliteDb();
+  const byReservation = new Map<string, any[]>();
+  for (const r of db.prepare("SELECT id, ref_table, ref_id, created_at, amount FROM finance_ledger WHERE status = 'POSTED'").all() as any[]) {
+    if (String(r.ref_table || '') !== 'finance_client_revenue' || !r.ref_id) continue;
+    byReservation.set(String(r.ref_id), [...(byReservation.get(String(r.ref_id)) || []), r]);
+  }
+  let voided = 0;
+  for (const [reservationId, rows] of byReservation) {
+    if (rows.length <= 1) continue;
+    rows.sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')) || String(a.id).localeCompare(String(b.id)));
+    for (const extra of rows.slice(1)) {
+      db.prepare(`UPDATE finance_ledger SET status = 'VOID' WHERE id = ?`).run(extra.id);
+      writeFinanceAuditLog({
+        action: 'void',
+        entity: 'finance_ledger',
+        entity_id: extra.id,
+        before: { status: 'POSTED', reservation_id: reservationId, amount: extra.amount },
+        after: { status: 'VOID', reason: 'نسخة مكررة من قيد الاعتراف بالإيراد (706)', kept: rows[0].id },
+      });
+      voided += 1;
+    }
+  }
+  if (voided) recomputeRunningBalances();
+  return { voided };
+}
+
+/** Reservation ids of clients whose account was deleted. */
+function deletedClientReservationIds(): Set<string> {
+  const db = getSqliteDb();
+  const users = new Set((db.prepare('SELECT id FROM users').all() as { id: string }[]).map((u) => u.id));
+  return new Set(
+    (db.prepare('SELECT reservation_id, customer_id FROM reservations').all() as any[])
+      .filter((r) => r.customer_id && !users.has(String(r.customer_id)))
+      .map((r) => String(r.reservation_id))
+  );
+}
+
+/** Posted client payments (cash really received) on these reservations. */
+export function postedClientPayments(reservationIds: string[]): { count: number; total: number } {
+  if (!reservationIds.length) return { count: 0, total: 0 };
+  const db = getSqliteDb();
+  let count = 0;
+  let total = 0;
+  const stmt = db.prepare("SELECT amount FROM finance_client_payments WHERE reservation_id = ? AND status = 'POSTED'");
+  for (const id of reservationIds) {
+    for (const p of stmt.all(id) as { amount?: number }[]) {
+      count += 1;
+      total += Number(p.amount) || 0;
+    }
+  }
+  return { count, total };
+}
+
+/**
+ * A deleted client's journal lines leave the journal, balances and reports but
+ * are kept as «مؤرشف» (status ARCHIVED, shown in the journal's history view).
+ * Only lines with no cash behind them: a client with posted payments cannot be
+ * deleted until the accountant cancels or refunds them.
+ */
+export function archiveClientLedger(reservationIds: string[], actor?: { userId: string; userName: string; role: string } | null) {
+  const db = getSqliteDb();
+  let archived = 0;
+  for (const reservationId of reservationIds) {
+    if (postedClientPayments([reservationId]).count > 0) continue;
+    for (const line of clientRevenueLedgerPosts(reservationId, ['POSTED'])) {
+      db.prepare(`UPDATE finance_ledger SET status = 'ARCHIVED' WHERE id = ?`).run(line.id);
+      writeFinanceAuditLog({
+        actor: actor || null,
+        action: 'update',
+        entity: 'finance_ledger',
+        entity_id: line.id,
+        before: { status: 'POSTED', reservation_id: reservationId },
+        after: { status: 'ARCHIVED', reason: 'حُذف حساب العميل — القيد في السجل المؤرشف' },
+      });
+      archived += 1;
+    }
+  }
+  if (archived) recomputeRunningBalances();
+  return { archived };
+}
+
+/** Clients deleted before this rule existed: archive their lines that have no cash behind them. */
+export function archiveDeletedClientsLedger() {
+  return archiveClientLedger([...deletedClientReservationIds()]);
 }
 
 export function postClientRevenueRecognition(reservation: {
@@ -394,14 +508,16 @@ export function ensureClientRevenueRecognitions() {
   const db = getSqliteDb();
   const rows = db
     .prepare(
-      `SELECT reservation_id, customer_name, package_name, total_price, paid_amount,
+      `SELECT reservation_id, customer_id, customer_name, package_name, total_price, paid_amount,
               reservation_status, program
        FROM reservations`
     )
     .all() as any[];
+  const deleted = deletedClientReservationIds();
   let posted = 0;
   for (const r of rows) {
     if (!isAgencyConfirmed(r.reservation_status)) continue;
+    if (deleted.has(String(r.reservation_id))) continue;
     try {
       if (postClientRevenueRecognition(r)) posted += 1;
     } catch (err) {
@@ -2126,7 +2242,7 @@ export function collectibleReservations() {
   const credits = new Map(clientAccountBalances().map((c) => [c.key, c.available]));
 
   return rows
-    .filter((r) => !['CANCELLED', 'REJECTED'].includes(String(r.reservation_status || '').toUpperCase()))
+    .filter((r) => !['CANCELLED', 'REJECTED', 'EXPIRED'].includes(String(r.reservation_status || '').toUpperCase()))
     .map((r) => {
       const total = Number(r.total_price) || 0;
       const paid = Number(r.paid_amount) || 0;
@@ -2146,7 +2262,7 @@ export function collectibleReservations() {
         customer_code: r.customer_id || '',
         customer_avatar: resolveClientAvatar(r.customer_id, r.customer_name),
         package_name: r.package_name || '',
-        trip_type: classifyTripType(r.package_name),
+        trip_type: tripTypeOf(r.package_name),
         status,
         deposit_due: depositDue,
         awaiting_deposit,
@@ -2856,9 +2972,12 @@ export function treasuryOverview(opts?: {
  * money paid out is a credit (دائن). Days are returned newest-first while the
  * running balance is accumulated oldest-first so it reads like a real journal.
  */
-export function dailyJournal(opts?: { from?: string; to?: string; category?: string; q?: string }) {
+export function dailyJournal(opts?: { from?: string; to?: string; category?: string; q?: string; archived?: boolean }) {
   dedupeSupplierInvoiceLedger();
+  dedupeClientRevenueLedger();
+  archiveDeletedClientsLedger();
   ensureClientRevenueRecognitions();
+  const lineStatus = opts?.archived ? 'ARCHIVED' : 'POSTED';
   const db = getSqliteDb();
   const accounts = readTreasuryAccounts();
   const accountById = new Map(accounts.map((a) => [a.id, a]));
@@ -2940,7 +3059,7 @@ export function dailyJournal(opts?: { from?: string; to?: string; category?: str
     return { credit_scf, description };
   };
 
-  const all = (db.prepare("SELECT * FROM finance_ledger WHERE status = 'POSTED'").all() as any[]).map((r) => {
+  const all = (db.prepare('SELECT * FROM finance_ledger WHERE status = ?').all(lineStatus) as any[]).map((r) => {
     const accountId = r.account_id || defaultTreasuryId || '';
     const acct = accountById.get(accountId);
     const treasury_scf = treasuryScfFromKind(acct?.kind);
@@ -3492,7 +3611,7 @@ export function receiptsIncomeForPeriod(from: string, to: string, tripType?: Tri
   const all = db.prepare('SELECT * FROM receipts').all() as any[];
   let rows = all.filter((r) => inRange(String(r.date || '').slice(0, 10), from, to));
   if (tripType) {
-    rows = rows.filter((r) => classifyTripType(String(r.packageName || '')) === tripType);
+    rows = rows.filter((r) => tripTypeOf(String(r.packageName || '')) === tripType);
   }
 
   const contractCtx = buildReceiptContractContext(listClientPayments(), collectibleReservations());
@@ -4072,14 +4191,14 @@ export function financeRecap(opts?: { from?: string; to?: string; tripType?: str
     id: t.id,
     label: t.label,
     amount: receiptsInPeriod
-      .filter((r) => classifyTripType(r.packageName) === t.id)
+      .filter((r) => tripTypeOf(r.packageName) === t.id)
       .reduce((s, r) => s + (Number(r.paidAmount) || 0), 0),
   }));
 
   const reservations = db.prepare('SELECT * FROM reservations').all() as any[];
   const isLiveReservation = (r: any) => {
     const status = String(r.reservation_status || '').toUpperCase();
-    return status !== 'CANCELLED' && status !== 'REJECTED';
+    return status !== 'CANCELLED' && status !== 'REJECTED' && status !== 'EXPIRED';
   };
   const allAgencyReservations = reservations.filter(isLiveReservation);
   // Client debt = unpaid balance on live reservations (bookings in selected period).
@@ -4092,7 +4211,7 @@ export function financeRecap(opts?: { from?: string; to?: string; tripType?: str
     id: t.id,
     label: t.label,
     amount: liveReservations
-      .filter((r) => classifyTripType(r.package_name) === t.id)
+      .filter((r) => tripTypeOf(r.package_name) === t.id)
       .reduce((s, r) => s + clientDebtRow(r), 0),
   }));
 
@@ -4103,7 +4222,7 @@ export function financeRecap(opts?: { from?: string; to?: string; tripType?: str
       reference: r.reservation_number || '',
       name: r.customer_name || '',
       package_name: r.package_name || '',
-      trip_type: classifyTripType(r.package_name),
+      trip_type: tripTypeOf(r.package_name),
       total: Number(r.total_price) || 0,
       paid: Number(r.paid_amount) || 0,
       remaining: clientDebtRow(r),
@@ -4223,7 +4342,7 @@ export function financeRecap(opts?: { from?: string; to?: string; tripType?: str
     /** Positive means clients owe the agency more than it owes its suppliers. */
     receivables_net: clientReceivables - supplierDebt,
     reservations_count: tripType
-      ? liveReservations.filter((r) => classifyTripType(r.package_name) === tripType).length
+      ? liveReservations.filter((r) => tripTypeOf(r.package_name) === tripType).length
       : liveReservations.length,
     collected_by_type: collectedByType,
     client_debt_by_type: clientDebtByType,

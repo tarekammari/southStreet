@@ -3,12 +3,16 @@
 import dynamic from 'next/dynamic';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowUp, Brain, Check, Copy, Loader2, Mic, RefreshCw, Table, Trash2, Volume2, VolumeX, X } from 'lucide-react';
+import { ArrowUp, Brain, Check, ChevronDown, Copy, Loader2, Mic, Minus, RefreshCw, Table, Trash2, Volume2, VolumeX, X } from 'lucide-react';
+import { SAKHR_OPEN_EVENT, SAKHR_OPEN_KEY } from '@/components/sakhr/openSakhr';
+import { openLogin, type LoginRequest } from '@/components/auth/openLogin';
+import { CONNECT_INSTALL_EVENT, connectInstallHref, type ConnectInstallPlatform } from '@/components/connect/installConnect';
 import { LOGIN_ROLE_LABELS, normalizeLoginRole } from '@/lib/roles';
 import { adminFetch, keyErrorMessage } from '@/lib/webauthn-client';
 import type { SakhrAgentProps } from '@/components/sakhr/SakhrAgentHelpers';
 import type { VisualSpec } from '@/lib/sakhr/visual';
-import { speak, stopSpeaking, unlockAudio, useArabicVoice, useVoiceRecorder, voiceInputSupported } from '@/components/sakhr/voice';
+import { chime, speak, stopSpeaking, unlockAudio, useArabicVoice, useVoiceRecorder, voiceInputSupported } from '@/components/sakhr/voice';
+import { isStopCommand } from '@/components/sakhr/stop-command';
 
 const TableBrowser = dynamic(() => import('@/components/sakhr/TableBrowser'), { ssr: false });
 const SakhrVisual = dynamic(() => import('@/components/sakhr/SakhrVisual'), { ssr: false });
@@ -40,7 +44,7 @@ type ChatMessage = {
 };
 
 const STORE_KEY = 'ss_sakhr_chat';
-const OPEN_KEY = 'ss_sakhr_open';
+const OPEN_KEY = SAKHR_OPEN_KEY;
 
 // Hands-free mode outlives a page change: the reply that opened a page is still
 // being spoken when the next page's Sakhr mounts, and that one listens next.
@@ -55,6 +59,32 @@ function bearer(): Record<string, string> {
   } catch {
     return {};
   }
+}
+
+/** One plain line of a reply for the minimised island (no markdown). */
+function previewOf(text: string): string {
+  const line = text
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/[*#|>`_]/g, '')
+    .split(/\r?\n/)
+    .map((l) => l.replace(/^\s*([-•]|\d+[.)])\s+/, '').trim())
+    .find(Boolean);
+  return (line || '').slice(0, 140);
+}
+
+const PASSWORD_WORD = /(password|passwd|pwd|mot\s*de\s*passe|كلم[ةه]\s*(?:ال)?(?:مرور|سر)|(?:ال)?باس?وو?رد|الرقم\s*السري)/i;
+const PASSWORD_LEAD = /^(is|est|هي|هو|ديالي|تاعي|[:=])\s*/i;
+
+/** "my password is Ab12…" — a password typed in the chat is never sent anywhere. */
+function looksLikePassword(text: string): boolean {
+  const m = text.match(PASSWORD_WORD);
+  if (!m || m.index === undefined) return false;
+  const after = text.slice(m.index + m[0].length).trim();
+  const explicit = PASSWORD_LEAD.test(after);
+  const token = (after.replace(PASSWORD_LEAD, '').split(/\s+/)[0] || '').replace(/[.,!?؟،]+$/, '');
+  if (token.length < 4) return false;
+  const arabicWord = /^[؀-ۿ]+$/.test(token);
+  return /\d/.test(token) || (explicit && !arabicWord) || /[^\w؀-ۿ]/.test(token);
 }
 
 function newId(): string {
@@ -193,6 +223,10 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
       return value;
     });
   }, []);
+  const openRef = useRef(open);
+  openRef.current = open;
+  // A reply that arrived while the chat was minimised: shown on the island until opened.
+  const [unread, setUnread] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [thinking, setThinking] = useState(false);
@@ -203,6 +237,7 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [voiceNotice, setVoiceNotice] = useState('');
   const sendRef = useRef<(text?: string, viaVoice?: boolean) => void>(() => undefined);
+  const endConversationRef = useRef<() => void>(() => undefined);
   // Hands-free conversation: speak → Sakhr answers aloud → listens again, no buttons.
   const [handsFree, setHandsFreeState] = useState(false);
   const setHandsFree = useCallback((on: boolean) => {
@@ -213,6 +248,11 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
     onText: (text) => {
       setVoiceNotice('');
       setDraft('');
+      // «خلاص صخر» / «stop صخر»: end the voice conversation instead of sending it.
+      if (handsFreeOn && isStopCommand(text)) {
+        endConversationRef.current();
+        return;
+      }
       sendRef.current(text, true);
     },
     onError: (message) => {
@@ -246,6 +286,15 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
     } catch {
       /* closed by default */
     }
+    // «اسأل صخر» buttons on the page (components/sakhr/openSakhr.ts).
+    const onOpenRequest = () => setOpen(true);
+    window.addEventListener(SAKHR_OPEN_EVENT, onOpenRequest);
+    // Other screens can open a table (e.g. «الفنادق» from the hotels admin section).
+    const onOpenTable = (e: Event) => {
+      const t = (e as CustomEvent<{ table?: string }>).detail?.table;
+      if (t) setTable(t);
+    };
+    window.addEventListener('ss:open-table', onOpenTable);
     // Links like /sakhr or /?sakhr=1&q=… (e.g. from the agency's WhatsApp greeting)
     // open the chat at once, with the question already typed.
     try {
@@ -268,6 +317,10 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
     } catch {
       /* default on */
     }
+    return () => {
+      window.removeEventListener(SAKHR_OPEN_EVENT, onOpenRequest);
+      window.removeEventListener('ss:open-table', onOpenTable);
+    };
   }, [setOpen]);
 
   const readAloud = (id: string, text: string) => {
@@ -315,7 +368,8 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
   }, [messages, thinking, open]);
 
   useEffect(() => {
-    if (open) window.setTimeout(() => inputRef.current?.focus(), 80);
+    // Phones: no keyboard popping up over the page until the user taps the input.
+    if (open && !window.matchMedia('(pointer: coarse)').matches) window.setTimeout(() => inputRef.current?.focus(), 80);
   }, [open]);
 
   // A table opened by Sakhr sits beside the chat (below it on phones), never over it.
@@ -325,9 +379,45 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
     return () => document.documentElement.classList.remove('skr-side');
   }, [docked]);
 
+  // UI actions chosen by Sakhr's tools (lib/sakhr/tools.ts, kind "client").
+  const runClientAction = useCallback((action: any) => {
+    if (action.type === 'open_table') setTable(action.table);
+    if (action.type === 'navigate' && typeof action.href === 'string' && action.href.startsWith('/')) {
+      window.setTimeout(() => router.push(action.href), 600);
+    }
+    if (action.type === 'open_login') {
+      // Fold the chat so the sign-in window is in front; the island keeps the conversation.
+      setOpen(false);
+      const req: LoginRequest = { method: action.method, username: action.username };
+      window.setTimeout(() => {
+        if (!openLogin(req)) router.push('/app?login=1');
+      }, 350);
+    }
+    if (action.type === 'connect_app') {
+      const platform = (action.platform || 'auto') as ConnectInstallPlatform;
+      if (action.action === 'install' && window.location.pathname === '/app') {
+        setOpen(false);
+        window.dispatchEvent(new CustomEvent(CONNECT_INSTALL_EVENT, { detail: platform }));
+        return;
+      }
+      const href = action.action === 'open' ? '/connect' : action.action === 'install' ? connectInstallHref(platform) : '/app';
+      window.setTimeout(() => router.push(href), 600);
+    }
+  }, [router, setOpen]);
+
   const send = useCallback(async (override?: string, viaVoice = false) => {
     const text = (override ?? draft).trim();
     if (!text || thinking) return;
+    if (looksLikePassword(text)) {
+      // Not stored, not sent to the server or the AI: straight to the sign-in window.
+      setDraft('');
+      setMessages((prev) => [
+        ...prev,
+        { id: newId(), role: 'model', text: '🔒 لا تكتب كلمة المرور في المحادثة، حتى معي. فتحت لك نافذة تسجيل الدخول: اكتبها هناك فقط.' },
+      ]);
+      runClientAction({ type: 'open_login', method: 'password' });
+      return;
+    }
     stopSpeaking();
     setSpeakingId(null);
     const userMsg: ChatMessage = { id: newId(), role: 'user', text };
@@ -342,7 +432,7 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
       const res = await fetch('/api/ai/sakhr', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...bearer() },
-        body: JSON.stringify({ message: text, history }),
+        body: JSON.stringify({ message: text, history, voice: viaVoice }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'تعذّر على صخر الرد الآن.');
@@ -367,28 +457,86 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
         });
       if (spoken) setSpeakingId(replyId);
       else if (viaVoice) listenAgain();
-      for (const action of data.clientActions || []) {
-        if (action.type === 'open_table') setTable(action.table);
-        if (action.type === 'navigate' && typeof action.href === 'string' && action.href.startsWith('/')) {
-          window.setTimeout(() => router.push(action.href), 600);
-        }
-      }
+      if (!openRef.current && data.reply) setUnread(previewOf(data.reply));
+      for (const action of data.clientActions || []) runClientAction(action);
     } catch (err) {
       setMessages((prev) => [...prev, { id: newId(), role: 'model', text: (err as Error).message, error: true }]);
       setHandsFree(false);
+      if (!openRef.current) setUnread((err as Error).message);
     } finally {
       setThinking(false);
     }
-  }, [draft, messages, router, thinking, speakReplies, listenAgain, setHandsFree]);
+  }, [draft, messages, thinking, speakReplies, listenAgain, setHandsFree, runClientAction]);
 
-  const closeChat = () => {
+  // Minimising only folds the window: listening, replies and speech carry on in the island.
+  const closeChat = () => setOpen(false);
+  const endVoice = () => {
     setHandsFree(false);
     stopSpeaking();
     setSpeakingId(null);
     if (voice.state === 'recording') voice.stop(false);
-    setOpen(false);
   };
+  useEffect(() => {
+    if (open) setUnread('');
+  }, [open]);
   sendRef.current = (text, viaVoice) => void send(text, viaVoice);
+
+  endConversationRef.current = () => {
+    setHandsFree(false);
+    stopSpeaking();
+    setSpeakingId(null);
+    chime('stop');
+    setMessages((prev) => [...prev, { id: newId(), role: 'model', text: 'حاضر، أنهيت المحادثة الصوتية. أنا هنا متى احتجتني.' }]);
+  };
+
+
+  // Auto-minimise: an idle chat folds back into the bubble (conversation kept)
+  // when the visitor scrolls the page or clicks outside it. Never while Sakhr
+  // is replying or speaking, the user is typing or talking, or a table is open.
+  const panelRef = useRef<HTMLElement>(null);
+  const fabRef = useRef<HTMLDivElement>(null);
+  const busy =
+    thinking ||
+    !!draft.trim() ||
+    voice.state !== 'idle' ||
+    handsFree ||
+    !!speakingId ||
+    !!table ||
+    messages.some((m) => m.actions?.some((a) => a.state === 'running'));
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
+  // New content scrolls the chat; ignore page scroll for a moment after it.
+  const quietUntil = useRef(0);
+  useEffect(() => {
+    quietUntil.current = Date.now() + 700;
+  }, [messages, thinking, open, busy]);
+  useEffect(() => {
+    if (!open) return;
+    let startY = window.scrollY;
+    const minimise = () => setOpen(false);
+    const onScroll = () => {
+      const typingOnPhone = document.activeElement === inputRef.current && window.matchMedia('(pointer: coarse)').matches;
+      if (busyRef.current || Date.now() < quietUntil.current || typingOnPhone) {
+        startY = window.scrollY;
+        return;
+      }
+      if (Math.abs(window.scrollY - startY) > 80) minimise();
+    };
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Node | null;
+      if (!target || busyRef.current || Date.now() < quietUntil.current) return;
+      if (panelRef.current?.contains(target) || fabRef.current?.contains(target)) return;
+      // Dialogs opened from the chat (tables, previews) are part of it.
+      if ((target as Element).closest?.('[role="dialog"], .luxury-modal-overlay')) return;
+      minimise();
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      document.removeEventListener('pointerdown', onPointerDown);
+    };
+  }, [open, setOpen]);
 
   const updateAction = (msgId: string, token: string, patch: Partial<ActionCard>) => {
     setMessages((prev) =>
@@ -433,12 +581,88 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
   const isSuperAdmin = role === 'SUPER_ADMIN';
   const roleLabel = role !== 'ANON' && role in LOGIN_ROLE_LABELS ? LOGIN_ROLE_LABELS[role as keyof typeof LOGIN_ROLE_LABELS] : '';
 
+  // Minimised but still working (like the iPhone's Dynamic Island): listening,
+  // thinking, speaking, a voice conversation, or a reply waiting to be read.
+  const island = open
+    ? null
+    : voice.state === 'recording'
+      ? 'listen'
+      : voice.state === 'transcribing'
+        ? 'transcribe'
+        : thinking
+          ? 'think'
+          : speakingId
+            ? 'speak'
+            : handsFree
+              ? 'handsfree'
+              : unread
+                ? 'reply'
+                : null;
+  const islandLabel: Record<NonNullable<typeof island>, string> = {
+    listen: handsFree ? 'أستمع إليك… تكلّم' : 'أستمع إليك…',
+    transcribe: 'أحوّل صوتك إلى نص…',
+    think: 'صخر يفكّر…',
+    speak: 'صخر يتكلّم…',
+    handsfree: 'محادثة صوتية · أنتظر سؤالك',
+    reply: unread,
+  };
+
   return (
     <>
-      <div className="fixed bottom-5 right-5 sm:bottom-8 sm:right-8 z-50 select-none sakhr-fab-shell">
+      {island ? (
+        <div className={`skr-island is-${island}`} dir="rtl" role="status" aria-live="polite">
+          <button type="button" className="skr-island-main" onClick={() => setOpen(true)} aria-label="فتح محادثة صخر">
+            <span className="skr-island-avatar" aria-hidden>ص</span>
+            <span className="skr-island-text">{islandLabel[island]}</span>
+            {island === 'listen' ? (
+              <>
+                <span className="skr-island-levels" aria-hidden>
+                  {voice.levels.slice(0, 7).map((l, i) => <i key={i} style={{ transform: `scaleY(${Math.max(0.15, l)})` }} />)}
+                </span>
+                <span className="skr-island-time" dir="ltr">{`${Math.floor(voice.seconds / 60)}:${String(voice.seconds % 60).padStart(2, '0')}`}</span>
+              </>
+            ) : island === 'speak' || island === 'handsfree' ? (
+              <span className="skr-island-wave" aria-hidden><i /><i /><i /><i /><i /></span>
+            ) : island === 'think' ? (
+              <span className="skr-island-dots" aria-hidden><i /><i /><i /></span>
+            ) : island === 'transcribe' ? (
+              <Loader2 className="w-4 h-4 animate-spin skr-island-spin" aria-hidden />
+            ) : null}
+          </button>
+          {island === 'listen' ? (
+            <>
+              <button type="button" className="skr-island-btn" onClick={endVoice} aria-label="إلغاء التسجيل" title="إلغاء">
+                <Trash2 className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                className="skr-island-btn is-send"
+                onClick={() => {
+                  if (speakReplies) unlockAudio();
+                  voice.stop(true);
+                }}
+                aria-label="إرسال"
+                title="إرسال"
+              >
+                <ArrowUp className="w-4 h-4" />
+              </button>
+            </>
+          ) : island === 'speak' || island === 'handsfree' ? (
+            <button type="button" className="skr-island-btn" onClick={endVoice} aria-label="إيقاف الصوت وإنهاء المحادثة الصوتية" title="إيقاف">
+              <VolumeX className="w-4 h-4" />
+            </button>
+          ) : island === 'reply' ? (
+            <button type="button" className="skr-island-btn" onClick={() => setUnread('')} aria-label="إخفاء" title="إخفاء">
+              <X className="w-4 h-4" />
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      <div ref={fabRef} className="fixed bottom-5 right-5 sm:bottom-8 sm:right-8 z-50 select-none sakhr-fab-shell">
         <button
           onClick={() => (open ? closeChat() : setOpen(true))}
-          aria-label={open ? 'إغلاق صخر' : 'فتح صخر، المساعد الذكي'}
+          aria-label={open ? 'تصغير صخر' : 'فتح صخر، المساعد الذكي'}
+          title={open ? 'تصغير' : 'صخر، المساعد الذكي'}
           aria-expanded={open}
           className={`sakhr-fab-future relative w-14 h-14 sm:w-[64px] sm:h-[64px] rounded-full focus:outline-none group cursor-pointer flex items-center justify-center ${open ? 'is-open' : ''}`}
         >
@@ -450,7 +674,7 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
             <span className="sakhr-fab-spark" />
           </span>
           <span className="sakhr-fab-core">
-            {open ? <X className="w-5 h-5 text-white drop-shadow" /> : <span className="sakhr-fab-letter">ص</span>}
+            {open ? <ChevronDown className="w-6 h-6 text-white drop-shadow" /> : <span className="sakhr-fab-letter">ص</span>}
           </span>
           {!open ? (
             <span className="sakhr-fab-brain-badge" aria-hidden="true">
@@ -461,7 +685,7 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
       </div>
 
       {open && (
-        <section className="skr-panel" dir="rtl" aria-label="محادثة صخر">
+        <section ref={panelRef} className="skr-panel" dir="rtl" aria-label="محادثة صخر">
           <header className="skr-head">
             <span className="skr-avatar" aria-hidden>ص</span>
             <div className="skr-title">
@@ -510,9 +734,10 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
                 type="button"
                 className="skr-icon"
                 onClick={closeChat}
-                aria-label="إغلاق"
+                title="تصغير (تبقى المحادثة محفوظة)"
+                aria-label="تصغير صخر"
               >
-                <X className="w-4 h-4" />
+                <Minus className="w-4 h-4" />
               </button>
             </div>
           </header>

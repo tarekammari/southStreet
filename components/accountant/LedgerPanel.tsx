@@ -129,6 +129,8 @@ export default function LedgerPanel() {
   const [q, setQ] = useState('');
   const [openDays, setOpenDays] = useState<string[]>([]);
   const [err, setErr] = useState('');
+  /** «السجل المؤرشف»: lines of deleted clients, kept out of the journal and the balances. */
+  const [archived, setArchived] = useState(false);
 
   const range = period === 'custom' ? custom : rangeFor(period);
 
@@ -138,6 +140,7 @@ export default function LedgerPanel() {
     if (range.to) params.set('to', range.to);
     if (catFilter !== 'all') params.set('category', catFilter);
     if (q.trim()) params.set('q', q.trim());
+    if (archived) params.set('archived', '1');
     fetch(`/api/finance/ledger/journal?${params.toString()}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error('تعذر تحميل اليومية'))))
       .then((d: Journal) => {
@@ -149,7 +152,7 @@ export default function LedgerPanel() {
         setOpenDays((cur) => [...new Set([...autoOpen, ...cur])]);
       })
       .catch((e) => setErr(e.message || 'خطأ'));
-  }, [range.from, range.to, catFilter, q]);
+  }, [range.from, range.to, catFilter, q, archived]);
 
   useEffect(() => {
     load();
@@ -180,6 +183,20 @@ export default function LedgerPanel() {
         </p>
         <AcctPrintButton label="معاينة / طباعة" onClick={openPrint} disabled={!journal} />
       </div>
+
+      <div className="acct-ledger-mode" role="tablist" aria-label="عرض اليومية">
+        <button type="button" role="tab" aria-selected={!archived} className={`acct-chip ${!archived ? 'acct-chip-active' : ''}`} onClick={() => { setArchived(false); setOpenDays([]); }}>
+          القيود
+        </button>
+        <button type="button" role="tab" aria-selected={archived} className={`acct-chip ${archived ? 'acct-chip-active' : ''}`} onClick={() => { setArchived(true); setOpenDays([]); }}>
+          السجل المؤرشف
+        </button>
+      </div>
+      {archived ? (
+        <p className="acct-ledger-archive-note">
+          قيود عملاء حُذفت حساباتهم: محفوظة للمراجعة فقط، ولا تدخل في اليومية ولا في الأرصدة والتقارير.
+        </p>
+      ) : null}
 
       <SearchField value={q} onChange={setQ} placeholder="بحث في البيان أو الطرف…" />
 

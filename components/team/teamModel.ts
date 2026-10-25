@@ -39,8 +39,57 @@ export type Member = {
   displayIp?: string;
   userAgent?: string | null;
   /** Clients only: current trip, only finished trips (past), or no trip yet. */
-  trip?: { state: 'current' | 'past' | 'none'; lastTrip?: string; lastEnd?: string };
+  trip?: { state: 'current' | 'past' | 'none'; lastTrip?: string; lastEnd?: string; program?: TripProgram };
+  /** Clients only: current bookings of every kind (Umrah, trip, hotel). */
+  bookings?: ClientBooking[];
 };
+
+/** A client's current booking (app/api/admin/users). */
+export type ClientBooking = {
+  id: string;
+  reference: string;
+  kind: 'umrah' | 'hajj' | 'trip' | 'hotel';
+  name: string;
+  startDate?: string;
+  endDate?: string;
+  status: string;
+  statusLabel: string;
+  total: number;
+  paid: number;
+  deposit: number;
+  createdAt?: string;
+};
+
+/** The Umrah program a client goes (or went) with. */
+export type TripProgram = {
+  packageId: string;
+  name: string;
+  startDate?: string;
+  endDate?: string;
+  reference?: string;
+  status?: string;
+  statusLabel?: string;
+  roomType?: string;
+};
+
+/** Program filter value for clients without a trip. */
+export const NO_PROGRAM = '__none__';
+
+/** Key used by the program filter: package id, or the name for older bookings without one. */
+export function programKey(m: Member): string {
+  const p = m.trip?.program;
+  if (!p) return NO_PROGRAM;
+  return p.packageId || `name:${p.name}`;
+}
+
+export function tripDates(p?: TripProgram): string {
+  if (!p?.startDate) return '';
+  const f = (v: string) => {
+    const d = new Date(v);
+    return Number.isFinite(d.getTime()) ? d.toLocaleDateString('ar-DZ', { day: 'numeric', month: 'short' }) : v;
+  };
+  return p.endDate ? `${f(p.startDate)} ← ${f(p.endDate)}` : f(p.startDate);
+}
 
 export type Viewer = { id?: string; role: LoginRole; assignableRoles: LoginRole[] };
 

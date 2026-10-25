@@ -1,6 +1,7 @@
 import { AiCard, AiAction } from '@/types';
 import { getDatabase, saveDatabase, AiKnowledgeRule } from '@/lib/db';
 import { getSqliteDb } from '@/lib/sqlite';
+import { AGENCY_FULL_ADDRESS, AGENCY_GEO, AGENCY_PHONE, AGENCY_PHONE_TEL } from '@/lib/agency-contact';
 import {
   toolSearchPackages,
   toolGetSeasonsInfo,
@@ -422,7 +423,7 @@ export function detectAdminDbToolsIntent(prompt: string): { text: string; cards:
 
   if (isTableViewQuery) {
     let tableName = 'packages'; // default if general
-    let tableLabel = 'باقات العمرة والحج';
+    let tableLabel = 'البرامج والرحلات';
 
     if (lower.includes('فندق') || lower.includes('فنادق') || lower.includes('hotel')) {
       tableName = 'hotels'; tableLabel = 'الفنادق المعتمدة';
@@ -511,7 +512,7 @@ export function detectAdminDbToolsIntent(prompt: string): { text: string; cards:
             data: {
               title: 'اختيار جدول البيانات لإضافة جديد',
               options: [
-                { name: 'packages', label: '📦 باقات العمرة والحج' },
+                { name: 'packages', label: '📦 البرامج والرحلات' },
                 { name: 'hotels', label: '🏨 الفنادق المعتمدة' },
                 { name: 'morshids', label: '👨‍💼 المرشدين وطاقم العمل' },
                 { name: 'users', label: '👤 المستخدمين والحسابات' },
@@ -635,7 +636,7 @@ export function detectAgencyCustomIntents(prompt: string): { text: string; cards
             specialization: 'الإشراف العام، التعاقدات الفندقية والخطوط الجوية المباشرة 24/7',
             experience_years: 18,
             languages: ['العربية', 'الفرنسية', 'الإنجليزية'],
-            phone: '+21321554433',
+            phone: AGENCY_PHONE_TEL,
             avatar: 'ط',
             rating: 5.0,
             status: 'في الخدمة (مقر الإدارة العامة)'
@@ -671,24 +672,24 @@ export function detectAgencyCustomIntents(prompt: string): { text: string; cards
   }
 
   // 3. Agency Address / Location Query
-  if (['عنوان', 'العنوان', 'مقر', 'المقر', 'أين', 'اين', 'موقع', 'مكان', 'الاتجاه', 'اتجاه', 'مكتب', 'الجزائر العاصمة', 'address', 'location'].some(k => lower.includes(k))) {
+  if (['عنوان', 'العنوان', 'مقر', 'المقر', 'أين', 'اين', 'موقع', 'مكان', 'الاتجاه', 'اتجاه', 'مكتب', 'الوادي', 'خميستي', 'address', 'location'].some(k => lower.includes(k))) {
     return {
-      text: `📍 **عنوان ومقر القيادة والإدارة العامة لوكالة ساوث ستريت:**\n\n🏢 **المقر الرئيسي:** شارع 01 نوفمبر 1954 (ساوث ستريت)، الجزائر العاصمة.\n🧭 **الاتجاه والموقع:** بجوار ساحة أودان ومحطة هواري بومدين / الجزائر العاصمة.\n⏰ **أوقات العمل:** الأحد إلى الخميس من 08:30 صباحاً إلى 17:30 مساءً.\n🌐 **المكاتب المعتمدة:** فرع الجزائر العاصمة، فرع وهران، وفرع عنابة.\n📞 **هاتف الاستقبال:** +213 21 55 44 33 | 💬 **واتساب:** +213 550 12 34 56`,
+      text: `📍 **عنوان وكالة ساوث ستريت:**\n\n🏢 **المقر:** ${AGENCY_FULL_ADDRESS}.\n📞 **الهاتف:** ${AGENCY_PHONE}\n💬 **رسائل ومكالمات مع فريق الوكالة:** تطبيق South Street Connect ([/app](/app)).`,
       cards: [
         {
           type: 'action',
           data: {
-            title: 'المقر الرئيسي لوكالة ساوث ستريت (الجزائر العاصمة)',
-            description: 'شارع 01 نوفمبر 1954، بجوار ساحة أودان، الجزائر العاصمة.',
-            buttonText: '📍 فتح موقع الوكالة بالخريطة',
-            targetUrl: '/portal'
+            title: 'مقر وكالة ساوث ستريت (الوادي)',
+            description: `${AGENCY_FULL_ADDRESS} · الهاتف ${AGENCY_PHONE}`,
+            buttonText: '📍 العنوان ووسائل التواصل',
+            targetUrl: '/about#contact'
           }
         }
       ],
       map: {
-        title: 'المقر الرئيسي لوكالة ساوث ستريت - الجزائر العاصمة',
-        latitude: 36.7753,
-        longitude: 3.0588
+        title: 'وكالة ساوث ستريت - وسط مدينة الوادي',
+        latitude: AGENCY_GEO.latitude,
+        longitude: AGENCY_GEO.longitude
       },
       actions: []
     };

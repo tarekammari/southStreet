@@ -12,6 +12,7 @@ class ActionReceiver : BroadcastReceiver() {
                 val id = intent.getStringExtra("id") ?: return
                 CallService.stop(ctx)
                 IncomingCallActivity.close()
+                Telecom.end(android.telecom.DisconnectCause.REJECTED)
                 val pending = goAsync()
                 Net.postJson("/api/connect/call", "{\"action\":\"decline\",\"id\":${Net.quote(id)}}") { pending.finish() }
             }

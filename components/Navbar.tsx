@@ -22,9 +22,11 @@ import {
   BedDouble,
   BookOpen,
   ChevronLeft,
+  QrCode,
 } from 'lucide-react';
 import { User } from '@/types';
 import LoginModal from './LoginModal';
+import { LOGIN_EVENT, type LoginRequest } from '@/components/auth/openLogin';
 import DemandBag from '@/components/booking/DemandBag';
 import { logoutAndReload, profilePhotoSrc, readStoredUser, syncSessionProfile } from '@/lib/client-session';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -159,6 +161,8 @@ const PROMO_LINE =
 
 export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 'light', showPromo = false, promoLine }: NavbarProps) {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
+  // Sakhr (or another part of the page) can open sign-in with a method chosen.
+  const [loginRequest, setLoginRequest] = useState<LoginRequest | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -173,6 +177,19 @@ export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 
   useEffect(() => {
     setSessionUser(currentUser ?? readStoredUser());
   }, [currentUser]);
+
+  useEffect(() => {
+    const onRequest = (e: Event) => {
+      const detail = (e as CustomEvent<LoginRequest & { handled?: boolean }>).detail;
+      if (!detail || detail.handled) return;
+      detail.handled = true;
+      setMobileOpen(false);
+      setLoginRequest(detail);
+      setIsLoginOpen(true);
+    };
+    window.addEventListener(LOGIN_EVENT, onRequest);
+    return () => window.removeEventListener(LOGIN_EVENT, onRequest);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -458,10 +475,22 @@ export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 
                       <UserIcon className="w-4 h-4 text-slate-400" />
                       <span>{pilgrim ? 'برنامجي' : 'بوابة الوكالة'}</span>
                     </Link>
+                    {pilgrim ? (
+                      <Link href="/my-bookings" onClick={() => setProfileOpen(false)} className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition ${isLight ? 'hover:bg-slate-50 text-slate-700' : 'hover:bg-slate-800 text-slate-200'}`}>
+                        <BedDouble className="w-4 h-4 text-slate-400" />
+                        <span>حجوزاتي</span>
+                      </Link>
+                    ) : null}
                     <Link href={pilgrim ? '/portal?tab=account' : '/portal?tab=security'} onClick={() => setProfileOpen(false)} className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition ${isLight ? 'hover:bg-slate-50 text-slate-700' : 'hover:bg-slate-800 text-slate-200'}`}>
                       <Settings className="w-4 h-4 text-slate-400" />
                       <span>{pilgrim ? 'حسابي' : 'أمان الحساب'}</span>
                     </Link>
+                    {!isAdmin ? (
+                      <Link href="/qr-login" onClick={() => setProfileOpen(false)} className={`nav-qr-link flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition ${isLight ? 'hover:bg-slate-50 text-slate-700' : 'hover:bg-slate-800 text-slate-200'}`}>
+                        <QrCode className="w-4 h-4 text-slate-400" />
+                        <span>ربط جهاز كمبيوتر</span>
+                      </Link>
+                    ) : null}
                   </div>
                   <div className={`pt-2 border-t ${isLight ? 'border-slate-100' : 'border-slate-800'}`}>
                     <button onClick={() => { setProfileOpen(false); void logoutAndReload(); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-red-50 text-red-600 text-xs font-bold cursor-pointer">
@@ -572,7 +601,9 @@ export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 
 
       {isLoginOpen && (
         <LoginModal
-          onClose={() => setIsLoginOpen(false)}
+          request={loginRequest || undefined}
+          redirectTo={loginRequest?.redirectTo}
+          onClose={() => { setIsLoginOpen(false); setLoginRequest(null); }}
           onSelectRole={(code, name) => { setIsLoginOpen(false); onSelectRole?.(code, name); }}
         />
       )}

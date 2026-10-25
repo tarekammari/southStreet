@@ -6,7 +6,7 @@ const SITE_URL =
 
 export default function robots(): MetadataRoute.Robots {
   return {
-    rules: [{ userAgent: '*', allow: '/', disallow: ['/api/', '/admin', '/portal', '/enroll', '/book/print'] }],
+    rules: [{ userAgent: '*', allow: '/', disallow: ['/api/', '/admin', '/portal', '/my-bookings', '/qr-login', '/enroll', '/book/print'] }],
     sitemap: `${SITE_URL}/sitemap.xml`,
   };
 }

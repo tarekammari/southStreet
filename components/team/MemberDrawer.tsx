@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity as ActivityIcon,
   Ban,
+  CalendarDays,
   Camera,
   CheckCircle2,
   Fingerprint,
@@ -14,6 +15,7 @@ import {
   Monitor,
   Pencil,
   Phone,
+  Plane,
   QrCode,
   RotateCcw,
   Trash2,
@@ -22,11 +24,15 @@ import {
 } from 'lucide-react';
 import { LOGIN_ROLE_LABELS, type LoginRole } from '@/lib/roles';
 import { LANGUAGE_OPTIONS } from '@/lib/record-field-options';
+import { ROOM_LABELS } from '@/lib/booking-catalog';
+import ClientTripEditor from './ClientTripEditor';
+import ClientBookings from './ClientBookings';
 import {
   CATEGORY_LABEL,
   MEMBER_TYPES,
   fullDate,
   memberState,
+  tripDates,
   relativeTime,
   roleLabel,
   roleTone,
@@ -447,6 +453,44 @@ export default function MemberDrawer({
                 ) : null}
                 {field('تاريخ الانضمام', fullDate(member.createdAt))}
               </dl>
+              {member.role === 'PILGRIM_USER' && member.bookings?.length ? (
+                <ClientBookings
+                  bookings={member.bookings}
+                  canDecide={viewer.role === 'SUPER_ADMIN' || viewer.role === 'AGENCY_MANAGER'}
+                  onChanged={onChanged}
+                  onToast={(text, tone) => onToast(text, tone === 'error' ? 'error' : 'ok')}
+                />
+              ) : member.role === 'PILGRIM_USER' ? (
+                <div className={`tm-trip-card is-${member.trip?.state || 'none'}`}>
+                  <span className="tm-trip-card-icon"><Plane className="w-4 h-4" aria-hidden /></span>
+                  {member.trip?.program ? (
+                    <div>
+                      <small>{member.trip.state === 'past' ? 'آخر رحلة' : 'برنامج العمرة'}</small>
+                      <strong>{member.trip.program.name}</strong>
+                      <span className="tm-trip-card-meta">
+                        {tripDates(member.trip.program) ? <span><CalendarDays className="w-3.5 h-3.5" aria-hidden />{tripDates(member.trip.program)}</span> : null}
+                        {member.trip.program.reference ? <span dir="ltr">{member.trip.program.reference}</span> : null}
+                        {member.trip.program.statusLabel ? <span>{member.trip.program.statusLabel}</span> : null}
+                        {member.trip.program.roomType ? <span>{ROOM_LABELS[member.trip.program.roomType] || member.trip.program.roomType}</span> : null}
+                      </span>
+                    </div>
+                  ) : (
+                    <div>
+                      <small>برنامج العمرة</small>
+                      <strong>لا توجد رحلة بعد</strong>
+                    </div>
+                  )}
+                </div>
+              ) : null}
+              {member.role === 'PILGRIM_USER' && viewer.role === 'SUPER_ADMIN' ? (
+                <ClientTripEditor
+                  key={member.id}
+                  userId={member.id}
+                  hasActive={member.trip?.state === 'current'}
+                  onSaved={onChanged}
+                  onToast={(text, tone) => onToast(text, tone === 'error' ? 'error' : 'ok')}
+                />
+              ) : null}
               {isStaff ? (
                 <div className="tm-home-row">
                   <div>
