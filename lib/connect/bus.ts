@@ -1,5 +1,5 @@
 /**
- * In-process event bus for South Street Connect. Every write (message, call,
+ * In-process event bus for Connect. Every write (message, call,
  * answer, network candidate, hang-up) is published here and the live
  * connection of the recipient (/api/connect/stream) forwards it at once.
  *

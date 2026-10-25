@@ -7,6 +7,8 @@ import { jsonAuthHeaders } from '@/lib/api-client';
 import { versionLabel } from '@/lib/connect/version';
 import RingtonePicker from './RingtonePicker';
 import { checkAppUpdate, downloadNewApp, nativePlatform, nativeVersion, onUpdateProgress, type UpdateCheck } from '@/lib/connect/native-bridge';
+import { connectName } from '@/lib/brand';
+import { useBrand } from '@/components/social/useAgencyInfo';
 
 const APP_VERSION = process.env.APP_VERSION || '';
 
@@ -45,6 +47,7 @@ export default function AboutSheet({
   /** Reload onto the newer web build (never during a call). */
   onApplyWebUpdate: () => void;
 }) {
+  const brand = useBrand();
   const [testing, setTesting] = useState<'idle' | 'busy' | 'sent'>('idle');
   const [error, setError] = useState('');
   const [checking, setChecking] = useState(false);
@@ -98,7 +101,7 @@ export default function AboutSheet({
         <header>
           <img src="/icons/connect-192.png" alt="" />
           <div>
-            <h2>South Street Connect</h2>
+            <h2>{connectName(brand)}</h2>
             <small>الإصدار <bdi dir="ltr">{versionLabel()}</bdi></small>
           </div>
           <button type="button" className="cn-icon" onClick={onClose} aria-label="إغلاق"><X className="w-5 h-5" /></button>

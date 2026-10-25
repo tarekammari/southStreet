@@ -1,7 +1,7 @@
-/* ── /app — South Street Connect download page ── */
+/* ── /app — Connect download page ── */
 .cx-page {
-  --cx-brand: #047857;
-  --cx-brand-2: #065f46;
+  --cx-brand: var(--brand-primary, #047857);
+  --cx-brand-2: var(--brand-primary-dark, #065f46);
   --cx-mint: #a7f3d0;
   --cx-ink: #0b1220;
   --cx-muted: #5b6b7f;
@@ -50,10 +50,10 @@
 .cx-phone-body { position: relative; height: 540px; border-radius: 44px; padding: 12px; background: #0b1220; box-shadow: 0 50px 90px -40px rgba(6, 95, 70, 0.7), inset 0 0 0 2px #1f2937; }
 .cx-notch { position: absolute; top: 20px; left: 50%; width: 86px; height: 22px; transform: translateX(-50%); border-radius: 999px; background: #0b1220; z-index: 2; }
 .cx-screen { position: relative; height: 100%; border-radius: 34px; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 58px 22px 36px; color: #fff;
-  background: radial-gradient(320px 220px at 50% 0%, rgba(16, 185, 129, 0.5), transparent 70%), linear-gradient(180deg, #065f46, #0b1f19 75%); }
+  background: radial-gradient(320px 220px at 50% 0%, rgba(16, 185, 129, 0.5), transparent 70%), linear-gradient(180deg, var(--brand-primary-dark, #065f46), #0b1f19 75%); }
 .cx-screen-brand { font-size: 0.7rem; color: rgba(255, 255, 255, 0.6); direction: ltr; }
 .cx-caller { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.cx-avatar { position: relative; width: 92px; height: 92px; margin-bottom: 12px; display: grid; place-items: center; border-radius: 50%; background: linear-gradient(145deg, #10b981, #065f46); box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.12); }
+.cx-avatar { position: relative; width: 92px; height: 92px; margin-bottom: 12px; display: grid; place-items: center; border-radius: 50%; background: linear-gradient(145deg, #10b981, var(--brand-primary-dark, #065f46)); box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.12); }
 .cx-avatar b { font-size: 2.2rem; font-weight: 900; }
 .cx-avatar i { position: absolute; inset: 0; border-radius: 50%; border: 2px solid rgba(167, 243, 208, 0.6); animation: cx-ripple 2.4s cubic-bezier(0.2, 0.6, 0.35, 1) infinite; }
 .cx-avatar i:nth-child(2) { animation-delay: 0.8s; }
@@ -141,5 +141,5 @@
 /* Install started by Sakhr: what happens next */
 .cx-install-note {
   margin: 4px 0 12px; padding: 10px 14px; border-radius: 14px; font-weight: 700; font-size: .9rem; line-height: 1.7;
-  background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0;
+  background: #ecfdf5; color: var(--brand-primary-dark, #065f46); border: 1px solid #a7f3d0;
 }

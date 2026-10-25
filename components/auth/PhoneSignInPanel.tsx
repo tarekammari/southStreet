@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { CheckCircle2, Loader2, RefreshCw, ShieldCheck, Smartphone, XCircle } from 'lucide-react';
+import { useBrand } from '@/components/social/useAgencyInfo';
 
 type Phase =
   | { kind: 'loading' }
@@ -21,6 +22,7 @@ const POLL_MS = 2000;
  * here, then this computer receives the session.
  */
 export default function PhoneSignInPanel({ onSuccess, onBack }: { onSuccess: (data: any) => void; onBack: () => void }) {
+  const brand = useBrand();
   const [phase, setPhase] = useState<Phase>({ kind: 'loading' });
   const [now, setNow] = useState(Date.now());
   const req = useRef<{ id: string; key: string } | null>(null);
@@ -130,7 +132,7 @@ export default function PhoneSignInPanel({ onSuccess, onBack }: { onSuccess: (da
           <div className={`psi-qr${phase.kind === 'loading' ? ' is-loading' : ''}`}>
             {phase.kind === 'qr' ? <img src={phase.src} alt="رمز QR للدخول بالهاتف" /> : <Loader2 className="animate-spin" aria-hidden />}
             {phase.kind === 'qr' ? (
-              <span className="psi-logo" aria-hidden><img src="/images/south_street_logo_just.png" alt="" /></span>
+              <span className="psi-logo" aria-hidden><img src={brand.mark_url} alt="" /></span>
             ) : null}
           </div>
           {phase.kind === 'qr' ? (
@@ -139,7 +141,7 @@ export default function PhoneSignInPanel({ onSuccess, onBack }: { onSuccess: (da
             </p>
           ) : null}
           <ol className="psi-steps">
-            <li><Smartphone aria-hidden /> افتح الموقع أو تطبيق South Street على هاتفك وتأكد أنك داخل حسابك</li>
+            <li><Smartphone aria-hidden /> افتح الموقع أو تطبيق {brand.name_latin} على هاتفك وتأكد أنك داخل حسابك</li>
             <li>امسح الرمز بكاميرا الهاتف، أو من القائمة: «ربط جهاز كمبيوتر»</li>
             <li>اختر على الهاتف الرقم الذي يظهر هنا</li>
           </ol>

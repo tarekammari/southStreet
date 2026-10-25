@@ -1,5 +1,5 @@
 /**
- * Version of South Street Connect shown in the app ("حول التطبيق") and on /app.
+ * Version of Connect shown in the app ("حول التطبيق") and on /app.
  * Raise it with each Connect release; the build code after it changes on every deployment.
  */
 export const CONNECT_VERSION = '1.8.1';

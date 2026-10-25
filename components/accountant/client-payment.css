@@ -14,7 +14,7 @@
   animation: cpm-fade 0.18s ease;
 }
 .cpm {
-  --cpm-brand: #047857;
+  --cpm-brand: var(--brand-primary, #047857);
   --cpm-brand-soft: #ecfdf5;
   --cpm-line: #e5e7eb;
   --cpm-muted: #64748b;
@@ -65,7 +65,7 @@
 .cpm-stats .is-remaining { background: var(--cpm-brand-soft); border-color: #a7f3d0; }
 .cpm-stats .is-remaining b { color: var(--cpm-brand); }
 .cpm-progress { height: 7px; border-radius: 999px; background: #e2e8f0; margin-top: 12px; overflow: hidden; }
-.cpm-progress span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #10b981, #047857); transition: width 0.3s ease; }
+.cpm-progress span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #10b981, var(--brand-primary, #047857)); transition: width 0.3s ease; }
 .cpm-progress-label { display: block; margin-top: 5px; font-size: 0.72rem; color: var(--cpm-muted); font-weight: 700; }
 
 .cpm-field { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
@@ -119,7 +119,7 @@
 
 .cpm-foot { display: flex; gap: 10px; padding: 14px 20px calc(14px + env(safe-area-inset-bottom)); border-top: 1px solid var(--cpm-line); background: inherit; }
 .cpm-cancel { flex: 1; min-height: 50px; border-radius: 14px; background: #f1f5f9; color: #334155; font-weight: 800; font-size: 0.92rem; }
-.cpm-submit { flex: 2; min-height: 50px; white-space: nowrap; padding: 0 12px; border-radius: 14px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: linear-gradient(135deg, #059669, #047857); color: #fff; font-weight: 900; font-size: 0.95rem; box-shadow: 0 8px 20px rgba(4, 120, 87, 0.28); }
+.cpm-submit { flex: 2; min-height: 50px; white-space: nowrap; padding: 0 12px; border-radius: 14px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: linear-gradient(135deg, #059669, var(--brand-primary, #047857)); color: #fff; font-weight: 900; font-size: 0.95rem; box-shadow: 0 8px 20px rgba(4, 120, 87, 0.28); }
 .cpm-submit svg { width: 19px; height: 19px; }
 .cpm-submit:disabled { opacity: 0.55; cursor: not-allowed; box-shadow: none; }
 

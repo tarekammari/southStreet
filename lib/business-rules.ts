@@ -135,7 +135,7 @@ export class BusinessRulesService {
       return {
         should_escalate: true,
         reason: 'طلب التحدث المباشر مع مستشار الوكالة',
-        escalation_message: 'سأقوم بتحويل طلبك فوراً لأحد مستشاري ساوث ستريت المباشرين للمتابعة معك.'
+        escalation_message: 'سأقوم بتحويل طلبك فوراً لأحد مستشاري الوكالة المباشرين للمتابعة معك.'
       };
     }
 

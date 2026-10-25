@@ -1,5 +1,5 @@
 /**
- * South Street Connect — links between two clients (like friends on Facebook or
+ * Connect — links between two clients (like friends on Facebook or
  * contacts on WhatsApp). A client asks, the other accepts; only then can the two
  * message and call each other. The team needs no link: it talks to everyone.
  *

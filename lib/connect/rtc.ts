@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Voice calls for South Street Connect (WebRTC, audio only).
+ * Voice calls for Connect (WebRTC, audio only).
  *
  * Clear "telephone" voice:
  *  - microphone with echo cancellation, noise suppression and auto gain, mono;

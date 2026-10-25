@@ -5,7 +5,7 @@
   --gd-muted: #64748b;
   --gd-line: #e2e8f0;
   --gd-soft: #f8fafc;
-  --gd-brand: #047857;
+  --gd-brand: var(--brand-primary, #047857);
   --gd-brand-soft: #ecfdf5;
   --gd-gold: #b8913f;
   color: var(--gd-text);
@@ -19,7 +19,7 @@
 .gd-hero {
   display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
   padding: 18px 20px; border-radius: 22px; color: #fff;
-  background: radial-gradient(600px 220px at 0% 0%, rgba(255, 255, 255, 0.14), transparent 60%), linear-gradient(135deg, #065f46, #047857 55%, #0f766e);
+  background: radial-gradient(600px 220px at 0% 0%, rgba(255, 255, 255, 0.14), transparent 60%), linear-gradient(135deg, var(--brand-primary-dark, #065f46), var(--brand-primary, #047857) 55%, #0f766e);
   box-shadow: 0 18px 40px -26px rgba(4, 78, 59, 0.8);
 }
 .gd-hero-id { display: flex; align-items: center; gap: 12px; }
@@ -37,7 +37,7 @@
 .gd-tabs button.is-on { background: #fff; color: var(--gd-brand); box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08); }
 .gd-tabs .gd-refresh { width: 36px; padding: 0; justify-content: center; }
 
-.gd-toast { padding: 10px 14px; border-radius: 12px; background: var(--gd-brand-soft); color: #065f46; font-weight: 700; font-size: 0.86rem; }
+.gd-toast { padding: 10px 14px; border-radius: 12px; background: var(--gd-brand-soft); color: var(--brand-primary-dark, #065f46); font-weight: 700; font-size: 0.86rem; }
 .gd-toast.is-bad { background: #fef2f2; color: #b91c1c; }
 
 .gd-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; padding: 48px 16px; color: var(--gd-muted); background: #fff; border: 1px dashed var(--gd-line); border-radius: 20px; }

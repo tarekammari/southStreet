@@ -6,6 +6,8 @@ import {
   type ScfBilanLine,
 } from '@/lib/scf-balance-sheet';
 import { buildOfficialResultat } from '@/lib/scf-result-statement';
+import { getBrand } from './brand-server';
+import { agencyLabel } from './brand';
 
 function escapeHtml(value: string): string {
   return String(value ?? '')
@@ -226,7 +228,7 @@ export function buildReportsPrintHtml(data: ReportsPrintInput): string {
         <header class="letterhead">
           <div>
             <div class="letterhead-en">SOUTH STREET AGENCY</div>
-            <div class="letterhead-ar">وكالة ساوث ستريت — التقارير</div>
+            <div class="letterhead-ar">${escapeHtml(agencyLabel(getBrand()))} — التقارير</div>
           </div>
           <div class="letterhead-meta"><div>${escapeHtml(period)}</div><div>${escapeHtml(printedAt)}</div></div>
         </header>

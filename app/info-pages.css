@@ -10,7 +10,7 @@
   --ip-line: #e2e8f0;
   --ip-soft: #f8fafc;
   --ip-card: #ffffff;
-  --ip-brand: #047857;
+  --ip-brand: var(--brand-primary, #047857);
   --ip-brand-2: #059669;
   --ip-brand-soft: #ecfdf5;
   --ip-gold: #b8913f;
@@ -57,7 +57,7 @@
 .ip-btn.is-ghost:hover { border-color: var(--ip-brand); color: var(--ip-brand); }
 .ip-hero-art {
   position: relative; aspect-ratio: 4 / 3.4; border-radius: 28px; overflow: hidden;
-  background: linear-gradient(160deg, #064e3b, #047857 55%, #0f766e);
+  background: linear-gradient(160deg, var(--brand-primary-dark, #064e3b), var(--brand-primary, #047857) 55%, #0f766e);
   box-shadow: 0 30px 60px -28px rgba(4, 78, 59, 0.55);
 }
 .ip-hero-art img { width: 100%; height: 100%; object-fit: cover; }
@@ -149,7 +149,7 @@
 .ip-end { padding-top: 48px; }
 .ip-band {
   display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; padding: 28px 32px; border-radius: 24px; color: #fff;
-  background: radial-gradient(500px 240px at 100% 0%, rgba(255, 255, 255, 0.14), transparent 60%), linear-gradient(150deg, #065f46, #047857 60%, #0f766e);
+  background: radial-gradient(500px 240px at 100% 0%, rgba(255, 255, 255, 0.14), transparent 60%), linear-gradient(150deg, var(--brand-primary-dark, #065f46), var(--brand-primary, #047857) 60%, #0f766e);
 }
 .ip-band h2 { color: #fff; font-size: 1.45rem; font-weight: 900; }
 .ip-band p { color: rgba(255, 255, 255, 0.85); line-height: 1.8; margin-top: 4px; }
@@ -160,7 +160,7 @@
 
 .ip-cta {
   border-radius: 24px; padding: 28px; color: #fff; display: flex; flex-direction: column; justify-content: space-between; gap: 18px;
-  background: radial-gradient(500px 240px at 100% 0%, rgba(255, 255, 255, 0.16), transparent 60%), linear-gradient(150deg, #065f46, #047857 60%, #0f766e);
+  background: radial-gradient(500px 240px at 100% 0%, rgba(255, 255, 255, 0.16), transparent 60%), linear-gradient(150deg, var(--brand-primary-dark, #065f46), var(--brand-primary, #047857) 60%, #0f766e);
 }
 .ip-cta h3 { color: #fff; font-size: 1.4rem; font-weight: 900; }
 .ip-cta p { color: rgba(255, 255, 255, 0.86); line-height: 1.9; }
@@ -189,7 +189,7 @@
 .ip-gsec-head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
 .ip-gsec-num {
   display: grid; place-items: center; width: 48px; height: 48px; border-radius: 16px; flex: none;
-  background: linear-gradient(150deg, #065f46, #059669); color: #fff; font-family: var(--font-cairo), 'Cairo', sans-serif; font-weight: 900; font-size: 1.2rem;
+  background: linear-gradient(150deg, var(--brand-primary-dark, #065f46), #059669); color: #fff; font-family: var(--font-cairo), 'Cairo', sans-serif; font-weight: 900; font-size: 1.2rem;
 }
 .ip-gsec-head h2 { font-size: 1.35rem; font-weight: 900; }
 .ip-gsec-head small { display: block; color: var(--ip-muted); font-weight: 700; font-size: 0.82rem; }
@@ -209,7 +209,7 @@
 .ip-dua small { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--ip-gold); font-weight: 800; font-size: 0.8rem; margin-bottom: 6px; }
 .ip-dua blockquote { margin: 0; font-family: var(--font-amiri), 'Amiri', serif; font-size: 1.32rem; line-height: 2.1; color: #3f2f0b; }
 .ip-dua button { display: inline-flex; align-items: center; gap: 4px; font-size: 0.76rem; color: var(--ip-gold); font-weight: 800; cursor: pointer; background: none; border: none; }
-.ip-tip { margin-top: 14px; display: flex; gap: 10px; align-items: flex-start; border-radius: 16px; padding: 12px 14px; background: var(--ip-brand-soft); color: #065f46; font-size: 0.9rem; line-height: 1.8; }
+.ip-tip { margin-top: 14px; display: flex; gap: 10px; align-items: flex-start; border-radius: 16px; padding: 12px 14px; background: var(--ip-brand-soft); color: var(--brand-primary-dark, #065f46); font-size: 0.9rem; line-height: 1.8; }
 .ip-tip svg { flex: none; margin-top: 4px; }
 
 /* Checklist */
@@ -224,7 +224,7 @@
 }
 .ip-checks label:hover { border-color: #a7f3d0; }
 .ip-checks input { width: 18px; height: 18px; accent-color: var(--ip-brand); flex: none; }
-.ip-checks label.is-done { background: var(--ip-brand-soft); border-color: #a7f3d0; color: #065f46; }
+.ip-checks label.is-done { background: var(--ip-brand-soft); border-color: #a7f3d0; color: var(--brand-primary-dark, #065f46); }
 .ip-checks label.is-done span { text-decoration: line-through; text-decoration-color: rgba(6, 95, 70, 0.4); }
 
 /* FAQ */
@@ -296,7 +296,7 @@
 @media (prefers-reduced-motion: reduce) { .ip-photo img { transition: none; } }
 .ip-share { margin-top: 18px; }
 
-/* /app — download page of South Street Connect */
+/* /app — download page of Connect */
 .ap-phone {
   justify-self: center; display: flex; flex-direction: column; align-items: center; gap: 8px; width: 240px; padding: 40px 20px 60px;
   border-radius: 40px; background: linear-gradient(180deg, #ffffff, #ecfdf5); border: 10px solid #0f172a; box-shadow: 0 30px 60px -30px rgba(4, 78, 59, 0.6);

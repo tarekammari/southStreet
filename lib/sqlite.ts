@@ -19,7 +19,7 @@ import { ensureDbFile, isServerlessHost, resolveDbPath } from './db-path';
 import { bootstrapFiscalPeriodsForYear } from './finance-periods';
 import { seedScfChartAccounts } from './scf-chart-seed';
 import { reprepareAcrossTransactions } from './turso-statements';
-import { AGENCY_ADDRESS, AGENCY_CITY, AGENCY_COUNTRY, AGENCY_PHONE } from './agency-contact';
+import { BRAND_NEW_COLUMNS, DEFAULT_BRAND, brandFrom, isDefaultBrand, rebrandText, type Brand } from './brand';
 
 let dbInstance: Database.Database | null = null;
 let dbPathUsed: string | null = null;
@@ -458,6 +458,9 @@ function initTables(db: Database.Database) {
     ensureColumn('agency_settings', 'google_client_id', 'TEXT');
     ensureColumn('agency_settings', 'security_key', 'TEXT');
     ensureColumn('agency_settings', 'security_key_issued_at', 'TEXT');
+    // Agency identity (white-label, lib/brand.ts). brand_status stays plaintext: 'DEFAULT' until saved.
+    for (const col of BRAND_NEW_COLUMNS) ensureColumn('agency_settings', col, 'TEXT');
+    ensureColumn('agency_settings', 'brand_status', 'TEXT');
     ensureColumn('morshids', 'review_count', 'INTEGER DEFAULT 0');
     ensureColumn('audit_logs', 'actorName', 'TEXT');
     ensureColumn('audit_logs', 'actorRole', 'TEXT');
@@ -1160,49 +1163,54 @@ function seedDefaults(db: Database.Database) {
   // Super Admin and Admin accounts are never seeded: the Super Admin comes from
   // `npm run admin:setup`, Admins are invited by the Super Admin.
 
-  // Seed Agency Settings
+  // Seed Agency Settings: a new database starts as the default brand (South Street);
+  // the Super Admin's first-run wizard («هوية الوكالة») replaces it.
   const agencyCount = (db.prepare('SELECT COUNT(*) as cnt FROM agency_settings').get() as any).cnt;
   if (agencyCount === 0) {
+    const b = DEFAULT_BRAND;
     db.prepare(`
-      INSERT INTO agency_settings (id, agency_name, legal_name, logo, description, address, city, country, phone, whatsapp, email, website, opening_hours, emergency_phone, supported_languages, default_currency, timezone)
-      VALUES ('main', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO agency_settings (id, agency_name, legal_name, logo, description, address, city, country, phone, whatsapp, email, website, opening_hours, emergency_phone, supported_languages, default_currency, timezone, brand_status)
+      VALUES ('main', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'DEFAULT')
     `).run(
-      'ساوث ستريت للأسفار والعمرة',
-      'شركة ساوث ستريت للسياحة والأسفار ذ.م.م',
-      '/images/logo.png',
-      'الوكالة المعتمدة الأولى لرحلات العمرة والحج المباشرة وتأطير المعتمرين بالجزائر',
-      AGENCY_ADDRESS,
-      AGENCY_CITY,
-      AGENCY_COUNTRY,
-      AGENCY_PHONE,
-      '+213 550 12 34 56',
-      'contact@southstreet.dz',
-      'https://southstreet.dz',
-      'الأحد - الخميس: 08:30 صباحاً - 17:30 مساءً',
-      '+213 661 99 88 77',
+      b.agency_name,
+      b.legal_name,
+      b.logo_url,
+      b.description,
+      b.address,
+      b.city,
+      b.country,
+      b.phone,
+      b.whatsapp,
+      b.email,
+      b.website,
+      b.opening_hours,
+      b.emergency_phone,
       JSON.stringify(['العربية', 'الدارجة الجزائرية', 'Français', 'English']),
       'DZD',
       'Africa/Algiers'
     );
   }
 
-  // The agency is in El Oued: replace the old placeholder Algiers address / phone
-  // (only while they are still the old defaults; admin edits are kept).
   try {
-    const row = db.prepare("SELECT address, city, phone FROM agency_settings WHERE id = 'main'").get() as
-      | { address?: string | null; city?: string | null; phone?: string | null }
-      | undefined;
+    const row = db.prepare("SELECT * FROM agency_settings WHERE id = 'main'").get() as Record<string, string | null> | undefined;
     if (row) {
-      const oldAddress = !row.address || row.address.includes('نوفمبر 1954');
-      if (oldAddress) {
-        db.prepare("UPDATE agency_settings SET address = ?, city = ?, country = ? WHERE id = 'main'").run(AGENCY_ADDRESS, AGENCY_CITY, AGENCY_COUNTRY);
+      // The agency is in El Oued: replace the old placeholder Algiers address / phone
+      // (only while they are still the old defaults; admin edits are kept).
+      if (!row.address || row.address.includes('نوفمبر 1954')) {
+        db.prepare("UPDATE agency_settings SET address = ?, city = ?, country = ? WHERE id = 'main'").run(DEFAULT_BRAND.address, DEFAULT_BRAND.city, DEFAULT_BRAND.country);
       }
       if (!row.phone || row.phone.replace(/\s+/g, '') === '+21321554433') {
-        db.prepare("UPDATE agency_settings SET phone = ? WHERE id = 'main'").run(AGENCY_PHONE);
+        db.prepare("UPDATE agency_settings SET phone = ? WHERE id = 'main'").run(DEFAULT_BRAND.phone);
       }
+      // Brand columns added later start with the default brand's values. A database
+      // that already existed is the running agency: it is configured, no wizard.
+      for (const col of BRAND_NEW_COLUMNS) {
+        if (row[col] == null) db.prepare(`UPDATE agency_settings SET ${col} = ? WHERE id = 'main'`).run(DEFAULT_BRAND[col]);
+      }
+      if (!row.brand_status) db.prepare("UPDATE agency_settings SET brand_status = 'CONFIGURED' WHERE id = 'main'").run();
     }
   } catch (err) {
-    console.warn('[Agency address update]:', err);
+    console.warn('[Agency brand defaults]:', err);
   }
 
   try {
@@ -1232,7 +1240,7 @@ function seedDefaults(db: Database.Database) {
       ['m4', 'الشيخ ياسين العلي', 'مرشد التوجيه الروحي والمتابعة', 'مختص بالتواصل الفوري والإجابة عن استفسارات وفتاوى المعتمرين والعائلات.', 9, JSON.stringify(['العربية']), '+213 553 66 77 88', 'ي', 4.92, 'متاح للاستشارات والفتاوى', 'religious_guide', '/api/staff-image/morshed_04.png'],
       ['f1', 'الأستاذة مريم', 'مرشدة شؤون النساء والمناسك', 'متخصصة في إرشاد الأخوات في أحكام الإحرام والزيارات النسائية بالروضة الشريفة.', 8, JSON.stringify(['العربية', 'الفرنسية']), '+213 554 11 22 33', 'م', 4.99, 'متاحة للأخوات والمعتمرات', 'women_guide', '/api/staff-image/morshed_women_01.png'],
       ['f2', 'الأستاذة عائشة الجزائري', 'مرشدة التوجيه ورعاية الأخوات', 'مرافقة المعتمرات في الصلوات والزيارات ومتابعة الخدمات الخاصة بالنساء وكبار السن.', 7, JSON.stringify(['العربية', 'الأمازيغية']), '+213 555 44 55 66', 'ع', 4.93, 'متاحة لرعاية الأخوات', 'women_guide', '/api/staff-image/morshed_women_02.png'],
-      ['s1', 'الأستاذ أحمد المنصوري', 'المدير العام لوكالة ساوث ستريت', 'يشرف على التعاقدات الفندقية والخطوط الجوية وضمان تطبيق أعلى معايير الجودة والراحة.', 18, JSON.stringify(['العربية', 'الفرنسية', 'الإنجليزية']), AGENCY_PHONE, 'أ', 5.00, 'إدارة الوكالة', 'staff', '/api/staff-image/director_agancy.png'],
+      ['s1', 'الأستاذ أحمد المنصوري', 'المدير العام لوكالة ساوث ستريت', 'يشرف على التعاقدات الفندقية والخطوط الجوية وضمان تطبيق أعلى معايير الجودة والراحة.', 18, JSON.stringify(['العربية', 'الفرنسية', 'الإنجليزية']), DEFAULT_BRAND.phone, 'أ', 5.00, 'إدارة الوكالة', 'staff', '/api/staff-image/director_agancy.png'],
       ['s2', 'السيد توفيق بوجمعة', 'مدير العمليات اللوجستية والنقل', 'مسؤول عن حجز الحافلات الحديثة VIP وتنسيق الرحلات الجوية ومواعيد الاستقبال.', 14, JSON.stringify(['العربية', 'الفرنسية']), '+213 556 77 88 99', 'ت', 4.90, 'عمليات النقل واللوجستيك', 'staff', '/api/staff-image/team_member_01.png'],
       ['s3', 'الأستاذة سارة بن علي', 'مسؤولة التأشيرات وتنسيق الرحلات', 'تتولى إصدار التأشيرات الإلكترونية وتصاريح تطبيق نسك ودعم المعتمرين.', 8, JSON.stringify(['العربية', 'الفرنسية', 'الإنجليزية']), '+213 557 00 11 22', 'س', 4.96, 'قسم التأشيرات وتصاريح نسك', 'staff', '/api/staff-image/team_member_06.png'],
       ['s4', 'السيد كريم يوسفي', 'منسق الإقامة والإعاشة الفندقية', 'مقيم بمكة والمدينة لمتابعة جودة الغرف والبوفيه المفتوح وتلبية كافة الطلبات الخاصة 24/7.', 11, JSON.stringify(['العربية', 'الإنجليزية']), '+213 558 33 22 11', 'ك', 4.88, 'مقيم بمكة والمدينة 24/7', 'staff', '/api/staff-image/team_member_08.png']
@@ -1372,31 +1380,10 @@ function seedDefaults(db: Database.Database) {
   }
 
   // Seed AI Knowledge
-  const insertRule = db.prepare(`
-    INSERT OR REPLACE INTO ai_knowledge (id, category, title_ar, keywords, response_ar, is_active, updatedBy, updatedAt, answerMode, matchStrategy)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
+  const brand = currentBrand(db);
+  seedAgencyKnowledge(db, brand);
 
-  const rules = [
-    ['rule_august_package', 'packages', 'باقة أوت الاقتصادية المميزة', JSON.stringify(['أوت', 'اقتصادية', '215000', '215,000', 'منارات غزة']), '🕋 **باقة أوت المميزة (215,000 دج):**\n• طيران مباشر بدون توقف من الجزائر، وهران، وعنابة.\n• إقامة فاخرة بفندق منارات غزة (350م فقط عن صحن الحرم المكي).\n• مرافقة دينية وصحية مستمرة طوال الـ 15 يوماً.', 1, 'admin@southstreet.dz', new Date().toISOString(), 'official_exact', 'keywords_or_title'],
-    ['rule_mawlid_package', 'packages', 'باقة المولد النبوي VIP', JSON.stringify(['المولد', 'vip', '295000', '295,000', 'سويس أوتيل', 'برج الساعة']), '🌟 **باقة المولد النبوي VIP (295,000 دج):**\n• إقامة VIP بفندق سويس أوتيل برج الساعة (50م فقط عن صحن الحرم).\n• إعاشة بوفيه مفتوح واستقبال وتوديع VIP مع تأطير ديني خاص.', 1, 'admin@southstreet.dz', new Date().toISOString(), 'official_exact', 'keywords_or_title'],
-    ['rule_passport_docs', 'requirements', 'شروط والوثائق المطلوبة للتسجيل', JSON.stringify(['شروط', 'وثائق', 'جواز', 'ملف', 'أوراق', 'تلقيح', 'شروط التسجيل']), '📋 **شروط وأوراق التقديم للعمرة 2026:**\n1. جواز سفر بيومتري صالح لأكثر من 6 أشهر.\n2. عدد 2 صور شمسية خلفية بيضاء.\n3. شهادة التلقيح المعتمدة.\n4. دفع عربون تأكيد الحجز (30% أو دفع كامل عبر CCP/بريدي موب).', 1, 'manager@southstreet.dz', new Date().toISOString(), 'official_exact', 'keywords_or_title'],
-    ['rule_umrah_steps', 'rituals', 'مناسك العمرة الأربعة وأحكامها', JSON.stringify(['مناسك', 'خطوات', 'طواف', 'سعي', 'إحرام', 'تحلل', 'ميقات', 'كيف أعتمر']), '🕋 **مناسك العمرة خطوة بخطوة:**\n1. **الإحرام** مع النية والتلبية من الميقات.\n2. **طواف القدوم** 7 أشواط حول الكعبة المشرفة ابتداءً من الحجر الأسود.\n3. **السعي بين الصفا والمروة** 7 أشواط.\n4. **الحلق أو التقصير** للتحلل من الإحرام.\n💡 يرافقك المرشد الديني الشيخ د. عبد الرحمن النوي خطوة بخطوة في كل منسك.', 1, 'guide@southstreet.dz', new Date().toISOString(), 'official_exact', 'keywords_or_title'],
-    ['rule_finance_ccp', 'pricing', 'طرق الدفع والتحويل البنكي والتقسيط', JSON.stringify(['دفع', 'تحويل', 'ccp', 'بريدي موب', 'تقسيط', 'سند', 'فاتورة', 'وصل']), '💳 **طرق الدفع المعتمدة بوكالة ساوث ستريت:**\n• الدفع نقداً أو بشيك في مقر الوكالة.\n• التحويل الفوري عبر تطبيق بريدي موب (BaridiMob).\n• التحويل البريدي لحساب الوكالة الجاري (CCP).\n• **تسهيلات التقسيط الميسر:** خطة دفع شهرية مرنة من 2 إلى 10 أشهر بدون فوائد.\n🧾 يصدر المحاسب المالي (الأستاذ ياسين الفاسي) سند قبض رقمي فوري.', 1, 'accountant@southstreet.dz', new Date().toISOString(), 'official_exact', 'keywords_or_title'],
-    ['rule_director_info', 'requirements', 'المدير العام لوكالة ساوث ستريت', JSON.stringify(['المدير', 'مدير', 'مدير الوكالة', 'من هو المدير', 'المدير العام', 'المؤسس', 'صاحب الوكالة', 'رئيس الوكالة', 'director', 'manager']), '👔 **المدير العام والمؤسس لوكالة ساوث ستريت للأسفار والعمرة:**\n\n• **الاسم الكامل:** الأستاذ طارق العماري (المدير العام ورئيس مجلس الإدارة).\n• **الخبرة القيادية:** أكثر من 18 سنة في إدارة رحلات الحج والعمرة والتعاقدات الفندقية والخطوط الجوية.\n• **المهام والمتابعة:** الإشراف المباشر على راحة ضيوف الرحمن والتأطير الفندقي والصحي 24/7.\n📞 **للتواصل المباشر مع الإدارة العامة:** 039 39 39 39 | 📧 admin@southstreet.dz', 1, 'admin@southstreet.dz', new Date().toISOString(), 'official_exact', 'keywords_or_title'],
-    ['rule_accountant_info', 'pricing', 'المحاسب المالي وقسم الحسابات', JSON.stringify(['المحاسب', 'محاسب', 'من هو المحاسب', 'محاسب الوكالة', 'المالية', 'قسم المالية', 'سند القبض', 'الفواتير', 'accountant']), '💼 **المحاسب المالي الرئيسي بوكالة ساوث ستريت:**\n\n• **الاسم الكامل:** الأستاذ ياسين الفاسي (محاسب الوكالة المعتمد ورئيس قسم المالية).\n• **المهام المالية:** اعتماد التحويلات البنكية، متابعة دفعات المعتمرين، إصدار سندات القبض الرقمية، وتنظيم جدولة التقسيط الميسر من 2 إلى 10 أشهر.\n• **الهاتف المباشر للمحاسب:** +213 561 11 88 99 | 📧 accountant@southstreet.dz\n🧾 يصدر المحاسب سند قبض رقمي فور كل قسط أو دفعة.', 1, 'accountant@southstreet.dz', new Date().toISOString(), 'official_exact', 'keywords_or_title'],
-    ['rule_agency_location', 'requirements', 'عنوان الوكالة ورقم هاتفها', JSON.stringify(['عنوان', 'العنوان', 'مقر', 'المقر', 'أين', 'اين', 'موقع', 'مكان', 'الاتجاه', 'اتجاه', 'اتجاهات', 'مكتب', 'الوادي', 'خميستي', 'address', 'location']), '📍 **عنوان وكالة ساوث ستريت:**\n\n🏢 **المقر:** شارع خميستي الرئيسي، وسط مدينة الوادي، ولاية الوادي، الجزائر.\n📞 **الهاتف:** 039 39 39 39\n💬 **رسائل ومكالمات مع فريق الوكالة:** تطبيق South Street Connect ([/app](/app)).', 1, 'admin@southstreet.dz', new Date().toISOString(), 'official_exact', 'keywords_or_title'],
-    ['rule_installments_facility', 'pricing', 'تسهيلات الدفع والتقسيط الميسر من 2 إلى 10 أشهر', JSON.stringify(['تقسيط', 'التقسيط', 'تسهيلات', 'دفعات', 'أشهر', 'اشهر', 'بالتقسيط', '2 الى 10', 'من 2 الى 10', 'شروط التقسيط', 'اقساط', 'أقساط', 'ميسر', 'installment', 'installments']), '💳 **تسهيلات الدفع والتقسيط الميسر بوكالة ساوث ستريت (من 2 إلى 10 أشهر):**\n\nتقدم وكالة ساوث ستريت خيار **التقسيط المريح بدون فوائد** لجميع باقات العمرة والحج لعام 2026:\n\n1. **فترة التقسيط المرنة:** يمكنك تقسيط تكلفة العمرة على فترة تتراوح من **شهريين (2) حتى 10 أشهر كاملة**.\n2. **الدفعة الأولى:** تسديد دفعة تسقيع أولى (من 20% إلى 30%) عند حجز وتثبيت الملف.\n3. **طرق السداد:** أسباب ودفعات شهرية ميسرة عبر بريدي موب (BaridiMob)، التحويل البريدي CCP، أو نقداً بمقر الوكالة.\n4. **سندات القبض الرقمية:** إصدار سند قبض رقمي فور كل قسط شهري معتمد من المحاسب المالي الأستاذ ياسين الفاسي.\n\nتفضل بزيارة المقر أو التواصل مع المحاسب لتنسيق جدول أقساطك المريحة!', 1, 'accountant@southstreet.dz', new Date().toISOString(), 'official_exact', 'keywords_or_title'],
-    ['rule_mahram_women', 'rituals', 'حكم المحرم للمرأة في العمرة', JSON.stringify(['محرم', 'المحرم', 'محram', 'بدون محرم', 'المرأة', 'مرأة', 'تعتمر', 'معتمرة', 'نساء', 'سفر المرأة', 'mahram']), '🧕 **حكم المحرم للمرأة في العمرة — إرشادات وكالة ساوث ستريت:**\n\n1. **الأصل الشرعي:** جمهور العلماء يرى **وجوب وجود محرم** للمرأة في سفر العمرة والحج إذا تجاوزت مسافة القصر، وفق الأحوال المعتبرة في الفقه.\n2. **متطلبات التأشيرة السعودية:** تطبيق **نسك** ووزارة الحج يشترط عادةً **مرافقة محرم** أو مجموعة نسائية معتمدة حسب اللوائح المعمول بها لكل موسم — يُرجى التحقق من الشروط الرسمية وقت التسجيل.\n3. **سياسة الوكالة:** وكالة ساوث ستريت **تلتزم بالأنظمة الرسمية** ولا تقبل تسجيل ملفات مخالفة لاشتراطات التأشيرة. ننصح المعتمرات بمرافقة محرم أو الانضمام لمجموعة نسائية منظمة عبر الوكالة.\n4. **استثناءات واستفسارات:** للحالات الخاصة (كبار السن، المرض، ظروف عائلية)، تواصل مع **المرشدة الدينية** أو الإدارة لتقييم الملف.\n\n📞 **للاستشارة:** 039 39 39 39 | 💬 المرشدة: عبر بوابة الوكالة → المحادثة', 1, 'guide@southstreet.dz', new Date().toISOString(), 'official_exact', 'keywords_or_title']
-  ];
-
-  db.transaction(() => {
-    for (const r of rules) {
-      insertRule.run(...r);
-    }
-  })();
-
-  seedPageContent(db);
+  seedPageContent(db, brand);
   try {
     if (seedDemoData()) seedFinanceDefaults(db);
   } catch (err) {
@@ -1457,7 +1444,55 @@ const LEGACY_PAGE_TITLES: Record<string, string> = {
   programs_section: 'اختر رحلتك القادمة',
 };
 
-function seedPageContent(db: Database.Database) {
+/**
+ * Sakhr's built-in answers, written for the agency of this installation. Runs on
+ * every start and again when «هوية الوكالة» is saved.
+ */
+export function seedAgencyKnowledge(db: Database.Database, brand: Brand = currentBrand(db)) {
+  const insertRule = db.prepare(`
+    INSERT OR REPLACE INTO ai_knowledge (id, category, title_ar, keywords, response_ar, is_active, updatedBy, updatedAt, answerMode, matchStrategy)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const rules = [
+    ['rule_august_package', 'packages', 'باقة أوت الاقتصادية المميزة', JSON.stringify(['أوت', 'اقتصادية', '215000', '215,000', 'منارات غزة']), '🕋 **باقة أوت المميزة (215,000 دج):**\n• طيران مباشر بدون توقف من الجزائر، وهران، وعنابة.\n• إقامة فاخرة بفندق منارات غزة (350م فقط عن صحن الحرم المكي).\n• مرافقة دينية وصحية مستمرة طوال الـ 15 يوماً.', 1, 'admin@southstreet.dz', new Date().toISOString(), 'official_exact', 'keywords_or_title'],
+    ['rule_mawlid_package', 'packages', 'باقة المولد النبوي VIP', JSON.stringify(['المولد', 'vip', '295000', '295,000', 'سويس أوتيل', 'برج الساعة']), '🌟 **باقة المولد النبوي VIP (295,000 دج):**\n• إقامة VIP بفندق سويس أوتيل برج الساعة (50م فقط عن صحن الحرم).\n• إعاشة بوفيه مفتوح واستقبال وتوديع VIP مع تأطير ديني خاص.', 1, 'admin@southstreet.dz', new Date().toISOString(), 'official_exact', 'keywords_or_title'],
+    ['rule_passport_docs', 'requirements', 'شروط والوثائق المطلوبة للتسجيل', JSON.stringify(['شروط', 'وثائق', 'جواز', 'ملف', 'أوراق', 'تلقيح', 'شروط التسجيل']), '📋 **شروط وأوراق التقديم للعمرة 2026:**\n1. جواز سفر بيومتري صالح لأكثر من 6 أشهر.\n2. عدد 2 صور شمسية خلفية بيضاء.\n3. شهادة التلقيح المعتمدة.\n4. دفع عربون تأكيد الحجز (30% أو دفع كامل عبر CCP/بريدي موب).', 1, 'manager@southstreet.dz', new Date().toISOString(), 'official_exact', 'keywords_or_title'],
+    ['rule_umrah_steps', 'rituals', 'مناسك العمرة الأربعة وأحكامها', JSON.stringify(['مناسك', 'خطوات', 'طواف', 'سعي', 'إحرام', 'تحلل', 'ميقات', 'كيف أعتمر']), '🕋 **مناسك العمرة خطوة بخطوة:**\n1. **الإحرام** مع النية والتلبية من الميقات.\n2. **طواف القدوم** 7 أشواط حول الكعبة المشرفة ابتداءً من الحجر الأسود.\n3. **السعي بين الصفا والمروة** 7 أشواط.\n4. **الحلق أو التقصير** للتحلل من الإحرام.\n💡 يرافقك المرشد الديني الشيخ د. عبد الرحمن النوي خطوة بخطوة في كل منسك.', 1, 'guide@southstreet.dz', new Date().toISOString(), 'official_exact', 'keywords_or_title'],
+    ['rule_finance_ccp', 'pricing', 'طرق الدفع والتحويل البنكي والتقسيط', JSON.stringify(['دفع', 'تحويل', 'ccp', 'بريدي موب', 'تقسيط', 'سند', 'فاتورة', 'وصل']), '💳 **طرق الدفع المعتمدة بوكالة ساوث ستريت:**\n• الدفع نقداً أو بشيك في مقر الوكالة.\n• التحويل الفوري عبر تطبيق بريدي موب (BaridiMob).\n• التحويل البريدي لحساب الوكالة الجاري (CCP).\n• **تسهيلات التقسيط الميسر:** خطة دفع شهرية مرنة من 2 إلى 10 أشهر بدون فوائد.\n🧾 يصدر المحاسب المالي (الأستاذ ياسين الفاسي) سند قبض رقمي فوري.', 1, 'accountant@southstreet.dz', new Date().toISOString(), 'official_exact', 'keywords_or_title'],
+    ['rule_director_info', 'requirements', 'المدير العام لوكالة ساوث ستريت', JSON.stringify(['المدير', 'مدير', 'مدير الوكالة', 'من هو المدير', 'المدير العام', 'المؤسس', 'صاحب الوكالة', 'رئيس الوكالة', 'director', 'manager']), '👔 **المدير العام والمؤسس لوكالة ساوث ستريت للأسفار والعمرة:**\n\n• **الاسم الكامل:** الأستاذ طارق العماري (المدير العام ورئيس مجلس الإدارة).\n• **الخبرة القيادية:** أكثر من 18 سنة في إدارة رحلات الحج والعمرة والتعاقدات الفندقية والخطوط الجوية.\n• **المهام والمتابعة:** الإشراف المباشر على راحة ضيوف الرحمن والتأطير الفندقي والصحي 24/7.\n📞 **للتواصل المباشر مع الإدارة العامة:** 039 39 39 39 | 📧 admin@southstreet.dz', 1, 'admin@southstreet.dz', new Date().toISOString(), 'official_exact', 'keywords_or_title'],
+    ['rule_accountant_info', 'pricing', 'المحاسب المالي وقسم الحسابات', JSON.stringify(['المحاسب', 'محاسب', 'من هو المحاسب', 'محاسب الوكالة', 'المالية', 'قسم المالية', 'سند القبض', 'الفواتير', 'accountant']), '💼 **المحاسب المالي الرئيسي بوكالة ساوث ستريت:**\n\n• **الاسم الكامل:** الأستاذ ياسين الفاسي (محاسب الوكالة المعتمد ورئيس قسم المالية).\n• **المهام المالية:** اعتماد التحويلات البنكية، متابعة دفعات المعتمرين، إصدار سندات القبض الرقمية، وتنظيم جدولة التقسيط الميسر من 2 إلى 10 أشهر.\n• **الهاتف المباشر للمحاسب:** +213 561 11 88 99 | 📧 accountant@southstreet.dz\n🧾 يصدر المحاسب سند قبض رقمي فور كل قسط أو دفعة.', 1, 'accountant@southstreet.dz', new Date().toISOString(), 'official_exact', 'keywords_or_title'],
+    ['rule_agency_location', 'requirements', 'عنوان الوكالة ورقم هاتفها', JSON.stringify(['عنوان', 'العنوان', 'مقر', 'المقر', 'أين', 'اين', 'موقع', 'مكان', 'الاتجاه', 'اتجاه', 'اتجاهات', 'مكتب', 'الوادي', 'خميستي', 'address', 'location']), '📍 **عنوان وكالة ساوث ستريت:**\n\n🏢 **المقر:** شارع خميستي الرئيسي، وسط مدينة الوادي، ولاية الوادي، الجزائر.\n📞 **الهاتف:** 039 39 39 39\n💬 **رسائل ومكالمات مع فريق الوكالة:** تطبيق South Street Connect ([/app](/app)).', 1, 'admin@southstreet.dz', new Date().toISOString(), 'official_exact', 'keywords_or_title'],
+    ['rule_installments_facility', 'pricing', 'تسهيلات الدفع والتقسيط الميسر من 2 إلى 10 أشهر', JSON.stringify(['تقسيط', 'التقسيط', 'تسهيلات', 'دفعات', 'أشهر', 'اشهر', 'بالتقسيط', '2 الى 10', 'من 2 الى 10', 'شروط التقسيط', 'اقساط', 'أقساط', 'ميسر', 'installment', 'installments']), '💳 **تسهيلات الدفع والتقسيط الميسر بوكالة ساوث ستريت (من 2 إلى 10 أشهر):**\n\nتقدم وكالة ساوث ستريت خيار **التقسيط المريح بدون فوائد** لجميع باقات العمرة والحج لعام 2026:\n\n1. **فترة التقسيط المرنة:** يمكنك تقسيط تكلفة العمرة على فترة تتراوح من **شهريين (2) حتى 10 أشهر كاملة**.\n2. **الدفعة الأولى:** تسديد دفعة تسقيع أولى (من 20% إلى 30%) عند حجز وتثبيت الملف.\n3. **طرق السداد:** أسباب ودفعات شهرية ميسرة عبر بريدي موب (BaridiMob)، التحويل البريدي CCP، أو نقداً بمقر الوكالة.\n4. **سندات القبض الرقمية:** إصدار سند قبض رقمي فور كل قسط شهري معتمد من المحاسب المالي الأستاذ ياسين الفاسي.\n\nتفضل بزيارة المقر أو التواصل مع المحاسب لتنسيق جدول أقساطك المريحة!', 1, 'accountant@southstreet.dz', new Date().toISOString(), 'official_exact', 'keywords_or_title'],
+    ['rule_mahram_women', 'rituals', 'حكم المحرم للمرأة في العمرة', JSON.stringify(['محرم', 'المحرم', 'محram', 'بدون محرم', 'المرأة', 'مرأة', 'تعتمر', 'معتمرة', 'نساء', 'سفر المرأة', 'mahram']), '🧕 **حكم المحرم للمرأة في العمرة — إرشادات وكالة ساوث ستريت:**\n\n1. **الأصل الشرعي:** جمهور العلماء يرى **وجوب وجود محرم** للمرأة في سفر العمرة والحج إذا تجاوزت مسافة القصر، وفق الأحوال المعتبرة في الفقه.\n2. **متطلبات التأشيرة السعودية:** تطبيق **نسك** ووزارة الحج يشترط عادةً **مرافقة محرم** أو مجموعة نسائية معتمدة حسب اللوائح المعمول بها لكل موسم — يُرجى التحقق من الشروط الرسمية وقت التسجيل.\n3. **سياسة الوكالة:** وكالة ساوث ستريت **تلتزم بالأنظمة الرسمية** ولا تقبل تسجيل ملفات مخالفة لاشتراطات التأشيرة. ننصح المعتمرات بمرافقة محرم أو الانضمام لمجموعة نسائية منظمة عبر الوكالة.\n4. **استثناءات واستفسارات:** للحالات الخاصة (كبار السن، المرض، ظروف عائلية)، تواصل مع **المرشدة الدينية** أو الإدارة لتقييم الملف.\n\n📞 **للاستشارة:** 039 39 39 39 | 💬 المرشدة: عبر بوابة الوكالة → المحادثة', 1, 'guide@southstreet.dz', new Date().toISOString(), 'official_exact', 'keywords_or_title']
+  ];
+
+  // Seeded answers speak for the agency of this installation (South Street by default).
+  // The director / accountant answers name South Street's own staff: only for South Street.
+  const ownStaffRules = new Set(['rule_director_info', 'rule_accountant_info']);
+  const dropRule = db.prepare('DELETE FROM ai_knowledge WHERE id = ?');
+  db.transaction(() => {
+    for (const r of rules) {
+      if (!isDefaultBrand(brand) && ownStaffRules.has(String(r[0]))) {
+        dropRule.run(r[0]);
+        continue;
+      }
+      insertRule.run(...r.map((v) => (typeof v === 'string' ? rebrandText(v, brand) : v)));
+    }
+  })();
+
+}
+
+/** The brand stored in this database (defaults while the row is missing). */
+function currentBrand(db: Database.Database): Brand {
+  try {
+    return brandFrom(db.prepare("SELECT * FROM agency_settings WHERE id = 'main'").get() as Record<string, unknown> | undefined);
+  } catch {
+    return DEFAULT_BRAND;
+  }
+}
+
+function seedPageContent(db: Database.Database, brand: Brand = DEFAULT_BRAND) {
   const now = new Date().toISOString();
   const insertIgnore = db.prepare(`
     INSERT OR IGNORE INTO page_content (key, section, title_ar, title_fr, title_en, content_ar, content_fr, content_en, image_url, updated_at)
@@ -1470,7 +1505,8 @@ function seedPageContent(db: Database.Database) {
     WHERE key = ?
   `);
 
-  for (const row of PAGE_CONTENT_SEEDS) {
+  for (const seed of PAGE_CONTENT_SEEDS) {
+    const row = seed.map((v) => rebrandText(v, brand)) as PageContentSeed;
     try {
       insertIgnore.run(row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], now);
       const existing = getTitle.get(row[0]) as { title_ar?: string } | undefined;

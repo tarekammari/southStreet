@@ -28,7 +28,7 @@ const DEFAULT_DIRECTIVES: SystemDirectives = {
   tone: 'professional_warm',
   strictPricing: true,
   handoverGuide: true,
-  customInstructions: 'الإجابة باللغة العربية الفصحى الواضحة، تقديم المعلومات الرسمية الخاصة بوكالة ساوث ستريت فقط، وتوجيه المعتمر للمرشد الديني عند الأسئلة الفقهية الدقيقة.',
+  customInstructions: 'الإجابة باللغة العربية الفصحى الواضحة، تقديم المعلومات الرسمية الخاصة بالوكالة فقط، وتوجيه المعتمر للمرشد الديني عند الأسئلة الفقهية الدقيقة.',
 };
 
 const CATEGORY_LABEL: Record<string, string> = {

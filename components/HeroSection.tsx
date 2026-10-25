@@ -10,6 +10,7 @@ import { useIntroDone } from '@/lib/intro';
 import { isOpenPackageStatus } from '@/lib/package-status';
 import { socialProfiles } from '@/lib/social';
 import { useAgencyInfo } from '@/components/social/useAgencyInfo';
+import { brandHeroImages } from '@/lib/brand';
 import { SOCIAL_ICON } from '@/components/social/SocialIcons';
 import { PROGRAM_KIND_LABEL, ProgramKind, programImages, programKind, tripGallery, type TripPhoto } from '@/lib/program-display';
 
@@ -112,8 +113,17 @@ function offerHref(offer: HeroOffer): string {
   return offer.kind === 'tourism' ? `/packages/${encodeURIComponent(offer.id)}` : `/book?package=${encodeURIComponent(offer.id)}`;
 }
 
-function offerPostcards(offer: HeroOffer | null | undefined): readonly Postcard[] {
-  if (!offer || offer.kind !== 'tourism') return POSTCARDS;
+/** Default postcards: the agency's own hero photos («هوية الوكالة») or the built-in Makkah ones. */
+function brandPostcards(photos: string[]): readonly Postcard[] {
+  if (!photos.length) return POSTCARDS;
+  return photos.map((src, i) => {
+    const base = POSTCARDS[i % POSTCARDS.length];
+    return { ...base, src, alt: `${base.place} — صورة ${i + 1}` };
+  });
+}
+
+function offerPostcards(offer: HeroOffer | null | undefined, photos: string[]): readonly Postcard[] {
+  if (!offer || offer.kind !== 'tourism') return brandPostcards(photos);
   return offer.photos.map((p, i) => ({
     src: p.src,
     alt: `${p.place} — صورة ${i + 1}`,
@@ -221,8 +231,9 @@ export default function HeroSection({ content: _content }: { content?: PageConte
     };
   }, []);
 
-  const cards = offer === undefined ? [] : offerPostcards(offer);
-  const social = useAgencyInfo()?.social;
+  const agency = useAgencyInfo();
+  const cards = offer === undefined ? [] : offerPostcards(offer, brandHeroImages(agency));
+  const social = agency.social;
   const profiles = socialProfiles(social);
 
   const scrollToAgency = () => {

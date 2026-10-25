@@ -927,7 +927,7 @@ export const SAKHR_TOOLS: SakhrTool[] = [
   {
     name: 'connect_app',
     description:
-      'South Street Connect, the agency app for messages and voice calls with the agency team and guides. action: "open" (open Connect in the browser now), "download_page" (the app page with all platforms), "install" (start installing on this device: Android APK, Windows installer, or iPhone add-to-home-screen steps; sign-in comes first if needed). platform: "auto" (this device) unless the user names one.',
+      'Connect, the agency app for messages and voice calls with the agency team and guides. action: "open" (open Connect in the browser now), "download_page" (the app page with all platforms), "install" (start installing on this device: Android APK, Windows installer, or iPhone add-to-home-screen steps; sign-in comes first if needed). platform: "auto" (this device) unless the user names one.',
     parameters: {
       type: 'object',
       properties: {

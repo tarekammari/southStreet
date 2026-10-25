@@ -1,5 +1,5 @@
 /**
- * Ringtones of South Street Connect, synthesised (no audio files on the web).
+ * Ringtones of Connect, synthesised (no audio files on the web).
  *
  * Each ringtone is rendered as ONE loop that repeats without a click: a note
  * whose tail runs past the end carries on at the start, steady tones are tuned
@@ -13,7 +13,7 @@ export type RingtoneId = 'south-street' | 'orbit' | 'stardust' | 'nebula' | 'for
 export type RingtoneGroup = 'classic' | 'space' | 'nature';
 
 export const RINGTONES: { id: RingtoneId; name: string; hint: string; group: RingtoneGroup; seconds: number }[] = [
-  { id: 'south-street', name: 'ساوث ستريت', hint: 'ماريمبا وزقزقة — النغمة الأصلية', group: 'classic', seconds: 3.4 },
+  { id: 'south-street', name: 'الأصلية', hint: 'ماريمبا وزقزقة — النغمة الأصلية', group: 'classic', seconds: 3.4 },
   { id: 'orbit', name: 'مدار', hint: 'أجراس زجاجية تدور بصداها في الفضاء', group: 'space', seconds: 6.4 },
   { id: 'stardust', name: 'غبار النجوم', hint: 'بريق نجوم فوق نغمة دافئة عميقة', group: 'space', seconds: 6 },
   { id: 'nebula', name: 'سديم', hint: 'سحابة هادئة تتبدّل وجرس حالم', group: 'space', seconds: 8 },

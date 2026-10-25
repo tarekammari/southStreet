@@ -5,6 +5,7 @@ import { resolveRequestIp } from '@/lib/security-threats';
 import { runSakhr, SakhrNotConfiguredError, type AgentReply, type ChatTurn } from '@/lib/sakhr/agent';
 import { cacheGet, cacheSet, normalizeQuestion, PUBLIC_TOOLS, recordMetric, SakhrBusyError, withSlot } from '@/lib/sakhr/capacity';
 import type { Who } from '@/lib/sakhr/tools';
+import { getBrand } from '@/lib/brand-server';
 
 /**
  * Sakhr chat endpoint. Works for visitors (public tools only) and for every
@@ -79,7 +80,7 @@ export async function POST(req: Request) {
       ctx: { req, role, userId: signedIn ? session.account.id : undefined },
       userName: signedIn ? session.account.name : undefined,
       agency: {
-        name: agency.agency_name || 'ساوث ستريت للأسفار والعمرة',
+        name: agency.agency_name || getBrand().agency_name,
         phone: agency.phone,
         email: agency.email,
         address: [agency.address, agency.city].filter(Boolean).join('، '),

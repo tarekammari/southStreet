@@ -1,5 +1,7 @@
 import { fmtAmount } from '@/components/accountant/money';
 import { TAX_BUCKETS, type TaxBucketId } from '@/lib/tax-buckets';
+import { getBrand } from './brand-server';
+import { agencyLabel } from './brand';
 
 function escapeHtml(value: string): string {
   return String(value ?? '')
@@ -145,7 +147,7 @@ export function buildTaxPrintHtml(input: { from: string; to: string; lines: TaxP
       <div class="page-inner"><header class="letterhead">
         <div>
           <div class="letterhead-en">SOUTH STREET AGENCY</div>
-          <div class="letterhead-ar">وكالة ساوث ستريت — الضرائب والرسوم</div>
+          <div class="letterhead-ar">${escapeHtml(agencyLabel(getBrand()))} — الضرائب والرسوم</div>
         </div>
         <div class="letterhead-meta"><div>${escapeHtml(period)}</div><div>${escapeHtml(printedAt)}</div></div>
       </header>${sheet.body}</div>

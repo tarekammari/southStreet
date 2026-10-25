@@ -10,6 +10,7 @@ import { parseTripDate } from '@/lib/booking-catalog';
 import { isBookable, programAvailability, programMinPrice } from '@/lib/program-display';
 import { Destination, DESTINATIONS, isTourism, tourOf } from '@/lib/tour';
 import { destinationPhoto, photoProps } from '@/lib/destination-photos';
+import { useBrand } from '@/components/social/useAgencyInfo';
 
 type Tile = { d: Destination; count: number; from: number; photo: string };
 
@@ -20,6 +21,7 @@ type Tile = { d: Destination; count: number; from: number; photo: string };
  * covering it. A card opens its destination page.
  */
 export default function TourismShowcase() {
+  const brand = useBrand();
   const [trips, setTrips] = useState<Package[] | null>(null);
   const reduce = useReducedMotion();
 
@@ -70,7 +72,7 @@ export default function TourismShowcase() {
     <section id="tourism-section" className="tour-show" aria-labelledby="tourism-title">
       <div className="tour-show-inner">
         <motion.h2 id="tourism-title" className="tour-show-title" {...rise(0)}>
-          اكتشف العالم مع ساوث ستريت
+          اكتشف العالم مع {brand.short_name}
         </motion.h2>
 
         <div className="tour-show-grid">

@@ -1,5 +1,5 @@
 /**
- * South Street Connect — messages, voice notes, calls and push for the
+ * Connect — messages, voice notes, calls and push for the
  * installable app (/connect). Messages live in the same `messages` table as the
  * portal chat, so a conversation is the same everywhere.
  *

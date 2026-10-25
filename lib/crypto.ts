@@ -1,5 +1,5 @@
 /**
- * WebCrypto E2E Helper Module for South Street Encrypted Messaging
+ * WebCrypto E2E Helper Module for Encrypted Messaging
  */
 
 export async function generateAESKey(): Promise<CryptoKey> {

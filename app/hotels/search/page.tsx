@@ -11,7 +11,8 @@ import SakhrAgent from '@/components/lazy/LazySakhrAgent';
 import HotelSearchBar from '@/components/hotels/HotelSearchBar';
 import { HOTEL_COUNTRIES } from '@/lib/tour';
 import { lightPhoto } from '@/lib/destination-photos';
-import { AGENCY_PHONE, AGENCY_PHONE_TEL } from '@/lib/agency-contact';
+import { useBrand } from '@/components/social/useAgencyInfo';
+import { telHref } from '@/lib/brand';
 import {
   BOARD_LABEL,
   arDate,
@@ -37,6 +38,7 @@ function Stars({ n }: { n: number }) {
 }
 
 function ResultsInner() {
+  const brand = useBrand();
   const p = useSearchParams();
   const reduce = useReducedMotion();
   const search = useMemo(
@@ -186,7 +188,7 @@ function ResultsInner() {
                 <strong>{hotels.length ? 'لا نتائج بهذه الفلاتر' : 'لا فنادق متاحة لهذه الوجهة والتواريخ'}</strong>
                 <p>
                   {hotels.length ? 'جرّب فلاتر أقل.' : 'جرّب تواريخ أخرى أو وجهة قريبة، أو اتصل بالوكالة لنجد لك فندقاً:'}{' '}
-                  {hotels.length ? null : <a href={`tel:${AGENCY_PHONE_TEL}`} dir="ltr">{AGENCY_PHONE}</a>}
+                  {hotels.length ? null : <a href={telHref(brand.phone)} dir="ltr">{brand.phone}</a>}
                 </p>
                 {hotels.length ? <button type="button" onClick={reset}>مسح الفلاتر</button> : null}
               </div>

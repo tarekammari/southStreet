@@ -32,6 +32,8 @@ import { logoutAndReload, profilePhotoSrc, readStoredUser, syncSessionProfile } 
 import { AnimatePresence, motion } from 'framer-motion';
 import { toPortalRole } from '@/lib/roles';
 import { isImageSource } from '@/lib/user-access-view';
+import { agencyLabel } from '@/lib/brand';
+import { useBrand } from '@/components/social/useAgencyInfo';
 
 interface NavbarProps {
   currentUser?: User | null;
@@ -156,10 +158,11 @@ function ProfileFace({ user, size = 36 }: { user: User; size?: number }) {
   );
 }
 
-const PROMO_LINE =
-  'خدمتكم شرف نعتز به وكالة ساوث ستريت — رفيقكم الموثوق لأداء العمرة والحج بأعلى درجات الرفاهية والاطمئنان.';
+const promoLineOf = (agency: string) =>
+  `خدمتكم شرف نعتز به ${agency} — رفيقكم الموثوق لأداء العمرة والحج بأعلى درجات الرفاهية والاطمئنان.`;
 
 export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 'light', showPromo = false, promoLine }: NavbarProps) {
+  const brand = useBrand();
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   // Sakhr (or another part of the page) can open sign-in with a method chosen.
   const [loginRequest, setLoginRequest] = useState<LoginRequest | null>(null);
@@ -518,7 +521,7 @@ export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 
       </header>
       {showPromo && (
         <div className="nav-promo-banner" role="note">
-          <p className="nav-promo-line">{promoLine || PROMO_LINE}</p>
+          <p className="nav-promo-line">{promoLine || promoLineOf(agencyLabel(brand))}</p>
         </div>
       )}
       </motion.div>

@@ -11,8 +11,9 @@ const config: Config = {
       colors: {
         emerald: {
           deep: "#022c22",
-          dark: "#064E3B",
-          main: "#047857",
+          // Brand colour from «هوية الوكالة» (lib/brand.ts), South Street green by default.
+          dark: "rgb(var(--brand-primary-dark-rgb, 6 78 59) / <alpha-value>)",
+          main: "rgb(var(--brand-primary-rgb, 4 120 87) / <alpha-value>)",
           light: "#059669",
           soft: "#ecfdf5",
         },

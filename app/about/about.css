@@ -12,7 +12,7 @@
 /* Reading progress */
 .ab-progress {
   position: fixed; inset-inline: 0; top: 0; height: 3px; z-index: 1000; pointer-events: none;
-  background: linear-gradient(90deg, #10b981, #047857 60%, #b8913f);
+  background: linear-gradient(90deg, #10b981, var(--brand-primary, #047857) 60%, #b8913f);
   transform: scaleX(var(--p, 0)); transform-origin: right center;
 }
 
@@ -49,7 +49,7 @@
 .ab-word { display: inline-block; animation: ab-word .9s var(--ab-ease) both; animation-delay: calc(var(--i) * 90ms + 160ms); }
 @keyframes ab-word { from { opacity: 0; transform: translateY(.45em); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
 .ab-word.is-accent {
-  background: linear-gradient(100deg, #047857, #10b981 45%, #b8913f); background-size: 200% 100%;
+  background: linear-gradient(100deg, var(--brand-primary, #047857), #10b981 45%, #b8913f); background-size: 200% 100%;
   -webkit-background-clip: text; background-clip: text; color: transparent;
   animation: ab-word .9s var(--ab-ease) both, ab-sheen 6s ease-in-out 1.4s infinite alternate;
   animation-delay: calc(var(--i) * 90ms + 160ms), 1.4s;
@@ -60,7 +60,7 @@
 /* Photo: slow zoom, mouse tilt, floating glass cards */
 .ab-hero-art-wrap { position: relative; perspective: 1100px; }
 .ab-hero-art {
-  position: relative; aspect-ratio: 4 / 3.5; border-radius: 30px; overflow: hidden; background: #064e3b;
+  position: relative; aspect-ratio: 4 / 3.5; border-radius: 30px; overflow: hidden; background: var(--brand-primary-dark, #064e3b);
   transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); transform-style: preserve-3d; transition: transform .5s var(--ab-ease);
   box-shadow: 0 40px 80px -36px rgba(4, 78, 59, .6), 0 0 0 1px rgba(255, 255, 255, .6) inset;
 }
@@ -104,7 +104,7 @@
 .ab-stat:hover { background: #fff; }
 .ab-stat i {
   display: grid; place-items: center; width: 46px; height: 46px; border-radius: 14px; flex: none; font-style: normal; color: #fff;
-  background: linear-gradient(150deg, #10b981, #047857); box-shadow: 0 10px 20px -10px rgba(4, 120, 87, .8);
+  background: linear-gradient(150deg, #10b981, var(--brand-primary, #047857)); box-shadow: 0 10px 20px -10px rgba(4, 120, 87, .8);
 }
 .ab-stat b { display: block; font-family: var(--font-cairo), 'Cairo', sans-serif; font-size: 1.75rem; font-weight: 900; color: var(--ip-ink); line-height: 1.1; text-align: right; font-variant-numeric: tabular-nums; }
 .ab-stat small { display: block; margin-top: 3px; color: var(--ip-muted); font-weight: 700; font-size: .82rem; }
@@ -148,7 +148,7 @@
   content: ''; position: absolute; top: 22px; inset-inline: calc(100% / var(--n, 5) / 2); height: 2px; border-radius: 2px;
 }
 .ab-steps::before { background: var(--ip-line); }
-.ab-steps::after { background: linear-gradient(270deg, #10b981, #047857); transform: scaleX(0); transform-origin: right center; transition: transform 1.6s var(--ab-ease) .2s; }
+.ab-steps::after { background: linear-gradient(270deg, #10b981, var(--brand-primary, #047857)); transform: scaleX(0); transform-origin: right center; transition: transform 1.6s var(--ab-ease) .2s; }
 .ab-steps.is-in::after { transform: scaleX(1); }
 .ab-steps.ip-reveal { opacity: 1; transform: none; }
 .ab-step { position: relative; text-align: center; padding: 0 6px; opacity: 0; transform: translateY(16px); transition: opacity .7s var(--ab-ease), transform .7s var(--ab-ease); transition-delay: var(--d, 0ms); }

@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { getDatabase, saveDatabase, dbLogAiConversation, dbGetAgencySettings } from '@/lib/db';
 import { AiKnowledgeRule } from '@/lib/db';
 import { requireRole, ADMINS } from '@/lib/staff-gate';
+import { getBrand } from '@/lib/brand-server';
+import { brandDomain } from '@/lib/brand';
 
 // Extract clean text from HTML
 function extractCleanText(html: string): { title: string; text: string; keywords: string[] } {
@@ -91,7 +93,7 @@ export async function POST(req: Request) {
       keywords: [extracted.title.split(' ')[0], ...extracted.keywords].filter(Boolean).slice(0, 7),
       response_ar: `📖 **معلومات مستخرجة حديثاً من (${cleanUrl}):**\n\n${extracted.text.substring(0, 600)}...\n\n💡 قام صخر بتعلم هذه القاعدة تلقائياً من الموقع الإلكتروني.`,
       is_active: true,
-      updatedBy: 'developer@southstreet.dz',
+      updatedBy: `developer@${brandDomain(getBrand())}`,
       updatedAt: new Date().toISOString()
     };
 

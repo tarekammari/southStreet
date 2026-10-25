@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Download page of South Street Connect (/app): the native apps for Android and
+ * Download page of Connect (/app): the native apps for Android and
  * Windows (real call screen, ringtone, works while closed), the web app for
  * iPhone, how to install each, and a QR code for computer visitors.
  */
@@ -40,6 +40,8 @@ import { checkAppUpdate, insideNativeApp, nativeVersion, type UpdateCheck } from
 const LoginModal = dynamic(() => import('@/components/LoginModal'), { ssr: false });
 import { CONNECT_INSTALL_EVENT, connectInstallHref } from '@/components/connect/installConnect';
 import '@/app/app-page.css';
+import { connectName } from '@/lib/brand';
+import { useBrand } from '@/components/social/useAgencyInfo';
 
 type Platform = 'android' | 'windows' | 'ios';
 
@@ -92,7 +94,7 @@ const FEATURES = [
   { icon: Zap, title: 'صوت واضح', text: 'إلغاء الصدى والضجيج، ويتحمّل شبكات الجيل الرابع الضعيفة.' },
   { icon: Bell, title: 'لا يفوتك شيء', text: 'إشعارات للرسائل والمكالمات الفائتة على كل أجهزتك.' },
   { icon: Users, title: 'رفاق رحلتك', text: 'أضف من تعرفهم، وبعد قبولهم تتراسلون وتتصلون مجاناً — مع اقتراحات ذكية من نفس رحلتك.' },
-  { icon: Lock, title: 'خاص وآمن', text: 'بحسابك في ساوث ستريت فقط. لا أحد يراسلك أو يتصل بك قبل أن تقبل طلبه، ولا تظهر أرقامكم لبعض.' },
+  { icon: Lock, title: 'خاص وآمن', text: 'بحسابك في الوكالة فقط. لا أحد يراسلك أو يتصل بك قبل أن تقبل طلبه، ولا تظهر أرقامكم لبعض.' },
 ];
 
 const HOW = [
@@ -138,6 +140,7 @@ const rise = {
 
 /** Animated phone showing an incoming Connect call. */
 function PhoneMock() {
+  const brand = useBrand();
   const reduce = useReducedMotion();
   return (
     <motion.div
@@ -154,7 +157,7 @@ function PhoneMock() {
       >
         <span className="cx-notch" />
         <div className="cx-screen">
-          <span className="cx-screen-brand">South Street Connect</span>
+          <span className="cx-screen-brand">{connectName(brand)}</span>
           <div className="cx-caller">
             <span className="cx-avatar">
               <i />
@@ -192,6 +195,7 @@ function PhoneMock() {
 }
 
 export default function DownloadPage() {
+  const brand = useBrand();
   const [platform, setPlatform] = useState<Platform>('android');
   const [detected, setDetected] = useState<Platform>('android');
   const [qr, setQr] = useState('');
@@ -331,7 +335,7 @@ export default function DownloadPage() {
                 بفريقك في كل لحظة
               </motion.h1>
               <motion.p className="cx-lead" variants={rise} custom={2}>
-                South Street Connect يجمعك بفريق الوكالة ومرشدك: رسائل فورية ومكالمات صوتية واضحة، ترنّ مثل الهاتف حتى والتطبيق مغلق.
+                {connectName(brand)} يجمعك بفريق الوكالة ومرشدك: رسائل فورية ومكالمات صوتية واضحة، ترنّ مثل الهاتف حتى والتطبيق مغلق.
               </motion.p>
               <motion.div className="cx-ctas" variants={rise} custom={3}>
                 {primary(detected, 'cx-cta is-primary')}
@@ -493,7 +497,7 @@ export default function DownloadPage() {
               ))}
             </div>
             <p className="cx-signin">
-              التطبيق لأصحاب الحسابات فقط: سجّل الدخول بحسابك في ساوث ستريت ثم نزّله. ليس لديك حساب؟ <Link href="/book">احجز رحلتك</Link> أو تواصل مع الوكالة.
+              التطبيق لأصحاب الحسابات فقط: سجّل الدخول بحسابك في {brand.short_name} ثم نزّله. ليس لديك حساب؟ <Link href="/book">احجز رحلتك</Link> أو تواصل مع الوكالة.
             </p>
           </div>
         </section>

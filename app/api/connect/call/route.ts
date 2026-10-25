@@ -3,6 +3,8 @@ import { connectSession } from '@/lib/connect/session';
 import { addIce, answerCall, busy, canTalk, finishCall, getCall, iceFor, ringingCall, startCall, userById } from '@/lib/connect/store';
 import { pushTo } from '@/lib/connect/push';
 import { controlOf, settings } from '@/lib/connect/policy';
+import { getBrand } from '@/lib/brand-server';
+import { connectName } from '@/lib/brand';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -91,7 +93,7 @@ export async function POST(req: NextRequest) {
         ...common,
         kind: 'call',
         title: `📞 ${me.name}`,
-        body: 'مكالمة صوتية واردة — South Street Connect',
+        body: `مكالمة صوتية واردة — ${connectName(getBrand())}`,
         url: `/connect?call=${call.id}`,
       });
       for (let t = 0; t < 100; t++) {

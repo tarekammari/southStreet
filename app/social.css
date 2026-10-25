@@ -26,7 +26,7 @@
   display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; color: #334155;
   background: #fff; border: 1px solid #e2e8f0; transition: color .15s, border-color .15s, transform .15s;
 }
-.ss-social:hover { color: #047857; border-color: #047857; transform: translateY(-1px); }
+.ss-social:hover { color: var(--brand-primary, #047857); border-color: var(--brand-primary, #047857); transform: translateY(-1px); }
 @media (prefers-reduced-motion: reduce) { .ss-share-btn, .ss-wa-btn, .ss-social { transition: none; } }
 .prow-social { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-top: 10px; padding-top: 10px; border-top: 1px dashed #e2e8f0; }
 
@@ -50,20 +50,20 @@
 .ssl-programs { width: 100%; background: #fff; border: 1px solid #e2e8f0; border-radius: 18px; padding: 12px; text-align: right; }
 .ssl-programs h2 { font-size: 0.82rem; font-weight: 800; color: #b8913f; padding: 0 6px 6px; }
 .ssl-program { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px; border-radius: 12px; color: #0f172a; text-decoration: none; font-weight: 700; font-size: 0.92rem; }
-.ssl-program:hover { background: #ecfdf5; color: #047857; }
+.ssl-program:hover { background: #ecfdf5; color: var(--brand-primary, #047857); }
 .ssl-links { width: 100%; display: flex; flex-direction: column; gap: 10px; }
 .ssl-link {
   display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 16px; background: #fff; border: 1px solid #e2e8f0;
   text-decoration: none; color: #0f172a; text-align: right; transition: border-color .15s, transform .15s;
 }
-.ssl-link:hover { border-color: #047857; transform: translateY(-1px); }
-.ssl-link i { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: #ecfdf5; color: #047857; flex: none; font-style: normal; }
+.ssl-link:hover { border-color: var(--brand-primary, #047857); transform: translateY(-1px); }
+.ssl-link i { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: #ecfdf5; color: var(--brand-primary, #047857); flex: none; font-style: normal; }
 .ssl-link span { flex: 1; min-width: 0; }
 .ssl-link b { display: block; font-size: 0.95rem; }
 .ssl-link small { display: block; color: #64748b; font-size: 0.8rem; margin-top: 2px; }
 .ssl-chev { color: #94a3b8; flex: none; }
 .ssl-socials { justify-content: center; margin-top: 4px; }
-.ssl-site { color: #047857; font-weight: 800; font-size: 0.85rem; margin-top: 6px; }
+.ssl-site { color: var(--brand-primary, #047857); font-weight: 800; font-size: 0.85rem; margin-top: 6px; }
 @media (prefers-reduced-motion: reduce) { .ssl-wa, .ssl-link { transition: none; } }
 
 /* Social profiles in the home hero */

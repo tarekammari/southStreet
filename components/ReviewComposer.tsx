@@ -3,11 +3,13 @@
 import React, { useState } from 'react';
 import { StarRating } from '@/components/StarRating';
 import { authHeaders, getAuthToken, apiFetch, jsonAuthHeaders } from '@/lib/api-client';
+import { agencyLabel } from '@/lib/brand';
+import { useBrand } from '@/components/social/useAgencyInfo';
 
 export default function ReviewComposer({
   targetType = 'agency',
   targetId = 'main',
-  targetName = 'وكالة ساوث ستريت',
+  targetName: targetNameProp,
   defaultName = '',
   compact = false,
   onSubmitted,
@@ -19,6 +21,8 @@ export default function ReviewComposer({
   compact?: boolean;
   onSubmitted?: () => void;
 }) {
+  const brand = useBrand();
+  const targetName = targetNameProp || agencyLabel(brand);
   const [stars, setStars] = useState(5);
   const [name, setName] = useState(defaultName);
   const [body, setBody] = useState('');

@@ -10,6 +10,8 @@ import { useCallback, useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { CheckCircle2, KeyRound, Loader2, Smartphone, UserRound } from 'lucide-react';
 import GoogleContinueButton from '@/components/GoogleContinueButton';
+import { connectName } from '@/lib/brand';
+import { useBrand } from '@/components/social/useAgencyInfo';
 
 const LoginModal = dynamic(() => import('@/components/LoginModal'), { ssr: false });
 
@@ -27,6 +29,7 @@ const btn: React.CSSProperties = {
 };
 
 export default function AppSignInPage() {
+  const brand = useBrand();
   const [platform, setPlatform] = useState('android');
   const [me, setMe] = useState<{ name: string } | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
@@ -105,7 +108,7 @@ export default function AppSignInPage() {
     >
       <div style={{ width: '100%', maxWidth: 380, background: '#fff', borderRadius: 24, padding: '28px 22px', textAlign: 'center', border: '1px solid #e2e8f0', boxShadow: '0 24px 48px -24px rgba(15,23,42,.25)' }}>
         <img src="/icons/connect-192.png" alt="" style={{ width: 64, height: 64, borderRadius: 18, margin: '0 auto 10px' }} />
-        <h1 style={{ fontSize: '1.25rem', fontWeight: 900, color: '#065f46' }}>الدخول إلى South Street Connect</h1>
+        <h1 style={{ fontSize: '1.25rem', fontWeight: 900, color: '#065f46' }}>الدخول إلى {connectName(brand)}</h1>
         <p style={{ color: '#64748b', fontSize: '.9rem', lineHeight: 1.8, margin: '6px 0 18px' }}>
           سجّل الدخول هنا في المتصفح، ثم يُفتح التطبيق تلقائياً وأنت مسجّل.
         </p>

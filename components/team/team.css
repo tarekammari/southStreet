@@ -11,8 +11,8 @@
   --tm-text: #0f172a;
   --tm-text-2: #334155;
   --tm-muted: #64748b;
-  --tm-brand: #047857;
-  --tm-brand-strong: #065f46;
+  --tm-brand: var(--brand-primary, #047857);
+  --tm-brand-strong: var(--brand-primary-dark, #065f46);
   --tm-brand-soft: #ecfdf5;
   --tm-danger: #dc2626;
   --tm-danger-soft: #fef2f2;
@@ -162,7 +162,7 @@
 .tm-avatar {
   position: relative; display: grid; place-items: center; flex-shrink: 0;
   border-radius: 999px; background: linear-gradient(135deg, #d1fae5, #e0e7ff);
-  color: #065f46; font-weight: 800; font-family: var(--font-cairo), sans-serif;
+  color: var(--brand-primary-dark, #065f46); font-weight: 800; font-family: var(--font-cairo), sans-serif;
   border: 2px solid #fff; box-shadow: 0 0 0 1px var(--tm-line);
 }
 .tm-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
@@ -176,7 +176,7 @@
 .tm-role.is-gold { background: #fef9ec; color: #92400e; border-color: #fde68a; }
 .tm-role.is-violet { background: #f5f3ff; color: #6d28d9; border-color: #ddd6fe; }
 .tm-role.is-blue { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
-.tm-role.is-emerald { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+.tm-role.is-emerald { background: #ecfdf5; color: var(--brand-primary, #047857); border-color: #a7f3d0; }
 .tm-role.is-slate { background: #f1f5f9; color: #334155; border-color: #e2e8f0; }
 .tm-role.is-sky { background: #f0f9ff; color: #0369a1; border-color: #bae6fd; }
 .tm-state::before { content: ''; width: 6px; height: 6px; border-radius: 999px; background: currentColor; }
@@ -507,7 +507,7 @@
 .tm-programs-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; }
 .tm-programs-list label { display: flex; align-items: center; gap: 10px; padding: 9px 11px; border-radius: 10px; border: 1px solid #eef0f3; cursor: pointer; }
 .tm-programs-list li.is-finished label { opacity: 0.6; cursor: default; }
-.tm-programs-list input { width: 18px; height: 18px; accent-color: var(--tm-brand, #047857); flex: none; }
+.tm-programs-list input { width: 18px; height: 18px; accent-color: var(--tm-brand, var(--brand-primary, #047857)); flex: none; }
 .tm-programs-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
 .tm-programs-main b { font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tm-programs-main small { display: inline-flex; align-items: center; gap: 4px; color: #6b7280; font-size: 0.75rem; }
@@ -544,7 +544,7 @@
 .tm-trip-editor-sum { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 6px; margin: 0; }
 .tm-trip-editor-sum div { padding: 8px 10px; border-radius: 10px; background: var(--tm-brand-soft); }
 .tm-trip-editor-sum dt { font-size: 11px; font-weight: 700; color: #64748b; }
-.tm-trip-editor-sum dd { margin: 2px 0 0; font-size: 14px; font-weight: 800; color: #065f46; }
+.tm-trip-editor-sum dd { margin: 2px 0 0; font-size: 14px; font-weight: 800; color: var(--brand-primary-dark, #065f46); }
 .tm-trip-editor-warn { margin: 0; padding: 8px 10px; border-radius: 10px; background: #fff1f2; color: #be123c; font-size: 12px; font-weight: 700; }
 .tm-trip-editor-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .tm-trip-editor .tm-muted { margin: 0; font-size: 12px; line-height: 1.6; }
@@ -556,7 +556,7 @@
 .tm-bookings.is-empty { padding: 0.8rem 0.9rem; border-radius: 14px; background: #f8fafc; border: 1px dashed #cbd5e1; }
 .tm-bookings.is-empty strong { font-size: 0.82rem; color: #475569; }
 .tm-booking {
-  --k: #047857; --k-soft: #ecfdf5; --k-line: #a7f3d0;
+  --k: var(--brand-primary, #047857); --k-soft: #ecfdf5; --k-line: #a7f3d0;
   display: grid; gap: 0.45rem; padding: 0.8rem 0.9rem; border-radius: 16px;
   border: 1px solid var(--k-line); background: linear-gradient(160deg, var(--k-soft), #fff 70%);
 }
@@ -582,11 +582,11 @@
   border: 1px solid #e2e8f0; background: #fff; color: #334155; font-size: 0.78rem; font-weight: 800; cursor: pointer;
 }
 .tm-booking-acts button svg { width: 0.95rem; height: 0.95rem; }
-.tm-booking-acts button.is-ok { background: #047857; border-color: #047857; color: #fff; }
+.tm-booking-acts button.is-ok { background: var(--brand-primary, #047857); border-color: var(--brand-primary, #047857); color: #fff; }
 .tm-booking-acts button.is-bad { background: #fff1f2; border-color: #fecdd3; color: #be123c; }
 .tm-booking-acts button:disabled { opacity: 0.6; cursor: wait; }
 .tm-booking-refuse { display: grid; gap: 0.45rem; }
 .tm-booking-refuse textarea { width: 100%; padding: 0.55rem 0.7rem; border-radius: 10px; border: 1px solid #fecdd3; font-size: 0.8rem; resize: vertical; }
-.tm-trip-kind { display: inline-block; margin-top: 0.2rem; padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.68rem; font-weight: 800; background: #ecfdf5; color: #047857; }
+.tm-trip-kind { display: inline-block; margin-top: 0.2rem; padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.68rem; font-weight: 800; background: #ecfdf5; color: var(--brand-primary, #047857); }
 .tm-trip-kind.is-trip { background: #f0f9ff; color: #0369a1; }
 .tm-trip-kind.is-hotel { background: #f5f3ff; color: #6d28d9; }

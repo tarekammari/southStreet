@@ -52,7 +52,7 @@ export function usePipWindow() {
       w.document.documentElement.lang = 'ar';
       w.document.documentElement.dir = 'rtl';
       w.document.body.className = document.body.className;
-      w.document.title = 'مكالمة — South Street Connect';
+      w.document.title = 'مكالمة — Connect';
       w.addEventListener('pagehide', () => {
         if (winRef.current === w) {
           winRef.current = null;
