@@ -26,7 +26,8 @@ export type BrandProfile = {
   services?: string[];
   destinations?: string[];
   departureAirports?: string[];
-  images?: { hero?: string; programs?: string[]; posts?: string[] };
+  /** hero first, then programs, then gallery: the home page album, in that order. */
+  images?: { hero?: string; programs?: string[]; gallery?: string[]; posts?: string[] };
   knowledge?: string[];
   /** The agency's current programme, created by `npm run brand:import` (not by the dashboard button). */
   starterProgram?: {
@@ -68,7 +69,7 @@ const text = (v?: string) => String(v || '').trim();
 
 /** Relative asset paths named in a profile (no absolute paths, no ".."). */
 export function profileAssets(p: BrandProfile): string[] {
-  const list = [p.logo, p.images?.hero, ...(p.images?.programs || [])].map(text).filter(Boolean);
+  const list = [p.logo, p.images?.hero, ...(p.images?.programs || []), ...(p.images?.gallery || [])].map(text).filter(Boolean);
   return [...new Set(list)].filter((rel) => !rel.startsWith('/') && !rel.includes('..') && !/^[a-z]+:/i.test(rel));
 }
 
@@ -118,7 +119,7 @@ export function profileToBrand(p: BrandProfile, asset: (rel: string) => string):
     values.favicon_url = logo;
     values.og_image_url = logo;
   }
-  const hero = [p.images?.hero, ...(p.images?.programs || [])].map((rel) => (rel ? asset(rel) : '')).filter(Boolean);
+  const hero = [p.images?.hero, ...(p.images?.programs || []), ...(p.images?.gallery || [])].map((rel) => (rel ? asset(rel) : '')).filter(Boolean);
   if (hero.length) {
     values.hero_images = hero.join('\n');
     values.og_image_url = hero[0];

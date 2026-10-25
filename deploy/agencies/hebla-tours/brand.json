@@ -47,6 +47,7 @@
   "images": {
     "hero": "images/banner.jpg",
     "programs": ["images/umrah-ahl-al-quran.jpg"],
+    "gallery": ["images/kaaba-night.jpg", "images/kaaba-day.webp", "images/kaaba-tawaf-live.webp", "images/haram-aerial-night.webp"],
     "posts": ["images/visa-denmark.jpg", "images/notice-currency.jpg", "images/notice-flight-time.jpg"]
   },
   "starterProgram": {
