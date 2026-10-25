@@ -82,6 +82,7 @@ export default function AboutPage() {
   const profiles = socialProfiles(agency.social);
 
   const name = agency.agency_name || agencyLabel(agency);
+  const assistant = agency.assistant_name || 'صخر';
   const about = readAboutContent(content);
   const hero = { ...about.hero, text: about.hero.text || agency.description || 'وكالة سياحة وأسفار متخصصة في رحلات العمرة والحج، نرافقكم من لحظة اختيار البرنامج حتى عودتكم سالمين، بتنظيم واضح ومرافقة دينية متخصصة.' };
   const story = about.story;
@@ -326,7 +327,7 @@ export default function AboutPage() {
             <div className="ip-head ip-reveal">
               <span className="ip-eyebrow">تواصل معنا</span>
               <h2 className="ip-h2">نحن هنا لمساعدتكم</h2>
-              <p className="ip-lead">جواب فوري من صخر، مساعدنا الذكي، أو حديث مباشر مع فريق الوكالة عبر تطبيق Connect.</p>
+              <p className="ip-lead">جواب فوري من {assistant}، مساعدنا الذكي، أو حديث مباشر مع فريق الوكالة عبر تطبيق Connect.</p>
             </div>
 
             <div className="ip-help" onPointerMove={spotlightMove}>
@@ -335,17 +336,17 @@ export default function AboutPage() {
                 <div className="ip-help-top">
                   <span className="ip-help-mark is-sakhr ab-breathe" aria-hidden>ص</span>
                   <div>
-                    <h3>صخر، المساعد الذكي</h3>
+                    <h3>{assistant}، المساعد الذكي</h3>
                     <small>متاح في أي وقت</small>
                   </div>
                 </div>
-                <p>أسئلة عن البرامج والأسعار والوثائق ومناسك العمرة؟ اسألوا صخر بالكتابة أو بالصوت، والجواب فوري.</p>
+                <p>أسئلة عن البرامج والأسعار والوثائق ومناسك العمرة؟ اسألوا {assistant} بالكتابة أو بالصوت، والجواب فوري.</p>
                 <ul className="ip-help-points">
                   <li><Sparkles className="w-4 h-4" aria-hidden /> إجابات من معلومات الوكالة</li>
                   <li><Mic className="w-4 h-4" aria-hidden /> كتابة أو صوت</li>
                 </ul>
                 <button type="button" className="ip-btn is-sakhr ab-shine" onClick={() => openSakhr()}>
-                  <MessageCircle className="w-4 h-4" /> اسأل صخر الآن
+                  <MessageCircle className="w-4 h-4" /> اسأل {assistant} الآن
                 </button>
               </article>
 

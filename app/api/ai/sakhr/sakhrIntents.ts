@@ -751,7 +751,7 @@ export async function generateLocalRagResponse(prompt: string) {
     const inventory = toolGetSiteInventory();
     const pageList = inventory.map(p => `• ${p.title}`).join('\n');
     return {
-      text: `أهلاً وسهلاً بك في وكالة **${agency.agency_name || agencyName()}** 🕋\n\nأنا **صخر**، مساعدك الذكي. أستطيع الإجابة عن أي عنصر في التطبيق وفتح أي صفحة أو قسم لك.\n\n**الصفحات المتاحة:**\n${pageList}\n\n💡 جرّب: "افتح قسم المرشدين" أو "ما هي الباقات المتاحة؟"`,
+      text: `أهلاً وسهلاً بك في وكالة **${agency.agency_name || agencyName()}** 🕋\n\nأنا **${getBrand().assistant_name || 'صخر'}**، مساعدك الذكي. أستطيع الإجابة عن أي عنصر في التطبيق وفتح أي صفحة أو قسم لك.\n\n**الصفحات المتاحة:**\n${pageList}\n\n💡 جرّب: "افتح قسم المرشدين" أو "ما هي الباقات المتاحة؟"`,
       cards: inventory.slice(0, 4).map(p => ({
         type: 'action',
         data: {

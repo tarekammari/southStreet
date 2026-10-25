@@ -55,6 +55,8 @@ export type Brand = {
   /** Public site address, e.g. https://southstreet.dz */
   website: string;
   opening_hours: string;
+  /** Name of the AI assistant on the site, in chat and on WhatsApp («صخر» for South Street). */
+  assistant_name: string;
   /** Other offices (the head office is address / city above). */
   branches: BrandBranch[];
   /** Other phone lines (the main one is phone above). */
@@ -96,6 +98,7 @@ export const DEFAULT_BRAND: Brand = {
   email: 'contact@southstreet.dz',
   website: 'https://southstreet.dz',
   opening_hours: 'الأحد - الخميس: 08:30 صباحاً - 17:30 مساءً',
+  assistant_name: 'صخر',
   branches: [],
   phones: [],
   social: EMPTY_SOCIAL,
@@ -107,13 +110,14 @@ export const BRAND_FIELDS: BrandField[] = [
   'agency_name', 'short_name', 'name_latin', 'legal_name', 'tagline', 'site_title', 'description',
   'logo_url', 'mark_url', 'favicon_url', 'og_image_url', 'hero_images', 'primary_color', 'accent_color',
   'address', 'city', 'country', 'map_url', 'map_lat', 'map_lng',
-  'phone', 'whatsapp', 'emergency_phone', 'email', 'website', 'opening_hours',
+  'phone', 'whatsapp', 'emergency_phone', 'email', 'website', 'opening_hours', 'assistant_name',
 ];
 
 /** Columns added to agency_settings for the brand (the others already existed). */
 export const BRAND_NEW_COLUMNS: (BrandField | BrandListField)[] = [
   'short_name', 'name_latin', 'tagline', 'site_title', 'logo_url', 'mark_url', 'favicon_url', 'og_image_url',
   'hero_images', 'primary_color', 'accent_color', 'map_url', 'map_lat', 'map_lng', 'branches', 'phones',
+  'assistant_name',
 ];
 
 const clip = (v: unknown, max = 200) => String(v ?? '').trim().slice(0, max);
@@ -163,7 +167,7 @@ export function brandWhatsapps(brand: Pick<Brand, 'whatsapp' | 'phones'>): strin
 }
 
 /** The site cannot render without these: an empty one takes the default. */
-const REQUIRED_FIELDS = new Set<BrandField>(['agency_name', 'short_name', 'name_latin', 'logo_url', 'mark_url', 'og_image_url', 'primary_color']);
+const REQUIRED_FIELDS = new Set<BrandField>(['agency_name', 'short_name', 'name_latin', 'logo_url', 'mark_url', 'og_image_url', 'primary_color', 'assistant_name']);
 
 /**
  * A stored row (or API answer) → a complete brand. A field the row does not

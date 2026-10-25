@@ -110,8 +110,8 @@ export async function POST(req: Request) {
         {
           error:
             error.reason === 'same-user'
-              ? 'صخر ما زال يجيب على رسالتك السابقة، لحظة من فضلك…'
-              : 'صخر يخدم عدداً كبيراً من الزوار الآن. لحظة من فضلك ثم أعد الإرسال.',
+              ? `${getBrand().assistant_name || 'صخر'} ما زال يجيب على رسالتك السابقة، لحظة من فضلك…`
+              : `${getBrand().assistant_name || 'صخر'} يخدم عدداً كبيراً من الزوار الآن. لحظة من فضلك ثم أعد الإرسال.`,
           busy: true,
         },
         { status: error.reason === 'same-user' ? 429 : 503 }
@@ -120,7 +120,7 @@ export async function POST(req: Request) {
     recordMetric({ role, provider: 'failed', ms: Date.now() - started, tokens: 0, rounds: 0, tools: [], cached: false, ok: false });
     if (error instanceof SakhrNotConfiguredError) {
       return NextResponse.json(
-        { error: 'صخر غير مُفعَّل بعد: يلزم إضافة مفتاح GROQ_API_KEY أو GEMINI_API_KEY في إعدادات الخادم.' },
+        { error: `${getBrand().assistant_name || 'صخر'} غير مُفعَّل بعد: يلزم إضافة مفتاح GROQ_API_KEY أو GEMINI_API_KEY في إعدادات الخادم.` },
         { status: 503 }
       );
     }
@@ -132,6 +132,6 @@ export async function POST(req: Request) {
     if (status === 503 || error?.name === 'TimeoutError' || error?.name === 'AbortError') {
       return NextResponse.json({ error: 'خدمة الذكاء الاصطناعي مزدحمة الآن. أعد المحاولة بعد لحظات.' }, { status: 503 });
     }
-    return NextResponse.json({ error: 'تعذّر على صخر الرد الآن. أعد المحاولة بعد لحظات.' }, { status: 502 });
+    return NextResponse.json({ error: `تعذّر على ${getBrand().assistant_name || 'صخر'} الرد الآن. أعد المحاولة بعد لحظات.` }, { status: 502 });
   }
 }

@@ -5,8 +5,8 @@ import { getBrand } from '@/lib/brand-server';
 
 export function generateMetadata(): Metadata {
   return {
-    title: 'تحدّث مع صخر',
-    description: `صخر، المساعد الذكي لـ${agencyLabel(getBrand())}: أسئلة البرامج والأسعار والحجز ودليل العمرة، على مدار الساعة.`,
+    title: `تحدّث مع ${getBrand().assistant_name || 'صخر'}`,
+    description: `${getBrand().assistant_name || 'صخر'}، المساعد الذكي لـ${agencyLabel(getBrand())}: أسئلة البرامج والأسعار والحجز ودليل العمرة، على مدار الساعة.`,
   };
 }
 

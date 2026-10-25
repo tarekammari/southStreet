@@ -254,6 +254,7 @@ function ContactSection({ draft, set }: SectionProps) {
         <Text title="البريد الإلكتروني" value={draft.email} onChange={(v) => set('email', v)} ltr max={120} />
         <Text title="موقع الوكالة (النطاق)" hint="مثال: https://agency.example" value={draft.website} onChange={(v) => set('website', v)} ltr max={120} />
         <Text title="أوقات العمل" value={draft.opening_hours} onChange={(v) => set('opening_hours', v)} max={200} />
+        <Text title="اسم المساعد الذكي" hint="يظهر في نافذة المحادثة وعلى واتساب، ويعرّف به المساعد نفسه" placeholder="صخر" value={draft.assistant_name} onChange={(v) => set('assistant_name', v)} max={40} />
       </Grid>
     </Card>
   );

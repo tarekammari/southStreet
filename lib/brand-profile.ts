@@ -13,6 +13,8 @@ export type BrandProfile = {
   suggestedHost?: string;
   name?: { ar?: string; latin?: string; short?: string };
   tagline?: string;
+  /** Name of the AI assistant («RAZZAG AI»); none = «صخر». */
+  assistantName?: string;
   logo?: string;
   colors?: { primary?: string; accent?: string };
   /** lat / lng: the office on the map (About page); mapUrl: a link to open it (Google Maps if none). */
@@ -90,6 +92,7 @@ export function profileToBrand(p: BrandProfile, asset: (rel: string) => string):
   set('short_name', p.name?.short || p.name?.ar);
   set('name_latin', p.name?.latin);
   set('tagline', p.tagline);
+  set('assistant_name', p.assistantName);
   set('primary_color', color(p.colors?.primary));
   set('accent_color', color(p.colors?.accent));
   set('address', p.headquarters?.address);

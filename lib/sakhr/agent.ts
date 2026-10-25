@@ -3,6 +3,7 @@ import Groq from 'groq-sdk';
 import type { ChatCompletionMessageParam, ChatCompletionTool } from 'groq-sdk/resources/chat/completions';
 import { signPurposeToken } from '@/lib/auth';
 import { LOGIN_ROLE_LABELS } from '@/lib/roles';
+import { getBrand } from '@/lib/brand-server';
 import { toolsFor, type ClientAction, type SakhrTool, type ToolContext, type Who } from '@/lib/sakhr/tools';
 
 /**
@@ -83,13 +84,19 @@ type RunOpts = {
 /* Shared: prompt, tool execution, error classification                */
 /* ------------------------------------------------------------------ */
 
+/** The assistant's name from «هوية الوكالة»: «صخر» (Sakhr) for South Street. */
+function aiName(): string {
+  const n = getBrand().assistant_name || 'صخر';
+  return n === 'صخر' ? 'Sakhr (صخر)' : n;
+}
+
 function systemPrompt(opts: { role: Who; userName?: string; agency: AgencyFacts; voice?: boolean }): string {
   const who =
     opts.role === 'ANON'
       ? 'a visitor who is not signed in'
       : `${opts.userName || 'a user'} — role: ${LOGIN_ROLE_LABELS[opts.role]} (${opts.role})`;
   return [
-    `You are Sakhr (صخر), the AI assistant of ${opts.agency.name}, an Algerian travel agency: Umrah & Hajj, organised tourist trips and hotel bookings.`,
+    `You are ${aiName()}, the AI assistant of ${opts.agency.name}, an Algerian travel agency: Umrah & Hajj, organised tourist trips and hotel bookings. Always call yourself ${aiName()}; never use another assistant's name.`,
     `You are talking with ${who}. Today is ${new Date().toISOString().slice(0, 10)}.`,
     `Agency contact: phone ${opts.agency.phone || '—'}, email ${opts.agency.email || '—'}${opts.agency.address ? `, address ${opts.agency.address}` : ''}.`,
     '',

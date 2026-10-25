@@ -13,6 +13,7 @@ import type { SakhrAgentProps } from '@/components/sakhr/SakhrAgentHelpers';
 import type { VisualSpec } from '@/lib/sakhr/visual';
 import { chime, speak, stopSpeaking, unlockAudio, useArabicVoice, useVoiceRecorder, voiceInputSupported } from '@/components/sakhr/voice';
 import { isStopCommand } from '@/components/sakhr/stop-command';
+import { useBrand } from '@/components/social/useAgencyInfo';
 
 const TableBrowser = dynamic(() => import('@/components/sakhr/TableBrowser'), { ssr: false });
 const SakhrVisual = dynamic(() => import('@/components/sakhr/SakhrVisual'), { ssr: false });
@@ -210,6 +211,9 @@ function SecretBox({ label, value }: { label: string; value: string }) {
 
 export default function SakhrAgent(_props: SakhrAgentProps) {
   const router = useRouter();
+  // The assistant's name and badge letter come from «هوية الوكالة» («صخر» for South Street).
+  const assistant = useBrand().assistant_name || 'صخر';
+  const assistantMark = Array.from(assistant.trim())[0]?.toUpperCase() || 'ص';
   // Stays open across pages (each page mounts its own Sakhr) until the user closes it.
   const [open, setOpenState] = useState(false);
   const setOpen = useCallback((next: boolean | ((v: boolean) => boolean)) => {
@@ -249,7 +253,7 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
       setVoiceNotice('');
       setDraft('');
       // «خلاص صخر» / «stop صخر»: end the voice conversation instead of sending it.
-      if (handsFreeOn && isStopCommand(text)) {
+      if (handsFreeOn && isStopCommand(text, assistant)) {
         endConversationRef.current();
         return;
       }
@@ -435,7 +439,7 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
         body: JSON.stringify({ message: text, history, voice: viaVoice }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'تعذّر على صخر الرد الآن.');
+      if (!res.ok) throw new Error(data.error || `تعذّر على ${assistant} الرد الآن.`);
       if (data.role) setRole(data.role);
       const replyId = newId();
       setMessages((prev) => [
@@ -466,7 +470,7 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
     } finally {
       setThinking(false);
     }
-  }, [draft, messages, thinking, speakReplies, listenAgain, setHandsFree, runClientAction]);
+  }, [draft, messages, thinking, speakReplies, listenAgain, setHandsFree, runClientAction, assistant]);
 
   // Minimising only folds the window: listening, replies and speech carry on in the island.
   const closeChat = () => setOpen(false);
@@ -601,8 +605,8 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
   const islandLabel: Record<NonNullable<typeof island>, string> = {
     listen: handsFree ? 'أستمع إليك… تكلّم' : 'أستمع إليك…',
     transcribe: 'أحوّل صوتك إلى نص…',
-    think: 'صخر يفكّر…',
-    speak: 'صخر يتكلّم…',
+    think: `${assistant} يفكّر…`,
+    speak: `${assistant} يتكلّم…`,
     handsfree: 'محادثة صوتية · أنتظر سؤالك',
     reply: unread,
   };
@@ -611,8 +615,8 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
     <>
       {island ? (
         <div className={`skr-island is-${island}`} dir="rtl" role="status" aria-live="polite">
-          <button type="button" className="skr-island-main" onClick={() => setOpen(true)} aria-label="فتح محادثة صخر">
-            <span className="skr-island-avatar" aria-hidden>ص</span>
+          <button type="button" className="skr-island-main" onClick={() => setOpen(true)} aria-label={`فتح محادثة ${assistant}`}>
+            <span className="skr-island-avatar" aria-hidden>{assistantMark}</span>
             <span className="skr-island-text">{islandLabel[island]}</span>
             {island === 'listen' ? (
               <>
@@ -661,8 +665,8 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
       <div ref={fabRef} className="fixed bottom-5 right-5 sm:bottom-8 sm:right-8 z-50 select-none sakhr-fab-shell">
         <button
           onClick={() => (open ? closeChat() : setOpen(true))}
-          aria-label={open ? 'تصغير صخر' : 'فتح صخر، المساعد الذكي'}
-          title={open ? 'تصغير' : 'صخر، المساعد الذكي'}
+          aria-label={open ? `تصغير ${assistant}` : `فتح ${assistant}، المساعد الذكي`}
+          title={open ? 'تصغير' : `${assistant}، المساعد الذكي`}
           aria-expanded={open}
           className={`sakhr-fab-future relative w-14 h-14 sm:w-[64px] sm:h-[64px] rounded-full focus:outline-none group cursor-pointer flex items-center justify-center ${open ? 'is-open' : ''}`}
         >
@@ -674,7 +678,7 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
             <span className="sakhr-fab-spark" />
           </span>
           <span className="sakhr-fab-core">
-            {open ? <ChevronDown className="w-6 h-6 text-white drop-shadow" /> : <span className="sakhr-fab-letter">ص</span>}
+            {open ? <ChevronDown className="w-6 h-6 text-white drop-shadow" /> : <span className="sakhr-fab-letter">{assistantMark}</span>}
           </span>
           {!open ? (
             <span className="sakhr-fab-brain-badge" aria-hidden="true">
@@ -685,11 +689,11 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
       </div>
 
       {open && (
-        <section ref={panelRef} className="skr-panel" dir="rtl" aria-label="محادثة صخر">
+        <section ref={panelRef} className="skr-panel" dir="rtl" aria-label={`محادثة ${assistant}`}>
           <header className="skr-head">
-            <span className="skr-avatar" aria-hidden>ص</span>
+            <span className="skr-avatar" aria-hidden>{assistantMark}</span>
             <div className="skr-title">
-              <strong>صخر</strong>
+              <strong>{assistant}</strong>
               {roleLabel ? <span>{roleLabel}</span> : null}
             </div>
             <div className="skr-head-acts">
@@ -735,7 +739,7 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
                 className="skr-icon"
                 onClick={closeChat}
                 title="تصغير (تبقى المحادثة محفوظة)"
-                aria-label="تصغير صخر"
+                aria-label={`تصغير ${assistant}`}
               >
                 <Minus className="w-4 h-4" />
               </button>
@@ -745,7 +749,7 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
           <div className="skr-body" aria-live="polite">
             {messages.length === 0 ? (
               <div className="skr-empty">
-                <span className="skr-avatar is-big" aria-hidden>ص</span>
+                <span className="skr-avatar is-big" aria-hidden>{assistantMark}</span>
                 <p>كيف أقدر نعاونك؟</p>
                 {role === 'ANON' ? (
                   <a href="/connect" className="ss-wa-btn is-small is-outline skr-wa">
@@ -800,7 +804,7 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
             )}
             {thinking ? (
               <div className="skr-msg is-model">
-                <div className="skr-bubble skr-typing" aria-label="صخر يكتب">
+                <div className="skr-bubble skr-typing" aria-label={`${assistant} يكتب`}>
                   <i /><i /><i />
                 </div>
               </div>
@@ -811,7 +815,7 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
           {handsFree && voice.state === 'idle' ? (
             <p className="skr-voice-note skr-handsfree" role="status">
               <span className="skr-handsfree-dot" aria-hidden />
-              {thinking ? 'صخر يفكّر…' : speakingId ? 'صخر يتكلّم… سأستمع إليك بعده' : 'محادثة صوتية'}
+              {thinking ? `${assistant} يفكّر…` : speakingId ? `${assistant} يتكلّم… سأستمع إليك بعده` : 'محادثة صوتية'}
               <button type="button" onClick={() => { setHandsFree(false); stopSpeaking(); setSpeakingId(null); }}>
                 إنهاء
               </button>
@@ -890,7 +894,7 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
               rows={1}
               maxLength={2000}
               placeholder="اكتب رسالتك…"
-              aria-label="رسالتك إلى صخر"
+              aria-label={`رسالتك إلى ${assistant}`}
             />
             {micReady && !draft.trim() && !thinking ? (
               <button
@@ -904,7 +908,7 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
                   setHandsFree(speakReplies);
                   void voice.start();
                 }}
-                aria-label="تحدّث مع صخر بالصوت"
+                aria-label={`تحدّث مع ${assistant} بالصوت`}
                 title="تحدّث بالصوت"
               >
                 <Mic className="w-4 h-4" />

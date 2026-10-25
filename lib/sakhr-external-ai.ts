@@ -85,7 +85,7 @@ function searchLocalFaq(prompt: string): string | null {
 
 function buildSystemInstruction(agency: { agency_name?: string; phone?: string }): string {
   return (
-    'أنت **صخر**، المساعد الذكي لوكالة ' +
+    `أنت **${getBrand().assistant_name || 'صخر'}**، المساعد الذكي لوكالة ` +
     (agency.agency_name || getBrand().short_name) +
     ' للعمرة والحج بالجزائر.\n\n' +
     'دورك: الإجابة على أسئلة المستخدم بلغة عربية واضحة ومهنية.\n\n' +
