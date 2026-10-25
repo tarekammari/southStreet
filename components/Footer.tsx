@@ -11,7 +11,7 @@ import { useAgencyInfo } from '@/components/social/useAgencyInfo';
 import { SOCIAL_ICON } from '@/components/social/SocialIcons';
 import { toPortalRole } from '@/lib/roles';
 import PhoneQr from '@/components/PhoneQr';
-import { agencyLabel, connectName, telHref } from '@/lib/brand';
+import { DEFAULT_BRAND, agencyLabel, connectName, telHref } from '@/lib/brand';
 import '@/app/footer.css';
 
 const PRODUCT_LINKS = [
@@ -111,7 +111,7 @@ export default function Footer({ content, hideCta = false }: { content?: PageCon
         <div className="sf-grid">
           <motion.div className="sf-brand" initial="hidden" whileInView="visible" viewport={{ once: true }} variants={rise} custom={1}>
             <Link href="/" aria-label={agency.name_latin}>
-              <img src={agency.logo_url} alt={agency.name_latin} className="sf-logo" />
+              <img src={agency.logo_url} alt={agency.name_latin} className={`sf-logo${agency.logo_url !== DEFAULT_BRAND.logo_url ? ' is-own' : ''}`} />
             </Link>
             <p>{about.content}</p>
             {profiles.length ? (

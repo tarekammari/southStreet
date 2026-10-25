@@ -26,6 +26,9 @@
 }
 /* An agency's own uploaded mark (instead of the vector one). */
 .brand-mark-img { max-height: 2.6rem; object-fit: contain; }
+/* An uploaded logo is often a detailed round emblem: give it real height, not a wordmark's. */
+.brand .brand-mark.brand-mark-img { width: auto; height: 3.75rem; max-height: none; max-width: 9rem; }
+.scrolled .brand .brand-mark.brand-mark-img { width: auto; height: 3.1rem; }
 .brand-s1 { fill: var(--brand-sky); }
 .brand-s2 { fill: var(--brand-ink); }
 .brand-s3 { fill: var(--brand-ink-deep); }
@@ -76,6 +79,7 @@
 @media (max-width: 640px) {
   .brand-mark { width: 2.9rem; }
   .scrolled .brand-mark { width: 2.6rem; }
+  .brand .brand-mark.brand-mark-img, .scrolled .brand .brand-mark.brand-mark-img { width: auto; height: 3rem; }
   .brand-name { font-size: 1rem; }
   .brand-tag { display: none; }
 }
