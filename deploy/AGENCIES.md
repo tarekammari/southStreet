@@ -76,10 +76,13 @@ bash deploy/agency-add.sh rhtours --profile deploy/agencies/rhtours
 
 The `slug` in `brand.json` must match. The folder is copied to
 `/var/lib/south-street/<slug>/profile/` (kept across updates, readable only by the
-agency) on every run. **Importing it into the agency's settings is phase 1's brand
-import, not built yet**: the script prints a warning, and the hook to fill in is
-`install_profile` in `deploy/agency-lib.sh`. Until then the agency starts with the
-default branding.
+agency) on every run, then imported into the agency's settings with
+`npm run brand:import -- <folder>` (names, colours, head office, branches, phones, logo,
+images, Sakhr's answers about the agency). The import is safe to repeat and skips the
+first-run brand wizard; the Super Admin reviews the result in «هوية الوكالة». An install
+whose version has no `brand:import` yet keeps the default branding (the script warns).
+Not imported: `starterProgram` (no package is created) and anything `brand.json` does
+not state.
 
 It creates the user, downloads and builds the app, writes a `.env` with **fresh secrets**
 (JWT, database encryption and lookup keys, notification keys), starts PM2, issues the

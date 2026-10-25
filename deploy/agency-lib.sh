@@ -293,12 +293,15 @@ install_profile() { # folder
   chown -R "$A_USER": "$dest"
   chmod -R go-rwx "$dest"
   info "copied to $dest"
-  # TODO(phase 1, branding from settings): call its brand import here, as the
-  # agency's user in its app folder, with the copied folder, e.g.
-  #   as_agency "npm run --silent <brand import> -- $(printf %q "$dest")"
-  # It runs after the first start (the database exists) and on every re-run of
-  # this script, so the import must be safe to repeat. Until then:
-  warn "Brand import not available yet (phase 1): name, logo and colours stay the defaults. Profile kept in $dest."
+  # Phase 1's import (scripts/brand-import.ts): names, colours, contacts, logo and
+  # images into the agency's settings; safe to repeat, marks the brand configured.
+  if ! grep -q '"brand:import"' "$A_DIR/package.json"; then
+    warn "This version has no brand import (npm run brand:import): name, logo and colours stay the defaults. Update the agency, then run this script again."
+    return 0
+  fi
+  as_agency "npm run --silent brand:import -- $(printf %q "$dest")" \
+    || fail "The brand import failed (profile in $dest). Fix it, then run this script again."
+  info "brand imported: the agency's Super Admin can review it in «هوية الوكالة»"
 }
 
 https_health() { # host → health JSON, or nothing
