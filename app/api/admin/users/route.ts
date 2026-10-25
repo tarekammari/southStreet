@@ -84,6 +84,55 @@ type TripProgram = {
   roomType?: string;
 };
 type TripInfo = { state: 'current' | 'past' | 'none'; lastTrip?: string; lastEnd?: string; program?: TripProgram };
+/** A client's current booking of any kind (Umrah, trip, hotel) for the team drawer. */
+type ClientBooking = {
+  id: string;
+  reference: string;
+  kind: 'umrah' | 'hajj' | 'trip' | 'hotel';
+  name: string;
+  startDate?: string;
+  endDate?: string;
+  status: string;
+  statusLabel: string;
+  total: number;
+  paid: number;
+  deposit: number;
+  createdAt?: string;
+};
+
+function clientBooking(r: any): ClientBooking {
+  const kind = r.booking_kind === 'HOTEL' ? 'hotel' : r.trip_kind === 'TOURISM' ? 'trip' : r.trip_kind === 'HAJJ' ? 'hajj' : 'umrah';
+  const total = Number(r.total_amount) || 0;
+  return {
+    id: String(r.reservation_id),
+    reference: String(r.reservation_number || ''),
+    kind,
+    name: String(r.hotel_stay?.hotel_name || r.program?.package_name || r.package_name || ''),
+    startDate: r.hotel_stay?.check_in || r.program?.start_date || undefined,
+    endDate: r.hotel_stay?.check_out || r.program?.end_date || undefined,
+    status: String(r.status || ''),
+    statusLabel: reservationStatusLabel(String(r.status || '')),
+    total,
+    paid: Number(r.paid_amount) || 0,
+    deposit: Number(r.invoice?.depositAmount) || Math.round(total * 0.3),
+    createdAt: r.created_at || undefined,
+  };
+}
+
+/** Every client's current bookings (all kinds), nearest date first. */
+function loadClientBookings(sqlite: any): Map<string, ClientBooking[]> {
+  const out = new Map<string, ClientBooking[]>();
+  try {
+    for (const r of (sqlite.prepare('SELECT * FROM reservations').all() as any[]).map(mapReservationRow)) {
+      if (!r.customer_id || !isCurrentReservation(r)) continue;
+      out.set(r.customer_id, [...(out.get(r.customer_id) || []), clientBooking(r)]);
+    }
+    for (const list of out.values()) list.sort((a, b) => String(a.startDate || '').localeCompare(String(b.startDate || '')));
+  } catch {
+    /* bookings are a label only */
+  }
+  return out;
+}
 
 function tripProgram(r: any): TripProgram {
   const status = String(r.status || '');
@@ -130,7 +179,7 @@ function loadClientTrips(sqlite: any): Map<string, TripInfo> {
   return out;
 }
 
-function publicUser(u: any, staffProfiles?: Map<string, StaffProfile>, trips?: Map<string, TripInfo>) {
+function publicUser(u: any, staffProfiles?: Map<string, StaffProfile>, trips?: Map<string, TripInfo>, bookings?: Map<string, ClientBooking[]>) {
   // never expose password hashes or security material
   const role = normalizeLoginRole(u.role);
   const portal = toPortalRole(role);
@@ -157,6 +206,7 @@ function publicUser(u: any, staffProfiles?: Map<string, StaffProfile>, trips?: M
     securityKeys: isPrivilegedRole(role) && u.id ? countCredentials(u.id) : 0,
     staff: staff || null,
     trip: role === 'PILGRIM_USER' ? trips?.get(u.id) || { state: 'none' } : undefined,
+    bookings: role === 'PILGRIM_USER' ? bookings?.get(u.id) || [] : undefined,
   };
 }
 
@@ -223,9 +273,10 @@ export async function GET(req: NextRequest) {
     const rows = sqlite.prepare('SELECT * FROM users').all() as any[];
     const staffProfiles = loadStaffProfiles(sqlite);
     const clientTrips = loadClientTrips(sqlite);
+    const clientBookings = loadClientBookings(sqlite);
     const sessions = listSessions();
     const users = enrichUsersWithSessions(
-      rows.map((row) => publicUser(row, staffProfiles, clientTrips)),
+      rows.map((row) => publicUser(row, staffProfiles, clientTrips, clientBookings)),
       sessions
     );
     const onlineCount = users.filter((u) => u.isOnline).length;

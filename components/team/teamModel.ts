@@ -40,6 +40,24 @@ export type Member = {
   userAgent?: string | null;
   /** Clients only: current trip, only finished trips (past), or no trip yet. */
   trip?: { state: 'current' | 'past' | 'none'; lastTrip?: string; lastEnd?: string; program?: TripProgram };
+  /** Clients only: current bookings of every kind (Umrah, trip, hotel). */
+  bookings?: ClientBooking[];
+};
+
+/** A client's current booking (app/api/admin/users). */
+export type ClientBooking = {
+  id: string;
+  reference: string;
+  kind: 'umrah' | 'hajj' | 'trip' | 'hotel';
+  name: string;
+  startDate?: string;
+  endDate?: string;
+  status: string;
+  statusLabel: string;
+  total: number;
+  paid: number;
+  deposit: number;
+  createdAt?: string;
 };
 
 /** The Umrah program a client goes (or went) with. */

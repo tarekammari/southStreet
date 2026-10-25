@@ -277,7 +277,12 @@ export default function TeamWorkspace({
                           {tripDates(m.trip.program) ? <span className="tm-trip-dates"><CalendarDays className="w-3 h-3" aria-hidden />{tripDates(m.trip.program)}</span> : null}
                         </small>
                       ) : null}
-                      {m.role === 'PILGRIM_USER' && (!m.trip || m.trip.state === 'none') ? <small className="tm-trip-none">بدون رحلة</small> : null}
+                      {m.role === 'PILGRIM_USER' && (!m.trip || m.trip.state === 'none') && !m.bookings?.length ? <small className="tm-trip-none">بدون رحلة</small> : null}
+                      {m.role === 'PILGRIM_USER' && (!m.trip || m.trip.state === 'none') && m.bookings?.length ? (
+                        <small className={`tm-trip-kind is-${m.bookings[0].kind}`} title={m.bookings[0].name}>
+                          {m.bookings[0].kind === 'hotel' ? 'فندق' : m.bookings[0].kind === 'trip' ? 'رحلة سياحية' : 'عمرة'} · {m.bookings[0].statusLabel}
+                        </small>
+                      ) : null}
                     </td>
                     <td><StateBadge member={m} /></td>
                     <td className="is-hide-sm" dir="ltr">{m.phone || <span className="tm-empty-value">—</span>}</td>

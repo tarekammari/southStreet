@@ -26,6 +26,7 @@ import { LOGIN_ROLE_LABELS, type LoginRole } from '@/lib/roles';
 import { LANGUAGE_OPTIONS } from '@/lib/record-field-options';
 import { ROOM_LABELS } from '@/lib/booking-catalog';
 import ClientTripEditor from './ClientTripEditor';
+import ClientBookings from './ClientBookings';
 import {
   CATEGORY_LABEL,
   MEMBER_TYPES,
@@ -452,7 +453,14 @@ export default function MemberDrawer({
                 ) : null}
                 {field('تاريخ الانضمام', fullDate(member.createdAt))}
               </dl>
-              {member.role === 'PILGRIM_USER' ? (
+              {member.role === 'PILGRIM_USER' && member.bookings?.length ? (
+                <ClientBookings
+                  bookings={member.bookings}
+                  canDecide={viewer.role === 'SUPER_ADMIN' || viewer.role === 'AGENCY_MANAGER'}
+                  onChanged={onChanged}
+                  onToast={(text, tone) => onToast(text, tone === 'error' ? 'error' : 'ok')}
+                />
+              ) : member.role === 'PILGRIM_USER' ? (
                 <div className={`tm-trip-card is-${member.trip?.state || 'none'}`}>
                   <span className="tm-trip-card-icon"><Plane className="w-4 h-4" aria-hidden /></span>
                   {member.trip?.program ? (

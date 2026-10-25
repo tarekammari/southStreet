@@ -549,3 +549,44 @@
 .tm-trip-editor-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .tm-trip-editor .tm-muted { margin: 0; font-size: 12px; line-height: 1.6; }
 @keyframes tm-trip-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+/* Client's current bookings in the drawer (ClientBookings.tsx) */
+.tm-bookings { display: grid; gap: 0.6rem; margin-top: 0.9rem; }
+.tm-bookings > small { font-size: 0.72rem; font-weight: 800; color: #64748b; }
+.tm-bookings.is-empty { padding: 0.8rem 0.9rem; border-radius: 14px; background: #f8fafc; border: 1px dashed #cbd5e1; }
+.tm-bookings.is-empty strong { font-size: 0.82rem; color: #475569; }
+.tm-booking {
+  --k: #047857; --k-soft: #ecfdf5; --k-line: #a7f3d0;
+  display: grid; gap: 0.45rem; padding: 0.8rem 0.9rem; border-radius: 16px;
+  border: 1px solid var(--k-line); background: linear-gradient(160deg, var(--k-soft), #fff 70%);
+}
+.tm-booking.is-trip { --k: #0369a1; --k-soft: #f0f9ff; --k-line: #bae6fd; }
+.tm-booking.is-hotel { --k: #6d28d9; --k-soft: #f5f3ff; --k-line: #ddd6fe; }
+.tm-booking header { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
+.tm-booking header b { margin-inline-start: auto; font-size: 0.7rem; color: #64748b; font-family: ui-monospace, monospace; }
+.tm-booking-kind { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.15rem 0.55rem; border-radius: 999px; background: var(--k); color: #fff; font-size: 0.68rem; font-weight: 800; }
+.tm-booking-kind svg { width: 0.8rem; height: 0.8rem; }
+.tm-booking-status { padding: 0.15rem 0.55rem; border-radius: 999px; background: #fff; border: 1px solid #e2e8f0; font-size: 0.68rem; font-weight: 800; color: #334155; }
+.tm-booking > strong { font-size: 0.9rem; font-weight: 900; color: #0f172a; }
+.tm-booking-meta { display: flex; flex-wrap: wrap; gap: 0.4rem 0.9rem; font-size: 0.74rem; color: #475569; font-weight: 600; }
+.tm-booking-meta span { display: inline-flex; align-items: center; gap: 0.25rem; }
+.tm-booking-meta svg { width: 0.85rem; height: 0.85rem; color: #94a3b8; }
+.tm-booking-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.35rem; margin: 0; padding: 0; list-style: none; }
+.tm-booking-steps li { padding-top: 0.4rem; border-top: 4px solid #e2e8f0; font-size: 0.66rem; font-weight: 700; color: #94a3b8; }
+.tm-booking-steps li.is-done { border-color: var(--k); color: var(--k); }
+.tm-booking-steps li.is-now { border-color: #f59e0b; color: #b45309; }
+.tm-booking-next { margin: 0; font-size: 0.76rem; font-weight: 800; color: #0f172a; }
+.tm-booking-acts { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+.tm-booking-acts button {
+  display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.5rem 0.9rem; border-radius: 10px;
+  border: 1px solid #e2e8f0; background: #fff; color: #334155; font-size: 0.78rem; font-weight: 800; cursor: pointer;
+}
+.tm-booking-acts button svg { width: 0.95rem; height: 0.95rem; }
+.tm-booking-acts button.is-ok { background: #047857; border-color: #047857; color: #fff; }
+.tm-booking-acts button.is-bad { background: #fff1f2; border-color: #fecdd3; color: #be123c; }
+.tm-booking-acts button:disabled { opacity: 0.6; cursor: wait; }
+.tm-booking-refuse { display: grid; gap: 0.45rem; }
+.tm-booking-refuse textarea { width: 100%; padding: 0.55rem 0.7rem; border-radius: 10px; border: 1px solid #fecdd3; font-size: 0.8rem; resize: vertical; }
+.tm-trip-kind { display: inline-block; margin-top: 0.2rem; padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.68rem; font-weight: 800; background: #ecfdf5; color: #047857; }
+.tm-trip-kind.is-trip { background: #f0f9ff; color: #0369a1; }
+.tm-trip-kind.is-hotel { background: #f5f3ff; color: #6d28d9; }
