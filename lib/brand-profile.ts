@@ -15,7 +15,8 @@ export type BrandProfile = {
   tagline?: string;
   logo?: string;
   colors?: { primary?: string; accent?: string };
-  headquarters?: { address?: string; city?: string; country?: string };
+  /** lat / lng: the office on the map (About page); mapUrl: a link to open it (Google Maps if none). */
+  headquarters?: { address?: string; city?: string; country?: string; lat?: number | string; lng?: number | string; mapUrl?: string };
   branches?: { city?: string; address?: string; phone?: string }[];
   phones?: { main?: string; whatsapp?: string | string[]; bookings?: string; other?: string[] };
   email?: string;
@@ -95,6 +96,15 @@ export function profileToBrand(p: BrandProfile, asset: (rel: string) => string):
   set('city', p.headquarters?.city);
   const country = text(p.headquarters?.country);
   set('country', COUNTRIES[country.toUpperCase()] || country);
+  const lat = Number(p.headquarters?.lat);
+  const lng = Number(p.headquarters?.lng);
+  if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && (lat || lng)) {
+    set('map_lat', String(lat));
+    set('map_lng', String(lng));
+    set('map_url', text(p.headquarters?.mapUrl) || `https://www.google.com/maps?q=${lat},${lng}`);
+  } else if (/^https:\/\//.test(text(p.headquarters?.mapUrl))) {
+    set('map_url', p.headquarters?.mapUrl);
+  }
   set('email', p.email);
   set('website', p.website);
 
