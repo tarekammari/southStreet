@@ -87,7 +87,10 @@ systemctl enable --now fail2ban >/dev/null 2>&1 && systemctl restart fail2ban &&
 
 log "3/8 App user and code"
 id "$APP_USER" >/dev/null 2>&1 || adduser --disabled-password --gecos "" "$APP_USER"
-mkdir -p "$DATA/backups" && chown -R "$APP_USER": "$DATA"
+mkdir -p "$DATA/backups"
+# Not -R on $DATA: agencies keep their own data in $DATA/<slug>/ (deploy/AGENCIES.md).
+chown "$APP_USER": "$DATA" && chown -R "$APP_USER": "$DATA/backups"
+for f in "$DATA"/south_street.db*; do if [ -e "$f" ]; then chown "$APP_USER": "$f"; fi; done
 if [ -d "$APP_DIR/.git" ]; then
   sudo -u "$APP_USER" git -C "$APP_DIR" config core.fileMode false
   sudo -u "$APP_USER" git -C "$APP_DIR" pull --ff-only
@@ -153,7 +156,7 @@ else
 fi
 as_app "pm2 save"
 env PATH="$PATH" pm2 startup systemd -u "$APP_USER" --hp "/home/$APP_USER" >/dev/null
-for i in $(seq 1 60); do
+for _ in $(seq 1 60); do
   curl -fsS -A "$HC" http://127.0.0.1:3000/api/health >/dev/null 2>&1 && break
   sleep 2
 done
