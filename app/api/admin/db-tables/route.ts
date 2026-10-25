@@ -3,6 +3,8 @@ import { getSqliteDb } from '@/lib/sqlite';
 import { getDatabase, saveDatabase, AiKnowledgeRule } from '@/lib/db';
 import { getColumnLabelAr } from '@/lib/table-column-labels';
 import { ensurePackageRoomPrices } from '@/lib/package-options';
+import { getBrand } from '@/lib/brand-server';
+import { isDefaultBrand } from '@/lib/brand';
 import { normalizePackageStatus, toFeaturedFlag } from '@/lib/package-status';
 import { requireRole, requireStepUp, ADMINS } from '@/lib/staff-gate';
 import {
@@ -265,7 +267,7 @@ export async function POST(req: Request) {
       const sql = `INSERT INTO ${tableName} (${keys.join(', ')}) VALUES (${placeholders})`;
       sqliteDb.prepare(sql).run(...values);
       if (tableName === 'packages') {
-        ensurePackageRoomPrices(sqliteDb, String(rowData.package_id || ''));
+        ensurePackageRoomPrices(sqliteDb, String(rowData.package_id || ''), { defaultPrices: isDefaultBrand(getBrand()) });
         syncPackageDerived(sqliteDb, String(rowData.package_id || ''));
         keepSingleFeatured(sqliteDb, String(rowData.package_id || ''), rowData);
       }

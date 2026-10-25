@@ -6,6 +6,8 @@ import { getTokenFromRequest } from '@/lib/request-auth';
 import { normalizeLoginRole } from '@/lib/roles';
 import { parsePackageList } from '@/lib/package-lists';
 import { ensurePackageRoomPrices, parseAnnexes } from '@/lib/package-options';
+import { getBrand } from '@/lib/brand-server';
+import { isDefaultBrand } from '@/lib/brand';
 import { requireRole, ADMINS, SUPER_ONLY } from '@/lib/staff-gate';
 import { parseTour, tripKindOf } from '@/lib/tour';
 
@@ -30,7 +32,8 @@ export async function GET(req: Request) {
         : db.prepare("SELECT * FROM packages WHERE IFNULL(published,0) = 1 OR published = '1' OR UPPER(IFNULL(status,'')) = 'PUBLISHED' ORDER BY package_id DESC").all()
     ) as any[];
 
-    for (const p of pkgRows) ensurePackageRoomPrices(db, String(p.package_id || ''));
+    const priceDefaults = { defaultPrices: isDefaultBrand(getBrand()) };
+    for (const p of pkgRows) ensurePackageRoomPrices(db, String(p.package_id || ''), priceDefaults);
     const priceRowsAfter = db.prepare('SELECT * FROM package_prices').all() as any[];
 
     const packages = pkgRows.map(p => ({
@@ -118,7 +121,7 @@ export async function POST(req: Request) {
             );
           }
         }
-        ensurePackageRoomPrices(db, package_id);
+        ensurePackageRoomPrices(db, package_id, { defaultPrices: isDefaultBrand(getBrand()) });
       })();
       return NextResponse.json({ success: true, package_id });
     }
@@ -196,7 +199,7 @@ export async function POST(req: Request) {
         }
       }
     })();
-    ensurePackageRoomPrices(db, package_id);
+    ensurePackageRoomPrices(db, package_id, { defaultPrices: isDefaultBrand(getBrand()) });
 
     return NextResponse.json({ success: true, package_id, message: 'تم حفظ الباقة والأسعار بنجاح في قاعدة البيانات' });
   } catch (error: any) {

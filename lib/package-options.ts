@@ -62,7 +62,21 @@ export function roomLabel(type: string): string {
 }
 
 /** Insert the four room prices when a programme was saved without any, and store default annexes. */
-export function ensurePackageRoomPrices(db: { prepare: (sql: string) => any; exec?: (sql: string) => void }, packageId: string) {
+/**
+ * Room prices a new programme form starts with. South Street's own prices are a
+ * template for South Street only; another agency starts empty (no price =
+ * «السعر عند الطلب») instead of quoting South Street's prices.
+ */
+export function roomPriceSeeds(withDefaults: boolean): { room_type: string; amount: number }[] {
+  return DEFAULT_ROOM_PRICES.map((row) => ({ room_type: row.room_type, amount: withDefaults ? row.amount : 0 }));
+}
+
+/** `defaultPrices: false` (any agency but South Street): a programme without prices keeps none. */
+export function ensurePackageRoomPrices(
+  db: { prepare: (sql: string) => any; exec?: (sql: string) => void },
+  packageId: string,
+  opts: { defaultPrices?: boolean } = {}
+) {
   const id = String(packageId || '').trim();
   if (!id) return;
   try {
@@ -74,7 +88,7 @@ export function ensurePackageRoomPrices(db: { prepare: (sql: string) => any; exe
     /* column already present */
   }
   const existing = db.prepare('SELECT price_id FROM package_prices WHERE package_id = ?').all(id) as { price_id?: string }[];
-  if (existing.length === 0) {
+  if (existing.length === 0 && opts.defaultPrices !== false) {
     const insert = db.prepare(`
       INSERT INTO package_prices (price_id, package_id, room_type, traveler_type, currency, amount)
       VALUES (?, ?, ?, 'ADULT', 'DZD', ?)

@@ -2,7 +2,9 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { Loader2, Plus, Save, Trash2, X } from 'lucide-react';
-import { DEFAULT_ROOM_PRICES, defaultAnnexes, roomLabel, type PackageAnnex } from '@/lib/package-options';
+import { defaultAnnexes, roomLabel, roomPriceSeeds, type PackageAnnex } from '@/lib/package-options';
+import { useBrand } from '@/components/social/useAgencyInfo';
+import { isDefaultBrand } from '@/lib/brand';
 import { jsonAuthHeaders } from '@/lib/api-client';
 
 type RoomPrice = { room_type: string; amount: number; price_id?: string };
@@ -16,7 +18,9 @@ export default function PackageOfferingsPanel({
 }: {
   packageId?: string | null;
 }) {
-  const [rooms, setRooms] = useState<RoomPrice[]>(DEFAULT_ROOM_PRICES.map((row) => ({ ...row })));
+  // South Street's prices are its own template; other agencies start with empty prices.
+  const withDefaults = isDefaultBrand(useBrand());
+  const [rooms, setRooms] = useState<RoomPrice[]>(roomPriceSeeds(withDefaults));
   const [annexes, setAnnexes] = useState<PackageAnnex[]>(defaultAnnexes());
   const [loading, setLoading] = useState(Boolean(packageId));
   const [saving, setSaving] = useState(false);
@@ -29,7 +33,7 @@ export default function PackageOfferingsPanel({
 
   const load = useCallback(async () => {
     if (!packageId) {
-      setRooms(DEFAULT_ROOM_PRICES.map((row) => ({ ...row })));
+      setRooms(roomPriceSeeds(withDefaults));
       setAnnexes(defaultAnnexes());
       setLoading(false);
       return;
@@ -42,7 +46,7 @@ export default function PackageOfferingsPanel({
       const pkg = Array.isArray(rows) ? rows.find((row: { package_id?: string }) => row.package_id === packageId) : null;
       if (pkg) {
         const prices = Array.isArray(pkg.prices) ? pkg.prices : [];
-        const nextRooms = DEFAULT_ROOM_PRICES.map((seed) => {
+        const nextRooms = roomPriceSeeds(withDefaults).map((seed) => {
           const hit = prices.find((row: { room_type?: string }) => String(row.room_type || '').toUpperCase() === seed.room_type);
           return {
             room_type: seed.room_type,
@@ -58,7 +62,7 @@ export default function PackageOfferingsPanel({
     } finally {
       setLoading(false);
     }
-  }, [packageId]);
+  }, [packageId, withDefaults]);
 
   useEffect(() => {
     void load();

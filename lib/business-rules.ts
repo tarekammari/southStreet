@@ -50,13 +50,25 @@ export class BusinessRulesService {
     }
 
     const priceEntry = pkg.prices.find(p => p.room_type === roomType) || pkg.prices[0];
-    const unitPrice = priceEntry ? priceEntry.amount : 215000;
+    // No price on the programme = «السعر عند الطلب»: never fall back to another agency's figure.
+    if (!priceEntry || !(Number(priceEntry.amount) > 0)) {
+      return {
+        valid: false,
+        total_amount: 0,
+        currency: 'DZD',
+        unit_price: 0,
+        room_type: roomType,
+        travelers_count: travelersCount,
+        message: 'سعر هذا البرنامج عند الطلب — تواصل مع الوكالة.',
+      };
+    }
+    const unitPrice = priceEntry.amount;
     const totalAmount = unitPrice * Math.max(1, travelersCount);
 
     return {
       valid: true,
       total_amount: totalAmount,
-      currency: priceEntry ? priceEntry.currency : 'DZD',
+      currency: priceEntry.currency || 'DZD',
       unit_price: unitPrice,
       room_type: roomType,
       travelers_count: travelersCount
