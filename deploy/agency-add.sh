@@ -2,7 +2,7 @@
 # Adds one agency: its own South Street on <slug>.1zayd1.tech (and its own domain).
 # Run as root on the VPS, after deploy/hostinger-setup.sh. Guide: deploy/AGENCIES.md
 #
-#   bash deploy/agency-add.sh <slug> [--domain www.example.dz] [--ref main] [--email you@mail]
+#   bash deploy/agency-add.sh <slug> [--domain www.example.dz] [--ref main] [--email you@mail] [--profile deploy/agencies/<slug>]
 #
 # Safe to run again: secrets, database and uploads are kept, steps already done
 # are skipped. Choose the final domain BEFORE the agency's Super Admin is created
@@ -11,15 +11,16 @@ set -Eeuo pipefail
 # shellcheck source=deploy/agency-lib.sh
 . "$(dirname "$0")/agency-lib.sh"
 
-usage() { echo "Usage: bash deploy/agency-add.sh <slug> [--domain www.example.dz] [--ref main] [--email you@mail]"; exit 1; }
+usage() { echo "Usage: bash deploy/agency-add.sh <slug> [--domain www.example.dz] [--ref main] [--email you@mail] [--profile deploy/agencies/<slug>]"; exit 1; }
 
 SLUG="${1:-}"; [ -n "$SLUG" ] || usage; shift
-DOMAIN="" REF="main"
+DOMAIN="" REF="main" PROFILE=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --domain) DOMAIN="${2:-}"; shift 2 ;;
     --ref) REF="${2:-}"; shift 2 ;;
     --email) EMAIL="${2:-}"; shift 2 ;;
+    --profile) PROFILE="${2:-}"; shift 2 ;;
     *) usage ;;
   esac
 done
@@ -30,6 +31,11 @@ need_root
 need_tools
 valid_slug "$SLUG" || fail "Slug '$SLUG': 3-30 characters, a-z 0-9 and -, starting with a letter (not www, api, admin...)."
 [ -z "$DOMAIN" ] || valid_domain "$DOMAIN" || fail "Not a domain name: $DOMAIN"
+if [ -n "$PROFILE" ]; then
+  [ -d "$PROFILE" ] || fail "No profile folder: $PROFILE"
+  PROFILE="$(cd "$PROFILE" && pwd)"
+  check_profile "$PROFILE" "$SLUG"
+fi
 [ "$DOMAIN" != "$SUB" ] || DOMAIN=""
 
 register_legacy
@@ -40,7 +46,7 @@ if [ "$SLUG" = "$LEGACY_SLUG" ]; then
 fi
 
 # ── Who and where ───────────────────────────────────────────────────────────
-log "1/8 Agency $SLUG"
+log "1/9 Agency $SLUG"
 if load_agency "$SLUG"; then
   info "already registered (port $A_PORT, $A_DOMAIN): checking every step"
   if [ -n "$DOMAIN" ] && [ "$DOMAIN" != "$A_DOMAIN" ]; then
@@ -78,7 +84,7 @@ chmod 644 "$BACKUP_KEY"
 # Registered now, so a second run (or another agency) never takes the same port.
 save_agency
 
-log "2/8 Linux user and folders"
+log "2/9 Linux user and folders"
 id "$A_USER" >/dev/null 2>&1 || adduser --disabled-password --gecos "" "$A_USER"
 chmod 750 "$SS_HOME/$A_USER"          # agencies cannot read each other's code, .env or uploads
 mkdir -p "$SS_DATA"
@@ -87,7 +93,7 @@ mkdir -p "$A_DATA/backups"
 chown -R "$A_USER": "$A_DATA"
 chmod 700 "$A_DATA" "$A_DATA/backups"
 
-log "3/8 Code"
+log "3/9 Code"
 if [ -d "$A_DIR/.git" ]; then
   info "already downloaded (later versions: deploy/agencies-update.sh)"
 else
@@ -104,14 +110,14 @@ grep -q PM2_APP "$A_DIR/ecosystem.config.cjs" \
 sudo -u "$A_USER" git -C "$A_DIR" config core.fileMode false
 mkdir -p "$A_DIR/logs" && chown "$A_USER": "$A_DIR/logs"
 
-log "4/8 Dependencies"
+log "4/9 Dependencies"
 if [ -d "$A_DIR/node_modules/next" ]; then
   info "already installed"
 else
   as_agency "npm ci --no-audit --no-fund"
 fi
 
-log "5/8 Settings and fresh secrets (.env)"
+log "5/9 Settings and fresh secrets (.env)"
 ENV="$A_DIR/.env"
 if [ ! -f "$ENV" ]; then
   [ -f "$A_DATA/south_street.db" ] && fail "$A_DATA/south_street.db exists but $ENV is gone: without its secrets the database cannot be read. Put the .env back first."
@@ -162,14 +168,14 @@ env_set "$ENV" BACKUP_CRON "$minute 3 * * *"
 env_set "$ENV" OFFICIAL_UPDATES_CRON "$minute 2 * * *"
 chown "$A_USER": "$ENV" && chmod 600 "$ENV"
 
-log "6/8 Build (3-6 minutes)"
+log "6/9 Build (3-6 minutes)"
 if [ -f "$A_DIR/.next-active" ]; then
   info "already built (later versions: deploy/agencies-update.sh)"
 else
   as_agency "NEXT_DIST_DIR=.next-a npm run build && echo .next-a > .next-active && git checkout -q -- next-env.d.ts tsconfig.json"
 fi
 
-log "7/8 Start with PM2 ($A_PM2)"
+log "7/9 Start with PM2 ($A_PM2)"
 if as_agency "pm2 describe $A_PM2" >/dev/null 2>&1; then
   as_agency "pm2 reload ecosystem.config.cjs --update-env"
 else
@@ -182,7 +188,14 @@ if as_agency "npm run --silent db:backup -- --reason=manual" >/dev/null; then in
 else warn "The first backup failed: check $BACKUP_KEY, then: sudo -iu $A_USER bash -lc 'cd app && npm run db:backup'"; fi
 info "running on port $A_PORT"
 
-log "8/8 Nginx and HTTPS"
+log "8/9 Agency profile (name, logo, colours, contacts)"
+if [ -n "$PROFILE" ]; then
+  install_profile "$PROFILE"
+else
+  info "none given (--profile deploy/agencies/$SLUG): the agency fills its settings itself"
+fi
+
+log "9/9 Nginx and HTTPS"
 # shellcheck disable=SC2086
 ensure_certs $A_DOMAIN $A_REDIRECTS
 write_site

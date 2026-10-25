@@ -63,7 +63,23 @@ bash deploy/agency-add.sh acme --domain www.acme-voyages.dz   # its own domain f
 ```
 
 Options: `--ref v1.7.0` (version to install, default `main`), `--email you@mail` (Let's
-Encrypt and push notification contact).
+Encrypt and push notification contact), `--profile deploy/agencies/<slug>` (see below).
+
+### Agency profile
+
+`deploy/agencies/<slug>/` holds what we already know about an agency: `brand.json`
+(names, colours, phones, branches, `suggestedHost`), `logo.jpg` and `images/`. For example:
+
+```bash
+bash deploy/agency-add.sh rhtours --profile deploy/agencies/rhtours
+```
+
+The `slug` in `brand.json` must match. The folder is copied to
+`/var/lib/south-street/<slug>/profile/` (kept across updates, readable only by the
+agency) on every run. **Importing it into the agency's settings is phase 1's brand
+import, not built yet**: the script prints a warning, and the hook to fill in is
+`install_profile` in `deploy/agency-lib.sh`. Until then the agency starts with the
+default branding.
 
 It creates the user, downloads and builds the app, writes a `.env` with **fresh secrets**
 (JWT, database encryption and lookup keys, notification keys), starts PM2, issues the

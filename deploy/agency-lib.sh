@@ -273,6 +273,34 @@ write_site() {
   systemctl reload nginx
 }
 
+# ── Agency profile (deploy/agencies/<slug>/: brand.json, logo, images) ─────────
+
+check_profile() { # folder slug
+  local slug
+  [ -f "$1/brand.json" ] || fail "$1 has no brand.json."
+  slug="$(sed -n 's/^[[:space:]]*"slug":[[:space:]]*"\([^"]*\)".*/\1/p' "$1/brand.json" | head -n 1)"
+  [ -z "$slug" ] || [ "$slug" = "$2" ] || fail "$1/brand.json is for '$slug', not '$2'."
+}
+
+# The profile is kept with the agency's data (it survives code updates), then
+# handed to the brand import of phase 1 (branding from settings).
+install_profile() { # folder
+  local dest="$A_DATA/profile"
+  rm -rf "$dest.new"
+  cp -R "$1" "$dest.new"
+  rm -rf "$dest"
+  mv "$dest.new" "$dest"
+  chown -R "$A_USER": "$dest"
+  chmod -R go-rwx "$dest"
+  info "copied to $dest"
+  # TODO(phase 1, branding from settings): call its brand import here, as the
+  # agency's user in its app folder, with the copied folder, e.g.
+  #   as_agency "npm run --silent <brand import> -- $(printf %q "$dest")"
+  # It runs after the first start (the database exists) and on every re-run of
+  # this script, so the import must be safe to repeat. Until then:
+  warn "Brand import not available yet (phase 1): name, logo and colours stay the defaults. Profile kept in $dest."
+}
+
 https_health() { # host → health JSON, or nothing
   curl -fsS -A "$HC" --max-time 8 "https://$1/api/health" 2>/dev/null | grep '"ok":true' || true
 }
