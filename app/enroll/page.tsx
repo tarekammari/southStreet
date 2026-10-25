@@ -7,6 +7,7 @@ import { Check, Copy, Download, Eye, EyeOff, KeyRound, Loader2, LockKeyhole, Shi
 import BrandLogo from '@/components/BrandLogo';
 import { checkPrivilegedPassword } from '@/lib/password-policy';
 import { createKey, keyErrorMessage, securityKeysSupported } from '@/lib/webauthn-client';
+import { useBrand } from '@/components/social/useAgencyInfo';
 
 type Info = { name: string; username: string; roleLabel: string; reason: string };
 type Step = 'password' | 'key' | 'codes';
@@ -18,6 +19,7 @@ const STEPS: { id: Step; label: string }[] = [
 ];
 
 function EnrollInner() {
+  const brand = useBrand();
   const token = useSearchParams().get('t') || '';
   const [info, setInfo] = useState<Info | null>(null);
   const [loadError, setLoadError] = useState('');
@@ -82,7 +84,7 @@ function EnrollInner() {
   };
 
   const codesText = () =>
-    [`South Street — رموز الاسترداد (${info?.username || ''})`, `صدرت: ${new Date().toLocaleString('ar-DZ')}`, '', ...codes, '', 'كل رمز يُستعمل مرة واحدة فقط.'].join('\n');
+    [`${brand.name_latin} — رموز الاسترداد (${info?.username || ''})`, `صدرت: ${new Date().toLocaleString('ar-DZ')}`, '', ...codes, '', 'كل رمز يُستعمل مرة واحدة فقط.'].join('\n');
 
   const copyCodes = async () => {
     try {

@@ -10,7 +10,7 @@
 .mbk-btn:hover { border-color: #94a3b8; }
 .mbk-btn svg { width: 1rem; height: 1rem; }
 .mbk-btn.is-primary { background: var(--hb-green); border-color: var(--hb-green); color: #fff; }
-.mbk-btn.is-primary:hover { background: #065f46; }
+.mbk-btn.is-primary:hover { background: var(--brand-primary-dark, #065f46); }
 .mbk-btn.is-danger { color: #be123c; border-color: #fecdd3; }
 .mbk-btn.is-danger:hover { background: #fff1f2; }
 .mbk-btn:disabled { opacity: 0.55; cursor: default; }
@@ -31,7 +31,7 @@
 .mbk-card.is-focused { box-shadow: 0 0 0 3px #6ee7b7, 0 24px 50px -40px rgba(15, 23, 42, 0.7); }
 .mbk-card.is-closed { opacity: 0.85; }
 @media (min-width: 820px) { .mbk-card { grid-template-columns: 16rem 1fr; } }
-.mbk-media { position: relative; display: grid; place-items: center; min-height: 11rem; background: linear-gradient(150deg, #0f766e, #022c22); color: rgba(255, 255, 255, 0.8); }
+.mbk-media { position: relative; display: grid; place-items: center; min-height: 11rem; background: linear-gradient(150deg, #0f766e, var(--brand-primary-deep, #022c22)); color: rgba(255, 255, 255, 0.8); }
 .mbk-media img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .mbk-media > svg { width: 2.4rem; height: 2.4rem; }
 .mbk-card.is-closed .mbk-media img { filter: grayscale(0.7); }
@@ -78,7 +78,7 @@
 .mbk-next strong { display: block; font-size: 0.92rem; font-weight: 900; }
 .mbk-next p { margin: 0.2rem 0 0; font-size: 0.84rem; line-height: 1.7; }
 .mbk-next.is-warn { background: #fffbeb; color: #78350f; }
-.mbk-next.is-good { background: var(--hb-soft); color: #064e3b; }
+.mbk-next.is-good { background: var(--hb-soft); color: var(--brand-primary-dark, #064e3b); }
 .mbk-next.is-bad { background: #fff1f2; color: #881337; }
 
 .mbk-more { border-top: 1px solid var(--hb-line); padding-top: 0.6rem; }
@@ -118,7 +118,7 @@
 
 
 .hotel-detail-book { display: flex; align-items: center; justify-content: center; gap: 0.45rem; margin: 0 0 0.8rem; padding: 0.75rem 1rem; border-radius: 999px; background: var(--hb-green); color: #fff; font-size: 0.92rem; font-weight: 900; text-decoration: none; }
-.hotel-detail-book:hover { background: #065f46; }
+.hotel-detail-book:hover { background: var(--brand-primary-dark, #065f46); }
 
 .hadm-chips .is-sample { background: #fffbeb; color: #b45309; }
 

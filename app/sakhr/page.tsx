@@ -1,10 +1,14 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
+import { agencyLabel } from '@/lib/brand';
+import { getBrand } from '@/lib/brand-server';
 
-export const metadata: Metadata = {
-  title: 'تحدّث مع صخر',
-  description: 'صخر، المساعد الذكي لوكالة ساوث ستريت: أسئلة البرامج والأسعار والحجز ودليل العمرة، على مدار الساعة.',
-};
+export function generateMetadata(): Metadata {
+  return {
+    title: 'تحدّث مع صخر',
+    description: `صخر، المساعد الذكي لـ${agencyLabel(getBrand())}: أسئلة البرامج والأسعار والحجز ودليل العمرة، على مدار الساعة.`,
+  };
+}
 
 /**
  * Short link for the agency's WhatsApp greeting / social bios:

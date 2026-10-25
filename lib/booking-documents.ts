@@ -7,6 +7,7 @@ import QRCode from 'qrcode';
 import { BookingExtra, BookingInvoice, Reservation } from '@/types';
 import { ROOM_LABELS, isAgencyConfirmed } from '@/lib/booking-catalog';
 import { toolGetAgencySettings } from '@/lib/ai-tools';
+import { getBrand } from './brand-server';
 
 const DOC_ISSUER = 'south-street-doc';
 
@@ -114,7 +115,7 @@ export function reservationDocumentPayload(
       : !confirmed && (type === 'request' || type === 'invoice')
         ? 'بانتظار تأكيد الوكالة — وثيقة مؤقتة'
         : confirmed
-          ? 'وثيقة معتمدة — ساوث ستريت للأسفار'
+          ? `وثيقة معتمدة — ${getBrand().short_name}`
           : 'مسودة داخلية',
   };
 }
@@ -134,32 +135,41 @@ function formatShortDate(value?: string): string {
 
 
 
-let cachedAgencyLogo = '';
+const LOGO_MIME: Record<string, string> = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.gif': 'image/gif' };
+let cachedAgencyLogo = { src: '', uri: '' };
 
+/** The brand logo inlined (documents are printed / saved away from the site); its link when it is not a local file. */
 function agencyLogoDataUri(): string {
-  if (cachedAgencyLogo) return cachedAgencyLogo;
-  const files = [
-    path.join(process.cwd(), 'public', 'images', 'south_street_logo_trans.png'),
-    path.join(process.cwd(), 'images', 'south_street_logo_trans.png'),
-    path.join(process.cwd(), 'images', 'south_street_logo_width.png'),
-    path.join(process.cwd(), 'public', 'images', 'south_street_logo_width.png'),
-  ];
-  for (const file of files) {
-    try {
-      if (!fs.existsSync(file)) continue;
-      cachedAgencyLogo = `data:image/png;base64,${fs.readFileSync(file).toString('base64')}`;
-      return cachedAgencyLogo;
-    } catch {
-      /* try next */
+  const src = getBrand().logo_url;
+  if (cachedAgencyLogo.src === src) return cachedAgencyLogo.uri;
+  let uri = /^https?:\/\//i.test(src) ? src : '';
+  if (src.startsWith('/') && !src.includes('..')) {
+    const rel = src.split('?')[0].replace(/^\/+/, '');
+    // Uploaded logos (/api/staff-image/<file>) live in images/uploads.
+    const upload = rel.startsWith('api/staff-image/') ? path.join('images', 'uploads', path.basename(rel)) : '';
+    const candidates = upload
+      ? [path.join(process.cwd(), upload), path.join(process.cwd(), 'public', upload)]
+      : [path.join(process.cwd(), 'public', rel), path.join(process.cwd(), rel)];
+    for (const file of candidates) {
+      try {
+        if (!fs.existsSync(file)) continue;
+        const mime = LOGO_MIME[path.extname(file).toLowerCase()] || 'image/png';
+        uri = `data:${mime};base64,${fs.readFileSync(file).toString('base64')}`;
+        break;
+      } catch {
+        /* try next */
+      }
     }
+    if (!uri) uri = `${publicSiteBase()}${src}`;
   }
-  return '';
+  cachedAgencyLogo = { src, uri };
+  return uri;
 }
 
 function publicSiteBase(): string {
   const env = (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || '').trim();
   if (env) return env.replace(/\/$/, '');
-  return 'https://southstreet.dz';
+  return getBrand().website.replace(/\/$/, '');
 }
 
 export function requestTrackUrl(ref: string, origin?: string): string {
@@ -210,8 +220,9 @@ function agencyLetterhead(): Agency {
   } catch {
     /* settings table unavailable: plain header */
   }
-  const name = String(row.agency_name || 'ساوث ستريت للأسفار').trim();
-  const legal = String(row.legal_name || 'South Street Travel').trim();
+  const brand = getBrand();
+  const name = String(row.agency_name || brand.agency_name).trim();
+  const legal = String(row.legal_name || brand.legal_name || brand.name_latin).trim();
   const place = [row.address, row.city, row.country].map((v: unknown) => String(v || '').trim()).filter(Boolean).join('، ');
   const contact = [row.phone, row.email, row.website].map((v: unknown) => String(v || '').trim()).filter(Boolean);
   return { name, legal, lines: place ? [place] : [], contact };
@@ -264,7 +275,7 @@ function kindOf(data: BookingDocumentPayload): DocKind {
         title: 'تأكيد الحجز',
         english: 'Booking confirmation',
         state: { label: 'مؤكد', tone: 'green' },
-        notice: { title: 'حجزك مؤكد', text: 'تؤكد ساوث ستريت للأسفار حجز المقعد في البرنامج المبيّن أدناه. احتفظ بهذه الوثيقة.', tone: 'green' },
+        notice: { title: 'حجزك مؤكد', text: `تؤكد ${getBrand().short_name} حجز المقعد في البرنامج المبيّن أدناه. احتفظ بهذه الوثيقة.`, tone: 'green' },
       };
   }
 }

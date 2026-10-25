@@ -5,7 +5,7 @@
   --ca-ink: #0f172a;
   --ca-muted: #5b6b79;
   --ca-line: #e3e9ec;
-  --ca-brand: #047857;
+  --ca-brand: var(--brand-primary, #047857);
   --ca-brand-soft: #e6f4ef;
   --ca-danger: #b91c1c;
   --ca-danger-soft: #fdecec;

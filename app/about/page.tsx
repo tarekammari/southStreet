@@ -36,26 +36,12 @@ import { openSakhr } from '@/components/sakhr/openSakhr';
 import { useAgencyInfo } from '@/components/social/useAgencyInfo';
 import { SOCIAL_ICON } from '@/components/social/SocialIcons';
 import { socialProfiles } from '@/lib/social';
-import { publicAgency, publicList, publicReviews } from '@/lib/public-catalog';
+import { publicList, publicReviews } from '@/lib/public-catalog';
 import type { PageContentRow } from '@/lib/page-content';
 import { readAboutContent } from '@/lib/about-content';
-import {
-  AGENCY_ADDRESS,
-  AGENCY_CITY,
-  AGENCY_COUNTRY,
-  AGENCY_GEO,
-  AGENCY_MAP_EMBED,
-  AGENCY_MAP_URL,
-  AGENCY_PHONE,
-  telHref,
-} from '@/lib/agency-contact';
+import { agencyLabel, brandGeo, brandMapEmbed, brandMapUrl, connectName, telHref } from '@/lib/brand';
 import '@/app/info-pages.css';
 import './about.css';
-
-type AgencyInfo = Partial<Record<
-  'agency_name' | 'description' | 'address' | 'city' | 'country' | 'phone' | 'whatsapp' | 'email' | 'opening_hours',
-  string
->>;
 
 /** Icons for the "why us" cards, in order (repeats when there are more cards). */
 const VALUE_ICONS = [HeartHandshake, BedDouble, ReceiptText, ShieldCheck, Star, Users];
@@ -75,18 +61,13 @@ const delay = (i: number, step = 90) => ({ '--d': `${i * step}ms` }) as React.CS
 
 export default function AboutPage() {
   const [content, setContent] = useState<PageContentRow[]>([]);
-  const [agency, setAgency] = useState<AgencyInfo>({});
-  const [agencyLoaded, setAgencyLoaded] = useState(false);
+  const agency = useAgencyInfo();
   const [team, setTeam] = useState<MorshidRow[]>([]);
   const [stats, setStats] = useState({ programs: 0, hotels: 0, rating: 0, reviews: 0 });
 
   useEffect(() => {
     publicList<PageContentRow>('content').then(setContent);
     publicList<MorshidRow>('staff').then(setTeam);
-    publicAgency().then((a) => {
-      setAgency((a || {}) as AgencyInfo);
-      setAgencyLoaded(true);
-    });
     Promise.all([publicList<unknown>('packages'), publicList<unknown>('hotels'), publicReviews()]).then(([programs, hotels, reviews]) => {
       setStats({
         programs: programs.length,
@@ -98,9 +79,9 @@ export default function AboutPage() {
   }, []);
 
   useReveal();
-  const profiles = socialProfiles(useAgencyInfo()?.social);
+  const profiles = socialProfiles(agency.social);
 
-  const name = agency.agency_name || 'وكالة ساوث ستريت';
+  const name = agency.agency_name || agencyLabel(agency);
   const about = readAboutContent(content);
   const hero = { ...about.hero, text: about.hero.text || agency.description || 'وكالة سياحة وأسفار متخصصة في رحلات العمرة والحج، نرافقكم من لحظة اختيار البرنامج حتى عودتكم سالمين، بتنظيم واضح ومرافقة دينية متخصصة.' };
   const story = about.story;
@@ -115,20 +96,23 @@ export default function AboutPage() {
     { icon: Star, value: stats.rating, decimals: 1, label: stats.reviews ? `تقييم المعتمرين (${stats.reviews})` : 'تقييم المعتمرين' },
   ].filter((s) => s.value > 0);
 
-  // Settings first; the official defaults until they load (or if they are empty).
-  const phone = agency.phone || (agencyLoaded ? '' : AGENCY_PHONE);
-  const address = joinAddress([
-    agency.address || AGENCY_ADDRESS,
-    agency.address ? agency.city : AGENCY_CITY,
-    agency.country || AGENCY_COUNTRY,
-  ]);
-  // The shared map pin is the El Oued office; another address falls back to a map search.
-  const pinned = address.includes('الوادي');
-  const mapUrl = pinned ? AGENCY_MAP_URL : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+  // Contact card and map from «هوية الوكالة» (the map pin, else a search for the address).
+  const phone = agency.phone;
+  const address = joinAddress([agency.address, agency.city, agency.country]);
+  const geo = brandGeo(agency);
+  const mapUrl = brandMapUrl(agency);
   const details = [
     { icon: MapPin, label: 'العنوان', value: address, href: mapUrl, ltr: false },
     phone && { icon: Phone, label: 'الهاتف', value: phone, href: telHref(phone), ltr: true },
     agency.email && { icon: Mail, label: 'البريد الإلكتروني', value: agency.email, href: `mailto:${agency.email}`, ltr: true },
+    ...agency.phones.map((p) => ({ icon: Phone, label: p.label || 'هاتف', value: p.number, href: telHref(p.number), ltr: true })),
+    ...agency.branches.map((b) => ({
+      icon: MapPin,
+      label: `فرع ${b.city}`.trim(),
+      value: [b.address, b.phone].filter(Boolean).join(' · '),
+      href: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([b.address, b.city].filter(Boolean).join('، '))}`,
+      ltr: false,
+    })),
     agency.opening_hours && { icon: Clock, label: 'أوقات العمل', value: agency.opening_hours, ltr: false },
   ].filter(Boolean) as { icon: typeof Phone; label: string; value: string; href?: string; ltr: boolean }[];
 
@@ -367,7 +351,7 @@ export default function AboutPage() {
                 <div className="ip-help-top">
                   <img className="ip-help-mark" src="/icons/connect-192.png" alt="" width={52} height={52} />
                   <div>
-                    <h3>تطبيق South Street Connect</h3>
+                    <h3>تطبيق {connectName(agency)}</h3>
                     <small>فريق الوكالة</small>
                   </div>
                 </div>
@@ -385,10 +369,10 @@ export default function AboutPage() {
 
             <div className="ab-visit ip-reveal">
               <div className="ab-map">
-                {pinned ? (
+                {geo ? (
                   <iframe
                     title="موقع الوكالة على الخريطة"
-                    src={AGENCY_MAP_EMBED}
+                    src={brandMapEmbed(agency)}
                     loading="lazy"
                     referrerPolicy="no-referrer-when-downgrade"
                     allowFullScreen
@@ -472,18 +456,19 @@ export default function AboutPage() {
               '@type': 'TravelAgency',
               name: agency.agency_name,
               description: hero.text,
-              url: typeof window !== 'undefined' ? window.location.origin : undefined,
-              logo: typeof window !== 'undefined' ? `${window.location.origin}/images/south_street_logo_trans.png` : undefined,
+              // From the brand, not window: the same on the server and in the browser.
+              url: agency.website || undefined,
+              logo: agency.website ? new URL(agency.logo_url, agency.website).href : agency.logo_url,
               telephone: phone ? telHref(phone).slice(4) : undefined,
               email: agency.email,
               address: {
                 '@type': 'PostalAddress',
-                streetAddress: agency.address || AGENCY_ADDRESS,
-                addressLocality: pinned ? 'الوادي' : undefined,
-                addressRegion: agency.address ? agency.city : AGENCY_CITY,
+                streetAddress: agency.address,
+                addressLocality: agency.city.replace(/^ولاية\s+/, '') || undefined,
+                addressRegion: agency.city || undefined,
                 addressCountry: 'DZ',
               },
-              geo: pinned ? { '@type': 'GeoCoordinates', ...AGENCY_GEO } : undefined,
+              geo: geo ? { '@type': 'GeoCoordinates', ...geo } : undefined,
               hasMap: mapUrl,
               openingHours: agency.opening_hours,
             }).replace(/</g, '\\u003c'),

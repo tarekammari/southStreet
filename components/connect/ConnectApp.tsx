@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * South Street Connect — the installable messenger (Android, iPhone, Windows).
+ * Connect — the installable messenger (Android, iPhone, Windows).
  * Chats, voice notes and voice calls between clients and the agency team, and
  * between clients who accepted each other (requests, favourites, suggestions).
  */
@@ -26,6 +26,8 @@ import { versionLabel } from '@/lib/connect/version';
 import CallOverlay, { CallMini, type CallView } from './CallOverlay';
 import { usePipWindow } from './usePipWindow';
 import './connect.css';
+import { connectName } from '@/lib/brand';
+import { useBrand } from '@/components/social/useAgencyInfo';
 
 const LoginModal = dynamic(() => import('@/components/LoginModal'), { ssr: false });
 
@@ -77,10 +79,10 @@ function shortTime(ts: number) {
  * notification the server push would (رد / رفض), mark the app icon and blink the
  * window title until the call is picked up.
  */
-function ringWhileHidden(inc: { id: string; caller: { name: string } }) {
+function ringWhileHidden(inc: { id: string; caller: { name: string } }, appName: string) {
   void navigator.serviceWorker?.getRegistration('/connect').then((reg) =>
     reg?.showNotification(`📞 ${inc.caller.name}`, {
-      body: 'مكالمة صوتية واردة — South Street Connect',
+      body: `مكالمة صوتية واردة — ${appName}`,
       tag: `call-${inc.id}`,
       requireInteraction: true,
       icon: '/icons/connect-192.png',
@@ -128,6 +130,7 @@ function urlBase64ToUint8Array(base64: string) {
 }
 
 export default function ConnectApp() {
+  const brand = useBrand();
   const [me, setMe] = useState<ConnectUser | null>(null);
   const [needLogin, setNeedLogin] = useState(false);
   const [iceServers, setIceServers] = useState<RTCIceServer[]>([]);
@@ -441,9 +444,9 @@ export default function ConnectApp() {
     } else if (nativePlatform() !== 'windows' && !androidInBackground()) {
       // On Windows the floating call card rings (and stays above every window).
       startTone('ring');
-      if (!nativePlatform() && document.visibilityState !== 'visible') ringWhileHidden(inc);
+      if (!nativePlatform() && document.visibilityState !== 'visible') ringWhileHidden(inc, connectName(brand));
     }
-  }, []);
+  }, [brand]);
 
   /* ---------- new messages: banner, sound, badge ---------- */
   // A message in a chat that is not on screen: a banner at the top (tap to open), a short
@@ -762,9 +765,9 @@ export default function ConnectApp() {
       <div className="cn-app cn-login" dir="rtl">
         <div className="cn-login-card">
           <img src="/icons/connect-192.png" alt="" />
-          <h1>South Street Connect</h1>
+          <h1>{connectName(brand)}</h1>
           {/* No install before sign-in: the app is for account holders only. */}
-          <p>رسائل ومكالمات صوتية بين المعتمرين وفريق الوكالة. سجّل الدخول بحسابك في ساوث ستريت لاستعمال التطبيق وتثبيته.</p>
+          <p>رسائل ومكالمات صوتية بين المعتمرين وفريق الوكالة. سجّل الدخول بحسابك في {brand.short_name} لاستعمال التطبيق وتثبيته.</p>
         </div>
         <LoginModal onClose={() => undefined} redirectTo="/connect" />
       </div>
@@ -970,7 +973,7 @@ export default function ConnectApp() {
         ) : (
           <div className="cn-welcome">
             <img src="/icons/connect-192.png" alt="" />
-            <h2>South Street Connect</h2>
+            <h2>{connectName(brand)}</h2>
             <p>اختر محادثة أو جهة اتصال. الرسائل والمكالمات الصوتية بين المعتمرين وفريق الوكالة.</p>
             <small className="cn-version" dir="ltr">v{versionLabel()}</small>
           </div>

@@ -9,6 +9,8 @@ import {
   SUPPLIER_INVOICE_AGENCY_COPY_FR,
   type SupplierInvoiceDetail,
 } from '@/lib/supplier-invoice-document';
+import { getBrand } from './brand-server';
+import { agencyLabel } from './brand';
 
 function escapeHtml(value: string): string {
   return String(value ?? '')
@@ -159,7 +161,7 @@ export function buildSupplierInvoiceAgencyCopyHtml(input: {
         </section>
         <section class="party">
           <h2>Client · المشتري</h2>
-          <p class="name">وكالة ساوث ستريت</p>
+          <p class="name">${escapeHtml(agencyLabel(getBrand()))}</p>
           <p>الجزائر</p>
           ${detail.buyerRc ? `<p>RC: ${escapeHtml(detail.buyerRc)}</p>` : ''}
           ${detail.buyerNif ? `<p>NIF: ${escapeHtml(detail.buyerNif)}</p>` : ''}

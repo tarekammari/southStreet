@@ -1,5 +1,5 @@
 /**
- * Web Push for South Street Connect: new messages and incoming calls reach the
+ * Web Push for Connect: new messages and incoming calls reach the
  * phone even when the app is closed (installed app on iPhone, iOS 16.4+).
  * Needs VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBJECT; without them push
  * is simply off and the app still works while open.
@@ -8,6 +8,7 @@ import crypto from 'node:crypto';
 import webpush from 'web-push';
 import { dropPush, pushTargets } from './store';
 import { fcmReady, sendFcm } from './fcm';
+import { getBrand } from '../brand-server';
 
 let configured: boolean | null = null;
 
@@ -20,7 +21,7 @@ function ready(): boolean {
   const pub = vapidPublicKey();
   const priv = process.env.VAPID_PRIVATE_KEY?.trim() || '';
   configured = Boolean(pub && priv);
-  if (configured) webpush.setVapidDetails(process.env.VAPID_SUBJECT?.trim() || 'mailto:contact@southstreet.dz', pub, priv);
+  if (configured) webpush.setVapidDetails(process.env.VAPID_SUBJECT?.trim() || `mailto:${getBrand().email}`, pub, priv);
   return configured;
 }
 

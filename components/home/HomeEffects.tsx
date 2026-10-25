@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { motion, useReducedMotion, useScroll, useSpring } from 'framer-motion';
 import { ArrowLeft, ArrowUp, Phone } from 'lucide-react';
 import KaabaIcon from '@/components/icons/KaabaIcon';
-import { AGENCY_PHONE, AGENCY_PHONE_TEL } from '@/lib/agency-contact';
+import { useBrand } from '@/components/social/useAgencyInfo';
+import { telHref } from '@/lib/brand';
 
 /** Thin brand-coloured bar under the navbar showing how far down the page you are. */
 export function ScrollProgress() {
@@ -44,6 +45,7 @@ export function BackToTop() {
 
 /** Closing call to action before the footer. */
 export function HomeCta() {
+  const brand = useBrand();
   return (
     <section className="home-cta-wrap" aria-labelledby="home-cta-title">
       <motion.div
@@ -62,9 +64,9 @@ export function HomeCta() {
             تصفّح البرامج
             <ArrowLeft className="w-4 h-4" aria-hidden />
           </Link>
-          <a href={`tel:${AGENCY_PHONE_TEL}`} className="home-cta-btn">
+          <a href={telHref(brand.phone)} className="home-cta-btn">
             <Phone className="w-4 h-4" aria-hidden />
-            <span dir="ltr">{AGENCY_PHONE}</span>
+            <span dir="ltr">{brand.phone}</span>
           </a>
         </div>
       </motion.div>

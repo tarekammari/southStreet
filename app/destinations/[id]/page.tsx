@@ -13,7 +13,8 @@ import { hotelsCount, perNight, useDestinationHotels, useDestinationTrips } from
 import { destinationOf, type Destination } from '@/lib/tour';
 import { cityPhoto, destinationPhoto, photoProps } from '@/lib/destination-photos';
 import { cityInfo, hotelInCity } from '@/lib/destination-cities';
-import { AGENCY_PHONE, AGENCY_PHONE_TEL } from '@/lib/agency-contact';
+import { useBrand } from '@/components/social/useAgencyInfo';
+import { telHref } from '@/lib/brand';
 import { formatDzd } from '@/lib/hotels/types';
 
 export default function DestinationPage() {
@@ -25,6 +26,7 @@ export default function DestinationPage() {
 
 /** One destination: the agency's trips there on top, then its cities, each opening its hotels. */
 function DestinationView({ dest }: { dest: Destination }) {
+  const brand = useBrand();
   const [dates] = useState(defaultDates);
   const trips = useDestinationTrips(dest.id);
   const hotels = useDestinationHotels(dest.id, dates);
@@ -80,7 +82,7 @@ function DestinationView({ dest }: { dest: Destination }) {
                   <strong>لا توجد رحلة منظّمة إلى {dest.label} حالياً</strong>
                   <span>اختر مدينتك واحجز فندقك، أو اتصل بنا لنجهّز لك رحلة على مقاسك.</span>
                 </p>
-                <a href={`tel:${AGENCY_PHONE_TEL}`} className="dst-call"><Phone aria-hidden /> <span dir="ltr">{AGENCY_PHONE}</span></a>
+                <a href={telHref(brand.phone)} className="dst-call"><Phone aria-hidden /> <span dir="ltr">{brand.phone}</span></a>
               </div>
             </section>
           )}

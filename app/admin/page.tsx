@@ -10,8 +10,10 @@ import '@/app/admin-login.css';
 import { Eye, EyeOff, Loader2, Lock, Mail, ShieldCheck, Users } from 'lucide-react';
 import SecurityKeyPrompt from '@/components/auth/SecurityKeyPrompt';
 import SakhrAgent from '@/components/lazy/LazySakhrAgent';
+import { useBrand } from '@/components/social/useAgencyInfo';
 
 export default function AdminDashboardPage() {
+  const brand = useBrand();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loginStep, setLoginStep] = useState<1 | 2>(1);
@@ -135,9 +137,9 @@ export default function AdminDashboardPage() {
     return (
       <div className="al-page" dir="rtl">
         <aside className="al-hero" aria-hidden="true">
-          <img src="/images/south_street_logo_trans.png" alt="" className="al-hero-logo" />
+          <img src={brand.logo_url} alt="" className="al-hero-logo" />
           <div>
-            <h2>إدارة ساوث ستريت في مكان واحد</h2>
+            <h2>إدارة {brand.short_name} في مكان واحد</h2>
             <p>الحجوزات، البرامج، الفريق، المدفوعات وتواصل المعتمرين — بأمان كامل وصلاحيات دقيقة.</p>
           </div>
           <div className="al-hero-points">
@@ -149,7 +151,7 @@ export default function AdminDashboardPage() {
 
         <main className="al-main">
           <div className="al-card">
-            <img src="/images/south_street_logo_trans.png" alt="South Street" className="al-card-logo" />
+            <img src={brand.logo_url} alt={brand.name_latin} className="al-card-logo" />
             <span className="al-badge"><ShieldCheck size={14} /> دخول الإدارة</span>
             <h1 className="al-title">مرحباً بعودتك</h1>
             <p className="al-sub">سجّل الدخول للوصول إلى لوحة التحكم</p>

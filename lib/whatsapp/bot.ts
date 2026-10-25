@@ -15,6 +15,7 @@ import { toolGetAgencySettings } from '../ai-tools';
 import { LOGIN_ROLE_LABELS, normalizeLoginRole } from '../roles';
 import { downloadMedia, markReadAndTyping, sendText, toWhatsAppText, whatsappConfig } from './cloud';
 import { conversation, messages, normalizePhone, saveMessage, setBotEnabled } from './store';
+import { getBrand } from '../brand-server';
 
 export type IncomingMessage = {
   id: string;
@@ -159,7 +160,7 @@ export async function handleIncoming(msg: IncomingMessage, origin: string): Prom
       ctx: { req: new Request(`${origin}/api/ai/sakhr`, { headers: { 'user-agent': 'WhatsApp-Sakhr' } }), role: 'ANON' },
       userName: known?.name || msg.profileName,
       agency: {
-        name: agency.agency_name || 'ساوث ستريت للأسفار والعمرة',
+        name: agency.agency_name || getBrand().agency_name,
         phone: agency.phone,
         email: agency.email,
         address: [agency.address, agency.city].filter(Boolean).join('، '),

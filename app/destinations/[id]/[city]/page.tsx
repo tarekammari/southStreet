@@ -13,7 +13,8 @@ import { STAY_ROOMS, perNight, useDestinationHotels, useDestinationTrips } from 
 import { destinationOf, tourOf, type Destination } from '@/lib/tour';
 import { cityPhoto, photoProps } from '@/lib/destination-photos';
 import { cityFromSlug, cityInfo, hotelInCity } from '@/lib/destination-cities';
-import { AGENCY_PHONE, AGENCY_PHONE_TEL } from '@/lib/agency-contact';
+import { useBrand } from '@/components/social/useAgencyInfo';
+import { telHref } from '@/lib/brand';
 import { BOARD_LABEL, arDate, encodeRooms, formatDzd, normAr, type HotelOffer } from '@/lib/hotels/types';
 
 export default function CityPage() {
@@ -26,6 +27,7 @@ export default function CityPage() {
 
 /** One city of a destination: its hotels as photo cards, each opening the hotel with its rooms and prices. */
 function CityView({ dest, city }: { dest: Destination; city: string }) {
+  const brand = useBrand();
   const [dates] = useState(defaultDates);
   const all = useDestinationHotels(dest.id, dates);
   const trips = useDestinationTrips(dest.id);
@@ -115,7 +117,7 @@ function CityView({ dest, city }: { dest: Destination; city: string }) {
                   <strong>لا فنادق في {city} للحجز من الموقع حالياً</strong>
                   <span>الوكالة تحجز لك الفندق الذي تختاره — اتصل بنا وسنرسل لك العروض.</span>
                 </p>
-                <a href={`tel:${AGENCY_PHONE_TEL}`} className="dst-call"><Phone aria-hidden /> <span dir="ltr">{AGENCY_PHONE}</span></a>
+                <a href={telHref(brand.phone)} className="dst-call"><Phone aria-hidden /> <span dir="ltr">{brand.phone}</span></a>
               </div>
             )}
           </section>

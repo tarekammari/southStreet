@@ -11,7 +11,7 @@ import { useAgencyInfo } from '@/components/social/useAgencyInfo';
 import { SOCIAL_ICON } from '@/components/social/SocialIcons';
 import { toPortalRole } from '@/lib/roles';
 import PhoneQr from '@/components/PhoneQr';
-import { AGENCY_CITY, telHref } from '@/lib/agency-contact';
+import { agencyLabel, connectName, telHref } from '@/lib/brand';
 import '@/app/footer.css';
 
 const PRODUCT_LINKS = [
@@ -63,18 +63,18 @@ export default function Footer({ content, hideCta = false }: { content?: PageCon
   }, []);
 
   const agency = useAgencyInfo();
-  const social = agency?.social;
+  const social = agency.social;
   const profiles = socialProfiles(social);
 
   const about = pickPageContent(rows, 'footer_about', {
-    title: 'ساوث ستريت للأسفار والعمرة',
+    title: agency.agency_name,
     content: 'رحلات عمرة وحج منظّمة من الجزائر، بمرافقة دينية وفنادق قريبة من الحرم ومتابعة يومية حتى العودة.',
   });
 
   const contacts = [
-    agency?.phone && { icon: Phone, label: agency.phone, href: telHref(agency.phone), ltr: true },
-    agency?.email && { icon: Mail, label: agency.email, href: `mailto:${agency.email}`, ltr: true },
-    { icon: MapPin, label: agency?.city || agency?.address || AGENCY_CITY, href: '/about#contact' },
+    agency.phone && { icon: Phone, label: agency.phone, href: telHref(agency.phone), ltr: true },
+    agency.email && { icon: Mail, label: agency.email, href: `mailto:${agency.email}`, ltr: true },
+    { icon: MapPin, label: [agency.city || agency.address, ...agency.branches.map((b) => b.city)].filter(Boolean).join(' · '), href: '/about#contact' },
   ].filter(Boolean) as { icon: typeof Phone; label: string; href: string; ltr?: boolean }[];
 
   const companyLinks = COMPANY_LINKS.map((link) =>
@@ -97,7 +97,7 @@ export default function Footer({ content, hideCta = false }: { content?: PageCon
           <span className="sf-cta-icon" aria-hidden><MessageCircle /></span>
           <div className="sf-cta-text">
             <h2>تحدّث مع فريق الوكالة مباشرة</h2>
-            <p>رسائل ومكالمات صوتية مع مستشاريك ومرشدك عبر تطبيق South Street Connect.</p>
+            <p>رسائل ومكالمات صوتية مع مستشاريك ومرشدك عبر تطبيق {connectName(agency)}.</p>
           </div>
           <div className="sf-cta-actions">
             <Link href="/connect" className="sf-btn is-primary">
@@ -110,8 +110,8 @@ export default function Footer({ content, hideCta = false }: { content?: PageCon
 
         <div className="sf-grid">
           <motion.div className="sf-brand" initial="hidden" whileInView="visible" viewport={{ once: true }} variants={rise} custom={1}>
-            <Link href="/" aria-label="South Street">
-              <img src="/images/south_street_logo_trans.png" alt="South Street" className="sf-logo" />
+            <Link href="/" aria-label={agency.name_latin}>
+              <img src={agency.logo_url} alt={agency.name_latin} className="sf-logo" />
             </Link>
             <p>{about.content}</p>
             {profiles.length ? (
@@ -159,7 +159,7 @@ export default function Footer({ content, hideCta = false }: { content?: PageCon
         </div>
 
         <div className="sf-bottom">
-          <span>© 2026 وكالة ساوث ستريت · جميع الحقوق محفوظة</span>
+          <span>© {new Date().getFullYear()} {agencyLabel(agency)} · جميع الحقوق محفوظة</span>
           <span className="sf-status">الخدمة متاحة</span>
           <nav aria-label="روابط قانونية">
             <Link href="/about">شروط الخدمة</Link>

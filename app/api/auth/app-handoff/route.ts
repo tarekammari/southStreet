@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { SESSION_COOKIE, SESSION_MARKER, extractSessionToken, sessionCookieOptions } from '@/lib/session-token';
 import { normalizeLoginRole, LOGIN_ROLE_LABELS } from '@/lib/roles';
+import { getBrand } from '@/lib/brand-server';
+import { connectName } from '@/lib/brand';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,5 +71,5 @@ function page(message: string, user: Record<string, unknown> | null): string {
         JSON.stringify(user)
       ).replace(/</g, '\\u003c')});}catch(e){}location.replace('/connect');</script>`
     : `<p><a href="/connect">العودة إلى Connect</a></p>`;
-  return `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>South Street Connect</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;font-family:Tajawal,system-ui,sans-serif;background:#f4f6f5;color:#0f172a;text-align:center}a{color:#047857;font-weight:700}</style></head><body><main><p>${message}</p>${script}</main></body></html>`;
+  return `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${connectName(getBrand())}</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;font-family:Tajawal,system-ui,sans-serif;background:#f4f6f5;color:#0f172a;text-align:center}a{color:#047857;font-weight:700}</style></head><body><main><p>${message}</p>${script}</main></body></html>`;
 }

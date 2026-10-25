@@ -1,32 +1,26 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { EMPTY_SOCIAL, type SocialLinks } from '@/lib/social';
-import { publicAgency } from '@/lib/public-catalog';
+import { createContext, createElement, useContext, type ReactNode } from 'react';
+import { DEFAULT_BRAND, type Brand } from '@/lib/brand';
 
-export type AgencyInfo = Partial<Record<
-  'agency_name' | 'legal_name' | 'description' | 'address' | 'city' | 'country' | 'phone' | 'whatsapp' | 'email' | 'website' | 'opening_hours',
-  string
->> & { social: SocialLinks };
+/**
+ * The agency's brand + contact card + social links for client components.
+ * The root layout reads it on the server (lib/brand-server.ts) and hands it
+ * down here, so the name and logo are right on the first paint.
+ */
+export type AgencyInfo = Brand;
 
-let cache: Promise<AgencyInfo> | null = null;
+const BrandContext = createContext<Brand>(DEFAULT_BRAND);
 
-/** Public agency contact card + social links, fetched once per page load. */
-export function loadAgencyInfo(): Promise<AgencyInfo> {
-  cache ||= publicAgency()
-    .then((d) => ({ ...d, social: { ...EMPTY_SOCIAL, ...(d?.social || {}) } }))
-    .catch(() => ({ social: EMPTY_SOCIAL }));
-  return cache;
+export function BrandProvider({ brand, children }: { brand: Brand; children: ReactNode }) {
+  return createElement(BrandContext.Provider, { value: brand }, children);
 }
 
-export function useAgencyInfo(): AgencyInfo | null {
-  const [info, setInfo] = useState<AgencyInfo | null>(null);
-  useEffect(() => {
-    let alive = true;
-    void loadAgencyInfo().then((d) => alive && setInfo(d));
-    return () => {
-      alive = false;
-    };
-  }, []);
-  return info;
+export function useBrand(): Brand {
+  return useContext(BrandContext);
+}
+
+/** Same as useBrand(); kept for the components that read contact details. */
+export function useAgencyInfo(): AgencyInfo {
+  return useContext(BrandContext);
 }

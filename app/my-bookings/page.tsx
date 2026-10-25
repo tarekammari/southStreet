@@ -26,7 +26,8 @@ import PrintMenu from '@/components/booking/PrintMenu';
 import { openLogin } from '@/components/auth/openLogin';
 import { authHeaders } from '@/lib/api-client';
 import { DEPOSIT_PERCENT, isClosedReservation, reservationStatusLabel } from '@/lib/booking-catalog';
-import { AGENCY_ADDRESS, AGENCY_PHONE, AGENCY_PHONE_TEL } from '@/lib/agency-contact';
+import { useBrand } from '@/components/social/useAgencyInfo';
+import { telHref } from '@/lib/brand';
 import { HOTEL_COUNTRIES } from '@/lib/tour';
 import { cityPhoto, destinationPhoto } from '@/lib/destination-photos';
 import { BOARD_LABEL, arDate, encodeRooms, formatDzd } from '@/lib/hotels/types';
@@ -72,6 +73,7 @@ function progress(r: Reservation) {
 }
 
 function NextStep({ r }: { r: Reservation }) {
+  const brand = useBrand();
   const s = String(r.status).toUpperCase();
   const p = progress(r);
   const stay = r.hotel_stay;
@@ -117,7 +119,7 @@ function NextStep({ r }: { r: Reservation }) {
         <div>
           <strong>قُبل طلبك — ادفع العربون لتأكيد الحجز</strong>
           <p>
-            العربون <b>{formatDzd(depositOf(r))}</b> ({Math.round(DEPOSIT_PERCENT * 100)}٪) يُدفع في الوكالة — {AGENCY_ADDRESS}.
+            العربون <b>{formatDzd(depositOf(r))}</b> ({Math.round(DEPOSIT_PERCENT * 100)}٪) يُدفع في الوكالة — {brand.address}.
             {stay?.free_cancel_until ? ` الإلغاء مجاني حتى ${arDate(stay.free_cancel_until, { day: 'numeric', month: 'long' })}.` : ''}
           </p>
         </div>
@@ -130,7 +132,7 @@ function NextStep({ r }: { r: Reservation }) {
         <Check aria-hidden />
         <div>
           <strong>انتهت إقامتك — نتمنى أنها كانت ممتعة</strong>
-          <p>شكراً لثقتك بساوث ستريت. احجز إقامتك القادمة متى شئت.</p>
+          <p>شكراً لثقتك بـ{brand.short_name}. احجز إقامتك القادمة متى شئت.</p>
         </div>
       </div>
     );
@@ -150,6 +152,7 @@ function NextStep({ r }: { r: Reservation }) {
 }
 
 function BookingCard({ r, focused, onCancel, busy }: { r: Reservation; focused: boolean; onCancel: (r: Reservation) => void; busy: boolean }) {
+  const brand = useBrand();
   const s = r.hotel_stay;
   const p = progress(r);
   const closed = isClosed(r);
@@ -262,7 +265,7 @@ function BookingCard({ r, focused, onCancel, busy }: { r: Reservation; focused: 
         <div className="mbk-acts">
           <PrintMenu reservationId={r.reservation_id} status={String(r.status)} className="mbk-btn" />
           <Link href="/portal?tab=chat" className="mbk-btn"><MessageCircle aria-hidden /> راسل الوكالة</Link>
-          <a href={`tel:${AGENCY_PHONE_TEL}`} className="mbk-btn"><Phone aria-hidden /> <span dir="ltr">{AGENCY_PHONE}</span></a>
+          <a href={telHref(brand.phone)} className="mbk-btn"><Phone aria-hidden /> <span dir="ltr">{brand.phone}</span></a>
           {canCancel ? (
             <button type="button" className="mbk-btn is-danger" disabled={busy} onClick={() => onCancel(r)}>
               {busy ? <Loader2 className="animate-spin" aria-hidden /> : <X aria-hidden />} إلغاء الحجز

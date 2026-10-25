@@ -24,6 +24,8 @@
   overflow: visible;
   transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), width 0.3s ease;
 }
+/* An agency's own uploaded mark (instead of the vector one). */
+.brand-mark-img { max-height: 2.6rem; object-fit: contain; }
 .brand-s1 { fill: var(--brand-sky); }
 .brand-s2 { fill: var(--brand-ink); }
 .brand-s3 { fill: var(--brand-ink-deep); }
@@ -146,8 +148,8 @@
   color: #ecfdf5;
   background:
     radial-gradient(120% 140% at 100% 0%, rgba(201, 169, 98, 0.28), transparent 55%),
-    linear-gradient(135deg, #022c22 0%, var(--primary-deep) 45%, var(--primary-green) 100%);
-  box-shadow: 0 30px 60px -20px rgba(2, 44, 34, 0.45);
+    linear-gradient(135deg, var(--brand-primary-deep, #022c22) 0%, var(--primary-deep) 45%, var(--primary-green) 100%);
+  box-shadow: 0 30px 60px -20px rgb(var(--brand-primary-deep-rgb, 2 44 34) / 0.45);
 }
 /* Faint geometric pattern, drawn with gradients so no image request. */
 .home-cta::after {
@@ -168,7 +170,7 @@
   width: 28rem;
   height: 28rem;
   border-radius: 999px;
-  background: radial-gradient(circle, rgba(16, 185, 129, 0.45), transparent 60%);
+  background: radial-gradient(circle, rgb(var(--brand-primary-light-rgb, 16 185 129) / 0.45), transparent 60%);
   top: -12rem;
   left: -8rem;
   animation: home-glow 12s ease-in-out infinite alternate;
@@ -247,7 +249,7 @@
     radial-gradient(60% 80% at 100% 0%, rgba(45, 212, 191, 0.25), transparent 60%),
     radial-gradient(50% 70% at 0% 100%, rgba(56, 189, 248, 0.22), transparent 60%),
     linear-gradient(135deg, #042f2e 0%, #0b3b4f 55%, #0f172a 100%);
-  box-shadow: 0 30px 60px -30px rgba(2, 44, 34, 0.65);
+  box-shadow: 0 30px 60px -30px rgb(var(--brand-primary-deep-rgb, 2 44 34) / 0.65);
   overflow: hidden;
 }
 @media (min-width: 640px) { .tour-show-inner { padding: 2.6rem 2.2rem 2.8rem; } }
@@ -337,20 +339,20 @@
 .tour-show-inner {
   color: var(--text-primary, #0f172a);
   background:
-    radial-gradient(60% 70% at 100% 0%, rgba(16, 185, 129, 0.08), transparent 60%),
+    radial-gradient(60% 70% at 100% 0%, rgb(var(--brand-primary-light-rgb, 16 185 129) / 0.08), transparent 60%),
     radial-gradient(50% 60% at 0% 100%, rgba(14, 165, 233, 0.07), transparent 60%),
     #fff;
   border: 1px solid rgba(15, 23, 42, 0.06);
   box-shadow: 0 24px 50px -36px rgba(15, 23, 42, 0.35);
 }
 .tour-show-inner::after { background-image: radial-gradient(rgba(15, 23, 42, 0.05) 1px, transparent 1px); }
-.tour-show-eyebrow { background: #ecfdf5; color: #047857; }
+.tour-show-eyebrow { background: #ecfdf5; color: var(--brand-primary, #047857); }
 .tour-show-head h2 { color: var(--text-primary, #0f172a); }
 .tour-show-lead { color: #64748b; }
-.tour-show-all { background: var(--primary-green, #047857); color: #fff; }
-.tour-show-all:hover { box-shadow: 0 12px 24px -12px rgba(4, 120, 87, 0.7); }
+.tour-show-all { background: var(--primary-green, var(--brand-primary, #047857)); color: #fff; }
+.tour-show-all:hover { box-shadow: 0 12px 24px -12px rgb(var(--brand-primary-rgb, 4 120 87) / 0.7); }
 .tour-show-perks li { background: #f8fafc; box-shadow: inset 0 0 0 1px #e2e8f0; color: #334155; }
-.tour-show-perks svg { color: #059669; }
+.tour-show-perks svg { color: var(--brand-primary-light, #059669); }
 .tour-tile { box-shadow: 0 16px 28px -22px rgba(15, 23, 42, 0.55); }
 .tour-tile:hover { box-shadow: 0 24px 38px -22px rgba(15, 23, 42, 0.6); }
 .tour-show-trips h3 { color: var(--text-primary, #0f172a); }
@@ -439,9 +441,9 @@
   font-size: 0.75rem;
   font-weight: 800;
 }
-.tour-tile-badge.is-live { background: rgba(255, 255, 255, 0.92); color: #065f46; }
-.tour-tile-badge i { width: 7px; height: 7px; border-radius: 50%; background: #10b981; box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6); animation: tour-pulse 1.8s ease-out infinite; }
-@keyframes tour-pulse { to { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); } }
+.tour-tile-badge.is-live { background: rgba(255, 255, 255, 0.92); color: var(--brand-primary-dark, #065f46); }
+.tour-tile-badge i { width: 7px; height: 7px; border-radius: 50%; background: #10b981; box-shadow: 0 0 0 0 rgb(var(--brand-primary-light-rgb, 16 185 129) / 0.6); animation: tour-pulse 1.8s ease-out infinite; }
+@keyframes tour-pulse { to { box-shadow: 0 0 0 8px rgb(var(--brand-primary-light-rgb, 16 185 129) / 0); } }
 
 .tour-tile-body { position: relative; z-index: 1; gap: 0.3rem; transform: translateZ(40px); }
 .tour-tile-body strong,

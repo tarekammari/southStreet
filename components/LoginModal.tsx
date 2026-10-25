@@ -9,6 +9,7 @@ import { enterSessionAndReload } from '@/lib/client-session';
 import Image from 'next/image';
 import SecurityKeyPrompt from '@/components/auth/SecurityKeyPrompt';
 import type { LoginRequest } from '@/components/auth/openLogin';
+import { useBrand } from '@/components/social/useAgencyInfo';
 
 interface LoginModalProps {
   onClose: () => void;
@@ -28,6 +29,7 @@ const REQUEST_HINT: Partial<Record<LoginRequest['method'], string>> = {
 };
 
 export default function LoginModal({ onClose, onSelectRole, redirectTo, request }: LoginModalProps) {
+  const brand = useBrand();
   const googleFirst = request?.method === 'google';
   const [identifier, setIdentifier] = useState(request?.username || '');
   const [password, setPassword] = useState('');
@@ -334,7 +336,7 @@ export default function LoginModal({ onClose, onSelectRole, redirectTo, request 
           <X className="w-5 h-5" />
         </button>
 
-        <Image src="/images/south_street_logo_trans.png" alt="South Street" width={180} height={72} className="login-simple-logo" />
+        <Image src={brand.logo_url} alt={brand.name_latin} width={180} height={72} className="login-simple-logo" unoptimized={/^https?:/.test(brand.logo_url)} />
         <h3>{waiting ? 'طلبك قيد المراجعة' : keyFlow ? 'دخول الإدارة' : screen === 'register' ? 'إنشاء حساب' : 'تسجيل الدخول'}</h3>
 
         {keyFlow ? (

@@ -12,7 +12,8 @@ import { Package } from '@/types';
 import { readWishlist } from '@/lib/wishlist';
 import { publicList } from '@/lib/public-catalog';
 import { parseTripDate } from '@/lib/booking-catalog';
-import { AGENCY_PHONE, AGENCY_PHONE_TEL } from '@/lib/agency-contact';
+import { useBrand } from '@/components/social/useAgencyInfo';
+import { telHref } from '@/lib/brand';
 import {
   PROGRAM_TYPE_LABEL,
   formatProgramDate,
@@ -48,6 +49,7 @@ function startTime(pkg: Package): number {
 }
 
 function ProgramCatalogInner() {
+  const brand = useBrand();
   // One page for both: ?kind=tourism opens the tourist trips, &dest=TR a destination.
   const params = useSearchParams();
   const router = useRouter();
@@ -375,7 +377,7 @@ function ProgramCatalogInner() {
 
         <p className="pcat-help">
           لم تجد الموعد المناسب؟ اتصل بالوكالة على{' '}
-          <a href={`tel:${AGENCY_PHONE_TEL}`} dir="ltr">{AGENCY_PHONE}</a> وسنقترح عليك أقرب برنامج.
+          <a href={telHref(brand.phone)} dir="ltr">{brand.phone}</a> وسنقترح عليك أقرب برنامج.
         </p>
       </main>
 

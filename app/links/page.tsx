@@ -47,8 +47,8 @@ export default function LinksPage() {
   return (
     <main className="ssl" dir="rtl">
       <div className="ssl-card">
-        <img src="/images/south_street_logo_trans.png" alt="South Street" className="ssl-logo" />
-        <h1>{agency?.agency_name || 'ساوث ستريت للأسفار والعمرة'}</h1>
+        <img src={agency.logo_url} alt={agency.name_latin} className="ssl-logo" />
+        <h1>{agency.agency_name}</h1>
         <p className="ssl-tag">رحلات العمرة والحج من الجزائر · مرافقة دينية · فنادق قريبة من الحرم</p>
 
         <a href={tag('/connect')} className="ssl-wa">

@@ -3,7 +3,7 @@
  * Pure utilities; do not change public API response shapes.
  */
 
-import { AGENCY_PHONE } from './agency-contact';
+import { getBrand } from './brand-server';
 
 export const SAKHR_HISTORY_TURNS = 12;
 
@@ -75,7 +75,7 @@ export function buildUnknownPriceResponse(agencyPhone?: string): {
   source: 'packages';
   sourceLabel: string;
 } {
-  const phone = agencyPhone || AGENCY_PHONE;
+  const phone = agencyPhone || getBrand().phone;
   return {
     text:
       '💰 **بخصوص الأسعار:**\n\n' +
@@ -103,7 +103,7 @@ export function buildClarifyingFallback(prompt: string, agencyPhone?: string): {
   actions: [];
   noKnowledge: true;
 } {
-  const phone = agencyPhone || AGENCY_PHONE;
+  const phone = agencyPhone || getBrand().phone;
   const short = (prompt || '').trim().slice(0, 120);
   return {
     text:

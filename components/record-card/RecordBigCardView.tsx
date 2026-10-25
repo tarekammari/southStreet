@@ -50,6 +50,8 @@ import { authHeaders, getAuthToken, jsonAuthHeaders } from '@/lib/api-client';
 import { adminFetch } from '@/lib/webauthn-client';
 import DeleteRecordDialog, { CLOSED_DELETE_DIALOG, type DeleteDialogState } from '@/components/record-card/DeleteRecordDialog';
 import StaffSalaryPanel from '@/components/record-card/StaffSalaryPanel';
+import { useBrand } from '@/components/social/useAgencyInfo';
+import { isDefaultBrand } from '@/lib/brand';
 
 function RecordPhotoSlider({
   photos,
@@ -562,6 +564,8 @@ const SKIP_ON_INSERT = new Set([
 ]);
 
 export function RecordBigCard({ card, columns, tableName, tableLabel, onClose, onSaved, isNew = false, readOnly = false }: RecordBigCardProps) {
+  // South Street's own hotels and guides are pre-filled only for South Street.
+  const ownAgency = isDefaultBrand(useBrand());
   const [editing, setEditing] = useState(false);
   const [showTechnical, setShowTechnical] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -596,11 +600,13 @@ export function RecordBigCard({ card, columns, tableName, tableLabel, onClose, o
       if (!form.duration_days) form.duration_days = '15';
       if (!form.capacity) form.capacity = '45';
       if (!form.status) form.status = 'PUBLISHED';
-      if (!form.makkah_hotel_name) form.makkah_hotel_name = 'فندق سويس أوتيل مكة (Swissôtel Makkah)';
-      if (!form.makkah_hotel_dist) form.makkah_hotel_dist = '50م فقط (دخول مباشر لصحن الحرم عبر مجمع الأبراج)';
-      if (!form.madinah_hotel_name) form.madinah_hotel_name = 'فندق بولمان زمزم المدينة المنورة';
-      if (!form.madinah_hotel_dist) form.madinah_hotel_dist = 'خطوات معدودة عن المسجد النبوي الشريف';
-      if (!form.morshid_name) form.morshid_name = 'الشيخ د. عبد الرحمن النوي';
+      if (ownAgency) {
+        if (!form.makkah_hotel_name) form.makkah_hotel_name = 'فندق سويس أوتيل مكة (Swissôtel Makkah)';
+        if (!form.makkah_hotel_dist) form.makkah_hotel_dist = '50م فقط (دخول مباشر لصحن الحرم عبر مجمع الأبراج)';
+        if (!form.madinah_hotel_name) form.madinah_hotel_name = 'فندق بولمان زمزم المدينة المنورة';
+        if (!form.madinah_hotel_dist) form.madinah_hotel_dist = 'خطوات معدودة عن المسجد النبوي الشريف';
+        if (!form.morshid_name) form.morshid_name = 'الشيخ د. عبد الرحمن النوي';
+      }
       if (!form.included_services) {
         form.included_services = JSON.stringify([
           'تأشيرة العمرة الإلكترونية النسك',
@@ -628,7 +634,7 @@ export function RecordBigCard({ card, columns, tableName, tableLabel, onClose, o
       }
     }
     return form;
-  }, [card, columns, isNew, tableName]);
+  }, [card, columns, isNew, tableName, ownAgency]);
 
   const [form, setForm] = useState<Record<string, string>>(initialForm);
   const [agencyMorshids, setAgencyMorshids] = useState<{ id: string; name: string; role: string }[]>([]);
@@ -914,7 +920,10 @@ export function RecordBigCard({ card, columns, tableName, tableLabel, onClose, o
               value: m.name,
               label: `${m.name}${m.role ? ` (${m.role})` : ''}`,
             }))
-          : [
+          : !ownAgency
+            // Another agency: only its own guides (none added yet → empty list).
+            ? []
+            : [
               { value: 'الشيخ د. عبد الرحمن النوي', label: 'الشيخ د. عبد الرحمن النوي (مرشد ديني أول)' },
               { value: 'الشيخ محمد الطيب', label: 'الشيخ محمد الطيب (مرشد المناسك والمزارات)' },
               { value: 'الأستاذ فاروق بوزيد', label: 'الأستاذ فاروق بوزيد (مرشد ميداني وقائد مجموعات)' },
@@ -1054,7 +1063,7 @@ export function RecordBigCard({ card, columns, tableName, tableLabel, onClose, o
         </div>
       );
     },
-    [editing, form, setField, applyImageValue, tableName, agencyMorshids, agencyHotels, columns]
+    [editing, form, setField, applyImageValue, tableName, agencyMorshids, agencyHotels, columns, ownAgency]
   );
 
   const heroMeta = useMemo(() => {

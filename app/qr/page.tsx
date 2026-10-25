@@ -5,6 +5,7 @@ import { Phone, Printer } from 'lucide-react';
 import PhoneQr from '@/components/PhoneQr';
 import { useAgencyInfo } from '@/components/social/useAgencyInfo';
 import './qr-poster.css';
+import { connectName } from '@/lib/brand';
 
 /**
  * Printable QR poster (A4): put it on the office counter, in brochures or at
@@ -15,7 +16,7 @@ import './qr-poster.css';
 const TARGETS: Record<string, { headline: string; line: string }> = {
   '/': { headline: 'امسح الرمز بكاميرا هاتفك', line: 'برامج العمرة والحج، الحجز، ومتابعة رحلتك مع الوكالة' },
   '/packages': { headline: 'برامجنا على هاتفك', line: 'كل برامج العمرة والحج بالأسعار والمقاعد المتبقية' },
-  '/app': { headline: 'ثبّت تطبيق South Street Connect', line: 'رسائل ومكالمات مع الوكالة ومرشدك' },
+  '/app': { headline: 'ثبّت تطبيق Connect', line: 'رسائل ومكالمات مع الوكالة ومرشدك' },
 };
 
 export default function QrPoster() {
@@ -29,7 +30,8 @@ export default function QrPoster() {
     setTo(wanted.startsWith('/') && !wanted.startsWith('//') ? wanted : '/');
   }, []);
 
-  const copy = TARGETS[to] || { headline: 'امسح الرمز بكاميرا هاتفك', line: 'لتفتح الصفحة على هاتفك' };
+  const target = TARGETS[to] || { headline: 'امسح الرمز بكاميرا هاتفك', line: 'لتفتح الصفحة على هاتفك' };
+  const copy = to === '/app' ? { ...target, headline: `ثبّت تطبيق ${connectName(agency)}` } : target;
 
   return (
     <main className="qrp" dir="rtl">
@@ -48,8 +50,8 @@ export default function QrPoster() {
       </div>
 
       <article className="qrp-sheet">
-        <img className="qrp-logo" src="/images/south_street_logo_trans.png" alt="South Street" />
-        <p className="qrp-agency">{agency?.agency_name || 'وكالة ساوث ستريت للأسفار والعمرة'}</p>
+        <img className="qrp-logo" src={agency.logo_url} alt={agency.name_latin} />
+        <p className="qrp-agency">{agency.agency_name}</p>
 
         <h1>{copy.headline}</h1>
         <p className="qrp-line">{copy.line}</p>

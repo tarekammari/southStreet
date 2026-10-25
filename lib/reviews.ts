@@ -1,5 +1,7 @@
 import { getSqliteDb } from './sqlite';
 import { dbLogAudit } from './db';
+import { getBrand } from './brand-server';
+import { agencyLabel } from './brand';
 
 export type ReviewTargetType = 'agency' | 'staff' | 'package';
 export type ReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'HIDDEN';
@@ -149,7 +151,7 @@ export function submitReview(input: {
     const staff = db.prepare('SELECT name FROM morshids WHERE morshid_id = ?').get(input.targetId) as any;
     targetName = staff?.name || '';
   }
-  if (input.targetType === 'agency') targetName = targetName || 'وكالة ساوث ستريت';
+  if (input.targetType === 'agency') targetName = targetName || agencyLabel(getBrand());
 
   if (input.reviewerUserId) {
     const existing = db.prepare(

@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { ChevronDown, Lock, Maximize2, Mic, MicOff, Phone, PhoneOff, PictureInPicture2, ShieldAlert, Volume1, Volume2 } from 'lucide-react';
 import type { CallPhase, CallQuality, CallSecurity } from '@/lib/connect/rtc';
+import { connectName } from '@/lib/brand';
+import { useBrand } from '@/components/social/useAgencyInfo';
 
 export type CallView = {
   peerName: string;
@@ -110,6 +112,7 @@ export default function CallOverlay({
   /** Shown only where the app can switch earpiece / loudspeaker. */
   onSpeaker?: () => void;
 }) {
+  const brand = useBrand();
   const status = useCallStatus(view);
   const incoming = view.phase === 'incoming';
   const live = !incoming && view.phase !== 'ended';
@@ -126,7 +129,7 @@ export default function CallOverlay({
         ) : <span />}
         <span className="cn-call-brand">
           <img src="/icons/connect-192.png" alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-          South Street Connect
+          {connectName(brand)}
         </span>
         {live && canPopOut && onPopOut ? (
           <button type="button" className="cn-call-chip" onClick={onPopOut} aria-label="نافذة عائمة" title="نافذة عائمة فوق كل النوافذ">
