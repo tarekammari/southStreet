@@ -1468,16 +1468,29 @@ export function seedAgencyKnowledge(db: Database.Database, brand: Brand = curren
   ];
 
   // Seeded answers speak for the agency of this installation (South Street by default).
-  // The director / accountant answers name South Street's own staff: only for South Street.
-  const ownStaffRules = new Set(['rule_director_info', 'rule_accountant_info']);
+  // South Street's own offers, prices, payment policy and staff are only for South Street;
+  // another agency keeps the general answers, without South Street's details.
+  const ownAgencyRules = new Set([
+    'rule_august_package', 'rule_mawlid_package', 'rule_finance_ccp',
+    'rule_installments_facility', 'rule_director_info', 'rule_accountant_info',
+  ]);
+  const generic: Record<string, (text: string) => string> = {
+    // South Street's deposit rule (30% via CCP / BaridiMob).
+    rule_passport_docs: (t) => t.replace(/\n4\. دفع عربون[^\n]*/, ''),
+    // South Street's guide by name.
+    rule_umrah_steps: (t) => t.replace(/\n💡 يرافقك المرشد الديني[^\n]*/, ''),
+  };
   const dropRule = db.prepare('DELETE FROM ai_knowledge WHERE id = ?');
+  const own = isDefaultBrand(brand);
   db.transaction(() => {
     for (const r of rules) {
-      if (!isDefaultBrand(brand) && ownStaffRules.has(String(r[0]))) {
-        dropRule.run(r[0]);
+      const id = String(r[0]);
+      if (!own && ownAgencyRules.has(id)) {
+        dropRule.run(id);
         continue;
       }
       const row = r.map((v) => (typeof v === 'string' ? rebrandText(v, brand) : v));
+      if (!own && generic[id]) row[4] = generic[id](String(row[4]));
       // The address answer also lists the other offices and phone lines.
       const extra = r[0] === 'rule_agency_location' ? brandContactLines(brand) : '';
       if (extra) row[4] = `${row[4]}\n${extra}`;
