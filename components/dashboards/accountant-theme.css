@@ -1,7 +1,7 @@
 /* Modern Financial Workspace — Premium Fintech Design System */
 
 .acct-theme-light {
-  --md-primary: #059669; /* Emerald 600 */
+  --md-primary: var(--brand-primary-light, #059669); /* Emerald 600 */
   --md-on-primary: #ffffff;
   --md-primary-container: #ecfdf5; /* Emerald 50 */
   --md-on-primary-container: var(--brand-primary-dark, #064e3b); /* Emerald 900 */
@@ -20,7 +20,7 @@
   --md-error: #e11d48; /* Rose 600 */
   --md-on-error-container: #881337;
   --md-error-container: #ffe4e6;
-  --md-success: #059669; /* Emerald 600 */
+  --md-success: var(--brand-primary-light, #059669); /* Emerald 600 */
   --md-success-container: #ecfdf5;
   --md-warning: #d97706; /* Amber 600 */
   --md-warning-container: #fef3c7;
@@ -54,7 +54,7 @@
 
 .acct-theme-dark {
   --md-primary: #10b981;
-  --md-on-primary: #022c22;
+  --md-on-primary: var(--brand-primary-deep, #022c22);
   --md-primary-container: var(--brand-primary-dark, #064e3b);
   --md-on-primary-container: #a7f3d0;
   --md-secondary-container: #1e293b;
@@ -233,10 +233,10 @@ body.acct-page .portal-main-accountant {
   color: #10b981;
 }
 .acct-side-item.is-on {
-  background: linear-gradient(135deg, #059669 0%, var(--brand-primary, #047857) 100%) !important;
+  background: linear-gradient(135deg, var(--brand-primary-light, #059669) 0%, var(--brand-primary, #047857) 100%) !important;
   color: #ffffff !important;
   font-weight: 700;
-  box-shadow: 0 4px 14px rgba(5, 150, 105, 0.28);
+  box-shadow: 0 4px 14px rgb(var(--brand-primary-light-rgb, 5 150 105) / 0.28);
 }
 .acct-side-item.is-on .acct-side-icon {
   color: #ffffff !important;
@@ -430,8 +430,8 @@ body.acct-page .portal-main-accountant {
   transition: all 0.2s;
 }
 .acct-datepick:focus-within {
-  border-color: #059669;
-  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.12);
+  border-color: var(--brand-primary-light, #059669);
+  box-shadow: 0 0 0 3px rgb(var(--brand-primary-light-rgb, 5 150 105) / 0.12);
 }
 .acct-datepick-text {
   width: 100%;
@@ -611,14 +611,14 @@ button.acct-kpi.acct-kpi-btn {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 button.acct-kpi.acct-kpi-btn:hover {
-  border-color: #059669;
+  border-color: var(--brand-primary-light, #059669);
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px -4px rgba(5, 150, 105, 0.15);
+  box-shadow: 0 8px 24px -4px rgb(var(--brand-primary-light-rgb, 5 150 105) / 0.15);
 }
 button.acct-kpi.acct-kpi-active {
-  border-color: #059669;
+  border-color: var(--brand-primary-light, #059669);
   background: #ecfdf5;
-  box-shadow: 0 4px 16px rgba(5, 150, 105, 0.18);
+  box-shadow: 0 4px 16px rgb(var(--brand-primary-light-rgb, 5 150 105) / 0.18);
 }
 .acct-theme-dark button.acct-kpi.acct-kpi-active {
   background: rgba(16, 185, 129, 0.15);
@@ -1216,7 +1216,7 @@ button.acct-3d-slot:hover { background: color-mix(in srgb, var(--md-on-surface) 
   --dash-line: #e11d48;
   --dash-income: var(--brand-primary, #047857);
   --dash-spend: #e11d48;
-  --dash-ring-a: #059669;
+  --dash-ring-a: var(--brand-primary-light, #059669);
   --dash-ring-b: #0284c7;
   border-radius: 20px;
   padding: 22px 22px 20px;
@@ -1359,7 +1359,7 @@ button.acct-dash-kpi {
 button.acct-dash-kpi:hover {
   border-color: #a7f3d0;
   transform: translateY(-1px);
-  box-shadow: 0 10px 24px -14px rgba(4, 120, 87, 0.35);
+  box-shadow: 0 10px 24px -14px rgb(var(--brand-primary-rgb, 4 120 87) / 0.35);
 }
 .acct-dash-kpi > span:first-child,
 .acct-dash-kpi .flex > span {
@@ -1642,13 +1642,13 @@ button.acct-dash-kpi:hover {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .acct-btn-primary {
-  background: linear-gradient(135deg, #059669 0%, var(--brand-primary, #047857) 100%);
+  background: linear-gradient(135deg, var(--brand-primary-light, #059669) 0%, var(--brand-primary, #047857) 100%);
   color: #ffffff;
-  box-shadow: 0 4px 14px rgba(5, 150, 105, 0.28);
+  box-shadow: 0 4px 14px rgb(var(--brand-primary-light-rgb, 5 150 105) / 0.28);
 }
 .acct-btn-primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(5, 150, 105, 0.35);
+  box-shadow: 0 6px 20px rgb(var(--brand-primary-light-rgb, 5 150 105) / 0.35);
   filter: brightness(1.05);
 }
 .acct-btn-ghost {
@@ -1708,16 +1708,16 @@ button.acct-dash-kpi:hover {
   align-items: center;
   justify-content: center;
   border-radius: 0.75rem;
-  background: linear-gradient(135deg, #059669 0%, var(--brand-primary, #047857) 100%);
+  background: linear-gradient(135deg, var(--brand-primary-light, #059669) 0%, var(--brand-primary, #047857) 100%);
   color: #ffffff;
   cursor: pointer;
   border: 0;
-  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.25);
+  box-shadow: 0 4px 12px rgb(var(--brand-primary-light-rgb, 5 150 105) / 0.25);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .acct-pay:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(5, 150, 105, 0.35);
+  box-shadow: 0 6px 16px rgb(var(--brand-primary-light-rgb, 5 150 105) / 0.35);
 }
 
 /* —— Tabs / segmented (Modern Pill Bar) —— */
@@ -1881,7 +1881,7 @@ button.acct-dash-kpi:hover {
   background: #ecfdf5 !important;
   color: var(--brand-primary, #047857) !important;
   border-color: #a7f3d0 !important;
-  box-shadow: 0 2px 8px rgba(5, 150, 105, 0.15) !important;
+  box-shadow: 0 2px 8px rgb(var(--brand-primary-light-rgb, 5 150 105) / 0.15) !important;
 }
 
 .acct-badge {
@@ -1893,7 +1893,7 @@ button.acct-dash-kpi:hover {
   font-weight: 700;
   background: #ecfdf5;
   color: var(--brand-primary, #047857);
-  border: 1px solid rgba(5, 150, 105, 0.2);
+  border: 1px solid rgb(var(--brand-primary-light-rgb, 5 150 105) / 0.2);
 }
 .acct-tag {
   display: inline-flex;
@@ -1907,7 +1907,7 @@ button.acct-dash-kpi:hover {
 .acct-tag-ok {
   background: #ecfdf5 !important;
   color: var(--brand-primary, #047857) !important;
-  border: 1px solid rgba(5, 150, 105, 0.25) !important;
+  border: 1px solid rgb(var(--brand-primary-light-rgb, 5 150 105) / 0.25) !important;
 }
 .acct-tag-warn {
   background: #fef3c7 !important;
@@ -2114,9 +2114,9 @@ button.acct-dash-kpi:hover {
   transition: all 0.2s;
 }
 .acct-filter-date:focus {
-  border-color: #059669;
+  border-color: var(--brand-primary-light, #059669);
   background: #ffffff;
-  box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.12);
+  box-shadow: 0 0 0 2px rgb(var(--brand-primary-light-rgb, 5 150 105) / 0.12);
 }
 .acct-filter-period-sep {
   font-size: 0.75rem;
@@ -2300,8 +2300,8 @@ button.acct-stat-card:active { transform: scale(0.985); }
   background: rgba(217, 119, 6, 0.07);
 }
 .acct-supplier-status-pill.is-paid-full {
-  border-color: rgba(5, 150, 105, 0.3);
-  background: rgba(5, 150, 105, 0.06);
+  border-color: rgb(var(--brand-primary-light-rgb, 5 150 105) / 0.3);
+  background: rgb(var(--brand-primary-light-rgb, 5 150 105) / 0.06);
 }
 .acct-supplier-status-hint {
   font-size: 0.8125rem;

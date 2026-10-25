@@ -10,16 +10,16 @@ const config: Config = {
     extend: {
       colors: {
         emerald: {
-          deep: "#022c22",
+          deep: "rgb(var(--brand-primary-deep-rgb, 2 44 34) / <alpha-value>)",
           // Brand colour from «هوية الوكالة» (lib/brand.ts), South Street green by default.
           dark: "rgb(var(--brand-primary-dark-rgb, 6 78 59) / <alpha-value>)",
           main: "rgb(var(--brand-primary-rgb, 4 120 87) / <alpha-value>)",
-          light: "#059669",
+          light: "rgb(var(--brand-primary-light-rgb, 5 150 105) / <alpha-value>)",
           soft: "#ecfdf5",
         },
         gold: {
           dark: "#9a7b1c",
-          main: "#d4af37",
+          main: "rgb(var(--brand-accent-rgb, 212 175 55) / <alpha-value>)",
           light: "#fef08a",
           soft: "#fffbeb",
         },

@@ -10,6 +10,11 @@
  */
 import { EMPTY_SOCIAL, type SocialLinks } from './social';
 
+/** Another office of the agency. */
+export type BrandBranch = { city: string; address: string; phone: string };
+/** A phone line besides the main one (label: «واتساب»، «الحجوزات»…). */
+export type BrandPhone = { label: string; number: string };
+
 export type Brand = {
   /** Full Arabic name: «ساوث ستريت للأسفار والعمرة». */
   agency_name: string;
@@ -35,6 +40,8 @@ export type Brand = {
   hero_images: string;
   /** Main colour (#rrggbb). */
   primary_color: string;
+  /** Second colour for highlights (#rrggbb, '' = the built-in gold). */
+  accent_color: string;
   address: string;
   city: string;
   country: string;
@@ -48,12 +55,19 @@ export type Brand = {
   /** Public site address, e.g. https://southstreet.dz */
   website: string;
   opening_hours: string;
+  /** Other offices (the head office is address / city above). */
+  branches: BrandBranch[];
+  /** Other phone lines (the main one is phone above). */
+  phones: BrandPhone[];
   social: SocialLinks;
   /** false until the Super Admin saves «هوية الوكالة» once (first-run wizard). */
   configured: boolean;
 };
 
-export type BrandField = Exclude<keyof Brand, 'social' | 'configured'>;
+export type BrandField = Exclude<keyof Brand, 'social' | 'configured' | BrandListField>;
+export type BrandListField = 'branches' | 'phones';
+/** List fields, stored as JSON text in columns of the same name. */
+export const BRAND_LIST_FIELDS: BrandListField[] = ['branches', 'phones'];
 
 export const DEFAULT_BRAND: Brand = {
   agency_name: 'ساوث ستريت للأسفار والعمرة',
@@ -69,6 +83,7 @@ export const DEFAULT_BRAND: Brand = {
   og_image_url: '/og/south-street-og.jpg',
   hero_images: '',
   primary_color: '#047857',
+  accent_color: '',
   address: 'شارع خميستي الرئيسي، وسط مدينة الوادي',
   city: 'ولاية الوادي',
   country: 'الجزائر',
@@ -81,6 +96,8 @@ export const DEFAULT_BRAND: Brand = {
   email: 'contact@southstreet.dz',
   website: 'https://southstreet.dz',
   opening_hours: 'الأحد - الخميس: 08:30 صباحاً - 17:30 مساءً',
+  branches: [],
+  phones: [],
   social: EMPTY_SOCIAL,
   configured: true,
 };
@@ -88,16 +105,62 @@ export const DEFAULT_BRAND: Brand = {
 /** Text fields stored as agency_settings columns (same names). */
 export const BRAND_FIELDS: BrandField[] = [
   'agency_name', 'short_name', 'name_latin', 'legal_name', 'tagline', 'site_title', 'description',
-  'logo_url', 'mark_url', 'favicon_url', 'og_image_url', 'hero_images', 'primary_color',
+  'logo_url', 'mark_url', 'favicon_url', 'og_image_url', 'hero_images', 'primary_color', 'accent_color',
   'address', 'city', 'country', 'map_url', 'map_lat', 'map_lng',
   'phone', 'whatsapp', 'emergency_phone', 'email', 'website', 'opening_hours',
 ];
 
 /** Columns added to agency_settings for the brand (the others already existed). */
-export const BRAND_NEW_COLUMNS: BrandField[] = [
+export const BRAND_NEW_COLUMNS: (BrandField | BrandListField)[] = [
   'short_name', 'name_latin', 'tagline', 'site_title', 'logo_url', 'mark_url', 'favicon_url', 'og_image_url',
-  'hero_images', 'primary_color', 'map_url', 'map_lat', 'map_lng',
+  'hero_images', 'primary_color', 'accent_color', 'map_url', 'map_lat', 'map_lng', 'branches', 'phones',
 ];
+
+const clip = (v: unknown, max = 200) => String(v ?? '').trim().slice(0, max);
+
+/** Stored JSON (or an API body) → clean branch list; bad entries are dropped. */
+export function parseBranches(raw: unknown): BrandBranch[] {
+  const list = parseList(raw);
+  return list
+    .map((b) => ({ city: clip(b?.city, 80), address: clip(b?.address), phone: clip(b?.phone, 30) }))
+    .filter((b) => b.city || b.address)
+    .slice(0, 20);
+}
+
+/** Stored JSON (or an API body) → clean phone list. */
+export function parsePhones(raw: unknown): BrandPhone[] {
+  return parseList(raw)
+    .map((p) => ({ label: clip(p?.label, 40), number: clip(p?.number, 30) }))
+    .filter((p) => p.number)
+    .slice(0, 30);
+}
+
+function parseList(raw: unknown): any[] {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw !== 'string' || !raw.trim()) return [];
+  try {
+    const v = JSON.parse(raw);
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Branches and other phone lines as Markdown lines (Sakhr answers); '' when there are none. */
+export function brandContactLines(brand: Pick<Brand, 'branches' | 'phones'>): string {
+  const lines: string[] = [];
+  for (const b of brand.branches) lines.push(`🏬 **فرع ${b.city || ''}:** ${[b.address, b.phone].filter(Boolean).join(' · ')}`.replace(' :**', ':**'));
+  const byLabel = new Map<string, string[]>();
+  for (const p of brand.phones) byLabel.set(p.label || 'هاتف', [...(byLabel.get(p.label || 'هاتف') || []), p.number]);
+  for (const [label, numbers] of byLabel) lines.push(`📞 **${label}:** ${numbers.join(' · ')}`);
+  return lines.join('\n');
+}
+
+/** WhatsApp lines of the agency: the main WhatsApp number, then «واتساب» phones. */
+export function brandWhatsapps(brand: Pick<Brand, 'whatsapp' | 'phones'>): string[] {
+  const list = [brand.whatsapp, ...brand.phones.filter((p) => /واتس|whats/i.test(p.label)).map((p) => p.number)];
+  return [...new Set(list.map((n) => n.trim()).filter(Boolean))];
+}
 
 /** The site cannot render without these: an empty one takes the default. */
 const REQUIRED_FIELDS = new Set<BrandField>(['agency_name', 'short_name', 'name_latin', 'logo_url', 'mark_url', 'og_image_url', 'primary_color']);
@@ -114,6 +177,8 @@ export function brandFrom(row: Partial<Record<string, unknown>> | null | undefin
     const value = String(row[key]).trim();
     if (value || !REQUIRED_FIELDS.has(key)) out[key] = value;
   }
+  if (row && row.branches != null) out.branches = parseBranches(row.branches);
+  if (row && row.phones != null) out.phones = parsePhones(row.phones);
   // An agency that uploaded only its logo: South Street's mark, share image and
   // tab icon must not show next to it.
   if (out.logo_url !== DEFAULT_BRAND.logo_url) {
@@ -123,6 +188,7 @@ export function brandFrom(row: Partial<Record<string, unknown>> | null | undefin
   }
   if (!out.mark_url) out.mark_url = out.logo_url;
   if (!/^#[0-9a-f]{6}$/i.test(out.primary_color)) out.primary_color = DEFAULT_BRAND.primary_color;
+  if (out.accent_color && !/^#[0-9a-f]{6}$/i.test(out.accent_color)) out.accent_color = '';
   // Another agency that kept South Street's texts: they speak for this agency instead.
   if (!isDefaultBrand(out)) {
     if (out.site_title === DEFAULT_BRAND.site_title) out.site_title = '';
@@ -157,7 +223,12 @@ export function shortConnectName(brand: Pick<Brand, 'name_latin'>): string {
 
 /** Address on one line: street، city، country. */
 export function fullAddress(brand: Pick<Brand, 'address' | 'city' | 'country'>): string {
-  return [brand.address, brand.city, brand.country].map((s) => s.trim()).filter(Boolean).join('، ');
+  const out: string[] = [];
+  // An address that already names the city / country does not get them twice.
+  for (const part of [brand.address, brand.city, brand.country].map((s) => s.trim())) {
+    if (part && !out.some((p) => p.includes(part))) out.push(part);
+  }
+  return out.join('، ');
 }
 
 /** Map pin from the stored position ('' when there is none). */
@@ -253,9 +324,21 @@ function rgbChannels(hex: string): string {
  * every stylesheet already falls back to it). Stylesheets use
  * var(--brand-primary, #047857) and var(--brand-primary-dark, …).
  */
-export function brandCssVars(brand: Pick<Brand, 'primary_color'>): string {
+export function brandCssVars(brand: Pick<Brand, 'primary_color' | 'accent_color'>): string {
+  const vars: string[] = [];
   const c = brand.primary_color.toLowerCase();
-  if (c === DEFAULT_BRAND.primary_color) return '';
-  const dark = shadeColor(c, -0.3);
-  return `:root{--brand-primary:${c};--brand-primary-rgb:${rgbChannels(c)};--brand-primary-dark:${dark};--brand-primary-dark-rgb:${rgbChannels(dark)};}`;
+  if (c !== DEFAULT_BRAND.primary_color) {
+    const dark = shadeColor(c, -0.3);
+    const light = shadeColor(c, 0.18);
+    const deep = shadeColor(c, -0.65);
+    vars.push(
+      `--brand-primary-deep:${deep}`, `--brand-primary-deep-rgb:${rgbChannels(deep)}`,
+      `--brand-primary:${c}`, `--brand-primary-rgb:${rgbChannels(c)}`,
+      `--brand-primary-dark:${dark}`, `--brand-primary-dark-rgb:${rgbChannels(dark)}`,
+      `--brand-primary-light:${light}`, `--brand-primary-light-rgb:${rgbChannels(light)}`,
+    );
+  }
+  const a = brand.accent_color.toLowerCase();
+  if (a) vars.push(`--brand-accent:${a}`, `--brand-accent-rgb:${rgbChannels(a)}`);
+  return vars.length ? `:root{${vars.join(';')};}` : '';
 }

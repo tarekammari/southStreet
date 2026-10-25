@@ -19,7 +19,7 @@ import { ensureDbFile, isServerlessHost, resolveDbPath } from './db-path';
 import { bootstrapFiscalPeriodsForYear } from './finance-periods';
 import { seedScfChartAccounts } from './scf-chart-seed';
 import { reprepareAcrossTransactions } from './turso-statements';
-import { BRAND_NEW_COLUMNS, DEFAULT_BRAND, brandFrom, isDefaultBrand, rebrandText, type Brand } from './brand';
+import { BRAND_NEW_COLUMNS, DEFAULT_BRAND, brandContactLines, brandFrom, isDefaultBrand, rebrandText, type Brand } from './brand';
 
 let dbInstance: Database.Database | null = null;
 let dbPathUsed: string | null = null;
@@ -1205,7 +1205,7 @@ function seedDefaults(db: Database.Database) {
       // Brand columns added later start with the default brand's values. A database
       // that already existed is the running agency: it is configured, no wizard.
       for (const col of BRAND_NEW_COLUMNS) {
-        if (row[col] == null) db.prepare(`UPDATE agency_settings SET ${col} = ? WHERE id = 'main'`).run(DEFAULT_BRAND[col]);
+        if (row[col] == null) db.prepare(`UPDATE agency_settings SET ${col} = ? WHERE id = 'main'`).run(Array.isArray(DEFAULT_BRAND[col]) ? JSON.stringify(DEFAULT_BRAND[col]) : DEFAULT_BRAND[col]);
       }
       if (!row.brand_status) db.prepare("UPDATE agency_settings SET brand_status = 'CONFIGURED' WHERE id = 'main'").run();
     }
@@ -1477,7 +1477,11 @@ export function seedAgencyKnowledge(db: Database.Database, brand: Brand = curren
         dropRule.run(r[0]);
         continue;
       }
-      insertRule.run(...r.map((v) => (typeof v === 'string' ? rebrandText(v, brand) : v)));
+      const row = r.map((v) => (typeof v === 'string' ? rebrandText(v, brand) : v));
+      // The address answer also lists the other offices and phone lines.
+      const extra = r[0] === 'rule_agency_location' ? brandContactLines(brand) : '';
+      if (extra) row[4] = `${row[4]}\n${extra}`;
+      insertRule.run(...row);
     }
   })();
 

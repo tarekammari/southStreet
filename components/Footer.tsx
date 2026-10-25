@@ -74,7 +74,7 @@ export default function Footer({ content, hideCta = false }: { content?: PageCon
   const contacts = [
     agency.phone && { icon: Phone, label: agency.phone, href: telHref(agency.phone), ltr: true },
     agency.email && { icon: Mail, label: agency.email, href: `mailto:${agency.email}`, ltr: true },
-    { icon: MapPin, label: agency.city || agency.address, href: '/about#contact' },
+    { icon: MapPin, label: [agency.city || agency.address, ...agency.branches.map((b) => b.city)].filter(Boolean).join(' · '), href: '/about#contact' },
   ].filter(Boolean) as { icon: typeof Phone; label: string; href: string; ltr?: boolean }[];
 
   const companyLinks = COMPANY_LINKS.map((link) =>

@@ -13,6 +13,7 @@
     "admin:setup": "tsx scripts/super-admin.ts setup",
     "admin:recover": "tsx scripts/super-admin.ts recover",
     "admin:status": "tsx scripts/super-admin.ts status",
+    "brand:import": "tsx scripts/brand-import.ts",
     "db:push-turso": "tsx scripts/turso-push.ts",
     "connect:ringtones": "tsx scripts/render-ringtones.ts",
     "db:rekey": "tsx scripts/db-rekey.ts",

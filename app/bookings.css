@@ -31,7 +31,7 @@
 .mbk-card.is-focused { box-shadow: 0 0 0 3px #6ee7b7, 0 24px 50px -40px rgba(15, 23, 42, 0.7); }
 .mbk-card.is-closed { opacity: 0.85; }
 @media (min-width: 820px) { .mbk-card { grid-template-columns: 16rem 1fr; } }
-.mbk-media { position: relative; display: grid; place-items: center; min-height: 11rem; background: linear-gradient(150deg, #0f766e, #022c22); color: rgba(255, 255, 255, 0.8); }
+.mbk-media { position: relative; display: grid; place-items: center; min-height: 11rem; background: linear-gradient(150deg, #0f766e, var(--brand-primary-deep, #022c22)); color: rgba(255, 255, 255, 0.8); }
 .mbk-media img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .mbk-media > svg { width: 2.4rem; height: 2.4rem; }
 .mbk-card.is-closed .mbk-media img { filter: grayscale(0.7); }

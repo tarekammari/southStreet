@@ -7,13 +7,20 @@
  * still the default one.
  */
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Check, ExternalLink, ImagePlus, Loader2, Palette, Save, Upload, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, ExternalLink, FolderInput, ImagePlus, Loader2, Palette, Plus, Save, Trash2, Upload, X } from 'lucide-react';
 import { adminFetch, keyErrorMessage } from '@/lib/webauthn-client';
-import { BRAND_FIELDS, DEFAULT_BRAND, brandHeroImages, type Brand, type BrandField } from '@/lib/brand';
+import { BRAND_FIELDS, DEFAULT_BRAND, brandHeroImages, fullAddress, type Brand, type BrandBranch, type BrandField, type BrandPhone } from '@/lib/brand';
+import { profileAssets, profileToBrand, type BrandKnowledge, type BrandProfile } from '@/lib/brand-profile';
 import { SOCIAL_LABELS, type SocialLinks } from '@/lib/social';
 
 type SocialKey = keyof typeof SOCIAL_LABELS;
-type Draft = Record<BrandField, string> & { social: Pick<SocialLinks, SocialKey> };
+type Draft = Record<BrandField, string> & {
+  social: Pick<SocialLinks, SocialKey>;
+  branches: BrandBranch[];
+  phones: BrandPhone[];
+  /** Sakhr answers from an imported profile, saved with the brand. */
+  knowledge?: BrandKnowledge[];
+};
 
 async function uploadImage(file: File): Promise<string> {
   const form = new FormData();
@@ -27,6 +34,8 @@ async function uploadImage(file: File): Promise<string> {
 function draftOf(brand: Brand): Draft {
   const out = {} as Draft;
   for (const key of BRAND_FIELDS) out[key] = brand[key];
+  out.branches = brand.branches.map((b) => ({ ...b }));
+  out.phones = brand.phones.map((ph) => ({ ...ph }));
   out.social = Object.fromEntries((Object.keys(SOCIAL_LABELS) as SocialKey[]).map((k) => [k, brand.social[k] || ''])) as Draft['social'];
   return out;
 }
@@ -123,7 +132,7 @@ function Preview({ draft }: { draft: Draft }) {
       </div>
       <div className="px-4 py-3 text-[12.5px] text-slate-600 space-y-1">
         <p><b className="text-slate-900">{draft.agency_name || '—'}</b></p>
-        <p>{[draft.address, draft.city, draft.country].filter(Boolean).join('، ')}</p>
+        <p>{fullAddress(draft)}</p>
         <p dir="ltr" className="text-right">{[draft.phone, draft.email].filter(Boolean).join(' · ')}</p>
         <p className="text-slate-400">عنوان الصفحات: «… | {draft.short_name || '—'}»</p>
       </div>
@@ -206,6 +215,15 @@ function LookSection({ draft, set, fail }: SectionProps) {
         </label>
         <div className="w-32"><Text title="الرمز" value={draft.primary_color} onChange={(v) => set('primary_color', v)} ltr max={7} /></div>
         <button type="button" className={ghostBtn} onClick={() => set('primary_color', DEFAULT_BRAND.primary_color)}><Palette className="w-4 h-4" /> اللون الافتراضي</button>
+      </div>
+      <div className="flex items-end gap-3 flex-wrap">
+        <label className="block">
+          <span className={label}>لون ثانوي (اختياري)</span>
+          <input type="color" value={/^#[0-9a-f]{6}$/i.test(draft.accent_color) ? draft.accent_color : '#d4af37'}
+            onChange={(e) => set('accent_color', e.target.value)} className="h-11 w-16 rounded-xl border border-slate-300 bg-white p-1 cursor-pointer" />
+        </label>
+        <div className="w-32"><Text title="الرمز" value={draft.accent_color} onChange={(v) => set('accent_color', v)} ltr max={7} placeholder="#d4af37" /></div>
+        {draft.accent_color ? <button type="button" className={ghostBtn} onClick={() => set('accent_color', '')}><X className="w-4 h-4" /> الذهبي الافتراضي</button> : null}
       </div>
     </Card>
   );
@@ -295,10 +313,98 @@ function PhotosSection({ draft, set, fail }: SectionProps) {
   );
 }
 
+type ListProps = { draft: Draft; setDraft: (fn: (d: Draft) => Draft) => void };
+
+/** Other offices and phone lines (the head office and main phone are above). */
+function ListsSection({ draft, setDraft }: ListProps) {
+  const setBranch = (i: number, patch: Partial<BrandBranch>) =>
+    setDraft((d) => ({ ...d, branches: d.branches.map((b, j) => (j === i ? { ...b, ...patch } : b)) }));
+  const setPhone = (i: number, patch: Partial<BrandPhone>) =>
+    setDraft((d) => ({ ...d, phones: d.phones.map((x, j) => (j === i ? { ...x, ...patch } : x)) }));
+  const iconBtn = 'grid place-items-center w-11 h-11 shrink-0 rounded-xl border border-slate-200 text-slate-500 hover:text-red-600 hover:bg-slate-50';
+  return (
+    <Card title="الفروع وخطوط الهاتف" hint="مكاتب أخرى غير المقر، وأرقام إضافية (واتساب، الحجوزات…). تظهر في «عن الوكالة» والتذييل وردود صخر.">
+      <div className="space-y-2">
+        <span className={label}>الفروع</span>
+        {draft.branches.map((b, i) => (
+          <div key={i} className="flex gap-2 items-center flex-wrap sm:flex-nowrap">
+            <input className={`${input} sm:w-40`} value={b.city} placeholder="المدينة" maxLength={80} onChange={(e) => setBranch(i, { city: e.target.value })} />
+            <input className={input} value={b.address} placeholder="العنوان" maxLength={200} onChange={(e) => setBranch(i, { address: e.target.value })} />
+            <input className={`${input} sm:w-44`} value={b.phone} placeholder="الهاتف (اختياري)" dir="ltr" maxLength={30} onChange={(e) => setBranch(i, { phone: e.target.value })} />
+            <button type="button" className={iconBtn} aria-label="حذف الفرع" onClick={() => setDraft((d) => ({ ...d, branches: d.branches.filter((_, j) => j !== i) }))}><Trash2 className="w-4 h-4" /></button>
+          </div>
+        ))}
+        <button type="button" className={ghostBtn} onClick={() => setDraft((d) => ({ ...d, branches: [...d.branches, { city: '', address: '', phone: '' }] }))}><Plus className="w-4 h-4" /> إضافة فرع</button>
+      </div>
+      <div className="space-y-2">
+        <span className={label}>أرقام إضافية</span>
+        {draft.phones.map((ph, i) => (
+          <div key={i} className="flex gap-2 items-center">
+            <input className={`${input} w-40`} value={ph.label} placeholder="واتساب / الحجوزات" maxLength={40} onChange={(e) => setPhone(i, { label: e.target.value })} />
+            <input className={input} value={ph.number} placeholder="الرقم" dir="ltr" maxLength={30} onChange={(e) => setPhone(i, { number: e.target.value })} />
+            <button type="button" className={iconBtn} aria-label="حذف الرقم" onClick={() => setDraft((d) => ({ ...d, phones: d.phones.filter((_, j) => j !== i) }))}><Trash2 className="w-4 h-4" /></button>
+          </div>
+        ))}
+        <button type="button" className={ghostBtn} onClick={() => setDraft((d) => ({ ...d, phones: [...d.phones, { label: 'هاتف', number: '' }] }))}><Plus className="w-4 h-4" /> إضافة رقم</button>
+      </div>
+    </Card>
+  );
+}
+
+/**
+ * An agency profile folder (brand.json + logo + images/, as in deploy/agencies/<slug>)
+ * picked in the browser: its images are uploaded, its values fill the form.
+ */
+async function importProfileFiles(files: File[]): Promise<{ patch: Partial<Draft>; toConfirm: string[] }> {
+  const pathOf = (f: File) => ((f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name).replace(/\\/g, '/');
+  const json = files.find((f) => pathOf(f).split('/').pop() === 'brand.json');
+  if (!json) throw new Error('لم يُعثر على brand.json في المجلد المختار');
+  const root = pathOf(json).split('/').slice(0, -1).join('/');
+  const profile = JSON.parse(await json.text()) as BrandProfile;
+  const urls = new Map<string, string>();
+  for (const rel of profileAssets(profile)) {
+    const want = root ? `${root}/${rel}` : rel;
+    const file = files.find((f) => pathOf(f) === want) || files.find((f) => f.name === rel.split('/').pop());
+    if (file) urls.set(rel, await uploadImage(file));
+  }
+  const result = profileToBrand(profile, (rel) => urls.get(rel) || '');
+  return {
+    patch: { ...result.values, branches: result.branches, phones: result.phones, knowledge: result.knowledge },
+    toConfirm: profile.toConfirmWithAgency || [],
+  };
+}
+
+function ImportButton({ onImported, onError }: { onImported: (patch: Partial<Draft>, toConfirm: string[]) => void; onError: (msg: string) => void }) {
+  const ref = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  return (
+    <>
+      <button type="button" className={ghostBtn} disabled={busy} onClick={() => ref.current?.click()} title="مجلد فيه brand.json والشعار والصور">
+        {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <FolderInput className="w-4 h-4" />} استيراد ملف تعريف
+      </button>
+      <input ref={ref} type="file" multiple hidden {...{ webkitdirectory: '' }}
+        onChange={async (e) => {
+          const files = Array.from(e.target.files || []);
+          e.target.value = '';
+          if (!files.length) return;
+          setBusy(true);
+          try {
+            const { patch, toConfirm } = await importProfileFiles(files);
+            onImported(patch, toConfirm);
+          } catch (err) {
+            onError(keyErrorMessage(err));
+          } finally {
+            setBusy(false);
+          }
+        }} />
+    </>
+  );
+}
+
 /* ------------------------------------------------------------------ page */
 
 export default function BrandSettings() {
-  const { draft, set, setSocial, error } = useBrandDraft();
+  const { draft, setDraft, set, setSocial, error } = useBrandDraft();
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ text: string; tone: 'ok' | 'bad' } | null>(null);
   const fail = (text: string) => setMessage({ text, tone: 'bad' });
@@ -330,6 +436,13 @@ export default function BrandSettings() {
           <p className="text-[13px] text-slate-500">اسم الوكالة وشعارها ولونها وعنوانها: يتغيّر بها الموقع كله، الوثائق المطبوعة، الرسائل وردود صخر.</p>
         </div>
         <div className="flex items-center gap-2">
+          <ImportButton onError={fail} onImported={(patch, toConfirm) => {
+            setDraft((d) => (d ? { ...d, ...patch } : d));
+            setMessage({
+              tone: 'ok',
+              text: `استُورد ملف التعريف — راجع الحقول ثم اضغط «حفظ ونشر».${toConfirm.length ? ` يبقى للتأكيد مع الوكالة (تُرك فارغاً): ${toConfirm.join(' · ')}` : ''}`,
+            });
+          }} />
           <a href="/" target="_blank" rel="noreferrer" className={ghostBtn}><ExternalLink className="w-4 h-4" /> عرض الموقع</a>
           <button type="button" onClick={save} disabled={saving} className={primaryBtn}>
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} حفظ ونشر
@@ -345,6 +458,7 @@ export default function BrandSettings() {
       <LookSection {...props} />
       <PlaceSection {...props} />
       <ContactSection {...props} />
+      <ListsSection draft={draft} setDraft={(fn) => setDraft((d) => (d ? fn(d) : d))} />
       <SocialSection draft={draft} setSocial={setSocial} />
       <PhotosSection {...props} />
 

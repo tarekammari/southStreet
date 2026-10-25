@@ -145,7 +145,12 @@ function agencyLogoDataUri(): string {
   let uri = /^https?:\/\//i.test(src) ? src : '';
   if (src.startsWith('/') && !src.includes('..')) {
     const rel = src.split('?')[0].replace(/^\/+/, '');
-    for (const file of [path.join(process.cwd(), 'public', rel), path.join(process.cwd(), rel)]) {
+    // Uploaded logos (/api/staff-image/<file>) live in images/uploads.
+    const upload = rel.startsWith('api/staff-image/') ? path.join('images', 'uploads', path.basename(rel)) : '';
+    const candidates = upload
+      ? [path.join(process.cwd(), upload), path.join(process.cwd(), 'public', upload)]
+      : [path.join(process.cwd(), 'public', rel), path.join(process.cwd(), rel)];
+    for (const file of candidates) {
       try {
         if (!fs.existsSync(file)) continue;
         const mime = LOGO_MIME[path.extname(file).toLowerCase()] || 'image/png';

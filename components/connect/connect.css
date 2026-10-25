@@ -94,7 +94,7 @@
   flex: 1; resize: none; max-height: 140px; min-height: 46px; padding: 12px 14px; border-radius: 24px; border: 0; outline: 0;
   background: #fff; font: inherit; font-size: 0.95rem; line-height: 1.45; color: var(--cn-ink); box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
 }
-.cn-send { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; background: var(--cn-brand) !important; color: #fff !important; flex: none; box-shadow: 0 6px 16px -8px rgba(4, 120, 87, 0.8); }
+.cn-send { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; background: var(--cn-brand) !important; color: #fff !important; flex: none; box-shadow: 0 6px 16px -8px rgb(var(--brand-primary-rgb, 4 120 87) / 0.8); }
 .cn-send:disabled { opacity: 0.6; }
 .cn-composer.is-recording { align-items: center; background: #fff; margin: 0 10px 10px; border-radius: 24px; padding: 6px 6px 6px 10px; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08); }
 .cn-rec-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--cn-red); animation: cn-pulse 1s ease-in-out infinite; }
@@ -106,7 +106,7 @@
 .cn-call {
   position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: space-between;
   padding: calc(env(safe-area-inset-top) + 14px) 24px calc(env(safe-area-inset-bottom) + 44px);
-  background: radial-gradient(700px 420px at 50% 0%, rgba(16, 185, 129, 0.38), transparent 70%), linear-gradient(180deg, #053d2e, #0b1f19 72%);
+  background: radial-gradient(700px 420px at 50% 0%, rgb(var(--brand-primary-light-rgb, 16 185 129) / 0.38), transparent 70%), linear-gradient(180deg, #053d2e, #0b1f19 72%);
   color: #fff; animation: cn-fade 0.25s ease; overflow: hidden; isolation: isolate;
   font-family: var(--font-tajawal), 'Tajawal', system-ui, sans-serif;
 }
@@ -157,7 +157,7 @@
   .cn-call::after, .cn-call-backdrop { display: none; }
   .cn-call::before {
     content: ''; position: absolute; z-index: -1; width: 440px; height: 620px; border-radius: 32px;
-    background: radial-gradient(500px 300px at 50% 0%, rgba(16, 185, 129, 0.38), transparent 70%), linear-gradient(180deg, #053d2e, #0b1f19 75%);
+    background: radial-gradient(500px 300px at 50% 0%, rgb(var(--brand-primary-light-rgb, 16 185 129) / 0.38), transparent 70%), linear-gradient(180deg, #053d2e, #0b1f19 75%);
     box-shadow: 0 40px 90px -30px rgba(0, 0, 0, 0.7);
   }
   .cn-call-bar { max-width: 400px; }
@@ -303,16 +303,16 @@
 /* ---------- "turn on call ringing" step ---------- */
 .cn-gate { position: fixed; inset: 0; z-index: 45; display: grid; place-items: center; padding: 20px; background: rgba(4, 20, 15, 0.55); backdrop-filter: blur(8px); animation: cn-fade 0.25s ease; }
 .cn-gate-card { width: 100%; max-width: 400px; background: #fff; color: #0f172a; border-radius: 26px; padding: 28px 22px 18px; text-align: center; box-shadow: 0 40px 80px -30px rgba(0, 0, 0, 0.6); animation: cn-rise 0.35s cubic-bezier(0.16, 1, 0.3, 1); }
-.cn-gate-icon { position: relative; display: grid; place-items: center; width: 76px; height: 76px; margin: 0 auto 14px; border-radius: 50%; color: #fff; background: linear-gradient(145deg, #10b981, var(--brand-primary, #047857)); box-shadow: 0 14px 30px -12px rgba(4, 120, 87, 0.8); }
+.cn-gate-icon { position: relative; display: grid; place-items: center; width: 76px; height: 76px; margin: 0 auto 14px; border-radius: 50%; color: #fff; background: linear-gradient(145deg, #10b981, var(--brand-primary, #047857)); box-shadow: 0 14px 30px -12px rgb(var(--brand-primary-rgb, 4 120 87) / 0.8); }
 .cn-gate-icon svg { animation: cn-shake 1.2s ease-in-out infinite; }
-.cn-gate-icon i { position: absolute; inset: 0; border-radius: 50%; border: 2px solid rgba(16, 185, 129, 0.6); animation: cn-ripple 2s cubic-bezier(0.2, 0.6, 0.35, 1) infinite; }
+.cn-gate-icon i { position: absolute; inset: 0; border-radius: 50%; border: 2px solid rgb(var(--brand-primary-light-rgb, 16 185 129) / 0.6); animation: cn-ripple 2s cubic-bezier(0.2, 0.6, 0.35, 1) infinite; }
 .cn-gate-card h2 { font-family: var(--font-cairo), 'Cairo', sans-serif; font-size: 1.35rem; font-weight: 900; }
 .cn-gate-card > p { margin-top: 6px; color: #64748b; font-size: 0.9rem; line-height: 1.8; }
 .cn-gate-steps { margin-top: 14px; padding: 12px 14px; border-radius: 14px; background: #fff7e6; color: #7c2d12; text-align: start; }
 .cn-gate-steps b { display: flex; align-items: center; gap: 6px; font-size: 0.86rem; }
 .cn-gate-steps ol { margin: 8px 0 0; padding-inline-start: 18px; font-size: 0.8rem; line-height: 1.8; }
 .cn-gate-error { margin-top: 10px !important; color: #b91c1c !important; font-size: 0.82rem !important; }
-.cn-gate-main { width: 100%; height: 52px; margin-top: 18px; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 16px; font-size: 1rem; font-weight: 800; color: #fff !important; background: linear-gradient(135deg, #059669, var(--brand-primary, #047857)) !important; box-shadow: 0 12px 24px -12px rgba(4, 120, 87, 0.8); }
+.cn-gate-main { width: 100%; height: 52px; margin-top: 18px; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 16px; font-size: 1rem; font-weight: 800; color: #fff !important; background: linear-gradient(135deg, var(--brand-primary-light, #059669), var(--brand-primary, #047857)) !important; box-shadow: 0 12px 24px -12px rgb(var(--brand-primary-rgb, 4 120 87) / 0.8); }
 .cn-gate-main:disabled { opacity: 0.7; }
 .cn-gate-later { margin-top: 8px; padding: 8px 16px; color: #64748b !important; font-size: 0.86rem; font-weight: 700; }
 @media (prefers-reduced-motion: reduce) { .cn-gate-icon svg, .cn-gate-icon i { animation: none !important; } }

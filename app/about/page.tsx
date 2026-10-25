@@ -105,6 +105,14 @@ export default function AboutPage() {
     { icon: MapPin, label: 'العنوان', value: address, href: mapUrl, ltr: false },
     phone && { icon: Phone, label: 'الهاتف', value: phone, href: telHref(phone), ltr: true },
     agency.email && { icon: Mail, label: 'البريد الإلكتروني', value: agency.email, href: `mailto:${agency.email}`, ltr: true },
+    ...agency.phones.map((p) => ({ icon: Phone, label: p.label || 'هاتف', value: p.number, href: telHref(p.number), ltr: true })),
+    ...agency.branches.map((b) => ({
+      icon: MapPin,
+      label: `فرع ${b.city}`.trim(),
+      value: [b.address, b.phone].filter(Boolean).join(' · '),
+      href: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([b.address, b.city].filter(Boolean).join('، '))}`,
+      ltr: false,
+    })),
     agency.opening_hours && { icon: Clock, label: 'أوقات العمل', value: agency.opening_hours, ltr: false },
   ].filter(Boolean) as { icon: typeof Phone; label: string; value: string; href?: string; ltr: boolean }[];
 

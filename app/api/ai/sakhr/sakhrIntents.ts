@@ -1,7 +1,7 @@
 import { AiCard, AiAction } from '@/types';
 import { getDatabase, saveDatabase, AiKnowledgeRule } from '@/lib/db';
 import { getSqliteDb } from '@/lib/sqlite';
-import { brandGeo, connectName, fullAddress, isDefaultBrand, telHref } from '@/lib/brand';
+import { brandContactLines, brandGeo, connectName, fullAddress, isDefaultBrand, telHref } from '@/lib/brand';
 import { getBrand } from '@/lib/brand-server';
 
 /** Short name of this installation's agency (Sakhr speaks for it). */
@@ -683,7 +683,7 @@ export function detectAgencyCustomIntents(prompt: string): { text: string; cards
   const geo = brandGeo(brand);
   if (['عنوان', 'العنوان', 'مقر', 'المقر', 'أين', 'اين', 'موقع', 'مكان', 'الاتجاه', 'اتجاه', 'مكتب', 'address', 'location', brand.city.replace(/^ولاية\s+/, '') || 'address'].filter(Boolean).some(k => lower.includes(k))) {
     return {
-      text: `📍 **عنوان وكالة ${brand.short_name}:**\n\n🏢 **المقر:** ${fullAddress(brand)}.\n📞 **الهاتف:** ${brand.phone}\n💬 **رسائل ومكالمات مع فريق الوكالة:** تطبيق ${connectName(brand)} ([/app](/app)).`,
+      text: `📍 **عنوان وكالة ${brand.short_name}:**\n\n🏢 **المقر:** ${fullAddress(brand)}.\n📞 **الهاتف:** ${brand.phone}\n${brandContactLines(brand) ? `${brandContactLines(brand)}\n` : ''}💬 **رسائل ومكالمات مع فريق الوكالة:** تطبيق ${connectName(brand)} ([/app](/app)).`,
       cards: [
         {
           type: 'action',

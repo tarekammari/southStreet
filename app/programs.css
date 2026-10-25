@@ -278,7 +278,7 @@
 .pcat-search:focus-within {
   background: #fff;
   border-color: var(--primary-green);
-  box-shadow: 0 0 0 3px rgba(4, 120, 87, 0.12);
+  box-shadow: 0 0 0 3px rgb(var(--brand-primary-rgb, 4 120 87) / 0.12);
 }
 .pcat-search svg { color: var(--text-muted); flex-shrink: 0; }
 .pcat-search input {
@@ -481,7 +481,7 @@
   scroll-margin-top: calc(var(--nav-height) + var(--promo-height) + 9rem);
 }
 .prow:hover { border-color: #cbd5e1; box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08); }
-.prow.is-target { border-color: var(--primary-green); box-shadow: 0 0 0 3px rgba(4, 120, 87, 0.15); }
+.prow.is-target { border-color: var(--primary-green); box-shadow: 0 0 0 3px rgb(var(--brand-primary-rgb, 4 120 87) / 0.15); }
 .prow.is-skeleton {
   min-height: 13.5rem;
   border: 0;
@@ -721,7 +721,7 @@
   transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s;
 }
 .pcard:hover { transform: translateY(-4px); box-shadow: 0 2px 4px rgba(15, 23, 42, 0.04), 0 24px 44px -20px rgba(15, 23, 42, 0.28); }
-.pcard.is-target { box-shadow: 0 0 0 3px rgba(4, 120, 87, 0.3), 0 24px 44px -20px rgba(15, 23, 42, 0.28); }
+.pcard.is-target { box-shadow: 0 0 0 3px rgb(var(--brand-primary-rgb, 4 120 87) / 0.3), 0 24px 44px -20px rgba(15, 23, 42, 0.28); }
 .pcard.is-skeleton {
   min-height: 30rem;
   border: 0;
@@ -863,8 +863,8 @@
   font-size: 0.88rem;
   font-weight: 800;
   color: #fff;
-  background: linear-gradient(135deg, #059669, var(--brand-primary, #047857));
-  box-shadow: 0 10px 20px -10px rgba(4, 120, 87, 0.7);
+  background: linear-gradient(135deg, var(--brand-primary-light, #059669), var(--brand-primary, #047857));
+  box-shadow: 0 10px 20px -10px rgb(var(--brand-primary-rgb, 4 120 87) / 0.7);
   text-decoration: none;
   white-space: nowrap;
   transition: transform 0.15s;
@@ -958,5 +958,5 @@
 .hotel-countries button:hover { border-color: #6ee7b7; transform: translateY(-1px); }
 .hotel-countries button i { width: 10px; height: 10px; border-radius: 50%; }
 .hotel-countries button span { min-width: 1.4rem; padding: 0 0.35rem; border-radius: 999px; background: #f1f5f9; font-size: 0.72rem; text-align: center; }
-.hotel-countries button[aria-selected='true'] { background: var(--brand-primary, #047857); border-color: var(--brand-primary, #047857); color: #fff; box-shadow: 0 8px 18px -10px rgba(4, 120, 87, 0.8); }
+.hotel-countries button[aria-selected='true'] { background: var(--brand-primary, #047857); border-color: var(--brand-primary, #047857); color: #fff; box-shadow: 0 8px 18px -10px rgb(var(--brand-primary-rgb, 4 120 87) / 0.8); }
 .hotel-countries button[aria-selected='true'] span { background: rgba(255, 255, 255, 0.22); color: #fff; }
