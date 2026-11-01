@@ -179,9 +179,10 @@ export function middleware(request: NextRequest, event: NextFetchEvent) {
     cfHttp: request.headers.get('cf-http-version'),
     altUsed: request.headers.get('alt-used'),
   });
+  // The QR sign-in's long-poll is not a login attempt (it has its own limits in its routes).
   const isAuthPath =
     url.pathname.startsWith('/api/admin/auth') ||
-    (url.pathname.startsWith('/api/auth') && url.pathname !== '/api/auth/config');
+    (url.pathname.startsWith('/api/auth') && url.pathname !== '/api/auth/config' && !url.pathname.startsWith('/api/auth/qr-login'));
   // Pictures, fonts and icons are not counted towards the flood limit: one page
   // load fetches dozens of them, and a reload or two on a phone is not an attack.
   // They are still checked for scanners and attacks below.

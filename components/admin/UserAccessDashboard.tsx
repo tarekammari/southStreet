@@ -46,6 +46,7 @@ import {
   Users,
   X,
   FileText,
+  ScanLine,
 } from 'lucide-react';
 import {
   DEFAULT_USER_PHOTO,
@@ -715,6 +716,11 @@ export default function UserAccessDashboard({
                 <Clock className="w-[14px] h-[14px]" />
                 <span dir="ltr">{clock}</span>
               </span>
+              {isSuperAdmin ? (
+                <Link href="/link-device" className="inn-tool-btn" aria-label="ربط جهاز برمز QR" title="ربط جهاز: امسح رمز QR الظاهر على جهاز آخر">
+                  <ScanLine className="w-[18px] h-[18px]" />
+                </Link>
+              ) : null}
               <button type="button" className="inn-tool-btn" aria-label="بحث" onClick={() => goUsers({ filter: 'all' })}>
                 <Search className="w-[18px] h-[18px]" />
               </button>
@@ -1233,6 +1239,12 @@ export default function UserAccessDashboard({
               ) : null}
 
               <div className="inn-side-bottom">
+                {isSuperAdmin ? (
+                  <Link href="/link-device" className="inn-side-link" title="ربط جهاز برمز QR">
+                    <ScanLine className="w-4 h-4" />
+                    <span className="inn-side-label">ربط جهاز</span>
+                  </Link>
+                ) : null}
                 <button type="button" className="inn-side-link" onClick={() => goSection('google')} title="الإعدادات">
                   <Settings className="w-4 h-4" />
                   <span className="inn-side-label">الإعدادات</span>

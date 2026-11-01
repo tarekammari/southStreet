@@ -4,11 +4,12 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { SESSION_MARKER } from '@/lib/session-token';
 import UserAccessDashboard from '@/components/admin/UserAccessDashboard';
-import { logoutAndReload } from '@/lib/client-session';
+import { enterSessionAndReload, logoutAndReload } from '@/lib/client-session';
 import '@/app/admin-dashboard.css';
 import '@/app/admin-login.css';
-import { Eye, EyeOff, Loader2, Lock, Mail, ShieldCheck, Users } from 'lucide-react';
+import { Eye, EyeOff, Loader2, Lock, Mail, QrCode, ShieldCheck, Users } from 'lucide-react';
 import SecurityKeyPrompt from '@/components/auth/SecurityKeyPrompt';
+import QrDeviceLogin from '@/components/auth/QrDeviceLogin';
 import SakhrAgent from '@/components/lazy/LazySakhrAgent';
 
 export default function AdminDashboardPage() {
@@ -24,6 +25,8 @@ export default function AdminDashboardPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [keyFlow, setKeyFlow] = useState<{ flowToken: string; options: any; name?: string } | null>(null);
+  /** This device shows a QR that the Super Admin's phone scans. */
+  const [phoneQr, setPhoneQr] = useState(false);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('south_street_user');
@@ -169,6 +172,15 @@ export default function AdminDashboardPage() {
                   setPassword('');
                 }}
               />
+            ) : phoneQr ? (
+              <QrDeviceLogin
+                onBack={() => setPhoneQr(false)}
+                onSuccess={(data) => {
+                  // The phone may open an accountant, guide or pilgrim account: those go to their portal.
+                  if (data.user?.redirect === '/admin') finishLogin(data);
+                  else enterSessionAndReload(data.token, data.user, data.user?.redirect || '/portal');
+                }}
+              />
             ) : loginStep === 1 ? (
               <form onSubmit={handleLoginStep1} className="al-form">
                 <div>
@@ -218,6 +230,9 @@ export default function AdminDashboardPage() {
                 <button type="submit" className="al-btn al-btn-primary" disabled={submitting}>
                   {submitting ? <Loader2 size={18} className="animate-spin" /> : null}
                   دخول
+                </button>
+                <button type="button" className="login-qr-entry" onClick={() => { setPhoneQr(true); setLoginError(''); setLoginSuccessMsg(''); }}>
+                  <QrCode size={18} /> الدخول برمز QR من هاتف المشرف
                 </button>
               </form>
             ) : (

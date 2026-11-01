@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { FileCheck, X, Upload, AlertTriangle, Clock, Eye, EyeOff } from 'lucide-react';
+import { FileCheck, X, Upload, AlertTriangle, Clock, Eye, EyeOff, QrCode } from 'lucide-react';
 import GoogleContinueButton from '@/components/GoogleContinueButton';
 import { markWelcomePending } from '@/components/WelcomeBanner';
 import { enterSessionAndReload } from '@/lib/client-session';
 import Image from 'next/image';
 import SecurityKeyPrompt from '@/components/auth/SecurityKeyPrompt';
+import QrDeviceLogin from '@/components/auth/QrDeviceLogin';
 
 interface LoginModalProps {
   onClose: () => void;
@@ -34,6 +35,8 @@ export default function LoginModal({ onClose, onSelectRole, redirectTo }: LoginM
   const [qrHint, setQrHint] = useState('وجّه الكاميرا نحو رمز QR الخاص بالحساب');
   const [waiting, setWaiting] = useState(false);
   const [moreOptions, setMoreOptions] = useState(false);
+  /** This device shows a QR that the Super Admin's phone scans (see QrDeviceLogin). */
+  const [phoneQr, setPhoneQr] = useState(false);
   const [keyFlow, setKeyFlow] = useState<{ flowToken: string; options: any; name?: string } | null>(null);
   const [regName, setRegName] = useState('');
   const [regUsername, setRegUsername] = useState('');
@@ -325,7 +328,7 @@ export default function LoginModal({ onClose, onSelectRole, redirectTo }: LoginM
         </button>
 
         <Image src="/images/south_street_logo_trans.png" alt="South Street" width={180} height={72} className="login-simple-logo" />
-        <h3>{waiting ? 'طلبك قيد المراجعة' : keyFlow ? 'دخول الإدارة' : screen === 'register' ? 'إنشاء حساب' : 'تسجيل الدخول'}</h3>
+        <h3>{waiting ? 'طلبك قيد المراجعة' : keyFlow ? 'دخول الإدارة' : phoneQr ? 'الدخول بهاتف المشرف العام' : screen === 'register' ? 'إنشاء حساب' : 'تسجيل الدخول'}</h3>
 
         {keyFlow ? (
           <SecurityKeyPrompt
@@ -338,6 +341,8 @@ export default function LoginModal({ onClose, onSelectRole, redirectTo }: LoginM
               setPassword('');
             }}
           />
+        ) : phoneQr ? (
+          <QrDeviceLogin onSuccess={finishLogin} onBack={() => setPhoneQr(false)} />
         ) : waiting ? (
           <div className="login-wait">
             <Clock className="w-10 h-10" />
@@ -465,6 +470,9 @@ export default function LoginModal({ onClose, onSelectRole, redirectTo }: LoginM
                 ) : null}
                 <button type="submit" disabled={loading} className="login-simple-submit">
                   {loading ? 'جاري الدخول...' : 'دخول'}
+                </button>
+                <button type="button" className="login-qr-entry" onClick={() => { setPhoneQr(true); setMode('password'); setMoreOptions(false); setError(''); setInfo(''); }}>
+                  <QrCode className="w-5 h-5" /> الدخول برمز QR من هاتف المشرف
                 </button>
                 <button type="button" className="login-simple-switch" onClick={() => { setScreen('register'); setMode('password'); setError(''); }}>
                   إنشاء حساب
