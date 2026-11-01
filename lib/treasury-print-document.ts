@@ -181,7 +181,7 @@ const PRINT_STYLES = `
 function letterhead(printedAt: string, from: string, to: string): string {
   return `<header class="letterhead">
     <div>
-      <div class="letterhead-en">SOUTH STREET AGENCY</div>
+      <div class="letterhead-en">${escapeHtml(getBrand().name_latin.toUpperCase())}</div>
       <div class="letterhead-ar">${escapeHtml(agencyLabel(getBrand()))} — تقرير مالي</div>
     </div>
     <div class="letterhead-meta">

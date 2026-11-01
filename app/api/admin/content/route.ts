@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { getBrand } from '@/lib/brand-server';
+import { isDefaultBrand, rebrandText } from '@/lib/brand';
 import { getSqliteDb } from '@/lib/sqlite';
 import { verifyToken } from '@/lib/auth';
 import { getTokenFromRequest } from '@/lib/request-auth';
@@ -34,7 +36,12 @@ export async function GET(req: NextRequest) {
     const sql = section
       ? 'SELECT * FROM page_content WHERE section = ? ORDER BY key'
       : 'SELECT * FROM page_content ORDER BY section, key';
-    const rows = section ? db.prepare(sql).all(section) : db.prepare(sql).all();
+    const raw = (section ? db.prepare(sql).all(section) : db.prepare(sql).all()) as Record<string, unknown>[];
+    // Texts seeded before this agency set its identity still carry South Street's name.
+    const brand = getBrand();
+    const rows = isDefaultBrand(brand)
+      ? raw
+      : raw.map((row) => Object.fromEntries(Object.entries(row).map(([k, v]) => [k, typeof v === 'string' ? rebrandText(v, brand) : v])));
 
     return NextResponse.json(rows, {
       headers: { 'Cache-Control': 'no-store, max-age=0' },

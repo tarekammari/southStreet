@@ -279,6 +279,19 @@ export function brandHeroImages(brand: Pick<Brand, 'hero_images'>): string[] {
   return brand.hero_images.split(/\r?\n|,/).map((s) => s.trim()).filter(Boolean);
 }
 
+/**
+ * Accounts created without an email (from the dashboard or the phone) get a
+ * placeholder address, under the reserved ".invalid" domain so no agency's name
+ * appears in it. Older installs used "@southstreet.dz". Never show either as
+ * the person's email.
+ */
+export const PLACEHOLDER_EMAIL_DOMAIN = 'no-email.invalid';
+
+export function isPlaceholderEmail(email?: string | null): boolean {
+  const e = String(email || '').trim().toLowerCase();
+  return !e || e.endsWith('.invalid') || e.endsWith('@southstreet.dz');
+}
+
 /** Domain without scheme: southstreet.dz */
 export function brandDomain(brand: Pick<Brand, 'website'>): string {
   return brand.website.replace(/^https?:\/\//i, '').replace(/\/.*$/, '');

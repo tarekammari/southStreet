@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { PLACEHOLDER_EMAIL_DOMAIN } from '@/lib/brand';
 import { dbLookupSecret } from './secrets';
 import { getSqliteDb } from './sqlite';
 import { lookupHash, generatePassword, generateSecret } from './db-crypto';
@@ -93,7 +94,7 @@ function suggestUsername(name: string, id: string, email?: string): string {
   if (ascii.length >= 3) return ascii.slice(0, 24);
 
   const compact = id.replace(/[^a-z0-9]/gi, '').toLowerCase() || 'user';
-  return `ss.${compact.slice(-6)}`;
+  return `u.${compact.slice(-6)}`;
 }
 
 function uniqueUsername(db: ReturnType<typeof getSqliteDb>, desired: string, excludeUserId?: string): string {
@@ -427,7 +428,7 @@ export function ensureUserAccount(input: {
     input.username || existing?.username || suggestUsername(input.name, input.staffId || id, input.email),
     id
   );
-  const email = (input.email || existing?.email || `${username}@southstreet.dz`).trim().toLowerCase();
+  const email = (input.email || existing?.email || `${username}@${PLACEHOLDER_EMAIL_DOMAIN}`).trim().toLowerCase();
   const code = existing?.code || `SS-${Math.floor(1000 + Math.random() * 9000)}`;
   const password = input.password?.trim() || (existing ? undefined : generatePassword());
   const issueQr = input.issueSecrets !== false && (!existing || !existing.qrSecretHash);

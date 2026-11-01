@@ -64,7 +64,7 @@ function splitName(full: string): { name: string; note: string } {
 function userCode(user: EnrichedUser): string {
   const raw = (user.username || user.id || 'user').replace(/^usr[_-]?/i, '');
   const slug = raw.replace(/[^a-z0-9]+/gi, '').slice(0, 8) || 'user';
-  return `ss.${slug}`.toLowerCase();
+  return `u.${slug}`.toLowerCase();
 }
 
 function seedActivity(user: EnrichedUser): Record<string, number> {

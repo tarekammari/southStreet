@@ -141,7 +141,7 @@ export function buildSupplierInvoiceAgencyCopyHtml(input: {
       </div>
       <header class="sheet-head">
         <div>
-          <p class="brand-en">SOUTH STREET AGENCY</p>
+          <p class="brand-en">${escapeHtml(getBrand().name_latin.toUpperCase())}</p>
           <h1 class="brand-title">FACTURE · COPIE AGENCE</h1>
           <p class="brand-ar">فاتورة مورد — نسخة محاسبية · مرسوم 05-468</p>
         </div>

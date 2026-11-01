@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { isPlaceholderEmail } from '@/lib/brand';
 import { CalendarDays, ChevronLeft, Loader2, Plane, RefreshCw, Search, UserPlus, Users, X } from 'lucide-react';
 import { inTab, memberState, NO_PROGRAM, programKey, relativeTime, roleLabel, roleTone, TABS, tripDates, type Member, type TabId, type Viewer } from './teamModel';
 import { loadTeam } from './teamApi';
@@ -261,7 +262,7 @@ export default function TeamWorkspace({
                         <MemberAvatar member={m} />
                         <div>
                           <strong>{m.name}{m.id === viewer.id ? <span className="tm-you">أنت</span> : null}</strong>
-                          <span dir="ltr">{m.staff?.title ? <bdi dir="rtl">{m.staff.title}</bdi> : m.email && !m.email.endsWith('@southstreet.dz') ? m.email : m.username}</span>
+                          <span dir="ltr">{m.staff?.title ? <bdi dir="rtl">{m.staff.title}</bdi> : !isPlaceholderEmail(m.email) ? m.email : m.username}</span>
                           <em className={`tm-role is-${roleTone(m.role)} tm-person-role`}>{roleLabel(m)}</em>
                           {m.trip?.program?.name ? <em className="tm-person-trip"><Plane className="w-3 h-3" aria-hidden />{m.trip.program.name}</em> : null}
                         </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { isPlaceholderEmail } from '@/lib/brand';
 import {
   Activity as ActivityIcon,
   Ban,
@@ -121,7 +122,7 @@ function draftOf(m: Member): Draft {
   return {
     name: m.name || '',
     phone: m.phone || '',
-    email: m.email && !m.email.endsWith('@southstreet.dz') ? m.email : '',
+    email: isPlaceholderEmail(m.email) ? '' : m.email || '',
     title: m.staff?.title || '',
     category: m.staff?.category || '',
     specialization: m.staff?.specialization || '',
@@ -420,7 +421,7 @@ export default function MemberDrawer({
               <dl className="tm-fields">
                 {field('الاسم الكامل', member.name)}
                 {field('الهاتف', member.phone ? <a href={`tel:${member.phone}`} className="tm-link"><Phone className="w-3.5 h-3.5" />{member.phone}</a> : null, { ltr: true })}
-                {field('البريد الإلكتروني', member.email && !member.email.endsWith('@southstreet.dz') ? member.email : null, { ltr: true })}
+                {field('البريد الإلكتروني', isPlaceholderEmail(member.email) ? null : member.email, { ltr: true })}
                 {field('نوع العضو', roleLabel(member))}
                 {isStaff ? (
                   <>

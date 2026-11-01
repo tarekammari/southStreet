@@ -227,7 +227,7 @@ export function buildReportsPrintHtml(data: ReportsPrintInput): string {
       <div class="page-inner">
         <header class="letterhead">
           <div>
-            <div class="letterhead-en">SOUTH STREET AGENCY</div>
+            <div class="letterhead-en">${escapeHtml(getBrand().name_latin.toUpperCase())}</div>
             <div class="letterhead-ar">${escapeHtml(agencyLabel(getBrand()))} — التقارير</div>
           </div>
           <div class="letterhead-meta"><div>${escapeHtml(period)}</div><div>${escapeHtml(printedAt)}</div></div>

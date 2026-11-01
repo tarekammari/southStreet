@@ -293,7 +293,7 @@ function renderSimpleDocument(data: BookingDocumentPayload): string {
   const agency = agencyLetterhead();
   const logoSrc = agencyLogoDataUri();
   const trackUrl = resolveTrackUrl(data);
-  const qrSrc = requestQrDataUri([trackUrl, `REF:${data.ref}`, data.verifyCode ? `CODE:${data.verifyCode}` : '', 'SOUTH STREET'].filter(Boolean).join('\n'), 96);
+  const qrSrc = requestQrDataUri([trackUrl, `REF:${data.ref}`, data.verifyCode ? `CODE:${data.verifyCode}` : '', getBrand().name_latin.toUpperCase()].filter(Boolean).join('\n'), 96);
   const lines = data.invoice?.lines || [];
   const total = data.invoice?.total ?? lines.reduce((s, l) => s + Number(l.amount || 0), 0);
   const paid = Number(data.paidAmount || 0);

@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import AcctPrintButton from './AcctPrintButton';
+import { useBrand } from '@/components/social/useAgencyInfo';
 import { fmtAmountEn, parseAmountInput, PAY_METHODS } from './money';
 import { amountInWordsFrDzd, INVOICE_DISCOUNT_KINDS, type InvoiceDiscountKind } from '@/lib/algerian-invoice-decree';
 import {
@@ -116,6 +117,7 @@ function AmountInput({
 }
 
 export function SupplierInvoiceForm(props: SupplierInvoiceFormProps) {
+  const brand = useBrand();
   const tva = props.taxes.find((t) => t.role === 'tva');
   const others = props.taxes.filter((t) => t.role !== 'tva');
   const tvaAmount = tva ? taxAmountOnNet(tva, props.math.net, props.vatExempt) : 0;
@@ -128,7 +130,7 @@ export function SupplierInvoiceForm(props: SupplierInvoiceFormProps) {
       <article className="acct-inv-sheet">
         <header className="acct-inv-sheet-head">
           <div className="acct-inv-brand">
-            <p className="acct-inv-brand-en">SOUTH STREET</p>
+            <p className="acct-inv-brand-en">{brand.name_latin.toUpperCase()}</p>
             <h1 className="acct-inv-brand-title">فاتورة مورد</h1>
             <p className="acct-inv-brand-ar">نسخة الوكالة</p>
           </div>

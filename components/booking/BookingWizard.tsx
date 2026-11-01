@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { isPlaceholderEmail } from '@/lib/brand';
 import { SESSION_MARKER } from '@/lib/session-token';
 import { publicList } from '@/lib/public-catalog';
 import { RefusedRequestStrip, dismissRefusal, latestRefusal } from '@/components/booking/PendingRequestBanner';
@@ -695,7 +696,7 @@ export default function BookingWizard() {
           {!editing && !onBehalf ? (
             <div className="book-google-box">
               {(loggedIn || googleIdToken) ? (
-                <p className="book-google-ok"><CheckCircle className="w-5 h-5" /> {email || 'حساب جوجل مرتبط'}</p>
+                <p className="book-google-ok"><CheckCircle className="w-5 h-5" /> {isPlaceholderEmail(email) ? 'حسابك مرتبط' : email}</p>
               ) : (
                 <GoogleContinueButton
                   onToken={async (idToken) => {

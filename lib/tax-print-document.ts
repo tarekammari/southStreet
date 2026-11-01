@@ -146,7 +146,7 @@ export function buildTaxPrintHtml(input: { from: string; to: string; lines: TaxP
       (sheet, i) => `<section class="print-page orient-portrait" data-page="${i + 1}" data-orient="portrait">
       <div class="page-inner"><header class="letterhead">
         <div>
-          <div class="letterhead-en">SOUTH STREET AGENCY</div>
+          <div class="letterhead-en">${escapeHtml(getBrand().name_latin.toUpperCase())}</div>
           <div class="letterhead-ar">${escapeHtml(agencyLabel(getBrand()))} — الضرائب والرسوم</div>
         </div>
         <div class="letterhead-meta"><div>${escapeHtml(period)}</div><div>${escapeHtml(printedAt)}</div></div>

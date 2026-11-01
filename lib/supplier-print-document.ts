@@ -156,7 +156,7 @@ function numCell(n: number): string {
 function letterhead(printedAt: string, periodLine: string, scopeLine?: string): string {
   return `<header class="letterhead">
     <div>
-      <div class="letterhead-en">SOUTH STREET AGENCY</div>
+      <div class="letterhead-en">${escapeHtml(getBrand().name_latin.toUpperCase())}</div>
       <div class="letterhead-ar">${escapeHtml(agencyLabel(getBrand()))} — الموردون</div>
     </div>
     <div class="letterhead-meta">
