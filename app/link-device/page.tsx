@@ -53,6 +53,8 @@ type Scan = {
   device: { label: string; ip: string; userAgent: string; requestedAt: number; sameNetwork: boolean };
   me: { id: string; name: string };
   mode: Mode;
+  /** The Super Admin confirms with a security-key tap (not an owner who signs in with Google). */
+  keyTap: boolean;
   counts: Record<RoleId, number> | null;
 };
 
@@ -91,7 +93,7 @@ function codeFrom(raw: string): string | null {
 export default function LinkDevicePage() {
   const agency = useAgencyInfo();
   const [view, setView] = useState<View>({ kind: 'checking' });
-  const [me, setMe] = useState<{ name: string; mode: Mode } | null>(null);
+  const [me, setMe] = useState<{ name: string; mode: Mode; keyTap: boolean } | null>(null);
 
   const open = useCallback(async (code: string) => {
     setView({ kind: 'opening' });
@@ -136,7 +138,7 @@ export default function LinkDevicePage() {
           setView({ kind: 'signin' });
           return;
         }
-        setMe({ name: data.me.name, mode: data.mode === 'choose' ? 'choose' : 'self' });
+        setMe({ name: data.me.name, mode: data.mode === 'choose' ? 'choose' : 'self', keyTap: Boolean(data.keyTap) });
         const pending = sessionStorage.getItem(PENDING_KEY);
         sessionStorage.removeItem(PENDING_KEY);
         if (pending) void open(pending);
@@ -153,7 +155,7 @@ export default function LinkDevicePage() {
             <h1>ربط جهاز</h1>
             <p>{agency?.agency_name || ''}{me ? ` · ${me.name}` : ''}</p>
           </div>
-          <span className="lnk-badge"><ShieldCheck className="w-4 h-4" /> {me?.mode === 'self' ? 'دخول آمن' : 'محمي بمفتاح الأمان'}</span>
+          <span className="lnk-badge"><ShieldCheck className="w-4 h-4" /> {me?.keyTap ? 'محمي بمفتاح الأمان' : 'دخول آمن'}</span>
         </header>
 
         {view.kind === 'checking' || view.kind === 'opening' ? (
@@ -553,7 +555,7 @@ function Review({
         <button type="button" className="lnk-btn is-danger" disabled={Boolean(busy)} onClick={() => void answer('deny')}>
           {busy === 'deny' ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldX className="w-4 h-4" />} ليس أنا — رفض
         </button>
-        <p className="lnk-muted">{choose ? 'سيطلب منك المتصفح لمس مفتاح الأمان لتأكيد الدخول.' : 'سيدخل الجهاز إلى حسابك أنت. لا توافق إن لم يكن الجهاز أمامك.'}</p>
+        <p className="lnk-muted">{choose ? (scan.keyTap ? 'سيطلب منك المتصفح لمس مفتاح الأمان لتأكيد الدخول.' : 'وافق فقط إن كان الجهاز أمامك الآن.') : 'سيدخل الجهاز إلى حسابك أنت. لا توافق إن لم يكن الجهاز أمامك.'}</p>
       </div>
     </section>
   );

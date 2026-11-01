@@ -16,6 +16,8 @@ import { getSqliteDb } from '@/lib/sqlite';
 import { pilgrimAppointment, pilgrimWaitingRedirect } from '@/lib/booking';
 import { notifySignup } from '@/lib/notifications';
 import { tokenVersionOf } from '@/lib/webauthn';
+import { clientMeta, completeLogin } from '@/lib/login-session';
+import { isOwnerGoogleSuperAdmin } from '@/lib/owner-google';
 
 export const dynamic = 'force-dynamic';
 
@@ -109,7 +111,11 @@ export async function POST(req: Request) {
     }
 
     const role = normalizeLoginRole(user.role);
-    // Super Admin / Admin must sign in with password + security key, never Google.
+    // The agency owner's own Google account may open the Super Admin (SUPER_ADMIN_GOOGLE_EMAIL).
+    if (isOwnerGoogleSuperAdmin(user, profile.email)) {
+      return completeLogin(user, clientMeta(req), { mfa: true, method: 'google-owner' });
+    }
+    // Otherwise Super Admin / Admin sign in with password + security key, never Google.
     if (isPrivilegedRole(role)) {
       return NextResponse.json(
         { error: 'حسابات الإدارة تدخل بكلمة المرور ومفتاح الأمان فقط' },

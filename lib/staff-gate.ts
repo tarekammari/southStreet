@@ -3,6 +3,7 @@ import { extractSessionToken } from '@/lib/session-token';
 import { verifyToken, verifyPurposeToken, type JwtPayload } from '@/lib/auth';
 import { getSqliteDb } from '@/lib/sqlite';
 import { isPrivilegedRole, normalizeLoginRole, type LoginRole } from '@/lib/roles';
+import { ownerSkipsStepUp } from '@/lib/owner-google';
 
 /**
  * One gate for every staff/admin API.
@@ -62,13 +63,15 @@ export const ADMINS: LoginRole[] = ['SUPER_ADMIN', 'AGENCY_MANAGER'];
 /* ------------------------------------------------------------------ *
  * Step-up: dangerous actions need a security-key tap from the last minutes.
  * The client obtains the token from /api/auth/webauthn/step-up and sends it
- * in the `x-step-up` header.
+ * in the `x-step-up` header. An agency owner who signs in with Google
+ * (lib/owner-google.ts) and has no key registered has nothing to tap.
  * ------------------------------------------------------------------ */
 
 export const STEP_UP_HEADER = 'x-step-up';
 export const STEP_UP_TTL = '5m';
 
 export function requireStepUp(req: Request, gate: GateOk): { error: NextResponse } | null {
+  if (ownerSkipsStepUp(gate.account)) return null;
   const token = req.headers.get(STEP_UP_HEADER) || '';
   const claims = verifyPurposeToken<{ sub: string }>(token, 'step-up');
   if (!claims || claims.sub !== gate.account.id) {

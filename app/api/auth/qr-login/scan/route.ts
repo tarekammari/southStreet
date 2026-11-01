@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireSession, type GateResult } from '@/lib/staff-gate';
 import { isPrivilegedRole } from '@/lib/roles';
+import { ownerSkipsStepUp } from '@/lib/owner-google';
 import { clientMeta, recordLoginFailure } from '@/lib/login-session';
 import { deviceLabel } from '@/lib/user-access-view';
 import { countQrAccounts, scanQrRequest } from '@/lib/qr-login';
@@ -48,7 +49,7 @@ const MESSAGES = {
 export async function GET(req: Request) {
   const gate = phoneGate(req);
   if ('error' in gate) return gate.error;
-  return NextResponse.json({ me: { id: gate.account.id, name: gate.account.name }, mode: gate.mode }, { headers: { 'Cache-Control': 'no-store' } });
+  return NextResponse.json({ me: { id: gate.account.id, name: gate.account.name }, mode: gate.mode, keyTap: gate.mode === 'choose' && !ownerSkipsStepUp(gate.account) }, { headers: { 'Cache-Control': 'no-store' } });
 }
 
 export async function POST(req: Request) {
@@ -84,6 +85,7 @@ export async function POST(req: Request) {
       },
       me: { id: gate.account.id, name: gate.account.name },
       mode: gate.mode,
+      keyTap: gate.mode === 'choose' && !ownerSkipsStepUp(gate.account),
       counts: gate.mode === 'choose' ? countQrAccounts() : null,
     },
     { headers: { 'Cache-Control': 'no-store' } }
