@@ -380,3 +380,47 @@
 @media (prefers-reduced-motion: reduce) {
   .lnk-laser, .lnk-review, .lnk-state, .lnk-state-icon { animation: none !important; }
 }
+
+/* Create an account from the phone (Super Admin) */
+.lnk-new { display: flex; flex-direction: column; gap: 0.6rem; }
+.lnk-new label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.8rem; font-weight: 800; color: #475569; }
+.lnk-new input {
+  height: 2.9rem;
+  border-radius: 0.9rem;
+  border: 1.5px solid #cbd5e1;
+  padding: 0 0.85rem;
+  font: inherit;
+  font-size: 0.95rem;
+  color: #0f172a;
+  background: #f8fafc;
+}
+.lnk-new input:focus { outline: none; border-color: var(--primary-green, #047857); background: #fff; }
+.lnk-link {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: 0;
+  background: none;
+  padding: 0.2rem 0;
+  font: inherit;
+  font-weight: 800;
+  font-size: 0.85rem;
+  color: var(--primary-green, #047857);
+  cursor: pointer;
+}
+.lnk-creds {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.85rem 1rem;
+  border-radius: 1rem;
+  background: #fffbeb;
+  box-shadow: 0 0 0 1px #fde68a;
+  color: #78350f;
+  text-align: start;
+  font-size: 0.86rem;
+}
+.lnk-creds b { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.95rem; color: #0f172a; user-select: all; }
+.lnk-creds em { font-style: normal; font-size: 0.74rem; color: #92400e; }

@@ -23,6 +23,7 @@ import {
   KeyRound,
   Loader2,
   Monitor,
+  Plus,
   Search,
   ShieldCheck,
   ShieldX,
@@ -63,13 +64,16 @@ type Mode = 'choose' | 'self';
 
 type Account = { id: string; name: string; username: string; photo: string; phone: string };
 
+/** Sign-in details of an account created from the phone, shown once. */
+type Credentials = { username: string; password?: string };
+
 type View =
   | { kind: 'checking' }
   | { kind: 'signin' }
   | { kind: 'scan' }
   | { kind: 'opening' }
   | { kind: 'review'; scan: Scan }
-  | { kind: 'done'; name: string; role: string }
+  | { kind: 'done'; name: string; role: string; credentials?: Credentials | null }
   | { kind: 'denied' }
   | { kind: 'error'; message: string };
 
@@ -167,7 +171,7 @@ export default function LinkDevicePage() {
         ) : view.kind === 'review' ? (
           <Review
             scan={view.scan}
-            onDone={(name, role) => setView({ kind: 'done', name, role })}
+            onDone={(name, role, credentials) => setView({ kind: 'done', name, role, credentials })}
             onDenied={() => setView({ kind: 'denied' })}
             onError={(message) => setView({ kind: 'error', message })}
           />
@@ -176,6 +180,14 @@ export default function LinkDevicePage() {
             <span className="lnk-state-icon"><CheckCircle2 className="w-9 h-9" /></span>
             <h2>تم فتح الجلسة على الجهاز</h2>
             <p>{me?.mode === 'choose' ? `${ROLES.find((r) => r.id === view.role)?.label || ''}: ` : ''}<b>{view.name}</b></p>
+            {view.credentials ? (
+              <div className="lnk-creds">
+                <strong>حساب جديد — احفظ بيانات الدخول وأعطها لصاحبها</strong>
+                <span>اسم المستخدم: <b dir="ltr">{view.credentials.username}</b></span>
+                {view.credentials.password ? <span>كلمة المرور: <b dir="ltr">{view.credentials.password}</b></span> : null}
+                <em>لن تظهر كلمة المرور مرة أخرى. يمكنك تغييرها لاحقاً من لوحة الإدارة.</em>
+              </div>
+            ) : null}
             <p className="lnk-muted">سُجّلت العملية في سجل التدقيق. إن لم تكن أنت من طلب الدخول فغيّر كلمة المرور فوراً.</p>
             <div className="lnk-row">
               <button type="button" className="lnk-btn is-ghost" onClick={() => setView({ kind: 'scan' })}>ربط جهاز آخر</button>
@@ -343,7 +355,7 @@ function Review({
   onError,
 }: {
   scan: Scan;
-  onDone: (name: string, role: RoleId) => void;
+  onDone: (name: string, role: string, credentials?: Credentials | null) => void;
   onDenied: () => void;
   onError: (message: string) => void;
 }) {
@@ -356,6 +368,10 @@ function Review({
   const [loadingList, setLoadingList] = useState(false);
   const [busy, setBusy] = useState<'' | 'approve' | 'deny'>('');
   const [error, setError] = useState('');
+  /** No fitting account yet: the Super Admin creates one here. */
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newPhone, setNewPhone] = useState('');
 
   const mobile = /android|iphone|ipad|mobile/i.test(scan.device.userAgent);
   const DeviceIcon = mobile ? Smartphone : Monitor;
@@ -372,6 +388,8 @@ function Review({
           setList(data);
           // One account of that kind: nothing to choose.
           if (!query && data.total === 1) setAccount(data.accounts[0]);
+          // None of that kind yet: go straight to creating one.
+          if (!query && data.total === 0) setCreating(true);
         })
         .catch(() => alive && setList({ total: 0, accounts: [] }))
         .finally(() => alive && setLoadingList(false));
@@ -383,8 +401,9 @@ function Review({
   }, [role, query]);
 
   const choose = scan.mode === 'choose';
-  const ready = number !== null && left > 0 && (!choose || (role !== null && (role === 'SUPER_ADMIN' || account !== null)));
-  const target = !choose || role === 'SUPER_ADMIN' ? scan.me.name : account?.name;
+  const newReady = creating && newName.trim().length >= 2;
+  const ready = number !== null && left > 0 && (!choose || (role !== null && (role === 'SUPER_ADMIN' || newReady || (!creating && account !== null))));
+  const target = !choose || role === 'SUPER_ADMIN' ? scan.me.name : creating ? newName.trim() : account?.name;
 
   const answer = async (decision: 'approve' | 'deny') => {
     setBusy(decision);
@@ -393,7 +412,14 @@ function Review({
       const res = await adminFetch('/api/auth/qr-login/approve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: scan.id, decision, number, role, userId: account?.id }),
+        body: JSON.stringify({
+          id: scan.id,
+          decision,
+          number,
+          role,
+          userId: creating ? undefined : account?.id,
+          newAccount: creating && role !== 'SUPER_ADMIN' ? { name: newName.trim(), phone: newPhone.trim() } : undefined,
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (decision === 'deny') {
@@ -402,7 +428,7 @@ function Review({
       }
       if (res.ok) {
         navigator.vibrate?.([30, 60, 30]);
-        onDone(data.account?.name || target || '', data.account?.role || role || '');
+        onDone(data.account?.name || target || '', data.account?.role || role || '', data.credentials);
         return;
       }
       if (data.code === 'WRONG_NUMBER' || data.code === 'EXPIRED' || res.status === 404) {
@@ -422,7 +448,7 @@ function Review({
       ROLES.map((r) => ({
         ...r,
         count: scan.counts?.[r.id] ?? 0,
-        disabled: r.id !== 'SUPER_ADMIN' && !((scan.counts?.[r.id] ?? 0) > 0),
+        disabled: false,
       })),
     [scan.counts]
   );
@@ -498,11 +524,12 @@ function Review({
                 setAccount(null);
                 setQuery('');
                 setList(null);
+                setCreating(false);
               }}
             >
               <Icon className="w-6 h-6" />
               <strong>{label}</strong>
-              <em>{id === 'SUPER_ADMIN' ? hint : disabled ? 'لا توجد حسابات' : `${count} حساب`}</em>
+              <em>{id === 'SUPER_ADMIN' ? hint : count ? `${count} حساب` : 'إنشاء حساب جديد'}</em>
             </button>
           ))}
         </div>
@@ -511,7 +538,24 @@ function Review({
 
       {choose && role && role !== 'SUPER_ADMIN' ? (
         <div className="lnk-step">
-          <h2><span>3</span> اختر الحساب</h2>
+          <h2><span>3</span> {creating ? 'حساب جديد' : 'اختر الحساب'}</h2>
+          {creating ? (
+            <div className="lnk-new">
+              <label>
+                اسم صاحب الحساب
+                <input value={newName} onChange={(e) => setNewName(e.target.value)} maxLength={120} autoComplete="off" placeholder="مثال: أحمد بن علي" />
+              </label>
+              <label>
+                الهاتف (اختياري)
+                <input value={newPhone} onChange={(e) => setNewPhone(e.target.value)} maxLength={40} inputMode="tel" dir="ltr" autoComplete="off" />
+              </label>
+              <p className="lnk-muted">يُنشأ الحساب بدور «{ROLES.find((r) => r.id === role)?.label}» ويُفتح على الجهاز، وتظهر لك بيانات دخوله لتسلّمها لصاحبه.</p>
+              {list && list.total > 0 ? (
+                <button type="button" className="lnk-link" onClick={() => setCreating(false)}>اختيار حساب موجود</button>
+              ) : null}
+            </div>
+          ) : (
+          <>
           <label className="lnk-search">
             <Search className="w-4 h-4" />
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث بالاسم أو الهاتف أو اسم المستخدم" />
@@ -542,6 +586,11 @@ function Review({
           {list && list.total > list.accounts.length && !query ? (
             <p className="lnk-muted">تظهر أول {list.accounts.length} من {list.total}. ابحث للوصول إلى البقية.</p>
           ) : null}
+          <button type="button" className="lnk-link" onClick={() => { setCreating(true); setAccount(null); }}>
+            <Plus className="w-4 h-4" /> حساب جديد
+          </button>
+          </>
+          )}
         </div>
       ) : null}
 
