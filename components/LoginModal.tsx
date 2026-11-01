@@ -151,6 +151,11 @@ export default function LoginModal({ onClose, onSelectRole, redirectTo, request 
         setError(data.error || 'تعذر الدخول عبر جوجل');
         return;
       }
+      // The agency owner: Google first, then the fingerprint / security key.
+      if (data.status === 'REQUIRES_SECURITY_KEY') {
+        setKeyFlow({ flowToken: data.flowToken, options: data.options, name: data.name });
+        return;
+      }
       if (data.status === 'SUCCESS') finishLogin(data);
     } catch {
       setError('تعذر الاتصال بخادم جوجل.');

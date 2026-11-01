@@ -234,7 +234,7 @@ export default function AdminDashboardPage() {
                   دخول
                 </button>
                 <button type="button" className="login-qr-entry" onClick={() => { setPhoneQr(true); setLoginError(''); setLoginSuccessMsg(''); }}>
-                  <QrCode size={18} /> الدخول برمز QR من هاتف المشرف
+                  <QrCode size={18} /> الدخول بالهاتف (رمز QR)
                 </button>
               </form>
             ) : (

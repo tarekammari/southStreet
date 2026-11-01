@@ -7,8 +7,9 @@ import { countCredentials } from '@/lib/webauthn';
  * the Super Admin's email. Off when unset (South Street keeps security keys).
  *
  * Only a Google sign-in whose verified email is that address, on the Super
- * Admin account carrying the same email, qualifies. Whoever controls that
- * Google account controls the agency: keep Google's 2-Step Verification on.
+ * Admin account carrying the same email, qualifies. Until the owner registers
+ * a key, Google alone opens the account; after that Google is the first step
+ * and the key (the phone's fingerprint) the second, and key step-ups return.
  */
 export function ownerGoogleEmail(): string {
   return String(process.env.SUPER_ADMIN_GOOGLE_EMAIL || '').trim().toLowerCase();

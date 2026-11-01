@@ -15,7 +15,7 @@ import { signToken } from '@/lib/auth';
 import { getSqliteDb } from '@/lib/sqlite';
 import { pilgrimAppointment, pilgrimWaitingRedirect } from '@/lib/booking';
 import { notifySignup } from '@/lib/notifications';
-import { tokenVersionOf } from '@/lib/webauthn';
+import { beginAuthentication, countCredentials, tokenVersionOf } from '@/lib/webauthn';
 import { clientMeta, completeLogin } from '@/lib/login-session';
 import { isOwnerGoogleSuperAdmin } from '@/lib/owner-google';
 
@@ -112,7 +112,18 @@ export async function POST(req: Request) {
 
     const role = normalizeLoginRole(user.role);
     // The agency owner's own Google account may open the Super Admin (SUPER_ADMIN_GOOGLE_EMAIL).
+    // Once the owner has registered a key (the phone's fingerprint), Google is
+    // only the first step: the key / fingerprint must follow, as after a password.
     if (isOwnerGoogleSuperAdmin(user, profile.email)) {
+      if (countCredentials(user.id) > 0) {
+        const started = await beginAuthentication(req, user.id, 'login');
+        return NextResponse.json({
+          status: 'REQUIRES_SECURITY_KEY',
+          flowToken: started!.flowToken,
+          options: started!.options,
+          name: user.name,
+        });
+      }
       return completeLogin(user, clientMeta(req), { mfa: true, method: 'google-owner' });
     }
     // Otherwise Super Admin / Admin sign in with password + security key, never Google.

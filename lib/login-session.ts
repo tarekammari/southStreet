@@ -224,6 +224,15 @@ export function completeLogin(
     /* login must succeed even if the audit table is old */
   }
 
+  // Every new Super Admin session reaches the owner's phone as an alert.
+  if (role === 'SUPER_ADMIN') {
+    void import('@/lib/login-alerts')
+      .then((m) => m.alertSuperAdminSignIn(user, meta, opts.method || 'password'))
+      .catch(() => {
+        /* an alert must never block a sign-in */
+      });
+  }
+
   const res = NextResponse.json({
     status: 'SUCCESS',
     user: safeUser,

@@ -80,6 +80,8 @@ import SecurityCenter, {
 import UserProfileModal from '@/components/admin/UserProfileModal';
 import AccountCreateDialog, { InviteLinkDialog } from '@/components/admin/AccountCreateDialog';
 import SecurityKeysPanel from '@/components/auth/SecurityKeysPanel';
+import OwnerSecuritySetup from '@/components/auth/OwnerSecuritySetup';
+import DevicesPanel from '@/components/auth/DevicesPanel';
 import { adminFetch, keyErrorMessage } from '@/lib/webauthn-client';
 import GoogleLoginSettings from '@/components/admin/GoogleLoginSettings';
 import ServerHealthPanel from '@/components/admin/ServerHealth';
@@ -288,6 +290,10 @@ export default function UserAccessDashboard({
   // Firewall and server health are SUPER_ADMIN-only on the server; the director starts on the request queue.
   const isSuperAdmin = String(currentUser?.role || '').toUpperCase() === 'SUPER_ADMIN';
   const [section, setSection] = useState<DashSection>(isSuperAdmin ? 'users' : 'bookings');
+  // A "new sign-in" alert opens /admin?devices=1: straight to keys and devices.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('devices') === '1') setSection('keys');
+  }, []);
   const [demandCount, setDemandCount] = useState(0);
   const [reviewsPending, setReviewsPending] = useState(0);
   const [profileId, setProfileId] = useState<string | null>(null);
@@ -747,6 +753,7 @@ export default function UserAccessDashboard({
 
           <div className={`inn-layout${sideOpen ? '' : ' is-collapsed'}`}>
             <div className="inn-main">
+          {isSuperAdmin ? <OwnerSecuritySetup /> : null}
           <div className="inn-stage">
           {section === 'security' && isSuperAdmin ? (
             <div key="security" className="inn-stage-pane is-active inn-swap">
@@ -771,6 +778,7 @@ export default function UserAccessDashboard({
           {section === 'keys' ? (
             <div key="keys" className="inn-stage-pane is-active inn-swap">
               <SecurityKeysPanel />
+              <DevicesPanel />
             </div>
           ) : null}
           {section === 'hotels' ? (

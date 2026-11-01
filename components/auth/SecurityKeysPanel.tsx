@@ -120,7 +120,7 @@ export default function SecurityKeysPanel() {
         <span className="skm-icon"><ShieldCheck className="w-5 h-5" aria-hidden /></span>
         <div>
           <h2 id="skm-title">مفاتيح الأمان</h2>
-          <p>الدخول إلى الإدارة يتطلب كلمة المرور ثم لمس أحد هذه المفاتيح.</p>
+          <p>الدخول إلى الإدارة يتطلب كلمة المرور (أو Google لصاحب الوكالة) ثم لمس أحد هذه المفاتيح أو البصمة.</p>
         </div>
       </header>
 
@@ -160,7 +160,7 @@ export default function SecurityKeysPanel() {
         <input value={label} onChange={(e) => setLabel(e.target.value)} maxLength={60} aria-label="اسم المفتاح الجديد" />
         <button type="button" className="skm-btn is-primary" onClick={() => addKey('platform')} disabled={Boolean(busy)}>
           {busy === 'add' ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <Plus className="w-4 h-4" aria-hidden />}
-          Windows Hello
+          بصمة هذا الجهاز
         </button>
         <button type="button" className="skm-btn" onClick={() => addKey('cross-platform')} disabled={Boolean(busy)}>
           <Plus className="w-4 h-4" aria-hidden />

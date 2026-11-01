@@ -10,6 +10,7 @@ import { useCallback, useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { CheckCircle2, KeyRound, Loader2, Smartphone, UserRound } from 'lucide-react';
 import GoogleContinueButton from '@/components/GoogleContinueButton';
+import SecurityKeyPrompt from '@/components/auth/SecurityKeyPrompt';
 import { connectName } from '@/lib/brand';
 import { useBrand } from '@/components/social/useAgencyInfo';
 
@@ -37,6 +38,8 @@ export default function AppSignInPage() {
   const [info, setInfo] = useState('');
   const [link, setLink] = useState('');
   const [passwordLogin, setPasswordLogin] = useState(false);
+  /** The agency owner after Google: the fingerprint / security key step. */
+  const [keyFlow, setKeyFlow] = useState<{ flowToken: string; options: any; name?: string } | null>(null);
 
   /** Hands the session of this browser to the app. */
   const handoff = useCallback(async (p: string) => {
@@ -89,6 +92,10 @@ export default function AppSignInPage() {
         setInfo(data.message || 'حسابك قيد المراجعة. سنخبرك بعد موافقة الوكالة.');
         return;
       }
+      if (res.ok && data.status === 'REQUIRES_SECURITY_KEY') {
+        setKeyFlow({ flowToken: data.flowToken, options: data.options, name: data.name });
+        return;
+      }
       if (!res.ok || data.status !== 'SUCCESS') {
         setError(data.error || 'تعذر الدخول عبر جوجل');
         return;
@@ -122,6 +129,17 @@ export default function AppSignInPage() {
               <Smartphone size={18} /> العودة إلى التطبيق
             </a>
           </>
+        ) : keyFlow ? (
+          <SecurityKeyPrompt
+            flowToken={keyFlow.flowToken}
+            options={keyFlow.options}
+            name={keyFlow.name}
+            onSuccess={() => {
+              setKeyFlow(null);
+              void handoff(platform);
+            }}
+            onCancel={() => setKeyFlow(null)}
+          />
         ) : busy || me === undefined ? (
           <p style={{ color: '#64748b', display: 'flex', gap: 8, justifyContent: 'center' }}><Loader2 size={18} className="animate-spin" /> لحظة…</p>
         ) : (
