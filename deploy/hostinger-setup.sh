@@ -41,6 +41,12 @@ log "2/8 Firewall, swap, SSH keys only, fail2ban"
 ufw allow OpenSSH >/dev/null
 ufw allow 'Nginx Full' >/dev/null
 ufw --force enable
+# BBR + fq: the server is far from its users (NL → Algeria, a lossy route). With the
+# default cubic a 73 MB download took ~400 s; with BBR ~19 s.
+modprobe tcp_bbr 2>/dev/null || true
+echo tcp_bbr > /etc/modules-load.d/bbr.conf
+printf 'net.core.default_qdisc = fq\nnet.ipv4.tcp_congestion_control = bbr\n' > /etc/sysctl.d/90-bbr.conf
+sysctl -q -p /etc/sysctl.d/90-bbr.conf || true
 if ! swapon --show | grep -q .; then
   fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile >/dev/null && swapon /swapfile
   grep -q '^/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
@@ -87,7 +93,10 @@ systemctl enable --now fail2ban >/dev/null 2>&1 && systemctl restart fail2ban &&
 
 log "3/8 App user and code"
 id "$APP_USER" >/dev/null 2>&1 || adduser --disabled-password --gecos "" "$APP_USER"
-mkdir -p "$DATA/backups" && chown -R "$APP_USER": "$DATA"
+mkdir -p "$DATA/backups"
+# Not -R on $DATA: agencies keep their own data in $DATA/<slug>/ (deploy/AGENCIES.md).
+chown "$APP_USER": "$DATA" && chown -R "$APP_USER": "$DATA/backups"
+for f in "$DATA"/south_street.db*; do if [ -e "$f" ]; then chown "$APP_USER": "$f"; fi; done
 if [ -d "$APP_DIR/.git" ]; then
   sudo -u "$APP_USER" git -C "$APP_DIR" config core.fileMode false
   sudo -u "$APP_USER" git -C "$APP_DIR" pull --ff-only
@@ -153,7 +162,7 @@ else
 fi
 as_app "pm2 save"
 env PATH="$PATH" pm2 startup systemd -u "$APP_USER" --hp "/home/$APP_USER" >/dev/null
-for i in $(seq 1 60); do
+for _ in $(seq 1 60); do
   curl -fsS -A "$HC" http://127.0.0.1:3000/api/health >/dev/null 2>&1 && break
   sleep 2
 done

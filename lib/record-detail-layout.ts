@@ -64,7 +64,8 @@ const OMITTED_BY_TABLE: Record<string, Set<string>> = {
   morshids: new Set(['status']),
   hotels: new Set(['latitude', 'longitude', 'hotel_id']),
   // derived on the server: available = capacity − reserved, published follows status
-  packages: new Set(['available', 'published']),
+  // trip_type / tour: TripDetailsPanel; annex_options: PackageOfferingsPanel
+  packages: new Set(['available', 'published', 'trip_type', 'tour', 'annex_options']),
 };
 
 function isOmitted(column: RecordColumn, tableName?: string): boolean {

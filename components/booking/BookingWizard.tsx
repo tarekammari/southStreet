@@ -23,6 +23,7 @@ import {
   UserRound,
   Loader2,
 } from 'lucide-react';
+import { isTourism, tourCountryLabel, tourOf } from '@/lib/tour';
 import { Package, Reservation } from '@/types';
 import {
   BOOKING_EXTRAS,
@@ -242,7 +243,7 @@ export default function BookingWizard() {
   const goNext = () => {
     setError('');
     if ((view === 'offer' || view === 'packages') && !selected) {
-      setError('اختر باقة العمرة للمتابعة');
+      setError('اختر البرنامج أو الرحلة للمتابعة');
       return;
     }
     if (selected && isPackageExpired(selected)) {
@@ -505,7 +506,9 @@ export default function BookingWizard() {
                 {selected.start_date ? (
                   <span><Calendar className="w-5 h-5" /> {formatShortDate(selected.start_date)}</span>
                 ) : null}
-                {selected.makkah_hotel_name ? (
+                {isTourism(selected) && tourCountryLabel(tourOf(selected)) ? (
+                  <span><MapPin className="w-5 h-5" /> {tourCountryLabel(tourOf(selected))}{tourOf(selected).cities.length ? ` · ${tourOf(selected).cities.join('، ')}` : ''}</span>
+                ) : selected.makkah_hotel_name ? (
                   <span><MapPin className="w-5 h-5" /> {selected.makkah_hotel_name}</span>
                 ) : null}
               </div>
@@ -539,10 +542,21 @@ export default function BookingWizard() {
           ) : packages.filter((pkg) => !isPackageExpired(pkg)).length === 0 ? (
             <p className="text-sm text-slate-500 py-10 text-center">لا توجد باقات مفتوحة للحجز حالياً.</p>
           ) : (
+            <>
+            {([
+              ['religious', 'العمرة والحج'],
+              ['tourism', 'رحلات سياحية'],
+            ] as const).map(([group, groupLabel]) => {
+              const list = packages.filter((pkg) => !isPackageExpired(pkg) && isTourism(pkg) === (group === 'tourism'));
+              if (!list.length) return null;
+              return (
+            <div key={group} className="book-pkg-group">
+            <h3 className="book-pkg-group-title">{groupLabel}<span>{list.length}</span></h3>
             <div className="book-big-list">
-              {packages.filter((pkg) => !isPackageExpired(pkg)).map((pkg) => {
+              {list.map((pkg) => {
                 const from = pkg.prices?.length ? Math.min(...pkg.prices.map((p) => p.amount)) : 0;
                 const active = pkg.package_id === packageId;
+                const country = isTourism(pkg) ? tourCountryLabel(tourOf(pkg)) : '';
                 return (
                   <article key={pkg.package_id} className={`book-pkg-pick ${active ? 'is-active' : ''}`}>
                     <button
@@ -554,20 +568,24 @@ export default function BookingWizard() {
                       <span className={`book-choice-radio${active ? ' is-on' : ''}`} aria-hidden>
                         {active ? <Check className="w-3 h-3" strokeWidth={3} /> : null}
                       </span>
-                      <span className="book-pkg-type">{pkg.type}</span>
+                      <span className="book-pkg-type">{country || pkg.type}</span>
                       <strong>{pkg.name}</strong>
                       <span className="book-choice-price">{money(from)}</span>
                     </button>
                     <Link
-                      href={`/packages#${encodeURIComponent(pkg.package_id)}`}
+                      href={`/packages/${encodeURIComponent(pkg.package_id)}`}
                       className="book-pkg-details"
                     >
-                      تفاصيل البرنامج
+                      {country ? 'تفاصيل الرحلة' : 'تفاصيل البرنامج'}
                     </Link>
                   </article>
                 );
               })}
             </div>
+            </div>
+              );
+            })}
+            </>
           )}
         </section>
       )}

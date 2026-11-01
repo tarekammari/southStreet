@@ -6,16 +6,18 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, Mail, MapPin, MessageCircle, Phone, PhoneCall, Smartphone } from 'lucide-react';
 import { publicList } from '@/lib/public-catalog';
 import { PageContentRow, pickPageContent } from '@/lib/page-content';
-import { SOCIAL_LABELS } from '@/lib/social';
+import { socialProfiles } from '@/lib/social';
 import { useAgencyInfo } from '@/components/social/useAgencyInfo';
 import { SOCIAL_ICON } from '@/components/social/SocialIcons';
 import { toPortalRole } from '@/lib/roles';
 import PhoneQr from '@/components/PhoneQr';
+import { DEFAULT_BRAND, agencyLabel, connectName, telHref } from '@/lib/brand';
 import '@/app/footer.css';
 
 const PRODUCT_LINKS = [
   { label: 'حجز العمرة', href: '/book' },
   { label: 'البرامج', href: '/packages' },
+  { label: 'رحلات سياحية', href: '/packages?kind=tourism' },
   { label: 'الفنادق', href: '/hotels' },
   { label: 'دليل العمرة', href: '/guide' },
 ];
@@ -36,7 +38,8 @@ const rise = {
   }),
 };
 
-export default function Footer({ content }: { content?: PageContentRow[] }) {
+/** `hideCta`: the page already offers Connect (e.g. the About page's contact section). */
+export default function Footer({ content, hideCta = false }: { content?: PageContentRow[]; hideCta?: boolean }) {
   const [rows, setRows] = useState<PageContentRow[]>(content || []);
   const [pilgrim, setPilgrim] = useState(false);
 
@@ -60,20 +63,18 @@ export default function Footer({ content }: { content?: PageContentRow[] }) {
   }, []);
 
   const agency = useAgencyInfo();
-  const social = agency?.social;
-  const profiles = social
-    ? (Object.keys(SOCIAL_LABELS) as (keyof typeof SOCIAL_LABELS)[]).filter((k) => social[k]).map((k) => ({ key: k, url: social[k], label: SOCIAL_LABELS[k] }))
-    : [];
+  const social = agency.social;
+  const profiles = socialProfiles(social);
 
   const about = pickPageContent(rows, 'footer_about', {
-    title: 'ساوث ستريت للأسفار والعمرة',
+    title: agency.agency_name,
     content: 'رحلات عمرة وحج منظّمة من الجزائر، بمرافقة دينية وفنادق قريبة من الحرم ومتابعة يومية حتى العودة.',
   });
 
   const contacts = [
-    agency?.phone && { icon: Phone, label: agency.phone, href: `tel:${agency.phone.replace(/\s+/g, '')}`, ltr: true },
-    agency?.email && { icon: Mail, label: agency.email, href: `mailto:${agency.email}`, ltr: true },
-    { icon: MapPin, label: agency?.city || agency?.address || 'الجزائر العاصمة', href: '/about#contact' },
+    agency.phone && { icon: Phone, label: agency.phone, href: telHref(agency.phone), ltr: true },
+    agency.email && { icon: Mail, label: agency.email, href: `mailto:${agency.email}`, ltr: true },
+    { icon: MapPin, label: [agency.city || agency.address, ...agency.branches.map((b) => b.city)].filter(Boolean).join(' · '), href: '/about#contact' },
   ].filter(Boolean) as { icon: typeof Phone; label: string; href: string; ltr?: boolean }[];
 
   const companyLinks = COMPANY_LINKS.map((link) =>
@@ -84,6 +85,7 @@ export default function Footer({ content }: { content?: PageContentRow[] }) {
     <footer id="contact" className="sf" dir="rtl">
       <div className="sf-wrap">
         {/* Contact goes through Connect: messages and calls with the agency team. */}
+        {hideCta ? null : (
         <motion.div
           className="sf-cta"
           initial="hidden"
@@ -95,7 +97,7 @@ export default function Footer({ content }: { content?: PageContentRow[] }) {
           <span className="sf-cta-icon" aria-hidden><MessageCircle /></span>
           <div className="sf-cta-text">
             <h2>تحدّث مع فريق الوكالة مباشرة</h2>
-            <p>رسائل ومكالمات صوتية مع مستشاريك ومرشدك عبر تطبيق South Street Connect.</p>
+            <p>رسائل ومكالمات صوتية مع مستشاريك ومرشدك عبر تطبيق {connectName(agency)}.</p>
           </div>
           <div className="sf-cta-actions">
             <Link href="/connect" className="sf-btn is-primary">
@@ -104,11 +106,12 @@ export default function Footer({ content }: { content?: PageContentRow[] }) {
             <Link href="/app" className="sf-btn is-ghost">ثبّت التطبيق</Link>
           </div>
         </motion.div>
+        )}
 
         <div className="sf-grid">
           <motion.div className="sf-brand" initial="hidden" whileInView="visible" viewport={{ once: true }} variants={rise} custom={1}>
-            <Link href="/" aria-label="South Street">
-              <img src="/images/south_street_logo_trans.png" alt="South Street" className="sf-logo" />
+            <Link href="/" aria-label={agency.name_latin}>
+              <img src={agency.logo_url} alt={agency.name_latin} className={`sf-logo${agency.logo_url !== DEFAULT_BRAND.logo_url ? ' is-own' : ''}`} />
             </Link>
             <p>{about.content}</p>
             {profiles.length ? (
@@ -156,7 +159,7 @@ export default function Footer({ content }: { content?: PageContentRow[] }) {
         </div>
 
         <div className="sf-bottom">
-          <span>© 2026 وكالة ساوث ستريت · جميع الحقوق محفوظة</span>
+          <span>© {new Date().getFullYear()} {agencyLabel(agency)} · جميع الحقوق محفوظة</span>
           <span className="sf-status">الخدمة متاحة</span>
           <nav aria-label="روابط قانونية">
             <Link href="/about">شروط الخدمة</Link>

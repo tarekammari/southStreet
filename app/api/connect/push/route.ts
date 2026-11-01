@@ -1,7 +1,9 @@
 import { after, NextResponse } from 'next/server';
 import { connectSession } from '@/lib/connect/session';
-import { pushTargets, savePush } from '@/lib/connect/store';
+import { pushTargets, removePush, savePush } from '@/lib/connect/store';
 import { pushReady, pushTo } from '@/lib/connect/push';
+import { getBrand } from '@/lib/brand-server';
+import { connectName } from '@/lib/brand';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -25,7 +27,7 @@ export async function POST(req: Request) {
     const id = `test-${Date.now()}`;
     after(async () => {
       await sleep(5000);
-      const common = { tag: `call-${id}`, url: '/connect', callId: id, caller: 'اختبار الرنين', role: 'South Street Connect' };
+      const common = { tag: `call-${id}`, url: '/connect', callId: id, caller: 'اختبار الرنين', role: connectName(getBrand()) };
       await pushTo(s.me.id, { ...common, kind: 'call', title: '📞 اختبار الرنين', body: 'هكذا تصلك المكالمة والتطبيق مغلق' });
       await sleep(20000);
       await pushTo(s.me.id, { ...common, kind: 'call-end', outcome: 'ended', title: 'انتهى اختبار الرنين', body: 'الرنين يعمل على هذا الجهاز ✓' });
@@ -35,6 +37,19 @@ export async function POST(req: Request) {
 
   try {
     savePush(s.me.id, body.subscription);
+    return NextResponse.json({ success: true });
+  } catch {
+    return NextResponse.json({ error: 'اشتراك غير صالح' }, { status: 400 });
+  }
+}
+
+/** DELETE {subscription} — this device signed out: no more notifications for this account here. */
+export async function DELETE(req: Request) {
+  const s = connectSession(req);
+  if ('error' in s) return s.error;
+  const body = await req.json().catch(() => ({}));
+  try {
+    removePush(s.me.id, body.subscription);
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: 'اشتراك غير صالح' }, { status: 400 });

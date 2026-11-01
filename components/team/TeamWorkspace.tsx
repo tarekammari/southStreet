@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, Loader2, RefreshCw, Search, UserPlus, Users, X } from 'lucide-react';
-import { inTab, memberState, relativeTime, roleLabel, roleTone, TABS, type Member, type TabId, type Viewer } from './teamModel';
+import { CalendarDays, ChevronLeft, Loader2, Plane, RefreshCw, Search, UserPlus, Users, X } from 'lucide-react';
+import { inTab, memberState, NO_PROGRAM, programKey, relativeTime, roleLabel, roleTone, TABS, tripDates, type Member, type TabId, type Viewer } from './teamModel';
 import { loadTeam } from './teamApi';
 import { MemberAvatar, SecretSheet, StateBadge, type Secret } from './TeamBits';
 import MemberDrawer from './MemberDrawer';
@@ -32,12 +32,15 @@ export default function TeamWorkspace({
   const [loadError, setLoadError] = useState('');
   const [tab, setTab] = useState<TabId>(initialTab);
   const [query, setQuery] = useState('');
+  /** Clients tabs: show one Umrah program only ('' = all). */
+  const [program, setProgram] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [secret, setSecret] = useState<Secret | null>(null);
   const [toast, setToast] = useState<{ text: string; tone: 'ok' | 'error' } | null>(null);
 
   useEffect(() => setTab(initialTab), [initialTab]);
+  useEffect(() => setProgram(''), [tab]);
 
   const refresh = useCallback(async (silent = false) => {
     if (silent) setRefreshing(true);
@@ -76,13 +79,34 @@ export default function TeamWorkspace({
     return out;
   }, [members]);
 
+  const clientTab = tab === 'clients' || tab === 'alumni';
+
+  /** Programs present in the current clients tab, with how many clients go with each. */
+  const programs = useMemo(() => {
+    if (!clientTab) return [];
+    const map = new Map<string, { key: string; name: string; dates: string; count: number }>();
+    for (const m of members.filter((x) => inTab(x, tab))) {
+      const key = programKey(m);
+      const prev = map.get(key);
+      if (prev) prev.count += 1;
+      else map.set(key, {
+        key,
+        name: key === NO_PROGRAM ? 'بدون رحلة' : m.trip?.program?.name || '—',
+        dates: tripDates(m.trip?.program),
+        count: 1,
+      });
+    }
+    return [...map.values()].sort((a, b) => (a.key === NO_PROGRAM ? 1 : b.key === NO_PROGRAM ? -1 : b.count - a.count));
+  }, [members, tab, clientTab]);
+
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     return members
       .filter((m) => inTab(m, tab))
+      .filter((m) => !clientTab || !program || programKey(m) === program)
       .filter((m) => {
         if (!q) return true;
-        return [m.name, m.email, m.username, m.phone, roleLabel(m), m.staff?.title, m.staff?.specialization]
+        return [m.name, m.email, m.username, m.phone, roleLabel(m), m.staff?.title, m.staff?.specialization, m.trip?.program?.name, m.trip?.program?.reference]
           .filter(Boolean)
           .some((v) => String(v).toLowerCase().includes(q));
       })
@@ -91,7 +115,7 @@ export default function TeamWorkspace({
         const rank = (m: Member) => (memberState(m) === 'pending' ? 0 : m.isOnline ? 1 : 2);
         return rank(a) - rank(b) || a.name.localeCompare(b.name, 'ar');
       });
-  }, [members, tab, query]);
+  }, [members, tab, query, program, clientTab]);
 
   const selected = members.find((m) => m.id === selectedId) || null;
   const team = members.filter((m) => m.role !== 'PILGRIM_USER');
@@ -168,6 +192,31 @@ export default function TeamWorkspace({
           </label>
         </div>
 
+        {clientTab && programs.length ? (
+          <div className="tm-progfilter" role="tablist" aria-label="تصفية حسب برنامج العمرة">
+            <button type="button" role="tab" aria-selected={!program} className={!program ? 'is-active' : ''} onClick={() => setProgram('')}>
+              كل البرامج
+              <span className="tm-tab-count">{counts[tab] || 0}</span>
+            </button>
+            {programs.map((p) => (
+              <button
+                key={p.key}
+                type="button"
+                role="tab"
+                aria-selected={program === p.key}
+                className={`${program === p.key ? 'is-active' : ''}${p.key === NO_PROGRAM ? ' is-none' : ''}`}
+                onClick={() => setProgram(program === p.key ? '' : p.key)}
+                title={p.dates || p.name}
+              >
+                {p.key === NO_PROGRAM ? null : <Plane className="w-3.5 h-3.5" aria-hidden />}
+                <span className="tm-program-name">{p.name}</span>
+                {p.dates ? <small>{p.dates}</small> : null}
+                <span className="tm-tab-count">{p.count}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+
         <section className="tm-card">
           {loading ? (
             <div className="tm-placeholder"><Loader2 className="w-5 h-5 animate-spin" /> جاري تحميل الفريق…</div>
@@ -214,13 +263,26 @@ export default function TeamWorkspace({
                           <strong>{m.name}{m.id === viewer.id ? <span className="tm-you">أنت</span> : null}</strong>
                           <span dir="ltr">{m.staff?.title ? <bdi dir="rtl">{m.staff.title}</bdi> : m.email && !m.email.endsWith('@southstreet.dz') ? m.email : m.username}</span>
                           <em className={`tm-role is-${roleTone(m.role)} tm-person-role`}>{roleLabel(m)}</em>
+                          {m.trip?.program?.name ? <em className="tm-person-trip"><Plane className="w-3 h-3" aria-hidden />{m.trip.program.name}</em> : null}
                         </div>
                       </div>
                     </td>
                     <td className="is-hide-sm">
                       <span className={`tm-role is-${roleTone(m.role)}`}>{roleLabel(m)}</span>
                       {m.trip?.state === 'past' ? <small className="tm-trip-past" title={m.trip.lastTrip}>رحلة منتهية{m.trip.lastTrip ? ` · ${m.trip.lastTrip}` : ''}</small> : null}
-                      {m.trip?.state === 'current' ? <small className="tm-trip-now">رحلة قادمة</small> : null}
+                      {m.trip?.state === 'current' ? (
+                        <small className="tm-trip-now" title={m.trip.program?.reference}>
+                          <Plane className="w-3 h-3" aria-hidden />
+                          {m.trip.program?.name || 'رحلة قادمة'}
+                          {tripDates(m.trip.program) ? <span className="tm-trip-dates"><CalendarDays className="w-3 h-3" aria-hidden />{tripDates(m.trip.program)}</span> : null}
+                        </small>
+                      ) : null}
+                      {m.role === 'PILGRIM_USER' && (!m.trip || m.trip.state === 'none') && !m.bookings?.length ? <small className="tm-trip-none">بدون رحلة</small> : null}
+                      {m.role === 'PILGRIM_USER' && (!m.trip || m.trip.state === 'none') && m.bookings?.length ? (
+                        <small className={`tm-trip-kind is-${m.bookings[0].kind}`} title={m.bookings[0].name}>
+                          {m.bookings[0].kind === 'hotel' ? 'فندق' : m.bookings[0].kind === 'trip' ? 'رحلة سياحية' : 'عمرة'} · {m.bookings[0].statusLabel}
+                        </small>
+                      ) : null}
                     </td>
                     <td><StateBadge member={m} /></td>
                     <td className="is-hide-sm" dir="ltr">{m.phone || <span className="tm-empty-value">—</span>}</td>

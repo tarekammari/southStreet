@@ -1,9 +1,10 @@
 'use client';
 
 /**
- * Super Admin's phone: scan the QR shown on a new device and choose who that
- * device signs in as (Super Admin, accountant, guide or pilgrim). The approval
- * is confirmed with a security-key tap. Server side: /api/auth/qr-login/*.
+ * Phone side of the QR sign-in: scan the QR shown on a new device, pick the
+ * number it shows, and the device opens this account. The Super Admin's phone
+ * instead chooses who the device signs in as (Super Admin, accountant, guide or
+ * pilgrim) and confirms with a security-key tap. Server side: /api/auth/qr-login/*.
  *
  * The QR carries its secret after "#", so it never reaches server logs or
  * referrers; the page reads it and removes it from the address bar.
@@ -51,8 +52,12 @@ type Scan = {
   choices: number[];
   device: { label: string; ip: string; userAgent: string; requestedAt: number; sameNetwork: boolean };
   me: { id: string; name: string };
-  counts: Record<RoleId, number>;
+  mode: Mode;
+  counts: Record<RoleId, number> | null;
 };
+
+/** "choose": the Super Admin picks the account; "self": the phone opens its own account. */
+type Mode = 'choose' | 'self';
 
 type Account = { id: string; name: string; username: string; photo: string; phone: string };
 
@@ -62,7 +67,7 @@ type View =
   | { kind: 'scan' }
   | { kind: 'opening' }
   | { kind: 'review'; scan: Scan }
-  | { kind: 'done'; name: string; role: RoleId }
+  | { kind: 'done'; name: string; role: string }
   | { kind: 'denied' }
   | { kind: 'error'; message: string };
 
@@ -86,7 +91,7 @@ function codeFrom(raw: string): string | null {
 export default function LinkDevicePage() {
   const agency = useAgencyInfo();
   const [view, setView] = useState<View>({ kind: 'checking' });
-  const [me, setMe] = useState<{ name: string } | null>(null);
+  const [me, setMe] = useState<{ name: string; mode: Mode } | null>(null);
 
   const open = useCallback(async (code: string) => {
     setView({ kind: 'opening' });
@@ -98,7 +103,7 @@ export default function LinkDevicePage() {
         cache: 'no-store',
       });
       const data = await res.json().catch(() => ({}));
-      if (res.status === 401 || res.status === 403) {
+      if (res.status === 401) {
         sessionStorage.setItem(PENDING_KEY, code);
         setView({ kind: 'signin' });
         return;
@@ -111,6 +116,7 @@ export default function LinkDevicePage() {
   }, []);
 
   const onScan = useCallback((code: string) => void open(code), [open]);
+  const home = me?.mode === 'choose' ? '/admin' : me ? '/portal' : '/';
 
   useEffect(() => {
     const fromHash = new URLSearchParams(window.location.hash.slice(1)).get('c');
@@ -119,14 +125,18 @@ export default function LinkDevicePage() {
       sessionStorage.setItem(PENDING_KEY, fromHash);
     }
     fetch('/api/auth/qr-login/scan', { cache: 'no-store' })
-      .then(async (r) => (r.ok ? (await r.json()).me : null))
-      .catch(() => null)
-      .then((who) => {
-        if (!who) {
+      .then(async (r) => ({ status: r.status, data: await r.json().catch(() => ({})) }))
+      .catch(() => ({ status: 0, data: {} as any }))
+      .then(({ status, data }) => {
+        if (status === 403) {
+          setView({ kind: 'error', message: data.error || 'لا يمكن ربط جهاز بهذا الحساب.' });
+          return;
+        }
+        if (!data.me) {
           setView({ kind: 'signin' });
           return;
         }
-        setMe(who);
+        setMe({ name: data.me.name, mode: data.mode === 'choose' ? 'choose' : 'self' });
         const pending = sessionStorage.getItem(PENDING_KEY);
         sessionStorage.removeItem(PENDING_KEY);
         if (pending) void open(pending);
@@ -138,12 +148,12 @@ export default function LinkDevicePage() {
     <main className="lnk" dir="rtl">
       <div className="lnk-shell">
         <header className="lnk-head">
-          <Link href="/admin" className="lnk-back" aria-label="العودة إلى لوحة الإدارة"><ArrowRight className="w-5 h-5" /></Link>
+          <Link href={home} className="lnk-back" aria-label="رجوع"><ArrowRight className="w-5 h-5" /></Link>
           <div>
             <h1>ربط جهاز</h1>
-            <p>{agency?.agency_name || 'لوحة الإدارة'}{me ? ` · ${me.name}` : ''}</p>
+            <p>{agency?.agency_name || ''}{me ? ` · ${me.name}` : ''}</p>
           </div>
-          <span className="lnk-badge"><ShieldCheck className="w-4 h-4" /> محمي بمفتاح الأمان</span>
+          <span className="lnk-badge"><ShieldCheck className="w-4 h-4" /> {me?.mode === 'self' ? 'دخول آمن' : 'محمي بمفتاح الأمان'}</span>
         </header>
 
         {view.kind === 'checking' || view.kind === 'opening' ? (
@@ -163,11 +173,11 @@ export default function LinkDevicePage() {
           <div className="lnk-state is-ok">
             <span className="lnk-state-icon"><CheckCircle2 className="w-9 h-9" /></span>
             <h2>تم فتح الجلسة على الجهاز</h2>
-            <p>{ROLES.find((r) => r.id === view.role)?.label}: <b>{view.name}</b></p>
-            <p className="lnk-muted">سُجّلت العملية في سجل التدقيق. لإنهاء الجلسة لاحقاً استعمل «الجلسات النشطة» في لوحة الإدارة.</p>
+            <p>{me?.mode === 'choose' ? `${ROLES.find((r) => r.id === view.role)?.label || ''}: ` : ''}<b>{view.name}</b></p>
+            <p className="lnk-muted">سُجّلت العملية في سجل التدقيق. إن لم تكن أنت من طلب الدخول فغيّر كلمة المرور فوراً.</p>
             <div className="lnk-row">
               <button type="button" className="lnk-btn is-ghost" onClick={() => setView({ kind: 'scan' })}>ربط جهاز آخر</button>
-              <Link href="/admin" className="lnk-btn">لوحة الإدارة</Link>
+              <Link href={home} className="lnk-btn">{me?.mode === 'choose' ? 'لوحة الإدارة' : 'حسابي'}</Link>
             </div>
           </div>
         ) : view.kind === 'denied' ? (
@@ -195,8 +205,8 @@ function SignInFirst() {
   return (
     <div className="lnk-state">
       <span className="lnk-state-icon is-key"><KeyRound className="w-8 h-8" /></span>
-      <h2>سجّل الدخول كمشرف عام أولاً</h2>
-      <p>هاتفك هو مفتاح الدخول: يجب أن يكون مسجّلاً بحساب المشرف العام ومفتاح الأمان قبل ربط أي جهاز.</p>
+      <h2>سجّل الدخول على هذا الهاتف أولاً</h2>
+      <p>هاتفك هو مفتاح الدخول: سجّل الدخول بحسابك هنا، ثم امسح الرمز الظاهر على الجهاز الآخر. المشرف العام يستطيع اختيار الحساب الذي يُفتح.</p>
       <button type="button" className="lnk-btn" onClick={() => setLogin(true)}>تسجيل الدخول</button>
       {login ? <LoginModal onClose={() => setLogin(false)} redirectTo="/link-device" /> : null}
     </div>
@@ -370,8 +380,9 @@ function Review({
     };
   }, [role, query]);
 
-  const ready = number !== null && role !== null && (role === 'SUPER_ADMIN' || account !== null) && left > 0;
-  const target = role === 'SUPER_ADMIN' ? scan.me.name : account?.name;
+  const choose = scan.mode === 'choose';
+  const ready = number !== null && left > 0 && (!choose || (role !== null && (role === 'SUPER_ADMIN' || account !== null)));
+  const target = !choose || role === 'SUPER_ADMIN' ? scan.me.name : account?.name;
 
   const answer = async (decision: 'approve' | 'deny') => {
     setBusy(decision);
@@ -389,7 +400,7 @@ function Review({
       }
       if (res.ok) {
         navigator.vibrate?.([30, 60, 30]);
-        onDone(data.account?.name || target || '', role as RoleId);
+        onDone(data.account?.name || target || '', data.account?.role || role || '');
         return;
       }
       if (data.code === 'WRONG_NUMBER' || data.code === 'EXPIRED' || res.status === 404) {
@@ -408,8 +419,8 @@ function Review({
     () =>
       ROLES.map((r) => ({
         ...r,
-        count: scan.counts[r.id] ?? 0,
-        disabled: r.id !== 'SUPER_ADMIN' && !(scan.counts[r.id] > 0),
+        count: scan.counts?.[r.id] ?? 0,
+        disabled: r.id !== 'SUPER_ADMIN' && !((scan.counts?.[r.id] ?? 0) > 0),
       })),
     [scan.counts]
   );
@@ -468,6 +479,7 @@ function Review({
         </div>
       </div>
 
+      {choose ? (
       <div className="lnk-step">
         <h2><span>2</span> افتح الجهاز بصفة</h2>
         <div className="lnk-roles" role="radiogroup" aria-label="الدور">
@@ -493,8 +505,9 @@ function Review({
           ))}
         </div>
       </div>
+      ) : null}
 
-      {role && role !== 'SUPER_ADMIN' ? (
+      {choose && role && role !== 'SUPER_ADMIN' ? (
         <div className="lnk-step">
           <h2><span>3</span> اختر الحساب</h2>
           <label className="lnk-search">
@@ -535,12 +548,12 @@ function Review({
       <div className="lnk-actions">
         <button type="button" className="lnk-btn is-primary" disabled={!ready || Boolean(busy)} onClick={() => void answer('approve')}>
           {busy === 'approve' ? <Loader2 className="w-5 h-5 animate-spin" /> : <KeyRound className="w-5 h-5" />}
-          {ready ? `افتح الجهاز${target ? ` — ${target}` : ''}` : 'أكمل الخطوات للمتابعة'}
+          {!ready ? (choose ? 'أكمل الخطوات للمتابعة' : 'اختر الرقم للمتابعة') : choose ? `افتح الجهاز${target ? ` — ${target}` : ''}` : 'ادخل بحسابي على هذا الجهاز'}
         </button>
         <button type="button" className="lnk-btn is-danger" disabled={Boolean(busy)} onClick={() => void answer('deny')}>
           {busy === 'deny' ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldX className="w-4 h-4" />} ليس أنا — رفض
         </button>
-        <p className="lnk-muted">سيطلب منك المتصفح لمس مفتاح الأمان لتأكيد الدخول.</p>
+        <p className="lnk-muted">{choose ? 'سيطلب منك المتصفح لمس مفتاح الأمان لتأكيد الدخول.' : 'سيدخل الجهاز إلى حسابك أنت. لا توافق إن لم يكن الجهاز أمامك.'}</p>
       </div>
     </section>
   );

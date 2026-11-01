@@ -1,6 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auditFinanceMutation } from '@/lib/finance-audit';
-import { requireFinanceAccess } from '@/lib/finance-auth';
+import { FINANCE_ROLES } from '@/lib/finance-auth';
+import { requireRole, requireStepUp, type GateOk } from '@/lib/staff-gate';
+import {
+  ApprovalError,
+  approvalThreshold,
+  approveRequest,
+  listOpenRequests,
+  listRecentDecisions,
+  overrideRequest,
+  rejectRequest,
+  setApprovalThreshold,
+  submitClientPayment,
+  submitVoid,
+  validateRequest,
+  type Staff,
+} from '@/lib/finance-approvals';
 import {
   clientAccountBalances,
   collectibleReservations,
@@ -8,10 +23,7 @@ import {
   listHiddenIncomeClients,
   listPurgedIncomeClientKeys,
   purgeIncomeClient,
-  recordClientPayment,
   setIncomeClientHidden,
-  voidClientPayment,
-  voidIncomeReceipt,
   type ClientPaymentSource,
 } from '@/lib/finance';
 import { buildClientAvatarIndex } from '@/lib/finance-avatars-server';
@@ -19,6 +31,14 @@ import { dbLogAudit } from '@/lib/db';
 import { resolveRequestIp } from '@/lib/security-threats';
 
 export const dynamic = 'force-dynamic';
+
+function requireFinanceAccess(req: NextRequest) {
+  return requireRole(req, FINANCE_ROLES);
+}
+
+function staffOf(gate: GateOk): Staff {
+  return { id: String(gate.account.id), name: String(gate.account.name || gate.payload.name || 'موظف'), role: gate.role };
+}
 
 function actorOf(gate: { payload: { name?: string; sub?: string }; role: string }) {
   return {
@@ -54,6 +74,13 @@ export async function GET(req: NextRequest) {
   const gate = requireFinanceAccess(req);
   if ('error' in gate) return gate.error;
   const { searchParams } = new URL(req.url);
+  const approvals = {
+    open: listOpenRequests(),
+    recent: listRecentDecisions(),
+    threshold: approvalThreshold(),
+    me: { id: String(gate.account.id), role: gate.role },
+  };
+  if (searchParams.get('view') === 'approvals') return NextResponse.json({ approvals });
   return NextResponse.json({
     payments: listClientPayments({
       reservation_id: searchParams.get('reservation_id') || undefined,
@@ -66,6 +93,7 @@ export async function GET(req: NextRequest) {
     avatar_index: buildClientAvatarIndex(),
     hidden_clients: listHiddenIncomeClients(),
     purged_clients: listPurgedIncomeClientKeys(),
+    approvals,
   });
 }
 
@@ -76,28 +104,43 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const action = String(body.action || '').toLowerCase();
 
-    if (action === 'void_payment') {
-      const id = String(body.id || body.payment_id || '').trim();
-      if (!id) return NextResponse.json({ error: 'معرّف الدفعة مطلوب' }, { status: 400 });
-      const row = voidClientPayment(id);
-      auditFinanceMutation(gate, 'void', 'client_payment', id, null, {
-        ...row,
-        summary_ar: 'إلغاء دفعة عميل (تبقى في الملغاة)',
+    // Segregation of duties: validation, approvals and the Super Admin override.
+    const staff = staffOf(gate);
+    const ip = ipOf(req);
+    const superStepUp = () => (gate.role === 'SUPER_ADMIN' ? requireStepUp(req, gate) : null);
+
+    if (action === 'void_payment' || action === 'void_receipt') {
+      const stepUp = superStepUp();
+      if (stepUp) return stepUp.error;
+      const id = String(body.id || body.payment_id || body.receipt_id || '').trim();
+      const out = submitVoid(action === 'void_payment' ? 'payment' : 'receipt', id, staff, {
+        overrideReason: body.override_reason,
+        reason: body.reason,
+        ip,
       });
-      logIncomeAdminAudit(req, gate, 'إلغاء دفعة مداخيل', `دفعة ${id} — أُلغيت وبقيت للأرشيف`);
-      return NextResponse.json(row);
+      return NextResponse.json(out, { status: out.queued ? 202 : 200 });
     }
 
-    if (action === 'void_receipt') {
-      const id = String(body.id || body.receipt_id || '').trim();
-      if (!id) return NextResponse.json({ error: 'معرّف السند مطلوب' }, { status: 400 });
-      const row = voidIncomeReceipt(id);
-      auditFinanceMutation(gate, 'void', 'receipt', id, null, {
-        ...row,
-        summary_ar: 'إلغاء سند قبض / دفعة من المداخيل',
-      });
-      logIncomeAdminAudit(req, gate, 'إلغاء سند مداخيل', `سند ${id} — أُلغي وبقي للأرشيف (الملغاة)`);
-      return NextResponse.json(row);
+    if (action === 'validate_request') {
+      return NextResponse.json(validateRequest(String(body.id || ''), staff, ip));
+    }
+    if (action === 'approve_request' || action === 'override_request') {
+      const stepUp = requireStepUp(req, gate);
+      if (stepUp) return stepUp.error;
+      return NextResponse.json(
+        action === 'approve_request'
+          ? approveRequest(String(body.id || ''), staff, ip)
+          : overrideRequest(String(body.id || ''), staff, body.override_reason, ip)
+      );
+    }
+    if (action === 'reject_request') {
+      return NextResponse.json(rejectRequest(String(body.id || ''), staff, body.reason, ip));
+    }
+    if (action === 'set_threshold') {
+      if (gate.role !== 'SUPER_ADMIN') return NextResponse.json({ error: 'تعديل الحد من صلاحية المشرف العام' }, { status: 403 });
+      const stepUp = requireStepUp(req, gate);
+      if (stepUp) return stepUp.error;
+      return NextResponse.json({ threshold: setApprovalThreshold(Number(body.threshold), staff, ip) });
     }
 
     if (action === 'hide_client' || action === 'unhide_client') {
@@ -154,22 +197,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(row);
     }
 
-    const row = recordClientPayment({
-      reservation_id: body.reservation_id || null,
-      customer_name: body.customer_name || null,
-      customer_code: body.customer_code || null,
-      package_name: body.package_name || null,
-      amount: Number(body.amount),
-      source: String(body.source || 'INCOME').toUpperCase() as ClientPaymentSource,
-      method: body.method || null,
-      account_id: body.account_id || null,
-      entry_date: body.entry_date,
-      note: body.note || null,
-      created_by: gate.payload.name || gate.payload.sub,
-    });
-    auditFinanceMutation(gate, 'create', 'client_payment', String((row as { id?: string })?.id || ''), null, row);
-    return NextResponse.json(row, { status: 201 });
+    if (action) return NextResponse.json({ error: 'إجراء غير معروف' }, { status: 400 });
+
+    const stepUp = superStepUp();
+    if (stepUp) return stepUp.error;
+    const out = submitClientPayment(
+      {
+        reservation_id: body.reservation_id || null,
+        customer_name: body.customer_name || null,
+        customer_code: body.customer_code || null,
+        package_name: body.package_name || null,
+        amount: Number(body.amount),
+        source: String(body.source || 'INCOME').toUpperCase() as ClientPaymentSource,
+        method: body.method || null,
+        account_id: body.account_id || null,
+        entry_date: body.entry_date,
+        note: body.note || null,
+      },
+      staff,
+      { overrideReason: body.override_reason, ip }
+    );
+    return NextResponse.json(out, { status: out.queued ? 202 : 201 });
   } catch (err: any) {
+    if (err instanceof ApprovalError) {
+      return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
+    }
     return NextResponse.json({ error: err?.message || 'فشل تسجيل الدفعة' }, { status: 400 });
   }
 }

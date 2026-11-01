@@ -21,7 +21,7 @@ function mapStatus(status?: string | null, paymentStatus?: string | null): {
   const pay = String(paymentStatus || '').toUpperCase();
 
   if (s === 'CANCELLED') return { active: 'done', terminal: 'cancelled' };
-  if (s === 'REJECTED') return { active: 'awaiting', terminal: 'rejected' };
+  if (s === 'REJECTED' || s === 'EXPIRED') return { active: 'awaiting', terminal: 'rejected' };
   if (s === 'COMPLETED') return { active: 'done' };
   if (s === 'READY_FOR_TRAVEL') return { active: 'documents' };
   if (s === 'DOCUMENTS_PENDING') return { active: 'documents' };

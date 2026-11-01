@@ -136,13 +136,21 @@ class ListenerService : Service() {
                     CallInfo(id, caller?.optString("name").orEmpty().ifBlank { "مكالمة" }, caller?.optString("photo").orEmpty(), caller?.optString("roleLabel").orEmpty())
                 )
             }
+            "chat" -> {
+                // A new message while the app is closed (only the recipient's events carry a preview).
+                if (MainActivity.visible) return
+                val name = o.optString("name").ifBlank { return }
+                val chatId = o.optString("chatId")
+                Notify.message(this, name, o.optString("preview"), "/connect?chat=${o.optString("from")}", "chat-$chatId", o.optString("msgId"))
+            }
             "call" -> {
                 // The caller hung up / someone answered elsewhere: stop ringing.
                 val id = o.optString("id")
                 val state = o.optString("state")
-                if (id.isNotBlank() && id == CallService.current && state.isNotBlank() && state != "ringing") {
+                if (id.isNotBlank() && id == CallService.ringingNow && state.isNotBlank() && state != "ringing") {
                     CallService.stop(this)
                     IncomingCallActivity.close()
+                    Telecom.end(Telecom.causeOf(state))
                 }
             }
         }

@@ -1,10 +1,10 @@
-/* Modern South Street Financial Workspace — Premium Fintech Design System */
+/* Modern Financial Workspace — Premium Fintech Design System */
 
 .acct-theme-light {
-  --md-primary: #059669; /* Emerald 600 */
+  --md-primary: var(--brand-primary-light, #059669); /* Emerald 600 */
   --md-on-primary: #ffffff;
   --md-primary-container: #ecfdf5; /* Emerald 50 */
-  --md-on-primary-container: #064e3b; /* Emerald 900 */
+  --md-on-primary-container: var(--brand-primary-dark, #064e3b); /* Emerald 900 */
   --md-secondary-container: #f1f5f9; /* Slate 100 */
   --md-on-secondary-container: #0f172a; /* Slate 900 */
   --md-surface: #ffffff;
@@ -20,7 +20,7 @@
   --md-error: #e11d48; /* Rose 600 */
   --md-on-error-container: #881337;
   --md-error-container: #ffe4e6;
-  --md-success: #059669; /* Emerald 600 */
+  --md-success: var(--brand-primary-light, #059669); /* Emerald 600 */
   --md-success-container: #ecfdf5;
   --md-warning: #d97706; /* Amber 600 */
   --md-warning-container: #fef3c7;
@@ -54,8 +54,8 @@
 
 .acct-theme-dark {
   --md-primary: #10b981;
-  --md-on-primary: #022c22;
-  --md-primary-container: #064e3b;
+  --md-on-primary: var(--brand-primary-deep, #022c22);
+  --md-primary-container: var(--brand-primary-dark, #064e3b);
   --md-on-primary-container: #a7f3d0;
   --md-secondary-container: #1e293b;
   --md-on-secondary-container: #f8fafc;
@@ -72,7 +72,7 @@
   --md-error: #f43f5e;
   --md-error-container: #881337;
   --md-success: #10b981;
-  --md-success-container: #064e3b;
+  --md-success-container: var(--brand-primary-dark, #064e3b);
   --md-warning: #fbbf24;
   --md-warning-container: #78350f;
   --md-elevation-1: 0 1px 3px 0 rgba(0, 0, 0, 0.4);
@@ -225,7 +225,7 @@ body.acct-page .portal-main-accountant {
 .acct-theme-dark .acct-side-item { color: #94a3b8; }
 .acct-side-item:hover {
   background: #ecfdf5;
-  color: #047857;
+  color: var(--brand-primary, #047857);
   transform: translateX(-2px);
 }
 .acct-theme-dark .acct-side-item:hover {
@@ -233,16 +233,16 @@ body.acct-page .portal-main-accountant {
   color: #10b981;
 }
 .acct-side-item.is-on {
-  background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+  background: linear-gradient(135deg, var(--brand-primary-light, #059669) 0%, var(--brand-primary, #047857) 100%) !important;
   color: #ffffff !important;
   font-weight: 700;
-  box-shadow: 0 4px 14px rgba(5, 150, 105, 0.28);
+  box-shadow: 0 4px 14px rgb(var(--brand-primary-light-rgb, 5 150 105) / 0.28);
 }
 .acct-side-item.is-on .acct-side-icon {
   color: #ffffff !important;
 }
 .acct-side-item.is-branch {
-  color: #047857;
+  color: var(--brand-primary, #047857);
   background: #ecfdf5;
   font-weight: 700;
 }
@@ -290,7 +290,7 @@ body.acct-page .portal-main-accountant {
   border-inline-start: 2px solid #a7f3d0;
 }
 .acct-theme-dark .acct-nav-sub.is-open .acct-nav-sub-clip {
-  border-inline-start-color: #064e3b;
+  border-inline-start-color: var(--brand-primary-dark, #064e3b);
 }
 .acct-nav-sub .acct-side-item {
   min-height: 34px;
@@ -301,7 +301,7 @@ body.acct-page .portal-main-accountant {
 }
 .acct-nav-sub .acct-side-item.is-on {
   background: #ecfdf5 !important;
-  color: #047857 !important;
+  color: var(--brand-primary, #047857) !important;
   box-shadow: none;
   font-weight: 700;
 }
@@ -340,7 +340,7 @@ body.acct-page .portal-main-accountant {
   color: inherit;
   transition: color 0.15s;
 }
-.acct-side-item:hover .acct-side-icon { color: #047857; }
+.acct-side-item:hover .acct-side-icon { color: var(--brand-primary, #047857); }
 .acct-side-item.is-on .acct-side-icon { color: #ffffff !important; }
 
 /* —— Main column —— */
@@ -430,8 +430,8 @@ body.acct-page .portal-main-accountant {
   transition: all 0.2s;
 }
 .acct-datepick:focus-within {
-  border-color: #059669;
-  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.12);
+  border-color: var(--brand-primary-light, #059669);
+  box-shadow: 0 0 0 3px rgb(var(--brand-primary-light-rgb, 5 150 105) / 0.12);
 }
 .acct-datepick-text {
   width: 100%;
@@ -611,14 +611,14 @@ button.acct-kpi.acct-kpi-btn {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 button.acct-kpi.acct-kpi-btn:hover {
-  border-color: #059669;
+  border-color: var(--brand-primary-light, #059669);
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px -4px rgba(5, 150, 105, 0.15);
+  box-shadow: 0 8px 24px -4px rgb(var(--brand-primary-light-rgb, 5 150 105) / 0.15);
 }
 button.acct-kpi.acct-kpi-active {
-  border-color: #059669;
+  border-color: var(--brand-primary-light, #059669);
   background: #ecfdf5;
-  box-shadow: 0 4px 16px rgba(5, 150, 105, 0.18);
+  box-shadow: 0 4px 16px rgb(var(--brand-primary-light-rgb, 5 150 105) / 0.18);
 }
 .acct-theme-dark button.acct-kpi.acct-kpi-active {
   background: rgba(16, 185, 129, 0.15);
@@ -1211,12 +1211,12 @@ button.acct-3d-slot:hover { background: color-mix(in srgb, var(--md-on-surface) 
   --dash-text: #0f172a;
   --dash-muted: #64748b;
   --dash-grid: #eef2f7;
-  --dash-bar-a: #047857;
+  --dash-bar-a: var(--brand-primary, #047857);
   --dash-bar-b: #10b981;
   --dash-line: #e11d48;
-  --dash-income: #047857;
+  --dash-income: var(--brand-primary, #047857);
   --dash-spend: #e11d48;
-  --dash-ring-a: #059669;
+  --dash-ring-a: var(--brand-primary-light, #059669);
   --dash-ring-b: #0284c7;
   border-radius: 20px;
   padding: 22px 22px 20px;
@@ -1285,7 +1285,7 @@ button.acct-3d-slot:hover { background: color-mix(in srgb, var(--md-on-surface) 
   border-radius: 999px;
   font-size: 10px;
   font-weight: 700;
-  color: #047857;
+  color: var(--brand-primary, #047857);
   background: #ecfdf5;
   border: 1px solid #a7f3d0;
 }
@@ -1359,7 +1359,7 @@ button.acct-dash-kpi {
 button.acct-dash-kpi:hover {
   border-color: #a7f3d0;
   transform: translateY(-1px);
-  box-shadow: 0 10px 24px -14px rgba(4, 120, 87, 0.35);
+  box-shadow: 0 10px 24px -14px rgb(var(--brand-primary-rgb, 4 120 87) / 0.35);
 }
 .acct-dash-kpi > span:first-child,
 .acct-dash-kpi .flex > span {
@@ -1377,7 +1377,7 @@ button.acct-dash-kpi:hover {
   flex-shrink: 0;
   border: 1px solid transparent;
 }
-.acct-dash-kpi-icon.is-in { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+.acct-dash-kpi-icon.is-in { background: #ecfdf5; color: var(--brand-primary, #047857); border-color: #a7f3d0; }
 .acct-dash-kpi-icon.is-out { background: #fff1f2; color: #e11d48; border-color: #fecdd3; }
 .acct-dash-kpi-icon.is-net { background: #f8fafc; color: #475569; border-color: #e2e8f0; }
 .acct-dash-kpi-icon.is-treasury { background: #f0f9ff; color: #0284c7; border-color: #bae6fd; }
@@ -1642,13 +1642,13 @@ button.acct-dash-kpi:hover {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .acct-btn-primary {
-  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  background: linear-gradient(135deg, var(--brand-primary-light, #059669) 0%, var(--brand-primary, #047857) 100%);
   color: #ffffff;
-  box-shadow: 0 4px 14px rgba(5, 150, 105, 0.28);
+  box-shadow: 0 4px 14px rgb(var(--brand-primary-light-rgb, 5 150 105) / 0.28);
 }
 .acct-btn-primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(5, 150, 105, 0.35);
+  box-shadow: 0 6px 20px rgb(var(--brand-primary-light-rgb, 5 150 105) / 0.35);
   filter: brightness(1.05);
 }
 .acct-btn-ghost {
@@ -1708,16 +1708,16 @@ button.acct-dash-kpi:hover {
   align-items: center;
   justify-content: center;
   border-radius: 0.75rem;
-  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  background: linear-gradient(135deg, var(--brand-primary-light, #059669) 0%, var(--brand-primary, #047857) 100%);
   color: #ffffff;
   cursor: pointer;
   border: 0;
-  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.25);
+  box-shadow: 0 4px 12px rgb(var(--brand-primary-light-rgb, 5 150 105) / 0.25);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .acct-pay:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(5, 150, 105, 0.35);
+  box-shadow: 0 6px 16px rgb(var(--brand-primary-light-rgb, 5 150 105) / 0.35);
 }
 
 /* —— Tabs / segmented (Modern Pill Bar) —— */
@@ -1879,9 +1879,9 @@ button.acct-dash-kpi:hover {
 }
 .acct-chip-active {
   background: #ecfdf5 !important;
-  color: #047857 !important;
+  color: var(--brand-primary, #047857) !important;
   border-color: #a7f3d0 !important;
-  box-shadow: 0 2px 8px rgba(5, 150, 105, 0.15) !important;
+  box-shadow: 0 2px 8px rgb(var(--brand-primary-light-rgb, 5 150 105) / 0.15) !important;
 }
 
 .acct-badge {
@@ -1892,8 +1892,8 @@ button.acct-dash-kpi:hover {
   font-size: 0.6875rem;
   font-weight: 700;
   background: #ecfdf5;
-  color: #047857;
-  border: 1px solid rgba(5, 150, 105, 0.2);
+  color: var(--brand-primary, #047857);
+  border: 1px solid rgb(var(--brand-primary-light-rgb, 5 150 105) / 0.2);
 }
 .acct-tag {
   display: inline-flex;
@@ -1906,8 +1906,8 @@ button.acct-dash-kpi:hover {
 }
 .acct-tag-ok {
   background: #ecfdf5 !important;
-  color: #047857 !important;
-  border: 1px solid rgba(5, 150, 105, 0.25) !important;
+  color: var(--brand-primary, #047857) !important;
+  border: 1px solid rgb(var(--brand-primary-light-rgb, 5 150 105) / 0.25) !important;
 }
 .acct-tag-warn {
   background: #fef3c7 !important;
@@ -2011,7 +2011,7 @@ button.acct-dash-kpi:hover {
   padding: 0 7px;
   border-radius: 999px;
   background: #ecfdf5;
-  color: #047857;
+  color: var(--brand-primary, #047857);
   border: 1px solid #a7f3d0;
   font-size: 11px;
   font-weight: 800;
@@ -2114,9 +2114,9 @@ button.acct-dash-kpi:hover {
   transition: all 0.2s;
 }
 .acct-filter-date:focus {
-  border-color: #059669;
+  border-color: var(--brand-primary-light, #059669);
   background: #ffffff;
-  box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.12);
+  box-shadow: 0 0 0 2px rgb(var(--brand-primary-light-rgb, 5 150 105) / 0.12);
 }
 .acct-filter-period-sep {
   font-size: 0.75rem;
@@ -2300,8 +2300,8 @@ button.acct-stat-card:active { transform: scale(0.985); }
   background: rgba(217, 119, 6, 0.07);
 }
 .acct-supplier-status-pill.is-paid-full {
-  border-color: rgba(5, 150, 105, 0.3);
-  background: rgba(5, 150, 105, 0.06);
+  border-color: rgb(var(--brand-primary-light-rgb, 5 150 105) / 0.3);
+  background: rgb(var(--brand-primary-light-rgb, 5 150 105) / 0.06);
 }
 .acct-supplier-status-hint {
   font-size: 0.8125rem;
@@ -2485,7 +2485,7 @@ button.acct-stat-card:active { transform: scale(0.985); }
 }
 .acct-stmt-kind.is-pay {
   background: #ecfdf5;
-  color: #047857;
+  color: var(--brand-primary, #047857);
 }
 .acct-stmt-ref {
   font-weight: 800;

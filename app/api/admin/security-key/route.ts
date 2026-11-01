@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { getTokenFromRequest } from '@/lib/request-auth';
 import { normalizeLoginRole } from '@/lib/roles';
-import { getAdminKeyMeta, rotateAdminSecurityKey } from '@/lib/admin-key';
-import { resolveRequestIp } from '@/lib/security-threats';
+import { getAdminKeyMeta } from '@/lib/admin-key';
 import { requireRole, ADMINS, SUPER_ONLY } from '@/lib/staff-gate';
 
 export const runtime = 'nodejs';
@@ -23,28 +22,17 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(getAdminKeyMeta());
 }
 
+/**
+ * The legacy key file (southstreet_admin.key) is retired: sign-in uses
+ * hardware security keys, and recovery is `npm run admin:recover` on the
+ * server. New key files are no longer issued.
+ */
 export async function POST(req: NextRequest) {
-  const admin = requireAdmin(req);
-  if (!admin) {
+  if (!requireAdmin(req)) {
     return NextResponse.json({ error: 'مطلوب تسجيل دخول الإدارة' }, { status: 401 });
   }
-
-  try {
-    const ip = resolveRequestIp({
-      forwarded: req.headers.get('x-forwarded-for'),
-      realIp: req.headers.get('x-real-ip'),
-      fallback: '127.0.0.1',
-    });
-    const rotated = rotateAdminSecurityKey(admin.name || 'الإدارة', ip);
-    return NextResponse.json({
-      success: true,
-      message: 'تم توليد مفتاح أمان جديد بنجاح. المفتاح السابق لم يعد صالحاً.',
-      fileName: rotated.fileName,
-      fileContent: rotated.fileContent,
-      fingerprint: rotated.fingerprint,
-      issuedAt: rotated.issuedAt,
-    });
-  } catch {
-    return NextResponse.json({ error: 'خطأ في توليد مفتاح الأمان' }, { status: 500 });
-  }
+  return NextResponse.json(
+    { error: 'ملف المفتاح القديم لم يعد يُصدر — الدخول بمفاتيح الأمان فقط' },
+    { status: 410 }
+  );
 }

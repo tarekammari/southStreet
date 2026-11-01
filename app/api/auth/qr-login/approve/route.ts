@@ -1,29 +1,35 @@
 import { NextResponse } from 'next/server';
-import { requireRole, requireStepUp, SUPER_ONLY } from '@/lib/staff-gate';
+import { requireSession, requireStepUp } from '@/lib/staff-gate';
 import { clientMeta } from '@/lib/login-session';
 import { dbLogAudit } from '@/lib/db';
 import { recordLoginIncident } from '@/lib/security-monitor';
 import { deviceLabel } from '@/lib/user-access-view';
-import { LOGIN_ROLE_LABELS } from '@/lib/roles';
+import { isPrivilegedRole, LOGIN_ROLE_LABELS, normalizeLoginRole } from '@/lib/roles';
 import {
   approveQrRequest,
   denyQrRequest,
   isQrTargetRole,
   qrTargetAccount,
   requestForApprover,
+  type QrTargetRole,
 } from '@/lib/qr-login';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * The Super Admin's phone answers a scanned sign-in request.
+ * A phone answers the sign-in request it scanned.
  *   { id, decision: 'deny' }                                → the device is refused.
- *   { id, decision: 'approve', number, role, userId? }      → needs a security-key
- *     step-up (x-step-up); the number must be the one the device shows.
+ *   { id, decision: 'approve', number, role, userId? }      → the number must be
+ *     the one the device shows. The Super Admin chooses the account and confirms
+ *     with a security-key step-up (x-step-up); any other account opens itself.
  */
 export async function POST(req: Request) {
-  const gate = requireRole(req, SUPER_ONLY);
+  const gate = requireSession(req);
   if ('error' in gate) return gate.error;
+  const superAdmin = gate.role === 'SUPER_ADMIN';
+  if (!superAdmin && isPrivilegedRole(gate.role)) {
+    return NextResponse.json({ error: 'حساب المشرف يدخل إلى الأجهزة بمفتاح الأمان فقط.' }, { status: 403 });
+  }
   const body = await req.json().catch(() => ({}));
   const meta = clientMeta(req);
 
@@ -41,8 +47,10 @@ export async function POST(req: Request) {
   }
 
   // Nothing changes until the key is tapped: the first call (without it) only asks for it.
-  const stepUp = requireStepUp(req, gate);
-  if (stepUp) return stepUp.error;
+  if (superAdmin) {
+    const stepUp = requireStepUp(req, gate);
+    if (stepUp) return stepUp.error;
+  }
 
   if (Number(body.number) !== row.pair_number) {
     denyQrRequest(row);
@@ -58,9 +66,9 @@ export async function POST(req: Request) {
     );
   }
 
-  const role = String(body.role || '');
-  if (!isQrTargetRole(role)) return NextResponse.json({ error: 'اختر الدور.' }, { status: 400 });
-  const target = role === 'SUPER_ADMIN' ? gate.account : qrTargetAccount(String(body.userId || ''), role);
+  const role = superAdmin ? String(body.role || '') : 'SELF';
+  if (superAdmin && !isQrTargetRole(role)) return NextResponse.json({ error: 'اختر الدور.' }, { status: 400 });
+  const target = !superAdmin || role === 'SUPER_ADMIN' ? gate.account : qrTargetAccount(String(body.userId || ''), role as QrTargetRole);
   if (!target) return NextResponse.json({ error: 'الحساب غير متاح أو موقوف.' }, { status: 404 });
 
   if (!approveQrRequest(row, target.id)) {
@@ -69,9 +77,9 @@ export async function POST(req: Request) {
   dbLogAudit(
     gate.account.name,
     gate.account.role,
-    'فتح جلسة على جهاز جديد عبر QR',
-    `${LOGIN_ROLE_LABELS[role]}: ${target.name} — ${device}`,
+    superAdmin ? 'فتح جلسة على جهاز جديد عبر QR' : 'دخول جهاز بمسح QR من الهاتف',
+    `${LOGIN_ROLE_LABELS[normalizeLoginRole(target.role)]}: ${target.name} — ${device}`,
     meta.clientIp
   );
-  return NextResponse.json({ ok: true, status: 'approved', account: { name: target.name, role } });
+  return NextResponse.json({ ok: true, status: 'approved', account: { name: target.name, role: normalizeLoginRole(target.role) } });
 }

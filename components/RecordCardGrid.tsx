@@ -10,6 +10,7 @@ import { buildRecordCard, RecordCardModel, RecordColumn } from '@/lib/record-car
 import { extractImageUrls, isImageColumnName, isImagesArrayColumn, primaryPhotoColumn } from '@/lib/table-cell-utils';
 import { buildDetailLayout, DetailField, parseChips } from '@/lib/record-detail-layout';
 import { isPackageExpired } from '@/lib/booking-catalog';
+import { isTourism } from '@/lib/tour';
 import {
   getFieldSelectOptions,
   isMultiSelectField,
@@ -261,8 +262,8 @@ export function RecordCardGrid({ rows, columns, search, selectedKey, onSelect, t
 
 // ── Packages-specific grid: active first, expired collapsed ──
 function PackagesGridView({
-  activeCards,
-  expiredCards,
+  activeCards: allActive,
+  expiredCards: allExpired,
   cardLabel,
   selectedKey,
   onSelect,
@@ -274,19 +275,40 @@ function PackagesGridView({
   onSelect: (card: RecordCardModel) => void;
 }) {
   const [showExpired, setShowExpired] = useState(false);
+  // Umrah / Hajj programs and tourist trips are kept apart.
+  const [kind, setKind] = useState<'religious' | 'tourism'>('religious');
+  const inKind = (c: RecordCardModel) => (kind === 'tourism') === isTourism(c.row as { trip_type?: string; name?: string });
+  const counts = {
+    religious: [...allActive, ...allExpired].filter((c) => !isTourism(c.row as { trip_type?: string; name?: string })).length,
+    tourism: [...allActive, ...allExpired].filter((c) => isTourism(c.row as { trip_type?: string; name?: string })).length,
+  };
+  const activeCards = allActive.filter(inKind);
+  const expiredCards = allExpired.filter(inKind);
 
   return (
     <div className="record-card-grid-wrap" dir="rtl">
+      <div className="pkg-kind-tabs" role="tablist" aria-label="نوع البرامج">
+        {([
+          ['religious', 'العمرة والحج'],
+          ['tourism', 'رحلات سياحية'],
+        ] as const).map(([id, label]) => (
+          <button key={id} type="button" role="tab" aria-selected={kind === id} className={kind === id ? 'is-on' : ''} onClick={() => setKind(id)}>
+            {label}
+            <span>{counts[id]}</span>
+          </button>
+        ))}
+      </div>
+
       {/* ── Active programmes ── */}
       {activeCards.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-14 gap-3 text-slate-400">
           <CalendarOff className="w-9 h-9 opacity-40" />
-          <p className="text-sm">لا توجد برامج نشطة حالياً</p>
+          <p className="text-sm">{kind === 'tourism' ? 'لا توجد رحلات سياحية نشطة — أضف برنامجاً واختر «رحلة سياحية» في بطاقته' : 'لا توجد برامج نشطة حالياً'}</p>
         </div>
       ) : (
         <div className="record-card-group">
           <p className="record-card-group-title">
-            البرامج النشطة
+            {kind === 'tourism' ? 'الرحلات السياحية النشطة' : 'البرامج النشطة'}
             <span className="record-card-group-count">{activeCards.length}</span>
           </p>
           <div className="record-card-grid">

@@ -1,6 +1,11 @@
 import { AiCard, AiAction } from '@/types';
 import { getDatabase, saveDatabase, AiKnowledgeRule } from '@/lib/db';
 import { getSqliteDb } from '@/lib/sqlite';
+import { brandContactLines, brandGeo, connectName, fullAddress, isDefaultBrand, telHref } from '@/lib/brand';
+import { getBrand } from '@/lib/brand-server';
+
+/** Short name of this installation's agency (Sakhr speaks for it). */
+const agencyName = () => getBrand().short_name;
 import {
   toolSearchPackages,
   toolGetSeasonsInfo,
@@ -68,7 +73,7 @@ export function detectSiteInventoryIntent(prompt: string): { text: string; cards
     return [pageCard, ...sectionCards];
   });
 
-  let text = `🗺️ **خريطة تطبيق وكالة ساوث ستريت — ${inventory.length} صفحات رئيسية:**\n\n`;
+  let text = `🗺️ **خريطة تطبيق وكالة ${agencyName()} — ${inventory.length} صفحات رئيسية:**\n\n`;
   inventory.forEach(page => {
     text += `📄 **${page.title}** (${page.path})\n${page.description}\n`;
     (page.sections || []).forEach(sec => {
@@ -182,7 +187,7 @@ export function detectNavigationIntent(prompt: string): { action?: AiAction; act
 
   if (['الرئيسية', 'الصفحة الرئيسية', 'افتح الرئيسية', 'خذني للرئيسية', 'الرئيسيه'].some(k => lower.includes(k))) {
     return {
-      text: '🏠 تم توجيهك إلى **الصفحة الرئيسية** لوكالة ساوث ستريت.',
+      text: `🏠 تم توجيهك إلى **الصفحة الرئيسية** لوكالة ${agencyName()}.`,
       action: { type: 'navigate', target: '' },
       actionCard: {
         type: 'action',
@@ -198,12 +203,12 @@ export function detectNavigationIntent(prompt: string): { action?: AiAction; act
 
   if (['عن الوكالة', 'عن وكالة', 'من نحن', 'تعريف الوكالة', 'about us'].some(k => lower.includes(k))) {
     return {
-      text: '🏢 تم توجيهك إلى قسم **عن الوكالة** للتعرف على خبرة ساوث ستريت في رحلات العمرة والحج المباشرة.',
+      text: `🏢 تم توجيهك إلى قسم **عن الوكالة** للتعرف على خبرة ${agencyName()} في رحلات العمرة والحج المباشرة.`,
       action: { type: 'navigate', target: '/about' },
       actionCard: {
         type: 'action',
         data: {
-          title: 'عن وكالة ساوث ستريت',
+          title: `عن وكالة ${agencyName()}`,
           description: 'خبرة أكثر من 15 عاماً في تأطير ضيوف الرحمن والتأشيرات المباشرة.',
           buttonText: '🏢 الانتقال لقسم عن الوكالة',
           targetUrl: '/about'
@@ -300,7 +305,7 @@ export function detectNavigationIntent(prompt: string): { action?: AiAction; act
         type: 'action',
         data: {
           title: 'غرفة المحادثة والتواصل الفوري',
-          description: 'مراسلة الشيخ د. عبد الرحمن النوي ومسير الفوج والتنبيهات المباشرة المشفرة.',
+          description: isDefaultBrand(getBrand()) ? 'مراسلة الشيخ د. عبد الرحمن النوي ومسير الفوج والتنبيهات المباشرة المشفرة.' : 'مراسلة المرشد الديني ومسير الفوج والتنبيهات المباشرة المشفرة.',
           buttonText: '💬 فتح الشات الآن',
           targetUrl: '/portal?tab=chat'
         }
@@ -326,7 +331,7 @@ export function detectNavigationIntent(prompt: string): { action?: AiAction; act
 
   if (['تسجيل الدخول', 'تسجيل دخول', 'دخول الحساب', 'تسجيل حساب'].some(k => lower.includes(k))) {
     return {
-      text: '🔐 جاري فتح **نافذة تسجيل الدخول** الخاصة بوكالة ساوث ستريت...',
+      text: `🔐 جاري فتح **نافذة تسجيل الدخول** الخاصة بوكالة ${agencyName()}...`,
       action: { type: 'open_modal', target: 'login' },
       actionCard: {
         type: 'action',
@@ -422,7 +427,7 @@ export function detectAdminDbToolsIntent(prompt: string): { text: string; cards:
 
   if (isTableViewQuery) {
     let tableName = 'packages'; // default if general
-    let tableLabel = 'باقات العمرة والحج';
+    let tableLabel = 'البرامج والرحلات';
 
     if (lower.includes('فندق') || lower.includes('فنادق') || lower.includes('hotel')) {
       tableName = 'hotels'; tableLabel = 'الفنادق المعتمدة';
@@ -511,7 +516,7 @@ export function detectAdminDbToolsIntent(prompt: string): { text: string; cards:
             data: {
               title: 'اختيار جدول البيانات لإضافة جديد',
               options: [
-                { name: 'packages', label: '📦 باقات العمرة والحج' },
+                { name: 'packages', label: '📦 البرامج والرحلات' },
                 { name: 'hotels', label: '🏨 الفنادق المعتمدة' },
                 { name: 'morshids', label: '👨‍💼 المرشدين وطاقم العمل' },
                 { name: 'users', label: '👤 المستخدمين والحسابات' },
@@ -553,11 +558,11 @@ export function detectMorchedIntent(prompt: string): { text: string; cards: AiCa
       data: member
     }));
 
-    let introText = `✨ **طاقم وكالة ساوث ستريت والمرشدون الميدانيون المعتمدون:**\n\n`;
+    let introText = `✨ **طاقم وكالة ${agencyName()} والمرشدون الميدانيون المعتمدون:**\n\n`;
     if (isWomenQuery) {
-      introText = `🧕 **المرشدات الدينيات لشؤون الأخوات والنساء بوكالة ساوث ستريت:**\n\nتتولى المرشدات مرافقة الأخوات المعتمرات في الصلوات والزيارات بالروضة الشريفة وأحكام الإحرام:\n\n`;
+      introText = `🧕 **المرشدات الدينيات لشؤون الأخوات والنساء بوكالة ${agencyName()}:**\n\nتتولى المرشدات مرافقة الأخوات المعتمرات في الصلوات والزيارات بالروضة الشريفة وأحكام الإحرام:\n\n`;
     } else if (isStaffQuery && !isMurshidQuery) {
-      introText = `🏢 **فريق الإدارة والعمليات اللوجستية بوكالة ساوث ستريت:**\n\nنخبة متخصصة للإشراف على الفنادق، التأشيرات، الطيران والنقل:\n\n`;
+      introText = `🏢 **فريق الإدارة والعمليات اللوجستية بوكالة ${agencyName()}:**\n\nنخبة متخصصة للإشراف على الفنادق، التأشيرات، الطيران والنقل:\n\n`;
     }
 
     return {
@@ -622,10 +627,13 @@ export function detectPackageOfferIntent(prompt: string): { text: string; cards:
 export function detectAgencyCustomIntents(prompt: string): { text: string; cards: AiCard[]; actions: AiAction[]; map?: any } | null {
   const lower = prompt.toLowerCase();
 
+  // 1–2. Director / accountant: the default agency's own staff, not another agency's.
+  const ownStaff = isDefaultBrand(getBrand());
+
   // 1. Director Query
-  if (['المدير', 'مدير', 'من هو المدير', 'مدير الوكالة', 'المدير العام', 'المؤسس', 'صاحب الوكالة', 'رئيس الوكالة', 'director'].some(k => lower.includes(k))) {
+  if (ownStaff && ['المدير', 'مدير', 'من هو المدير', 'مدير الوكالة', 'المدير العام', 'المؤسس', 'صاحب الوكالة', 'رئيس الوكالة', 'director'].some(k => lower.includes(k))) {
     return {
-      text: `👔 **المدير العام والمؤسس لوكالة ساوث ستريت للأسفار والعمرة:**\n\n• **الاسم الكامل:** الأستاذ طارق العماري (المدير العام ورئيس مجلس الإدارة).\n• **الخبرة القيادية:** أكثر من 18 سنة في إدارة رحلات الحج والعمرة، التعاقدات الفندقية بمكة والمدينة، والرحلات الجوية المباشرة.\n• **المهام والمتابعة:** الإشراف المباشر على جودة التأطير، متابعة الحجاج والمعتمرين 24/7، وتوفير كافة التسهيلات لضيوف الرحمن.`,
+      text: `👔 **المدير العام والمؤسس لوكالة ${agencyName()} للأسفار والعمرة:**\n\n• **الاسم الكامل:** الأستاذ طارق العماري (المدير العام ورئيس مجلس الإدارة).\n• **الخبرة القيادية:** أكثر من 18 سنة في إدارة رحلات الحج والعمرة، التعاقدات الفندقية بمكة والمدينة، والرحلات الجوية المباشرة.\n• **المهام والمتابعة:** الإشراف المباشر على جودة التأطير، متابعة الحجاج والمعتمرين 24/7، وتوفير كافة التسهيلات لضيوف الرحمن.`,
       cards: [
         {
           type: 'morshid',
@@ -635,7 +643,7 @@ export function detectAgencyCustomIntents(prompt: string): { text: string; cards
             specialization: 'الإشراف العام، التعاقدات الفندقية والخطوط الجوية المباشرة 24/7',
             experience_years: 18,
             languages: ['العربية', 'الفرنسية', 'الإنجليزية'],
-            phone: '+21321554433',
+            phone: telHref(getBrand().phone).slice(4),
             avatar: 'ط',
             rating: 5.0,
             status: 'في الخدمة (مقر الإدارة العامة)'
@@ -647,15 +655,15 @@ export function detectAgencyCustomIntents(prompt: string): { text: string; cards
   }
 
   // 2. Accountant Query
-  if (['المحاسب', 'محاسب', 'من هو المحاسب', 'المحاسب المالي', 'قسم المالية', 'المالية', 'سند القبض', 'الفواتير', 'accountant'].some(k => lower.includes(k))) {
+  if (ownStaff && ['المحاسب', 'محاسب', 'من هو المحاسب', 'المحاسب المالي', 'قسم المالية', 'المالية', 'سند القبض', 'الفواتير', 'accountant'].some(k => lower.includes(k))) {
     return {
-      text: `💼 **المحاسب المالي الرئيسي بوكالة ساوث ستريت:**\n\n• **الاسم الكامل:** الأستاذ ياسين الفاسي (محاسب الوكالة المعتمد ورئيس الشؤون المالية).\n• **المهام المالية:** اعتماد التحويلات البنكية وبريدي موب، متابعة الدفعات والسندات الرقمية، وتنظيم جدولة التقسيط الميسر من 2 إلى 10 أشهر.\n• **الهاتف المباشر للمحاسب:** +213 561 11 88 99 | 📧 accountant@southstreet.dz`,
+      text: `💼 **المحاسب المالي الرئيسي بوكالة ${agencyName()}:**\n\n• **الاسم الكامل:** الأستاذ ياسين الفاسي (محاسب الوكالة المعتمد ورئيس الشؤون المالية).\n• **المهام المالية:** اعتماد التحويلات البنكية وبريدي موب، متابعة الدفعات والسندات الرقمية، وتنظيم جدولة التقسيط الميسر من 2 إلى 10 أشهر.\n• **الهاتف المباشر للمحاسب:** +213 561 11 88 99 | 📧 accountant@southstreet.dz`,
       cards: [
         {
           type: 'morshid',
           data: {
             name: 'الأستاذ ياسين الفاسي',
-            roleName: 'المحاسب المالي الرئيسي بوكالة ساوث ستريت',
+            roleName: `المحاسب المالي الرئيسي بوكالة ${agencyName()}`,
             specialization: 'إصدار السندات الرقمية، اعتماد التحويلات، وتنسيق خطط التقسيط (2-10 أشهر)',
             experience_years: 14,
             languages: ['العربية', 'الفرنسية'],
@@ -671,33 +679,31 @@ export function detectAgencyCustomIntents(prompt: string): { text: string; cards
   }
 
   // 3. Agency Address / Location Query
-  if (['عنوان', 'العنوان', 'مقر', 'المقر', 'أين', 'اين', 'موقع', 'مكان', 'الاتجاه', 'اتجاه', 'مكتب', 'الجزائر العاصمة', 'address', 'location'].some(k => lower.includes(k))) {
+  const brand = getBrand();
+  const geo = brandGeo(brand);
+  if (['عنوان', 'العنوان', 'مقر', 'المقر', 'أين', 'اين', 'موقع', 'مكان', 'الاتجاه', 'اتجاه', 'مكتب', 'address', 'location', brand.city.replace(/^ولاية\s+/, '') || 'address'].filter(Boolean).some(k => lower.includes(k))) {
     return {
-      text: `📍 **عنوان ومقر القيادة والإدارة العامة لوكالة ساوث ستريت:**\n\n🏢 **المقر الرئيسي:** شارع 01 نوفمبر 1954 (ساوث ستريت)، الجزائر العاصمة.\n🧭 **الاتجاه والموقع:** بجوار ساحة أودان ومحطة هواري بومدين / الجزائر العاصمة.\n⏰ **أوقات العمل:** الأحد إلى الخميس من 08:30 صباحاً إلى 17:30 مساءً.\n🌐 **المكاتب المعتمدة:** فرع الجزائر العاصمة، فرع وهران، وفرع عنابة.\n📞 **هاتف الاستقبال:** +213 21 55 44 33 | 💬 **واتساب:** +213 550 12 34 56`,
+      text: `📍 **عنوان وكالة ${brand.short_name}:**\n\n🏢 **المقر:** ${fullAddress(brand)}.\n📞 **الهاتف:** ${brand.phone}\n${brandContactLines(brand) ? `${brandContactLines(brand)}\n` : ''}💬 **رسائل ومكالمات مع فريق الوكالة:** تطبيق ${connectName(brand)} ([/app](/app)).`,
       cards: [
         {
           type: 'action',
           data: {
-            title: 'المقر الرئيسي لوكالة ساوث ستريت (الجزائر العاصمة)',
-            description: 'شارع 01 نوفمبر 1954، بجوار ساحة أودان، الجزائر العاصمة.',
-            buttonText: '📍 فتح موقع الوكالة بالخريطة',
-            targetUrl: '/portal'
+            title: `مقر وكالة ${brand.short_name}${brand.city ? ` (${brand.city.replace(/^ولاية\s+/, '')})` : ''}`,
+            description: `${fullAddress(brand)} · الهاتف ${brand.phone}`,
+            buttonText: '📍 العنوان ووسائل التواصل',
+            targetUrl: '/about#contact'
           }
         }
       ],
-      map: {
-        title: 'المقر الرئيسي لوكالة ساوث ستريت - الجزائر العاصمة',
-        latitude: 36.7753,
-        longitude: 3.0588
-      },
+      map: geo ? { title: `وكالة ${brand.short_name} - ${brand.address}`, latitude: geo.latitude, longitude: geo.longitude } : undefined,
       actions: []
     };
   }
 
-  // 4. Installments & Payment Facility Query
-  if (['تقسيط', 'التقسيط', 'تسهيلات', 'دفعات', 'أشهر', 'اشهر', 'بالتقسيط', '2 الى 10', 'من 2 الى 10', 'شروط التقسيط', 'اقساط', 'أقساط', 'installment'].some(k => lower.includes(k))) {
+  // 4. Installments & Payment Facility Query (South Street's own payment policy)
+  if (ownStaff && ['تقسيط', 'التقسيط', 'تسهيلات', 'دفعات', 'أشهر', 'اشهر', 'بالتقسيط', '2 الى 10', 'من 2 الى 10', 'شروط التقسيط', 'اقساط', 'أقساط', 'installment'].some(k => lower.includes(k))) {
     return {
-      text: `💳 **تسهيلات الدفع والتقسيط الميسر بوكالة ساوث ستريت (من 2 إلى 10 أشهر):**\n\nتقدم الوكالة نظام **التقسيط المريح بدون فوائد** لجميع باقات العمرة والحج لعام 2026:\n\n1. **فترة التقسيط المرنة:** يمكنك تقسيط تكلفة الرحلة على فترة تتراوح بين **شهريين (2) وحتى 10 أشهر كاملة**.\n2. **الدفعة الأولى:** تسديد دفعة تأكيد أولى (من 20% إلى 30%) عند تقديم وتثبيت الملف.\n3. **طرق السداد:** أقساط شهرية ميسرة عبر تطبيق بريدي موب (BaridiMob)، الحساب الجاري البريدي CCP، أو نقداً بالمقر.\n4. **السندات الرسمية:** إصدار سند قبض رقمي فوري معتمد فور كل دفعة شهرية من المحاسب المالي الأستاذ ياسين الفاسي.`,
+      text: `💳 **تسهيلات الدفع والتقسيط الميسر بوكالة ${agencyName()} (من 2 إلى 10 أشهر):**\n\nتقدم الوكالة نظام **التقسيط المريح بدون فوائد** لجميع باقات العمرة والحج لعام 2026:\n\n1. **فترة التقسيط المرنة:** يمكنك تقسيط تكلفة الرحلة على فترة تتراوح بين **شهريين (2) وحتى 10 أشهر كاملة**.\n2. **الدفعة الأولى:** تسديد دفعة تأكيد أولى (من 20% إلى 30%) عند تقديم وتثبيت الملف.\n3. **طرق السداد:** أقساط شهرية ميسرة عبر تطبيق بريدي موب (BaridiMob)، الحساب الجاري البريدي CCP، أو نقداً بالمقر.\n4. **السندات الرسمية:** إصدار سند قبض رقمي فوري معتمد فور كل دفعة شهرية من المحاسب المالي الأستاذ ياسين الفاسي.`,
       cards: [
         {
           type: 'action',
@@ -745,7 +751,7 @@ export async function generateLocalRagResponse(prompt: string) {
     const inventory = toolGetSiteInventory();
     const pageList = inventory.map(p => `• ${p.title}`).join('\n');
     return {
-      text: `أهلاً وسهلاً بك في وكالة **${agency.agency_name || 'ساوث ستريت'}** 🕋\n\nأنا **صخر**، مساعدك الذكي. أستطيع الإجابة عن أي عنصر في التطبيق وفتح أي صفحة أو قسم لك.\n\n**الصفحات المتاحة:**\n${pageList}\n\n💡 جرّب: "افتح قسم المرشدين" أو "ما هي الباقات المتاحة؟"`,
+      text: `أهلاً وسهلاً بك في وكالة **${agency.agency_name || agencyName()}** 🕋\n\nأنا **${getBrand().assistant_name || 'صخر'}**، مساعدك الذكي. أستطيع الإجابة عن أي عنصر في التطبيق وفتح أي صفحة أو قسم لك.\n\n**الصفحات المتاحة:**\n${pageList}\n\n💡 جرّب: "افتح قسم المرشدين" أو "ما هي الباقات المتاحة؟"`,
       cards: inventory.slice(0, 4).map(p => ({
         type: 'action',
         data: {

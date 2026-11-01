@@ -17,11 +17,16 @@ android {
 
     defaultConfig {
         applicationId = "tech.southstreet.connect"
+        // A test build installs next to the real app (e.g. SS_APP_ID_SUFFIX=.test).
+        System.getenv("SS_APP_ID_SUFFIX")?.takeIf { it.isNotBlank() }?.let { applicationIdSuffix = it }
         minSdk = 27
         targetSdk = 35
         versionCode = (System.getenv("SS_VERSION_CODE") ?: "1").toInt()
         versionName = System.getenv("SS_VERSION_NAME") ?: "1.5.0"
-        buildConfigField("String", "ORIGIN", "\"${System.getenv("SS_ORIGIN") ?: "https://southstreet.1zayd1.tech"}\"")
+        val origin = System.getenv("SS_ORIGIN") ?: "https://southstreet.1zayd1.tech"
+        buildConfigField("String", "ORIGIN", "\"$origin\"")
+        // Plain http only for a test build aimed at a local dev server (SS_ORIGIN=http://10.0.2.2:3001).
+        manifestPlaceholders["cleartext"] = origin.startsWith("http://").toString()
         buildConfigField("boolean", "HAS_FIREBASE", hasFirebase.toString())
     }
 

@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Download page of South Street Connect (/app): the native apps for Android and
+ * Download page of Connect (/app): the native apps for Android and
  * Windows (real call screen, ringtone, works while closed), the web app for
  * iPhone, how to install each, and a QR code for computer visitors.
  */
@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import QRCode from 'qrcode';
+import QrLinkSignIn from '@/components/auth/QrLinkSignIn';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
   BatteryCharging,
@@ -37,7 +38,10 @@ import { authHeaders } from '@/lib/api-client';
 import { checkAppUpdate, insideNativeApp, nativeVersion, type UpdateCheck } from '@/lib/connect/native-bridge';
 
 const LoginModal = dynamic(() => import('@/components/LoginModal'), { ssr: false });
+import { CONNECT_INSTALL_EVENT, connectInstallHref } from '@/components/connect/installConnect';
 import '@/app/app-page.css';
+import { connectName } from '@/lib/brand';
+import { useBrand } from '@/components/social/useAgencyInfo';
 
 type Platform = 'android' | 'windows' | 'ios';
 
@@ -90,7 +94,7 @@ const FEATURES = [
   { icon: Zap, title: 'صوت واضح', text: 'إلغاء الصدى والضجيج، ويتحمّل شبكات الجيل الرابع الضعيفة.' },
   { icon: Bell, title: 'لا يفوتك شيء', text: 'إشعارات للرسائل والمكالمات الفائتة على كل أجهزتك.' },
   { icon: Users, title: 'رفاق رحلتك', text: 'أضف من تعرفهم، وبعد قبولهم تتراسلون وتتصلون مجاناً — مع اقتراحات ذكية من نفس رحلتك.' },
-  { icon: Lock, title: 'خاص وآمن', text: 'بحسابك في ساوث ستريت فقط. لا أحد يراسلك أو يتصل بك قبل أن تقبل طلبه، ولا تظهر أرقامكم لبعض.' },
+  { icon: Lock, title: 'خاص وآمن', text: 'بحسابك في الوكالة فقط. لا أحد يراسلك أو يتصل بك قبل أن تقبل طلبه، ولا تظهر أرقامكم لبعض.' },
 ];
 
 const HOW = [
@@ -136,6 +140,7 @@ const rise = {
 
 /** Animated phone showing an incoming Connect call. */
 function PhoneMock() {
+  const brand = useBrand();
   const reduce = useReducedMotion();
   return (
     <motion.div
@@ -152,7 +157,7 @@ function PhoneMock() {
       >
         <span className="cx-notch" />
         <div className="cx-screen">
-          <span className="cx-screen-brand">South Street Connect</span>
+          <span className="cx-screen-brand">{connectName(brand)}</span>
           <div className="cx-caller">
             <span className="cx-avatar">
               <i />
@@ -190,6 +195,7 @@ function PhoneMock() {
 }
 
 export default function DownloadPage() {
+  const brand = useBrand();
   const [platform, setPlatform] = useState<Platform>('android');
   const [detected, setDetected] = useState<Platform>('android');
   const [qr, setQr] = useState('');
@@ -201,6 +207,10 @@ export default function DownloadPage() {
   const [inApp, setInApp] = useState(false);
   const [checking, setChecking] = useState(false);
   const [update, setUpdate] = useState<UpdateCheck | null>(null);
+  // Install asked for by Sakhr (/app?install=… or an event when already here).
+  const [pendingInstall, setPendingInstall] = useState<Platform | 'auto' | null>(null);
+  const [installNote, setInstallNote] = useState('');
+  const [loginRedirect, setLoginRedirect] = useState('/app#install');
 
   useEffect(() => {
     setInApp(insideNativeApp());
@@ -209,6 +219,53 @@ export default function DownloadPage() {
       .catch(() => setAccount('out'));
     if (new URLSearchParams(window.location.search).get('login') === '1') setLoginOpen(true);
   }, []);
+
+  useEffect(() => {
+    const toPlatform = (v: unknown): Platform | 'auto' =>
+      v === 'android' || v === 'windows' ? v : v === 'iphone' || v === 'ios' ? 'ios' : 'auto';
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('install')) {
+      setPendingInstall(toPlatform(params.get('install')));
+      // A refresh must not download again.
+      params.delete('install');
+      const rest = params.toString();
+      window.history.replaceState(null, '', `/app${rest ? `?${rest}` : ''}#install`);
+    }
+    const onInstall = (e: Event) => setPendingInstall(toPlatform((e as CustomEvent).detail));
+    window.addEventListener(CONNECT_INSTALL_EVENT, onInstall);
+    return () => window.removeEventListener(CONNECT_INSTALL_EVENT, onInstall);
+  }, []);
+
+  // Runs once the sign-in state is known: download, iPhone steps, or sign in first.
+  useEffect(() => {
+    if (!pendingInstall || account === 'unknown') return;
+    const p = pendingInstall === 'auto' ? detect() : pendingInstall;
+    setPendingInstall(null);
+    setPlatform(p);
+    window.setTimeout(() => document.getElementById('install')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 400);
+    const target = PLATFORMS[p];
+    if (inApp) {
+      setInstallNote('Connect مثبّت على هذا الجهاز بالفعل.');
+      return;
+    }
+    if (!target.href) {
+      setInstallNote('على الآيفون: افتح هذه الصفحة في Safari، ثم «مشاركة» ← «إضافة إلى الشاشة الرئيسية».');
+      return;
+    }
+    if (account !== 'in') {
+      setInstallNote('التطبيق لأصحاب الحسابات: سجّل الدخول أولاً، ثم يبدأ التنزيل تلقائياً.');
+      setLoginRedirect(connectInstallHref(p === 'ios' ? 'iphone' : p));
+      setLoginOpen(true);
+      return;
+    }
+    const link = document.createElement('a');
+    link.href = target.href;
+    link.download = '';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setInstallNote(`بدأ تنزيل Connect ${target.label}. افتح الملف عند انتهائه لإكمال التثبيت.`);
+  }, [pendingInstall, account, inApp]);
 
   const checkUpdates = async () => {
     setChecking(true);
@@ -258,6 +315,7 @@ export default function DownloadPage() {
   return (
     <div className="page-shell min-h-screen cx-page">
       <Navbar variant="light" />
+      <QrLinkSignIn />
       <main dir="rtl">
         {/* ---------- hero ---------- */}
         <section className="cx-hero">
@@ -277,7 +335,7 @@ export default function DownloadPage() {
                 بفريقك في كل لحظة
               </motion.h1>
               <motion.p className="cx-lead" variants={rise} custom={2}>
-                South Street Connect يجمعك بفريق الوكالة ومرشدك: رسائل فورية ومكالمات صوتية واضحة، ترنّ مثل الهاتف حتى والتطبيق مغلق.
+                {connectName(brand)} يجمعك بفريق الوكالة ومرشدك: رسائل فورية ومكالمات صوتية واضحة، ترنّ مثل الهاتف حتى والتطبيق مغلق.
               </motion.p>
               <motion.div className="cx-ctas" variants={rise} custom={3}>
                 {primary(detected, 'cx-cta is-primary')}
@@ -393,6 +451,7 @@ export default function DownloadPage() {
                     <p className="cx-ios"><Share /> ثم <SquarePlus /> «إضافة إلى الشاشة الرئيسية»</p>
                   ) : null}
                   {current.note ? <p className="cx-note">{current.note}</p> : null}
+                  {installNote ? <p className="cx-install-note" role="status">{installNote}</p> : null}
                   {primary(platform, 'cx-cta is-primary is-wide')}
                 </motion.div>
               </AnimatePresence>
@@ -438,13 +497,13 @@ export default function DownloadPage() {
               ))}
             </div>
             <p className="cx-signin">
-              التطبيق لأصحاب الحسابات فقط: سجّل الدخول بحسابك في ساوث ستريت ثم نزّله. ليس لديك حساب؟ <Link href="/book">احجز رحلتك</Link> أو تواصل مع الوكالة.
+              التطبيق لأصحاب الحسابات فقط: سجّل الدخول بحسابك في {brand.short_name} ثم نزّله. ليس لديك حساب؟ <Link href="/book">احجز رحلتك</Link> أو تواصل مع الوكالة.
             </p>
           </div>
         </section>
       </main>
       <Footer />
-      {loginOpen ? <LoginModal onClose={() => setLoginOpen(false)} redirectTo="/app#install" /> : null}
+      {loginOpen ? <LoginModal onClose={() => setLoginOpen(false)} redirectTo={loginRedirect} /> : null}
     </div>
   );
 }

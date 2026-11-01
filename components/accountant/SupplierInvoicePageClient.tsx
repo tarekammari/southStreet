@@ -37,6 +37,8 @@ import {
   type SupplierInvoiceTax,
 
 } from '@/lib/supplier-invoice-document';
+import { agencyLabel } from '@/lib/brand';
+import { useBrand } from '@/components/social/useAgencyInfo';
 
 
 
@@ -93,6 +95,7 @@ type InvoiceRow = {
 
 
 export default function SupplierInvoicePageClient() {
+  const brand = useBrand();
 
   const router = useRouter();
 
@@ -672,7 +675,7 @@ export default function SupplierInvoicePageClient() {
 
                 }}
 
-                buyer={{ name: 'وكالة ساوث ستريت', address: 'الجزائر' }}
+                buyer={{ name: agencyLabel(brand), address: brand.country }}
 
                 invoiceNo={invNo}
 

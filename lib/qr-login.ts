@@ -4,16 +4,17 @@ import { normalizeLoginRole, type LoginRole } from '@/lib/roles';
 import type { ClientMeta } from '@/lib/login-session';
 
 /**
- * Sign in on a new device with the Super Admin's phone (like WhatsApp Web).
+ * Sign in on a new device with a phone that is already signed in (like WhatsApp Web).
  *
  *  1. The new device asks for a request: it gets a QR secret (shown as a QR and
  *     as a short code) and a device secret that stays in an httpOnly cookie, so
  *     only that browser can ever collect the session.
- *  2. The Super Admin's phone scans it (signed in with a security key). The
- *     request is bound to that phone's account; the new device then shows a
- *     two-digit number and the phone must pick the same number.
- *  3. The phone chooses who the device signs in as (the Super Admin, or an
- *     accountant / guide / pilgrim account), confirmed with a security-key tap.
+ *  2. A signed-in phone scans it. The request is bound to that phone's account;
+ *     the new device then shows a two-digit number and the phone must pick it.
+ *  3. Any account opens itself on the device. The Super Admin's phone instead
+ *     chooses who the device signs in as (the Super Admin, or an accountant /
+ *     guide / pilgrim account), confirmed with a security-key tap. Admins
+ *     (AGENCY_MANAGER) never sign in this way: security key only.
  *  4. The new device collects the session once; the request is then burnt.
  *
  * Only hashes of both secrets are stored. Every request expires within minutes.

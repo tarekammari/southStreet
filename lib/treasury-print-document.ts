@@ -2,6 +2,8 @@ import { TREASURY_IFRS } from '@/lib/accountant-sections';
 import { TREASURY_KINDS, treasuryKindLabel } from '@/lib/finance-categories';
 import { treasuryOverview, type TreasuryAccountMove, type TreasuryFlowMove } from '@/lib/finance';
 import { fmtAmount, fmtCount, payMethodLabel } from '@/components/accountant/money';
+import { getBrand } from './brand-server';
+import { agencyLabel } from './brand';
 
 function escapeHtml(value: string): string {
   return String(value ?? '')
@@ -180,7 +182,7 @@ function letterhead(printedAt: string, from: string, to: string): string {
   return `<header class="letterhead">
     <div>
       <div class="letterhead-en">SOUTH STREET AGENCY</div>
-      <div class="letterhead-ar">وكالة ساوث ستريت — تقرير مالي</div>
+      <div class="letterhead-ar">${escapeHtml(agencyLabel(getBrand()))} — تقرير مالي</div>
     </div>
     <div class="letterhead-meta">
       <div>${escapeHtml(from)} → ${escapeHtml(to)}</div>

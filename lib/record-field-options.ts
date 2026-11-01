@@ -1,3 +1,4 @@
+import { DESTINATIONS } from '@/lib/tour';
 /** Select / multi-select options for record detail card edit fields. */
 
 export interface FieldOption {
@@ -93,6 +94,9 @@ export const USER_ROLE_OPTIONS: FieldOption[] = [
 export const HOTEL_CITY_OPTIONS: FieldOption[] = [
   { value: 'MAKKAH', label: 'مكة المكرمة' },
   { value: 'MADINAH', label: 'المدينة المنورة' },
+  { value: 'جدة', label: 'جدة — السعودية' },
+  // Tourist-trip destinations (lib/tour.ts): the hotels page groups them by country.
+  ...DESTINATIONS.flatMap((d) => d.cities.map((c) => ({ value: c, label: `${c} — ${d.label}` }))),
 ];
 
 /** Hotels: the status decides whether the hotel appears on the public hotels page. */

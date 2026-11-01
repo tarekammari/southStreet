@@ -65,6 +65,7 @@ export function XIcon({ className = 'w-4 h-4' }: P) {
 }
 
 export const SOCIAL_ICON = {
+  whatsapp: WhatsAppIcon,
   facebook: FacebookIcon,
   instagram: InstagramIcon,
   tiktok: TikTokIcon,

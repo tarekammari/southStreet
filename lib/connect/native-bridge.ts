@@ -1,6 +1,7 @@
 'use client';
 
 import { jsonAuthHeaders } from '@/lib/api-client';
+import { getRingtone } from './device-prefs';
 
 /**
  * The Connect page running inside the native apps:
@@ -18,6 +19,8 @@ export type NativeCallState = {
   muted?: boolean;
   /** Loudspeaker instead of the earpiece (Android). */
   speaker?: boolean;
+  /** The ringtone picked on this device (the Windows call card plays it). */
+  ringtone?: string;
 };
 
 type WindowsBridge = {
@@ -54,7 +57,7 @@ export function canSwitchSpeaker(): boolean {
 
 export function sendCallState(state: NativeCallState | null) {
   const photo = state?.photo ? new URL(state.photo, window.location.href).href : undefined;
-  const s = state ? { ...state, photo } : null;
+  const s = state ? { ...state, photo, ringtone: getRingtone() } : null;
   try {
     win()?.callState(s);
     droid()?.callState(JSON.stringify(s || { phase: 'ended' }));
@@ -220,7 +223,13 @@ export async function downloadNewApp() {
   else window.open(url, '_blank');
 }
 
-export type UpdateCheck = { state: 'latest' | 'ready' | 'busy' | 'error' | 'old-app' | 'web-ready'; version: string };
+export type UpdateCheck = { state: 'latest' | 'downloading' | 'ready' | 'busy' | 'error' | 'old-app' | 'web-ready'; version: string };
+
+/** Windows (1.8.0+): how far the new version's download is, 0–100. */
+export function onUpdateProgress(cb: (p: { version: string; pct: number }) => void): () => void {
+  const w = win() as unknown as { onUpdateProgress?: (cb: (p: { version: string; pct: number }) => void) => () => void } | undefined;
+  return w?.onUpdateProgress ? w.onUpdateProgress(cb) : () => undefined;
+}
 
 /**
  * "التحقق من التحديثات": the app shell checks itself (and shows its own
@@ -232,7 +241,12 @@ export async function checkAppUpdate(currentWeb: string): Promise<UpdateCheck> {
   const a = droid() as unknown as { checkUpdate?: () => void } | undefined;
   if (w || a) {
     if (nativeNeedsManualUpdate() || (w && !w.checkUpdate) || (a && !a.checkUpdate)) return { state: 'old-app', version: '' };
-    if (w?.checkUpdate) return w.checkUpdate().catch(() => ({ state: 'error' as const, version: '' }));
+    if (w?.checkUpdate) {
+      // Windows apps before 1.8.1 answer only when the whole download is done (minutes):
+      // after a few seconds say it is downloading in the background (it asks to install when ready).
+      const wait = new Promise<UpdateCheck>((resolve) => window.setTimeout(() => resolve({ state: 'downloading', version: '' }), 6000));
+      return Promise.race([w.checkUpdate().catch(() => ({ state: 'error' as const, version: '' })), wait]);
+    }
     return new Promise((resolve) => {
       const done = (r: UpdateCheck) => {
         window.removeEventListener('ss-native-update', onEvent);

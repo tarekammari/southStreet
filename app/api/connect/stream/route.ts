@@ -1,6 +1,6 @@
 import { connectSession } from '@/lib/connect/session';
 import { subscribe, type ConnectEvent } from '@/lib/connect/bus';
-import { incomingFor, latestActivity, touchPresence, userById } from '@/lib/connect/store';
+import { incomingEvent, incomingFor, latestActivity, markDelivered, touchPresence, userById } from '@/lib/connect/store';
 import { linksStamp } from '@/lib/connect/links';
 
 export const dynamic = 'force-dynamic';
@@ -35,6 +35,9 @@ export async function GET(req: Request) {
       send('hello', { now: Date.now(), version: process.env.APP_VERSION || '' });
 
       const unsubscribe = subscribe(me.id, (e: ConnectEvent) => send(e.type, e));
+      // Online from the first second, and everything sent while away is now delivered.
+      touchPresence(me.id);
+      markDelivered(me.id);
 
       // Fallback for other server instances: look at the database about once a second.
       let lastActivity = latestActivity(me.id);
@@ -45,6 +48,7 @@ export async function GET(req: Request) {
           const act = latestActivity(me.id);
           if (act > lastActivity) {
             lastActivity = act;
+            markDelivered(me.id, act);
             send('chat', { type: 'chat', chatId: '', ts: act });
           }
           const people = linksStamp(me.id);
@@ -56,7 +60,7 @@ export async function GET(req: Request) {
           if (call && call.id !== lastIncoming) {
             lastIncoming = call.id;
             const caller = userById(call.callerId);
-            if (caller) send('incoming', { type: 'incoming', id: call.id, offer: call.offer, caller: { id: caller.id, name: caller.name, roleLabel: caller.roleLabel, photo: caller.photo } });
+            if (caller) send('incoming', incomingEvent(call, caller));
           }
         } catch {
           /* next round */

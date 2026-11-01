@@ -22,14 +22,18 @@ import {
   BedDouble,
   BookOpen,
   ChevronLeft,
+  QrCode,
 } from 'lucide-react';
 import { User } from '@/types';
 import LoginModal from './LoginModal';
+import { LOGIN_EVENT, type LoginRequest } from '@/components/auth/openLogin';
 import DemandBag from '@/components/booking/DemandBag';
 import { logoutAndReload, profilePhotoSrc, readStoredUser, syncSessionProfile } from '@/lib/client-session';
 import { AnimatePresence, motion } from 'framer-motion';
 import { toPortalRole } from '@/lib/roles';
 import { isImageSource } from '@/lib/user-access-view';
+import { agencyLabel } from '@/lib/brand';
+import { useBrand } from '@/components/social/useAgencyInfo';
 
 interface NavbarProps {
   currentUser?: User | null;
@@ -154,11 +158,14 @@ function ProfileFace({ user, size = 36 }: { user: User; size?: number }) {
   );
 }
 
-const PROMO_LINE =
-  'خدمتكم شرف نعتز به وكالة ساوث ستريت — رفيقكم الموثوق لأداء العمرة والحج بأعلى درجات الرفاهية والاطمئنان.';
+const promoLineOf = (agency: string) =>
+  `خدمتكم شرف نعتز به ${agency} — رفيقكم الموثوق لأداء العمرة والحج بأعلى درجات الرفاهية والاطمئنان.`;
 
 export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 'light', showPromo = false, promoLine }: NavbarProps) {
+  const brand = useBrand();
   const [isLoginOpen, setIsLoginOpen] = useState(false);
+  // Sakhr (or another part of the page) can open sign-in with a method chosen.
+  const [loginRequest, setLoginRequest] = useState<LoginRequest | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -173,6 +180,19 @@ export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 
   useEffect(() => {
     setSessionUser(currentUser ?? readStoredUser());
   }, [currentUser]);
+
+  useEffect(() => {
+    const onRequest = (e: Event) => {
+      const detail = (e as CustomEvent<LoginRequest & { handled?: boolean }>).detail;
+      if (!detail || detail.handled) return;
+      detail.handled = true;
+      setMobileOpen(false);
+      setLoginRequest(detail);
+      setIsLoginOpen(true);
+    };
+    window.addEventListener(LOGIN_EVENT, onRequest);
+    return () => window.removeEventListener(LOGIN_EVENT, onRequest);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -458,10 +478,23 @@ export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 
                       <UserIcon className="w-4 h-4 text-slate-400" />
                       <span>{pilgrim ? 'برنامجي' : 'بوابة الوكالة'}</span>
                     </Link>
+                    {pilgrim ? (
+                      <Link href="/my-bookings" onClick={() => setProfileOpen(false)} className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition ${isLight ? 'hover:bg-slate-50 text-slate-700' : 'hover:bg-slate-800 text-slate-200'}`}>
+                        <BedDouble className="w-4 h-4 text-slate-400" />
+                        <span>حجوزاتي</span>
+                      </Link>
+                    ) : null}
                     <Link href={pilgrim ? '/portal?tab=account' : '/portal?tab=security'} onClick={() => setProfileOpen(false)} className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition ${isLight ? 'hover:bg-slate-50 text-slate-700' : 'hover:bg-slate-800 text-slate-200'}`}>
                       <Settings className="w-4 h-4 text-slate-400" />
                       <span>{pilgrim ? 'حسابي' : 'أمان الحساب'}</span>
                     </Link>
+                    {/* Admins (AGENCY_MANAGER) sign in with their key only; the Super Admin's phone can open any device. */}
+                    {!isAdmin || navUser?.role === 'SUPER_ADMIN' || navUser?.role === 'admin' ? (
+                      <Link href="/link-device" onClick={() => setProfileOpen(false)} className={`nav-qr-link flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition ${isLight ? 'hover:bg-slate-50 text-slate-700' : 'hover:bg-slate-800 text-slate-200'}`}>
+                        <QrCode className="w-4 h-4 text-slate-400" />
+                        <span>ربط جهاز</span>
+                      </Link>
+                    ) : null}
                   </div>
                   <div className={`pt-2 border-t ${isLight ? 'border-slate-100' : 'border-slate-800'}`}>
                     <button onClick={() => { setProfileOpen(false); void logoutAndReload(); }} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-red-50 text-red-600 text-xs font-bold cursor-pointer">
@@ -489,7 +522,7 @@ export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 
       </header>
       {showPromo && (
         <div className="nav-promo-banner" role="note">
-          <p className="nav-promo-line">{promoLine || PROMO_LINE}</p>
+          <p className="nav-promo-line">{promoLine || promoLineOf(agencyLabel(brand))}</p>
         </div>
       )}
       </motion.div>
@@ -572,7 +605,9 @@ export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 
 
       {isLoginOpen && (
         <LoginModal
-          onClose={() => setIsLoginOpen(false)}
+          request={loginRequest || undefined}
+          redirectTo={loginRequest?.redirectTo}
+          onClose={() => { setIsLoginOpen(false); setLoginRequest(null); }}
           onSelectRole={(code, name) => { setIsLoginOpen(false); onSelectRole?.(code, name); }}
         />
       )}

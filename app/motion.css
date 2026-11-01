@@ -54,7 +54,7 @@
   position: absolute;
   inset: -20%;
   background:
-    radial-gradient(40% 35% at 30% 30%, rgba(16, 185, 129, 0.14), transparent 70%),
+    radial-gradient(40% 35% at 30% 30%, rgb(var(--brand-primary-light-rgb, 16 185 129) / 0.14), transparent 70%),
     radial-gradient(35% 30% at 72% 70%, rgba(106, 192, 255, 0.16), transparent 70%),
     radial-gradient(30% 30% at 60% 25%, rgba(201, 169, 98, 0.12), transparent 70%);
   animation: intro-drift 6s ease-in-out infinite alternate;

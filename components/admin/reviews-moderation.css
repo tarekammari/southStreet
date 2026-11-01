@@ -9,7 +9,7 @@
 
 .rvm-tabs { display: flex; gap: 6px; padding: 4px; background: #f1f5f9; border-radius: 14px; width: fit-content; max-width: 100%; overflow-x: auto; }
 .rvm-tabs button { display: inline-flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 14px; border-radius: 10px; font-weight: 800; font-size: 0.85rem; color: #475569; white-space: nowrap; }
-.rvm-tabs button.is-on { background: #fff; color: #047857; box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12); }
+.rvm-tabs button.is-on { background: #fff; color: var(--brand-primary, #047857); box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12); }
 .rvm-tabs em { font-style: normal; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; display: inline-grid; place-items: center; background: #e2e8f0; color: #475569; font-size: 0.75rem; }
 .rvm-tabs em.is-alert { background: #f59e0b; color: #fff; }
 
@@ -20,13 +20,13 @@
 .rvm-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05); }
 .rvm-card.is-pending { border-color: #fcd34d; box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.12); }
 .rvm-card-top { display: flex; align-items: center; gap: 10px; }
-.rvm-avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: #ecfdf5; color: #047857; font-weight: 900; flex: none; }
+.rvm-avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: #ecfdf5; color: var(--brand-primary, #047857); font-weight: 900; flex: none; }
 .rvm-who { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .rvm-who strong { font-weight: 900; font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rvm-who small { color: #64748b; font-size: 0.76rem; }
 .rvm-status { font-size: 0.72rem; font-weight: 800; padding: 4px 10px; border-radius: 999px; flex: none; }
 .rvm-status.is-pending { background: #fffbeb; color: #b45309; }
-.rvm-status.is-approved { background: #ecfdf5; color: #047857; }
+.rvm-status.is-approved { background: #ecfdf5; color: var(--brand-primary, #047857); }
 .rvm-status.is-rejected { background: #fef2f2; color: #b91c1c; }
 .rvm-status.is-hidden { background: #f1f5f9; color: #475569; }
 .rvm-stars { display: flex; align-items: center; gap: 2px; }
@@ -45,7 +45,7 @@
 .rvm-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 6px; border-top: 1px solid #f1f5f9; }
 .rvm-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid #e5e7eb; background: #fff; color: #334155; font-weight: 800; font-size: 0.82rem; }
 .rvm-btn svg { width: 15px; height: 15px; }
-.rvm-btn.is-primary { background: #047857; border-color: #047857; color: #fff; }
+.rvm-btn.is-primary { background: var(--brand-primary, #047857); border-color: var(--brand-primary, #047857); color: #fff; }
 .rvm-btn.is-danger { color: #b91c1c; border-color: #fecaca; background: #fff; }
 .rvm-btn.is-on { background: #f5f3ff; border-color: #ddd6fe; color: #6d28d9; }
 .rvm-btn:disabled { opacity: 0.6; cursor: not-allowed; }

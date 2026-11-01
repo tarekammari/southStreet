@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, CalendarDays, Clock, Hotel, MapPin, Plane, UserRound } from 'lucide-react';
+import { ArrowLeft, CalendarDays, Clock, Hotel, MapPin, Plane, ShieldCheck, Sparkles, UserRound } from 'lucide-react';
 import type { Package } from '@/types';
 import { DEPOSIT_PERCENT, ROOM_LABELS, parseTripDate } from '@/lib/booking-catalog';
 import { publicList } from '@/lib/public-catalog';
@@ -18,6 +18,7 @@ import {
   seatFillPercent,
 } from '@/lib/program-display';
 import WishlistHeart from '@/components/WishlistHeart';
+import { destinationOf, isTourism, tourCountryLabel, tourOf } from '@/lib/tour';
 
 type Guide = { morshid_id: string; name: string; image?: string; avatar?: string };
 
@@ -64,10 +65,21 @@ export default function ProgramProductCard({ pkg, index }: { pkg: Package; index
   const start = formatProgramDate(pkg.start_date, false);
   const end = formatProgramDate(pkg.end_date);
   const validStart = parseTripDate(pkg.start_date);
+  const tourism = isTourism(pkg);
+  const tour = tourism ? tourOf(pkg) : null;
+  const dest = tour ? destinationOf(tour.country) : null;
+  // A tourist trip without its own photo must not borrow the Kaaba pictures.
+  const ownPhoto = Boolean(pkg.image_url) && !/kaaba|maka0/i.test(String(pkg.image_url));
 
   return (
-    <article id={pkg.package_id} className={`pcard is-${availability}`}>
+    <article id={pkg.package_id} className={`pcard is-${availability}${tourism ? ' is-tour' : ''}`}>
       <div className="pcard-media">
+        {tourism && !ownPhoto ? (
+          <div className={`pcard-tourcover is-${(dest?.id || 'xx').toLowerCase()}`} aria-hidden>
+            <span><Plane aria-hidden /></span>
+            <b>{dest?.label || tour?.country || 'رحلة سياحية'}</b>
+          </div>
+        ) : (
         <img
           src={programImage(pkg, index)}
           alt={pkg.name}
@@ -77,8 +89,9 @@ export default function ProgramProductCard({ pkg, index }: { pkg: Package; index
             if (!e.currentTarget.src.endsWith(next)) e.currentTarget.src = next;
           }}
         />
+        )}
         <div className="pcard-top">
-          <span className="pcard-type">{PROGRAM_TYPE_LABEL[pkg.type] || pkg.type}</span>
+          <span className="pcard-type">{tour && tourCountryLabel(tour) ? tourCountryLabel(tour) : PROGRAM_TYPE_LABEL[pkg.type] || pkg.type}</span>
           {availability !== 'open' ? <span className={`pcard-status is-${availability}`}>{AVAILABILITY_LABEL[availability]}</span> : null}
           <span className="pcard-heart"><WishlistHeart packageId={pkg.package_id} /></span>
         </div>
@@ -103,7 +116,28 @@ export default function ProgramProductCard({ pkg, index }: { pkg: Package; index
 
       <div className="pcard-body">
         <ul className="pcard-facts">
-          {pkg.makkah_hotel_name ? (
+          {tour && tour.cities.length ? (
+            <li>
+              <span className="pcard-ico is-city"><MapPin aria-hidden /></span>
+              <div>
+                <small>المدن</small>
+                <b>{tour.cities.join(' · ')}</b>
+              </div>
+            </li>
+          ) : null}
+          {tour
+            ? tour.hotels.slice(0, 3).map((h, i) => (
+                <li key={`${h.name}-${i}`}>
+                  <span className="pcard-ico is-hotel"><Hotel aria-hidden /></span>
+                  <div>
+                    <small>فندق {h.city || ''}{h.nights ? ` · ${h.nights} ليالٍ` : ''}</small>
+                    <b>{h.name}</b>
+                    {h.stars ? <em className="pcard-stars">{'★'.repeat(h.stars)}</em> : null}
+                  </div>
+                </li>
+              ))
+            : null}
+          {!tourism && pkg.makkah_hotel_name ? (
             <li>
               <span className="pcard-ico is-hotel"><Hotel aria-hidden /></span>
               <div>
@@ -113,7 +147,7 @@ export default function ProgramProductCard({ pkg, index }: { pkg: Package; index
               </div>
             </li>
           ) : null}
-          {pkg.madinah_hotel_name ? (
+          {!tourism && pkg.madinah_hotel_name ? (
             <li>
               <span className="pcard-ico is-hotel"><Hotel aria-hidden /></span>
               <div>
@@ -152,6 +186,32 @@ export default function ProgramProductCard({ pkg, index }: { pkg: Package; index
           ) : null}
         </ul>
 
+        {tour && tour.highlights.length ? (
+          <ul className="pcard-highlights">
+            {tour.highlights.slice(0, 4).map((h) => (
+              <li key={h}><Sparkles size={12} aria-hidden /> {h}</li>
+            ))}
+          </ul>
+        ) : null}
+
+        {tour && (tour.itinerary.length || tour.visa) ? (
+          <details className="pcard-plan">
+            <summary>برنامج الرحلة{tour.itinerary.length ? ` · ${tour.itinerary.length} أيام` : ''}</summary>
+            {tour.itinerary.length ? (
+              <ol>
+                {tour.itinerary.map((d) => (
+                  <li key={d.day}>
+                    <b>اليوم {d.day}</b>
+                    <strong>{d.title}</strong>
+                    {d.details ? <p>{d.details}</p> : null}
+                  </li>
+                ))}
+              </ol>
+            ) : null}
+            {tour.visa ? <p className="pcard-visa"><ShieldCheck size={14} aria-hidden /> {tour.visa}</p> : null}
+          </details>
+        ) : null}
+
         {showSeats ? (
           <div className="pcard-seats">
             <div>
@@ -163,6 +223,10 @@ export default function ProgramProductCard({ pkg, index }: { pkg: Package; index
             </i>
           </div>
         ) : null}
+
+        <Link href={`/packages/${encodeURIComponent(pkg.package_id)}`} className="pcard-more">
+          {tourism ? 'تفاصيل الرحلة والبرنامج الكامل' : 'تفاصيل البرنامج'} <ArrowLeft size={14} aria-hidden />
+        </Link>
 
         <div className="pcard-foot">
           <div className="pcard-price">

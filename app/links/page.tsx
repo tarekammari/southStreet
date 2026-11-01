@@ -10,7 +10,7 @@ import Link from 'next/link';
 import { BookOpen, CalendarCheck, ChevronLeft, Info, MessageCircle, Phone, Plane } from 'lucide-react';
 import { useAgencyInfo } from '@/components/social/useAgencyInfo';
 import { SOCIAL_ICON } from '@/components/social/SocialIcons';
-import { SOCIAL_LABELS, withUtm } from '@/lib/social';
+import { socialProfiles, withUtm } from '@/lib/social';
 import { publicList } from '@/lib/public-catalog';
 
 type Pkg = { package_id: string; name: string; start_date?: string };
@@ -35,9 +35,7 @@ export default function LinksPage() {
 
   const social = agency?.social;
   const tag = (path: string) => (typeof window === 'undefined' ? path : withUtm(`${window.location.origin}${path}`, source, 'links'));
-  const profiles = social
-    ? (Object.keys(SOCIAL_LABELS) as (keyof typeof SOCIAL_LABELS)[]).filter((k) => social[k]).map((k) => ({ key: k, url: social[k], label: SOCIAL_LABELS[k] }))
-    : [];
+  const profiles = socialProfiles(social);
 
   const buttons = [
     { href: tag('/packages'), icon: Plane, title: 'برامج العمرة والحج', note: 'التواريخ والأسعار والفنادق' },
@@ -49,8 +47,8 @@ export default function LinksPage() {
   return (
     <main className="ssl" dir="rtl">
       <div className="ssl-card">
-        <img src="/images/south_street_logo_trans.png" alt="South Street" className="ssl-logo" />
-        <h1>{agency?.agency_name || 'ساوث ستريت للأسفار والعمرة'}</h1>
+        <img src={agency.logo_url} alt={agency.name_latin} className="ssl-logo" />
+        <h1>{agency.agency_name}</h1>
         <p className="ssl-tag">رحلات العمرة والحج من الجزائر · مرافقة دينية · فنادق قريبة من الحرم</p>
 
         <a href={tag('/connect')} className="ssl-wa">

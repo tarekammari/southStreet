@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { requireRole, SUPER_ONLY } from '@/lib/staff-gate';
+import { requireSession, type GateResult } from '@/lib/staff-gate';
+import { isPrivilegedRole } from '@/lib/roles';
 import { clientMeta, recordLoginFailure } from '@/lib/login-session';
 import { deviceLabel } from '@/lib/user-access-view';
 import { countQrAccounts, scanQrRequest } from '@/lib/qr-login';
@@ -7,10 +8,22 @@ import { countQrAccounts, scanQrRequest } from '@/lib/qr-login';
 export const dynamic = 'force-dynamic';
 
 /**
- * The Super Admin's phone scanned a sign-in QR (or typed its short code).
+ * A signed-in phone scanned a sign-in QR (or typed its short code).
  * Binds the request to this account and returns what the phone shows:
- * the device asking, the three numbers to choose from, and the roles.
+ * the device asking, the three numbers to choose from and, for the Super
+ * Admin, the roles to choose from (mode "choose"). Any other account can only
+ * open itself (mode "self"); Admins (AGENCY_MANAGER) sign in with their key only.
  */
+
+function phoneGate(req: Request): GateResult & { mode?: 'choose' | 'self' } {
+  const gate = requireSession(req);
+  if ('error' in gate) return gate;
+  if (gate.role === 'SUPER_ADMIN') return { ...gate, mode: 'choose' };
+  if (isPrivilegedRole(gate.role)) {
+    return { error: NextResponse.json({ error: 'حساب المشرف يدخل إلى الأجهزة بمفتاح الأمان فقط.', code: 'FORBIDDEN' }, { status: 403 }) };
+  }
+  return { ...gate, mode: 'self' };
+}
 
 const g = globalThis as unknown as { __ssQrScanMisses?: Map<string, number[]> };
 const misses: Map<string, number[]> = (g.__ssQrScanMisses ||= new Map<string, number[]>());
@@ -31,15 +44,15 @@ const MESSAGES = {
   FINISHED: 'استُعمل هذا الرمز من قبل. حدّث الرمز على الجهاز.',
 } as const;
 
-/** Lets the phone page know whether this browser holds a Super Admin session before opening the camera. */
+/** Lets the phone page know who is signed in on this browser before opening the camera. */
 export async function GET(req: Request) {
-  const gate = requireRole(req, SUPER_ONLY);
+  const gate = phoneGate(req);
   if ('error' in gate) return gate.error;
-  return NextResponse.json({ me: { id: gate.account.id, name: gate.account.name } }, { headers: { 'Cache-Control': 'no-store' } });
+  return NextResponse.json({ me: { id: gate.account.id, name: gate.account.name }, mode: gate.mode }, { headers: { 'Cache-Control': 'no-store' } });
 }
 
 export async function POST(req: Request) {
-  const gate = requireRole(req, SUPER_ONLY);
+  const gate = phoneGate(req);
   if ('error' in gate) return gate.error;
 
   if (recentMisses(gate.account.id).length >= MISS_LIMIT) {
@@ -70,7 +83,8 @@ export async function POST(req: Request) {
         sameNetwork: request.device_ip === clientMeta(req).clientIp,
       },
       me: { id: gate.account.id, name: gate.account.name },
-      counts: countQrAccounts(),
+      mode: gate.mode,
+      counts: gate.mode === 'choose' ? countQrAccounts() : null,
     },
     { headers: { 'Cache-Control': 'no-store' } }
   );

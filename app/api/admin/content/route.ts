@@ -5,6 +5,7 @@ import { verifyToken } from '@/lib/auth';
 import { getTokenFromRequest } from '@/lib/request-auth';
 import { normalizeLoginRole } from '@/lib/roles';
 import { requireRole, ADMINS, SUPER_ONLY } from '@/lib/staff-gate';
+import { invalidateBrand } from '@/lib/brand-server';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -80,6 +81,7 @@ export async function POST(req: NextRequest) {
       new Date().toISOString()
     );
 
+    invalidateBrand(); // social links are part of the brand
     return NextResponse.json({ success: true, key, message: 'تم تحديث المحتوى بنجاح في قاعدة البيانات' });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

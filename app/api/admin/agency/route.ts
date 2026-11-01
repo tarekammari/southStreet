@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getSqliteDb } from '@/lib/sqlite';
 import { saveGoogleClientId } from '@/lib/google-auth-config';
+import { invalidateBrand } from '@/lib/brand-server';
 import { verifyToken } from '@/lib/auth';
 import { getTokenFromRequest } from '@/lib/request-auth';
 import { normalizeLoginRole } from '@/lib/roles';
@@ -102,6 +103,7 @@ export async function PUT(req: NextRequest) {
       (body.google_client_id || '').trim()
     );
 
+    invalidateBrand();
     return NextResponse.json({ success: true, message: 'تم تحديث بيانات الوكالة بنجاح في قاعدة البيانات' });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

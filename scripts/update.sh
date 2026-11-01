@@ -5,6 +5,8 @@
 #   ./scripts/update.sh            update to the latest commit of the current branch
 #   ./scripts/update.sh v1.4.0     update to a tag (or any commit)
 #   ./scripts/update.sh --rollback go back to the previous version
+#   REBUILD=1 ./scripts/update.sh <commit>   build the same version again (after
+#                                  APP_ORIGIN changed: page metadata is built in)
 #
 # Steps: backup → fetch → install → build into the idle folder (the site keeps
 # running) → switch with a zero-downtime reload → health check → automatic
@@ -12,7 +14,11 @@
 set -Eeuo pipefail
 
 cd "$(dirname "$0")/.."
-APP=south-street
+# One install per agency (deploy/AGENCIES.md) names its PM2 process and port in .env.
+envval() { sed -n "s/^$1=//p" .env 2>/dev/null | tail -n 1 | tr -d "\r\"'"; }
+APP="${PM2_APP:-$(envval PM2_APP)}"
+APP="${APP:-south-street}"
+PORT="${PORT:-$(envval PORT)}"
 PORT="${PORT:-3000}"
 HEALTH="http://127.0.0.1:${PORT}/api/health"
 STATE=.deploy-state            # previous commit + build folder, for --rollback
@@ -80,7 +86,7 @@ else
   git pull --ff-only --quiet origin "$BRANCH"
 fi
 NEW_COMMIT="$(git rev-parse HEAD)"
-if [ "$NEW_COMMIT" = "$PREV_COMMIT" ] && [ -d "$PREV_DIR" ]; then
+if [ "$NEW_COMMIT" = "$PREV_COMMIT" ] && [ -d "$PREV_DIR" ] && [ "${REBUILD:-}" != 1 ]; then
   step "Already up to date (${NEW_COMMIT:0:7})."
   exit 0
 fi
@@ -114,5 +120,6 @@ else
   printf '\n\033[1;31m✖ New version did not answer — rolling back automatically.\033[0m\n' >&2
   rollback_code
   switch_to "$PREV_DIR"
-  wait_healthy && fail "Rolled back to ${PREV_COMMIT:0:7}. See: pm2 logs $APP" || fail "Rollback did not answer either. See: pm2 logs $APP"
+  if wait_healthy; then fail "Rolled back to ${PREV_COMMIT:0:7}. See: pm2 logs $APP"; fi
+  fail "Rollback did not answer either. See: pm2 logs $APP"
 fi

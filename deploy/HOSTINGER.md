@@ -65,3 +65,8 @@ Open the printed link, set the password, add at least two keys.
   `DOMAIN=southstreet.dz bash setup.sh` and run step 5 again.
 - Updates: `sudo -iu southstreet bash -lc 'cd app && ./scripts/update.sh'` (see [DEPLOY.md](../DEPLOY.md)).
 - Hostinger asks for a reboot after system updates: `reboot` — the app starts by itself.
+
+## 7. More agencies on the same VPS
+
+Each agency gets its own isolated South Street on `<slug>.1zayd1.tech` or its own domain:
+see [AGENCIES.md](AGENCIES.md) (`deploy/agency-add.sh`, `agency-domain.sh`, `agencies-update.sh`, `agency-list.sh`).

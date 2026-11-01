@@ -2,8 +2,12 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import AppVersionBadge from '@/components/admin/AppVersionBadge';
+import ConnectLaunchButton from '@/components/admin/ConnectLaunchButton';
 import BackupsPanel from '@/components/admin/BackupsPanel';
 import AboutPageEditor from '@/components/admin/AboutPageEditor';
+import BrandSettings, { BrandSetupWizard } from '@/components/admin/BrandSettings';
+import { useBrand } from '@/components/social/useAgencyInfo';
+import { DEFAULT_BRAND } from '@/lib/brand';
 import WhatsAppHub from '@/components/admin/WhatsAppHub';
 import ReviewsModeration, { REVIEWS_UPDATED } from '@/components/admin/ReviewsModeration';
 import { authHeaders } from '@/lib/api-client';
@@ -23,6 +27,7 @@ import {
   Archive,
   Cpu,
   Globe,
+  Palette,
   KeyRound,
   Landmark,
   LayoutDashboard,
@@ -39,6 +44,7 @@ import {
   Shield,
   ShieldCheck,
   ShoppingBag,
+  BedDouble,
   Square,
   Star,
   Triangle,
@@ -79,6 +85,8 @@ import GoogleLoginSettings from '@/components/admin/GoogleLoginSettings';
 import ServerHealthPanel from '@/components/admin/ServerHealth';
 import PresenceTimeline from '@/components/admin/PresenceTimeline';
 import AgencyPendingBookings from '@/components/booking/AgencyPendingBookings';
+import PaymentApprovalsPanel from '@/components/accountant/PaymentApprovalsPanel';
+import HotelsAdmin from '@/components/admin/HotelsAdmin';
 
 type DashboardStats = {
   total: number;
@@ -114,7 +122,7 @@ const EMPTY_STATS: DashboardStats = {
 const HEARTBEAT_MS = 45000;
 const REFRESH_MS = 20000;
 
-type DashSection = 'users' | 'security' | 'google' | 'server' | 'bookings' | 'keys' | 'backups' | 'about' | 'whatsapp' | 'reviews';
+type DashSection = 'users' | 'security' | 'google' | 'server' | 'bookings' | 'hotels' | 'keys' | 'backups' | 'about' | 'whatsapp' | 'reviews' | 'brand';
 type FilterKey = 'all' | 'online' | 'active' | 'pending' | 'suspended';
 type RoleFilter = 'all' | LoginRole;
 type FlyoutKey = 'accounts' | 'sessions' | 'types' | null;
@@ -172,16 +180,7 @@ function roleLabelOf(user: { role?: string; email?: string; roleName?: string })
   return LOGIN_ROLE_LABELS[userLoginRole(user)];
 }
 
-const AGENCY_LOGO_FALLBACK = '/images/south_street_logo.png';
-
-function resolveAgencyLogo(logo?: string | null): string {
-  if (!logo) return AGENCY_LOGO_FALLBACK;
-  const src = String(logo).trim();
-  if (!src || src.startsWith('file:') || /^[a-zA-Z]:[\\/]/.test(src)) return AGENCY_LOGO_FALLBACK;
-  if (src.startsWith('images/')) return `/${src}`;
-  if (isImageSource(src)) return src;
-  return AGENCY_LOGO_FALLBACK;
-}
+const AGENCY_LOGO_FALLBACK = DEFAULT_BRAND.logo_url;
 
 function FilterShape({ tone }: { tone: string }) {
   if (tone === 'purple') return <Triangle className="w-3 h-3" fill="currentColor" />;
@@ -298,11 +297,10 @@ export default function UserAccessDashboard({
   const [liveIps, setLiveIps] = useState<LiveIpRow[]>([]);
   const [fwFilters, setFwFilters] = useState<FirewallFilters>(EMPTY_FW_FILTERS);
   const [fwCounts, setFwCounts] = useState<FirewallFilterCounts>(EMPTY_FW_COUNTS);
-  const [agency, setAgency] = useState<{ name: string; legal: string; logo: string }>({
-    name: 'ساوث ستريت',
-    legal: 'South Street',
-    logo: AGENCY_LOGO_FALLBACK,
-  });
+  const brand = useBrand();
+  const agency = { name: brand.short_name, legal: brand.name_latin, logo: brand.logo_url };
+  // New installation: the Super Admin sets the agency's identity first («لاحقاً» hides it for this visit).
+  const [wizardLater, setWizardLater] = useState(false);
 
   const loadUsers = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -341,20 +339,6 @@ export default function UserAccessDashboard({
     } catch {
       /* presence is best-effort; the dashboard keeps working offline */
     }
-  }, []);
-
-  useEffect(() => {
-    fetch('/api/admin/agency')
-      .then((res) => res.json())
-      .then((data) => {
-        if (!data || data.error) return;
-        setAgency({
-          name: String(data.agency_name || 'ساوث ستريت').trim() || 'ساوث ستريت',
-          legal: String(data.legal_name || 'South Street').trim() || 'South Street',
-          logo: resolveAgencyLogo(data.logo),
-        });
-      })
-      .catch(() => { /* keep default branding */ });
   }, []);
 
   useEffect(() => {
@@ -655,9 +639,13 @@ export default function UserAccessDashboard({
       : section === 'server'
         ? 'حالة الخادم'
         : section === 'bookings'
-          ? 'طلبات العمرة'
+          ? 'طلبات الحجز'
+          : section === 'hotels'
+            ? 'الفنادق والحجوزات'
           : section === 'about'
             ? 'صفحة عن الوكالة'
+          : section === 'brand'
+            ? 'هوية الوكالة'
             : section === 'whatsapp'
               ? 'واتساب والتواصل'
               : section === 'reviews'
@@ -674,6 +662,7 @@ export default function UserAccessDashboard({
 
   return (
     <div className={`inn-shell${sideOpen ? '' : ' is-side-collapsed'}${profileUser ? ' is-detail-open' : ''}`}>
+      {isSuperAdmin && !brand.configured && !wizardLater ? <BrandSetupWizard onLater={() => setWizardLater(true)} /> : null}
       <div className="inn-frame">
         {/* ── Dark header block ── */}
         <header className="inn-dark">
@@ -784,14 +773,25 @@ export default function UserAccessDashboard({
               <SecurityKeysPanel />
             </div>
           ) : null}
+          {section === 'hotels' ? (
+            <div key="hotels" className="inn-stage-pane is-active inn-swap">
+              <HotelsAdmin isSuperAdmin={isSuperAdmin} />
+            </div>
+          ) : null}
           {section === 'bookings' ? (
-            <div key="bookings" className="inn-stage-pane is-active inn-swap">
+            <div key="bookings" className="inn-stage-pane is-active inn-swap space-y-4">
+              <PaymentApprovalsPanel />
               <AgencyPendingBookings />
             </div>
           ) : null}
           {section === 'about' ? (
             <div key="about" className="inn-stage-pane is-active inn-swap">
               <AboutPageEditor />
+            </div>
+          ) : null}
+          {section === 'brand' && isSuperAdmin ? (
+            <div key="brand" className="inn-stage-pane is-active inn-swap">
+              <BrandSettings />
             </div>
           ) : null}
           {section === 'whatsapp' ? (
@@ -876,11 +876,20 @@ export default function UserAccessDashboard({
                   type="button"
                   className={`inn-side-link${section === 'bookings' ? ' is-active' : ''}`}
                   onClick={() => goSection('bookings')}
-                  title="طلبات العمرة"
+                  title="طلبات الحجز"
                 >
                   <ShoppingBag className="w-4 h-4" />
-                  <span className="inn-side-label">طلبات العمرة</span>
+                  <span className="inn-side-label">طلبات الحجز</span>
                   {demandCount > 0 ? <span className="inn-side-badge">{demandCount}</span> : null}
+                </button>
+                <button
+                  type="button"
+                  className={`inn-side-link${section === 'hotels' ? ' is-active' : ''}`}
+                  onClick={() => goSection('hotels')}
+                  title="الفنادق والحجوزات"
+                >
+                  <BedDouble className="w-4 h-4" />
+                  <span className="inn-side-label">الفنادق والحجوزات</span>
                 </button>
                 <button
                   type="button"
@@ -922,6 +931,15 @@ export default function UserAccessDashboard({
                 </button>
                 {isSuperAdmin ? (
                   <>
+                    <button
+                      type="button"
+                      className={`inn-side-link${section === 'brand' ? ' is-active' : ''}`}
+                      onClick={() => goSection('brand')}
+                      title="هوية الوكالة"
+                    >
+                      <Palette className="w-4 h-4" />
+                      <span className="inn-side-label">هوية الوكالة</span>
+                    </button>
                     <button
                       type="button"
                       className={`inn-side-link${section === 'security' ? ' is-active' : ''}`}
@@ -976,6 +994,9 @@ export default function UserAccessDashboard({
                   <span className="inn-side-label">الموقع</span>
                 </Link>
               </nav>
+
+              {/* The SS Connect control room (its own dashboard) — Super Admin only. */}
+              {isSuperAdmin ? <ConnectLaunchButton /> : null}
 
               <div className="inn-side-rule" />
 

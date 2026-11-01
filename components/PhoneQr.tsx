@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
+import { useBrand } from '@/components/social/useAgencyInfo';
 
 /**
  * QR code that opens this site on a phone (made in the browser, so it always
@@ -22,6 +23,7 @@ export default function PhoneQr({
   className?: string;
   label?: string;
 }) {
+  const brand = useBrand();
   const [src, setSrc] = useState('');
   const [url, setUrl] = useState('');
 
@@ -42,7 +44,7 @@ export default function PhoneQr({
     <span className={`phone-qr ${className}`} style={{ width: size, height: size }} data-url={url}>
       {src ? <img src={src} alt={label} width={size} height={size} /> : <span className="phone-qr-placeholder" />}
       <span className="phone-qr-logo" aria-hidden>
-        <img src="/images/south_street_logo_just.png" alt="" />
+        <img src={brand.mark_url} alt="" />
       </span>
     </span>
   );

@@ -3,7 +3,6 @@ import { verifyToken } from '@/lib/auth';
 import { getTokenFromRequest } from '@/lib/request-auth';
 import { normalizeLoginRole } from '@/lib/roles';
 import { getServerHealth } from '@/lib/server-health';
-import { rotateAdminSecurityKey } from '@/lib/admin-key';
 import { isServerlessHost } from '@/lib/db-path';
 import { resolveRequestIp } from '@/lib/security-threats';
 import { requireRole, ADMINS, SUPER_ONLY } from '@/lib/staff-gate';
@@ -49,25 +48,6 @@ export async function POST(req: NextRequest) {
     realIp: req.headers.get('x-real-ip'),
     fallback: '127.0.0.1',
   });
-
-  if (action === 'rotate-key') {
-    if (body.confirm !== true) {
-      return NextResponse.json({ error: 'يلزم تأكيد توليد المفتاح' }, { status: 400 });
-    }
-    try {
-      const rotated = rotateAdminSecurityKey(admin.name || 'الإدارة', ip);
-      return NextResponse.json({
-        success: true,
-        message: 'تم توليد مفتاح جديد. المفتاح السابق لم يعد صالحاً.',
-        fileName: rotated.fileName,
-        fileContent: rotated.fileContent,
-        fingerprint: rotated.fingerprint,
-        issuedAt: rotated.issuedAt,
-      });
-    } catch {
-      return NextResponse.json({ error: 'تعذّر توليد مفتاح الأمان' }, { status: 500 });
-    }
-  }
 
   if (action === 'stop') {
     if (body.confirm !== true) {

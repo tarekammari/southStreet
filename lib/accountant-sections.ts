@@ -37,7 +37,7 @@ export const ACCOUNTANT_NAV: Record<AccountantSectionId, { label: string; descri
   services: { label: 'الخدمات الدورية', description: 'اشتراكات ومصاريف دورية (613/626)' },
   assets: { label: 'الاستثمارات', description: 'التثبيتات والإهلاك' },
   taxes: { label: 'الضرائب والرسوم', description: '64 · 447 · 695 — للعرض' },
-  bookings: { label: 'الطلبات', description: 'حجوزات قيد المراجعة' },
+  bookings: { label: 'الحجوزات', description: 'عمرة، رحلات سياحية وفنادق — العربون والتأكيد' },
   reports: { label: 'التقارير', description: 'تحليلات وفق SCF' },
   chart: { label: 'دليل الحسابات', description: 'SCF — مدونة الحسابات والربط' },
   principles: { label: 'المبادئ المحاسبية', description: 'SCF — قواعد ومراجع' },

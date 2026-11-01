@@ -1,5 +1,7 @@
 import { fmtAmount } from '@/components/accountant/money';
 import { ledgerCategoryLabel } from '@/lib/finance-categories';
+import { getBrand } from './brand-server';
+import { agencyLabel } from './brand';
 
 function escapeHtml(value: string): string {
   return String(value ?? '')
@@ -400,7 +402,7 @@ export function buildJournalPrintHtml(input: {
         <header class="letterhead">
           <div>
             <div class="letterhead-en">SOUTH STREET AGENCY</div>
-            <div class="letterhead-ar">وكالة ساوث ستريت — اليومية العامة</div>
+            <div class="letterhead-ar">${escapeHtml(agencyLabel(getBrand()))} — اليومية العامة</div>
           </div>
           <div class="letterhead-meta"><div>${escapeHtml(period)}</div><div>${escapeHtml(printedAt)}</div></div>
         </header>

@@ -1,5 +1,5 @@
 /**
- * South Street Connect — clients connecting with each other.
+ * Connect — clients connecting with each other.
  *
  *  - Requests: a client asks, the other accepts / declines / blocks. Asking
  *    someone who already asked you simply connects you both.

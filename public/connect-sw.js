@@ -88,6 +88,15 @@ self.addEventListener('push', (event) => {
       });
     }
 
+    // The message reached this device: the sender sees ✓✓.
+    if (data.kind === 'message') {
+      fetch('/api/connect/messages', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delivered' }),
+      }).catch(() => undefined);
+    }
     if (visible) return undefined;
     return self.registration.showNotification(data.title || 'South Street Connect', {
       body: data.body || '',

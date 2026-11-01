@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { loginQrImage } from '@/lib/login-qr';
 import {
   ensureStaffLogin,
   ensureUserAccount,
@@ -22,10 +23,6 @@ import { bumpTokenVersion } from '@/lib/webauthn';
  */
 
 export const dynamic = 'force-dynamic';
-
-function qrImageSrc(payload: string) {
-  return `https://api.qrserver.com/v1/create-qr-code/?size=280x280&ecc=M&margin=8&data=${encodeURIComponent(payload)}`;
-}
 
 function guard(req: NextRequest, gate: GateOk, target: { userId: string; role: string }, action: TargetAction) {
   const decision = canManage({ id: gate.account.id, role: gate.role }, { id: target.userId, role: target.role }, action);
@@ -64,7 +61,7 @@ export async function POST(req: NextRequest) {
       const session = requireSession(req);
       if ('error' in session) return session.error;
       const qr = issueQrSecret(session.account.id);
-      return NextResponse.json({ success: true, qrPayload: qr.qrPayload, qrImage: qrImageSrc(qr.qrPayload) });
+      return NextResponse.json({ success: true, qrPayload: qr.qrPayload, qrImage: await loginQrImage(qr.qrPayload, req) });
     }
 
     const gate = requireRole(req, ADMINS);
@@ -164,7 +161,7 @@ export async function POST(req: NextRequest) {
       account,
       password: password || undefined,
       qrPayload: qrPayload || undefined,
-      qrImage: qrPayload ? qrImageSrc(qrPayload) : undefined,
+      qrImage: qrPayload ? await loginQrImage(qrPayload, req) : undefined,
       message: password
         ? 'تم إصدار بيانات الدخول. تظهر كلمة المرور مرة واحدة فقط.'
         : 'تم تحديث بيانات الدخول',

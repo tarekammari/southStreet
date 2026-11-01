@@ -1,6 +1,8 @@
 'use client';
 
 import { fmtMoney } from './money';
+import { agencyLabel } from '@/lib/brand';
+import { useBrand } from '@/components/social/useAgencyInfo';
 
 export default function TreasuryPrintLetterhead({
   title,
@@ -13,12 +15,13 @@ export default function TreasuryPrintLetterhead({
   periodTo: string;
   globalSolde: number | null;
 }) {
+  const brand = useBrand();
   const printedAt = new Date().toLocaleString('ar-DZ', { dateStyle: 'medium', timeStyle: 'short' });
   return (
     <header className="acct-print-only acct-treasury-letterhead mb-4 pb-3 border-b border-black/15">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-wide opacity-60">South Street · وكالة ساوث ستريت</p>
+          <p className="text-[10px] font-bold uppercase tracking-wide opacity-60">{brand.name_latin} · {agencyLabel(brand)}</p>
           <h1 className="text-lg font-black mt-0.5">{title}</h1>
           <p className="text-xs opacity-70 tabular-nums mt-1">
             الفترة {periodFrom} → {periodTo}

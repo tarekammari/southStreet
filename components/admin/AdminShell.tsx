@@ -100,8 +100,8 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     items: [
       {
         id: 'bookings',
-        label: 'طلبات العمرة',
-        title: 'طلبات العمرة',
+        label: 'طلبات الحجز',
+        title: 'طلبات الحجز',
         section: 'bookings',
         icon: <ShoppingBag className="w-4 h-4" />,
         badgeKey: 'pendingBookings',

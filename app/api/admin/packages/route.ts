@@ -6,7 +6,10 @@ import { getTokenFromRequest } from '@/lib/request-auth';
 import { normalizeLoginRole } from '@/lib/roles';
 import { parsePackageList } from '@/lib/package-lists';
 import { ensurePackageRoomPrices, parseAnnexes } from '@/lib/package-options';
+import { getBrand } from '@/lib/brand-server';
+import { isDefaultBrand } from '@/lib/brand';
 import { requireRole, ADMINS, SUPER_ONLY } from '@/lib/staff-gate';
+import { parseTour, tripKindOf } from '@/lib/tour';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -29,7 +32,8 @@ export async function GET(req: Request) {
         : db.prepare("SELECT * FROM packages WHERE IFNULL(published,0) = 1 OR published = '1' OR UPPER(IFNULL(status,'')) = 'PUBLISHED' ORDER BY package_id DESC").all()
     ) as any[];
 
-    for (const p of pkgRows) ensurePackageRoomPrices(db, String(p.package_id || ''));
+    const priceDefaults = { defaultPrices: isDefaultBrand(getBrand()) };
+    for (const p of pkgRows) ensurePackageRoomPrices(db, String(p.package_id || ''), priceDefaults);
     const priceRowsAfter = db.prepare('SELECT * FROM package_prices').all() as any[];
 
     const packages = pkgRows.map(p => ({
@@ -57,6 +61,8 @@ export async function GET(req: Request) {
         status: p.status,
         image_url: p.image_url,
       }),
+      trip_type: tripKindOf(p),
+      tour: tripKindOf(p) === 'TOURISM' ? parseTour(p.tour) : null,
       featured: Number(p.featured) === 1,
       published: Boolean(p.published),
       included_services: parsePackageList(p.included_services),
@@ -80,6 +86,16 @@ export async function POST(req: Request) {
     if (!requireAdmin(req)) return NextResponse.json({ error: 'صلاحية غير كافية' }, { status: 403 });
     const body = await req.json();
     const db = getSqliteDb();
+
+    // Trip kind + tourist-trip details (country, itinerary, hotels…), from the program card.
+    if (body.tour_only && body.package_id) {
+      const package_id = String(body.package_id);
+      const kind = ['UMRAH', 'HAJJ', 'TOURISM'].includes(String(body.trip_type)) ? String(body.trip_type) : 'UMRAH';
+      const tour = kind === 'TOURISM' ? JSON.stringify(parseTour(body.tour)) : null;
+      const changed = db.prepare('UPDATE packages SET trip_type = ?, tour = ? WHERE package_id = ?').run(kind, tour, package_id);
+      if (!changed.changes) return NextResponse.json({ error: 'البرنامج غير موجود — احفظه أولاً' }, { status: 404 });
+      return NextResponse.json({ success: true, package_id, trip_type: kind });
+    }
 
     if (body.options_only && body.package_id) {
       const package_id = String(body.package_id);
@@ -105,7 +121,7 @@ export async function POST(req: Request) {
             );
           }
         }
-        ensurePackageRoomPrices(db, package_id);
+        ensurePackageRoomPrices(db, package_id, { defaultPrices: isDefaultBrand(getBrand()) });
       })();
       return NextResponse.json({ success: true, package_id });
     }
@@ -183,7 +199,7 @@ export async function POST(req: Request) {
         }
       }
     })();
-    ensurePackageRoomPrices(db, package_id);
+    ensurePackageRoomPrices(db, package_id, { defaultPrices: isDefaultBrand(getBrand()) });
 
     return NextResponse.json({ success: true, package_id, message: 'تم حفظ الباقة والأسعار بنجاح في قاعدة البيانات' });
   } catch (error: any) {

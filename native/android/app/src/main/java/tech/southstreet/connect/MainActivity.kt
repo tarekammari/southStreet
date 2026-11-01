@@ -184,6 +184,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         visible = false
+        // Leaving the app with no call going on: make sure other apps get normal sound (not the earpiece).
+        if (!inCall) CallAudio.settle(this)
         super.onPause()
     }
 
@@ -205,6 +207,9 @@ class MainActivity : AppCompatActivity() {
 
         /** The call screen shows «مكبّر الصوت» (earpiece / loudspeaker) only in apps that can switch. */
         @JavascriptInterface fun canSwitchSpeaker() = true
+
+        /** The ringtone picked in «حول التطبيق»: the call screen rings with it while the app is closed. */
+        @JavascriptInterface fun setRingtone(id: String) = Prefs.saveRingtone(this@MainActivity, id)
 
         /** False while the app is in the background: then the phone's call screen rings, not the page. */
         @JavascriptInterface fun inForeground() = visible
@@ -231,13 +236,21 @@ class MainActivity : AppCompatActivity() {
             // Earpiece like a phone call; the loudspeaker only when «مكبّر الصوت» is on.
             runOnUiThread {
                 when (s.optString("phase")) {
-                    "active", "connecting", "calling", "ringing" -> CallAudio.route(this@MainActivity, s.optBoolean("speaker"))
+                    "active", "connecting", "calling", "ringing", "reconnecting" -> CallAudio.route(this@MainActivity, s.optBoolean("speaker"))
                     else -> CallAudio.reset(this@MainActivity)
                 }
             }
-            when (s.optString("phase")) {
-                "active", "connecting", "calling", "ringing" -> CallService.ongoing(this@MainActivity, s.optString("name"))
-                "ended", "" -> CallService.stop(this@MainActivity)
+            when (val phase = s.optString("phase")) {
+                "active", "connecting", "calling", "ringing", "reconnecting" -> {
+                    CallService.ongoing(this@MainActivity, s.optString("name"))
+                    // Known to Android's calling system (headsets, car, GSM calls, Do Not Disturb).
+                    Telecom.track(this@MainActivity, CallInfo(s.optString("id").ifBlank { "call" }, s.optString("name"), s.optString("photo"), s.optString("role")))
+                    if (phase == "active" || phase == "connecting" || phase == "reconnecting") Telecom.active()
+                }
+                "ended", "" -> {
+                    CallService.stop(this@MainActivity)
+                    Telecom.pageEnded()
+                }
                 "incoming" -> { /* the page rings while it is on screen */ }
             }
         }

@@ -9,8 +9,11 @@ ringtone and running in the background.
 | Android | `android/` (Kotlin, no framework) | the VPS (command-line Android SDK, no Android Studio) | `/api/connect/download?platform=android` (signed in) |
 | Windows | `windows/` (Electron) | this PC | `/api/connect/download?platform=windows` (signed in) |
 
-`assets/ringtone.wav` is rendered by `node scripts/render-ringtone.mjs native/assets/ringtone.wav`
-(same melody as the web ringtone) and copied into both apps.
+The ringtones (`ringtone.wav`, the original, and `ringtone_<id>.wav`: space and
+calm nature tones) are rendered by `npm run connect:ringtones` from
+`lib/connect/ringtones.ts`, the same code the web app plays, straight into both
+apps. The tone picked in «حول التطبيق» is saved on the device and told to the app
+(Android: `SSAndroid.setRingtone`, Windows: the `ringtone` field of the call state).
 
 ## Android
 
@@ -19,14 +22,24 @@ CallStyle notification with Answer / Decline, the ringtone looping with rising
 volume (follows ring / vibrate / silent), an "ongoing call" notification with
 Hang up that keeps the call alive with the screen off.
 
+From 1.7.0 calls also go through Android's own calling system (`Telecom.kt`, a
+self-managed ConnectionService): Bluetooth headsets and cars answer / hang up,
+the system knows a call is on (GSM calls, Do Not Disturb) and the audio follows
+its routes. Where Telecom is missing or refuses, ringing falls back to the old
+path by itself (also after 3 s if Telecom never answers).
+
 **Build** (from the project folder on this PC):
 
 ```bash
 cd native && tar -czf - --exclude=build --exclude=.gradle android | ssh root@45.9.190.236 'rm -rf /home/builder/connect-android && mkdir -p /tmp/up && tar -xzf - -C /tmp/up && mv /tmp/up/android /home/builder/connect-android && cp /home/builder/google-services.json /home/builder/connect-android/app/ 2>/dev/null; chown -R builder:builder /home/builder/connect-android'
-ssh root@45.9.190.236 'su - builder -c "cd ~/connect-android && echo sdk.dir=/opt/android-sdk > local.properties && SS_KEYSTORE=~/keys/connect.p12 SS_KEYSTORE_PASSWORD=\$(cat ~/keys/pass) SS_VERSION_CODE=6 SS_VERSION_NAME=1.6.1 /opt/gradle-8.11.1/bin/gradle --no-daemon -q assembleRelease" && cp /home/builder/connect-android/app/build/outputs/apk/release/app-release.apk /var/www/connect-downloads/SouthStreetConnect.apk'
+ssh root@45.9.190.236 'su - builder -c "cd ~/connect-android && echo sdk.dir=/opt/android-sdk > local.properties && SS_KEYSTORE=~/keys/connect.p12 SS_KEYSTORE_PASSWORD=\$(cat ~/keys/pass) SS_VERSION_CODE=9 SS_VERSION_NAME=1.8.1 /opt/gradle-8.11.1/bin/gradle --no-daemon -q assembleRelease" && cp /home/builder/connect-android/app/build/outputs/apk/release/app-release.apk /var/www/connect-downloads/SouthStreetConnect.apk'
 ```
 
 Raise `SS_VERSION_CODE` on every build (phones only update to a higher number).
+
+A test build for a local dev server: add `SS_ORIGIN=http://<pc-ip>:3001` (plain
+http is allowed only in such a build) and leave out `SS_KEYSTORE` (debug key),
+and do not copy it into `/var/www/connect-downloads`.
 
 ## Updates (from 1.6.0 the apps update themselves)
 
@@ -66,8 +79,24 @@ with the ringtone and Answer / Decline when a call comes in, and the same card
 
 ```bash
 cd native/windows && npm install && npx electron-builder --win nsis --x64 --publish never
+gzip -9 -c dist/win-unpacked/resources/app.asar > dist/SouthStreetConnect-app.asar.gz
+sha256sum dist/win-unpacked/resources/app.asar        # → NATIVE_RELEASES.windows.app.sha256
 scp dist/SouthStreetConnect-Setup-*.exe root@45.9.190.236:/var/www/connect-downloads/SouthStreetConnect-Setup.exe
+scp dist/SouthStreetConnect-app.asar.gz root@45.9.190.236:/var/www/connect-downloads/SouthStreetConnect-app.asar.gz
 ```
+
+**Light updates (from 1.8.1):** when only the app's own files changed, the app
+downloads `SouthStreetConnect-app.asar.gz` (~35 KB) instead of the ~77 MB
+installer, checks its SHA-256, and a small script swaps `resources/app.asar`
+after the app closes (old one kept as `app.asar.bak`), then starts it again.
+The ringtones are outside app.asar (`resources/sounds`), so they never weigh on
+it. When the Electron version changes, set `windows.app.electron` to the new
+one: older apps then take the full installer. Always upload both files.
 
 The installer is not code-signed: Windows SmartScreen shows "More info → Run anyway"
 until a code-signing certificate is bought.
+
+Size: ~77 MB, almost all of it the Electron/Chromium runtime (only the ar / en-US / fr
+interface files are kept, maximum compression). From 1.8.0 the app checks every
+2 hours and downloads a new version in the background, streamed to disk with a
+progress % in «التحقق من التحديثات», so it is usually ready before anyone asks.

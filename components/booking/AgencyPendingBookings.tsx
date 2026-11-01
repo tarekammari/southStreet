@@ -5,12 +5,14 @@ import Link from 'next/link';
 import {
   BadgeCheck,
   CheckCircle,
+  CheckCircle2,
   ChevronLeft,
   Inbox,
   Loader2,
   Mail,
   Phone,
   RefreshCw,
+  ShieldAlert,
   UserRound,
   Wallet,
   XCircle,
@@ -18,12 +20,14 @@ import {
 import { AgencyDemand, Reservation } from '@/types';
 import { ROOM_LABELS, reservationStatusLabel } from '@/lib/booking-catalog';
 import PrintMenu from '@/components/booking/PrintMenu';
+import VisaControl from '@/components/booking/VisaControl';
 import { authHeaders } from '@/lib/api-client';
 import RejectRequestDialog from '@/components/booking/RejectRequestDialog';
 import ClientPaymentModal from '@/components/accountant/ClientPaymentModal';
+import BookingKindsBoard, { BOOKING_KIND_META, bookingKindOf, type BookingKind } from '@/components/booking/BookingKindsBoard';
 
 /**
- * Umrah request pipeline:
+ * Booking pipeline (Umrah, Hajj, tourist trips, hotels):
  *   1. demand   — the pilgrim sent a request; the director accepts or rejects it.
  *   2. deposit  — accepted; the accountant records the deposit, which finalises it.
  *   3. done     — confirmed / paid, plus closed outcomes (rejected, cancelled).
@@ -31,7 +35,7 @@ import ClientPaymentModal from '@/components/accountant/ClientPaymentModal';
  */
 type Stage = 'demand' | 'deposit' | 'done';
 
-type Permissions = { role: string; canApprove: boolean; canCollectDeposit: boolean };
+type Permissions = { role: string; canApprove: boolean; canCollectDeposit: boolean; canOverride?: boolean };
 
 type DepositPreset = { reservation_id: string; customer_code: string; customer_name: string };
 
@@ -61,9 +65,23 @@ function loginStatusLabel(demand: AgencyDemand): string {
   return demand.customer_status || '—';
 }
 
+type KindFilter = 'all' | BookingKind;
+const kindOf = bookingKindOf;
+const KIND_META = BOOKING_KIND_META;
+
+function KindTag({ res }: { res: Reservation }) {
+  const kind = kindOf(res);
+  const { label, icon: Icon } = KIND_META[kind];
+  return (
+    <span className={`pipe-kind is-${kind}`}>
+      <Icon aria-hidden /> {label}
+    </span>
+  );
+}
+
 function outcomeTone(status: string): string {
   const s = status.toUpperCase();
-  if (s === 'REJECTED' || s === 'CANCELLED') return 'is-bad';
+  if (s === 'REJECTED' || s === 'CANCELLED' || s === 'EXPIRED') return 'is-bad';
   if (s === 'PAID' || s === 'READY_FOR_TRAVEL' || s === 'COMPLETED') return 'is-good';
   return 'is-ok';
 }
@@ -76,6 +94,7 @@ function SummaryRow({
   name,
   amount,
   badge,
+  outcome,
   open,
   onToggle,
   children,
@@ -84,15 +103,19 @@ function SummaryRow({
   name: string;
   amount: number;
   badge?: React.ReactNode;
+  /** Archive rows: accepted (green) or refused / cancelled (red) at a glance. */
+  outcome?: 'accepted' | 'refused';
   open: boolean;
   onToggle: () => void;
   children: React.ReactNode;
 }) {
   return (
-    <li className={`pipe-row${open ? ' is-open' : ''}`}>
+    <li className={`pipe-row${open ? ' is-open' : ''}${outcome ? ` is-${outcome}` : ''}`}>
       <button type="button" onClick={onToggle} aria-expanded={open} className="pipe-row-head">
         <ChevronLeft className="pipe-row-chev" aria-hidden />
-        <span className="pipe-row-avatar" aria-hidden>{(name || '؟').trim().charAt(0)}</span>
+        <span className="pipe-row-avatar" aria-hidden>
+          {outcome === 'accepted' ? <CheckCircle2 /> : outcome === 'refused' ? <XCircle /> : (name || '؟').trim().charAt(0)}
+        </span>
         <span className="min-w-0 flex-1">
           <span className="block font-bold text-sm text-slate-900 truncate">{name}</span>
           <span className="block text-[11px] font-mono text-slate-400">{reference}</span>
@@ -125,7 +148,9 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
   } | null>(null);
   const [stage, setStage] = useState<Stage | null>(null);
   const [openId, setOpenId] = useState('');
-  const [depositFor, setDepositFor] = useState<DepositPreset | null>(null);
+  const [doneFilter, setDoneFilter] = useState<'all' | 'accepted' | 'refused'>('all');
+  const [kind, setKind] = useState<KindFilter>('all');
+  const [depositFor, setDepositFor] = useState<(DepositPreset & { override?: boolean }) | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -191,6 +216,11 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
     }
   };
 
+  const shown = useMemo(() => {
+    const pick = <T extends Reservation>(list: T[]) => (kind === 'all' ? list : list.filter((r) => kindOf(r) === kind));
+    return { demands: pick(demands), awaiting: pick(awaiting), recent: pick(recent) };
+  }, [kind, demands, awaiting, recent]);
+
   const stages = useMemo(
     () => [
       {
@@ -198,7 +228,7 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
         step: 1,
         label: 'طلبات جديدة',
         owner: 'المشرف',
-        count: demands.length,
+        count: shown.demands.length,
         icon: Inbox,
         mine: perms.canApprove,
       },
@@ -207,7 +237,7 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
         step: 2,
         label: 'بانتظار العربون',
         owner: 'المحاسب',
-        count: awaiting.length,
+        count: shown.awaiting.length,
         icon: Wallet,
         mine: perms.canCollectDeposit,
       },
@@ -216,26 +246,30 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
         step: 3,
         label: 'مؤكدة ومعالجة',
         owner: 'الأرشيف',
-        count: recent.length,
+        count: shown.recent.length,
         icon: BadgeCheck,
         mine: false,
       },
     ],
-    [demands.length, awaiting.length, recent.length, perms]
+    [shown, perms]
   );
 
   const toggle = (id: string) => setOpenId((prev) => (prev === id ? '' : id));
   const current = stage || 'demand';
-  const rows = current === 'demand' ? demands.length : current === 'deposit' ? awaiting.length : recent.length;
+  const stageList: Reservation[] = current === 'demand' ? demands : current === 'deposit' ? awaiting : recent;
+  const rows = current === 'demand' ? shown.demands.length : current === 'deposit' ? shown.awaiting.length : shown.recent.length;
+  const kindFilters = (['all', 'umrah', 'hajj', 'trip', 'hotel'] as const)
+    .map((id) => ({ id, n: id === 'all' ? stageList.length : stageList.filter((r) => kindOf(r) === id).length }))
+    .filter((f) => f.id === 'all' || f.id === 'umrah' || f.id === 'trip' || f.id === 'hotel' || f.n > 0);
 
   return (
     <>
       <div className={`${compact ? '' : 'luxury-card p-4 sm:p-5'} pipe space-y-4 animate-fade-up`} dir="rtl">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <h2 className="text-base font-bold font-cairo text-slate-900">مسار طلبات العمرة</h2>
+            <h2 className="text-base font-bold font-cairo text-slate-900">مسار الحجوزات — عمرة، رحلات، فنادق</h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              المعتمر يطلب ← المشرف يقبل ← المحاسب يسجّل العربون فيتأكد الحجز
+              العميل يطلب ← المشرف يقبل ← المحاسب يسجّل العربون فيتأكد الحجز ويُضاف المسافر لمجموعة رحلته مع المرشد
             </p>
           </div>
           <button type="button" className="pipe-btn" onClick={load} disabled={loading} aria-label="تحديث">
@@ -274,6 +308,39 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
           })}
         </ol>
 
+        <BookingKindsBoard
+          lists={{ demands, awaiting, recent }}
+          active={kind}
+          role={perms.canApprove ? 'agency' : 'accountant'}
+          onPick={(k) => {
+            setKind((prev) => (prev === k ? 'all' : k));
+            setOpenId('');
+          }}
+        />
+
+        <div className="pipe-kinds" role="tablist" aria-label="نوع الحجز">
+          {kindFilters.map((f) => {
+            const Icon = f.id === 'all' ? Inbox : KIND_META[f.id].icon;
+            return (
+              <button
+                key={f.id}
+                type="button"
+                role="tab"
+                aria-selected={kind === f.id}
+                className={`is-${f.id}${kind === f.id ? ' is-on' : ''}`}
+                onClick={() => {
+                  setKind(f.id);
+                  setOpenId('');
+                }}
+              >
+                <Icon aria-hidden />
+                {f.id === 'all' ? 'كل الحجوزات' : KIND_META[f.id].label}
+                <b>{f.n}</b>
+              </button>
+            );
+          })}
+        </div>
+
         {error ? <p className="book-error" role="alert">{error}</p> : null}
         {flash ? <p className="pipe-flash" role="status">{flash}</p> : null}
 
@@ -284,7 +351,7 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
         ) : (
           <ul className="pipe-list">
             {current === 'demand'
-              ? demands.map((res) => {
+              ? shown.demands.map((res) => {
                   const open = openId === res.reservation_id;
                   const busy = busyId === res.reservation_id;
                   return (
@@ -293,13 +360,23 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
                       reference={res.reservation_number}
                       name={res.customer_name}
                       amount={res.total_amount}
+                      badge={<KindTag res={res} />}
                       open={open}
                       onToggle={() => toggle(res.reservation_id)}
                     >
                       <dl className="pipe-facts">
                         <div><Mail className="w-3.5 h-3.5" aria-hidden /> {res.customer_email || '—'}</div>
                         <div><Phone className="w-3.5 h-3.5" aria-hidden /> <span dir="ltr">{res.customer_phone || '—'}</span></div>
+                        {res.booking_kind === 'HOTEL' && res.hotel_stay ? (
+                          <div className="sm:col-span-2">
+                            <UserRound className="w-3.5 h-3.5" aria-hidden /> {res.hotel_stay.check_in} ← {res.hotel_stay.check_out} · {res.hotel_stay.nights} ليالٍ ·{' '}
+                            {res.hotel_stay.rooms.map((r) => `${r.room_name} (${r.adults}${r.children ? `+${r.children}` : ''})`).join(' + ')}
+                            {res.hotel_stay.free_cancel_until ? ` · إلغاء مجاني حتى ${res.hotel_stay.free_cancel_until}` : ' · غير قابل للاسترداد'}
+                            {res.hotel_stay.requests ? ` · طلب: ${res.hotel_stay.requests}` : ''}
+                          </div>
+                        ) : (
                         <div><UserRound className="w-3.5 h-3.5" aria-hidden /> {ROOM_LABELS[res.room_type] || res.room_type} · {res.travelers_count || 1} مسافر</div>
+                        )}
                         <div>جواز: <span dir="ltr">{res.passport || '—'}</span></div>
                         <div className="sm:col-span-2 font-bold text-slate-800">{res.package_name}</div>
                         {(res.extras || []).length ? (
@@ -330,6 +407,9 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
                         <p className="pipe-wait">بانتظار قرار المشرف.</p>
                       )}
 
+                      {res.trip_kind === 'TOURISM' ? (
+                        <VisaControl reservationId={res.reservation_id} status={res.visa_status} note={res.visa_note} />
+                      ) : null}
                       <div className="pipe-actions">
                         {perms.canApprove ? (
                           <>
@@ -370,7 +450,7 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
               : null}
 
             {current === 'deposit'
-              ? awaiting.map((res) => {
+              ? shown.awaiting.map((res) => {
                   const open = openId === res.reservation_id;
                   const due = depositDue(res);
                   const paid = Number(res.paid_amount) || 0;
@@ -380,7 +460,7 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
                       reference={res.reservation_number}
                       name={res.customer_name}
                       amount={due}
-                      badge={<span className="pipe-tag is-warn">عربون</span>}
+                      badge={<><KindTag res={res} /><span className="pipe-tag is-warn">عربون</span></>}
                       open={open}
                       onToggle={() => toggle(res.reservation_id)}
                     >
@@ -397,6 +477,9 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
                       {!perms.canCollectDeposit ? (
                         <p className="pipe-wait">بانتظار تسجيل العربون من المحاسب.</p>
                       ) : null}
+                      {res.trip_kind === 'TOURISM' ? (
+                        <VisaControl reservationId={res.reservation_id} status={res.visa_status} note={res.visa_note} />
+                      ) : null}
                       <div className="pipe-actions">
                         {perms.canCollectDeposit ? (
                           <button
@@ -411,6 +494,23 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
                             }
                           >
                             <Wallet className="w-3.5 h-3.5" /> تسجيل العربون وتأكيد الحجز
+                          </button>
+                        ) : null}
+                        {perms.canOverride ? (
+                          <button
+                            type="button"
+                            className="pipe-btn"
+                            title="اعتماد استثنائي بسبب مكتوب ومفتاح الأمان — يُبلَّغ المحاسب ويُسجَّل في التدقيق"
+                            onClick={() =>
+                              setDepositFor({
+                                reservation_id: res.reservation_id,
+                                customer_code: res.customer_id,
+                                customer_name: res.customer_name,
+                                override: true,
+                              })
+                            }
+                          >
+                            <ShieldAlert className="w-3.5 h-3.5" /> تجاوز الإدارة
                           </button>
                         ) : null}
                         {perms.canApprove && paid === 0 ? (
@@ -439,8 +539,36 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
                 })
               : null}
 
+            {current === 'done' && shown.recent.length ? (
+              <li className="pipe-outcomes" role="tablist" aria-label="تصفية حسب النتيجة">
+                {([
+                  { id: 'all', label: 'الكل', n: shown.recent.length },
+                  { id: 'accepted', label: 'المقبولة', n: shown.recent.filter((r) => outcomeTone(String(r.status || '')) !== 'is-bad').length },
+                  { id: 'refused', label: 'المرفوضة والمنتهية', n: shown.recent.filter((r) => outcomeTone(String(r.status || '')) === 'is-bad').length },
+                ] as const).map((f) => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={doneFilter === f.id}
+                    className={`is-${f.id}${doneFilter === f.id ? ' is-on' : ''}`}
+                    onClick={() => setDoneFilter(f.id)}
+                  >
+                    {f.id === 'accepted' ? <CheckCircle2 aria-hidden /> : f.id === 'refused' ? <XCircle aria-hidden /> : null}
+                    {f.label}
+                    <b>{f.n}</b>
+                  </button>
+                ))}
+              </li>
+            ) : null}
             {current === 'done'
-              ? recent.map((res) => {
+              ? shown.recent
+                .filter((res) => {
+                  if (doneFilter === 'all') return true;
+                  const bad = outcomeTone(String(res.status || '')) === 'is-bad';
+                  return doneFilter === 'refused' ? bad : !bad;
+                })
+                .map((res) => {
                   const open = openId === res.reservation_id;
                   const status = String(res.status || '');
                   const printable = ['CONFIRMED', 'PAID', 'PARTIALLY_PAID', 'READY_FOR_TRAVEL', 'COMPLETED'].includes(status.toUpperCase());
@@ -450,7 +578,8 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
                       reference={res.reservation_number}
                       name={res.customer_name}
                       amount={res.total_amount}
-                      badge={<span className={`pipe-tag ${outcomeTone(status)}`}>{reservationStatusLabel(status)}</span>}
+                      badge={<><KindTag res={res} /><span className={`pipe-tag ${outcomeTone(status)}`}>{reservationStatusLabel(status)}</span></>}
+                      outcome={outcomeTone(status) === 'is-bad' ? 'refused' : 'accepted'}
                       open={open}
                       onToggle={() => toggle(res.reservation_id)}
                     >
@@ -461,7 +590,7 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
                         {res.agency_note ? (
                           outcomeTone(status) === 'is-bad' ? (
                             <div className="sm:col-span-2 pipe-reason">
-                              <strong>سبب الرفض</strong>
+                              <strong>{status.toUpperCase() === 'EXPIRED' ? 'أُغلق تلقائياً' : 'سبب الرفض'}</strong>
                               <span className="whitespace-pre-line">{res.agency_note}</span>
                               {res.agency_confirmed_by ? <em>{res.agency_confirmed_by} · {formatDate(res.agency_confirmed_at)}</em> : null}
                             </div>
@@ -470,6 +599,9 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
                           )
                         ) : null}
                       </dl>
+                      {res.trip_kind === 'TOURISM' ? (
+                        <VisaControl reservationId={res.reservation_id} status={res.visa_status} note={res.visa_note} />
+                      ) : null}
                       <div className="pipe-actions">
                         <PrintMenu reservationId={res.reservation_id} status={status} className={PRINT_BTN} />
                       </div>
@@ -478,9 +610,15 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
                 })
               : null}
 
+            {current === 'done' && shown.recent.length && doneFilter !== 'all' &&
+            !shown.recent.some((r) => (outcomeTone(String(r.status || '')) === 'is-bad') === (doneFilter === 'refused')) ? (
+              <li className="pipe-empty">{doneFilter === 'refused' ? 'لا توجد طلبات مرفوضة' : 'لا توجد طلبات مقبولة'}</li>
+            ) : null}
             {rows === 0 ? (
               <li className="pipe-empty">
-                {current === 'demand'
+                {kind !== 'all' && stageList.length
+                  ? `لا توجد حجوزات «${KIND_META[kind].label}» في هذه المرحلة`
+                  : current === 'demand'
                   ? 'لا توجد طلبات جديدة'
                   : current === 'deposit'
                     ? 'لا توجد حجوزات بانتظار العربون'
@@ -518,9 +656,10 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
       {depositFor ? (
         <ClientPaymentModal
           preset={depositFor}
+          override={Boolean(depositFor.override)}
           onClose={() => setDepositFor(null)}
-          onSaved={() => {
-            setFlash('سُجّل العربون — تأكد الحجز وأُبلغ المعتمر');
+          onSaved={(message) => {
+            setFlash(message || 'سُجّل العربون — تأكد الحجز وأُبلغ المعتمر');
             setOpenId('');
             window.dispatchEvent(new CustomEvent('southstreet:bookings-updated'));
           }}

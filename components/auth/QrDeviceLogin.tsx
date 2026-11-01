@@ -6,8 +6,9 @@ import { ArrowRight, CheckCircle2, Loader2, RefreshCw, ShieldCheck, ShieldX, Sma
 import './qr-login.css';
 
 /**
- * New device: "sign in with the Super Admin's phone". Shows a one-time QR,
- * then the number to pick on the phone, then opens the session the phone chose.
+ * New device: "sign in with your phone". Shows a one-time QR, then the number
+ * to pick on the phone, then opens the session the phone approved (its own
+ * account, or the one the Super Admin's phone chose).
  * Server side: /api/auth/qr-login (see lib/qr-login.ts).
  */
 
@@ -130,7 +131,7 @@ export default function QrDeviceLogin({ onSuccess, onBack }: { onSuccess: (data:
         <div className="qrl-match" role="status" aria-live="polite">
           <span className="qrl-match-label">تم المسح — اختر هذا الرقم على هاتفك</span>
           <span className="qrl-match-number" dir="ltr">{state.pairNumber}</span>
-          <span className="qrl-wait"><Loader2 className="w-4 h-4 animate-spin" /> بانتظار التأكيد بمفتاح الأمان… <b dir="ltr">{left}s</b></span>
+          <span className="qrl-wait"><Loader2 className="w-4 h-4 animate-spin" /> بانتظار التأكيد من الهاتف… <b dir="ltr">{left}s</b></span>
         </div>
       ) : (
         <>
@@ -139,7 +140,7 @@ export default function QrDeviceLogin({ onSuccess, onBack }: { onSuccess: (data:
             <span className="qrl-corner is-bl" /><span className="qrl-corner is-br" />
             {state.kind === 'pending' ? (
               <>
-                <img src={state.qr} alt="رمز QR للدخول من هاتف المشرف العام" className="qrl-img" />
+                <img src={state.qr} alt="رمز QR للدخول بالهاتف" className="qrl-img" />
                 <span className="qrl-scanline" aria-hidden />
               </>
             ) : (
@@ -164,9 +165,9 @@ export default function QrDeviceLogin({ onSuccess, onBack }: { onSuccess: (data:
           ) : null}
 
           <ol className="qrl-steps">
-            <li><Smartphone className="w-4 h-4" /> افتح التطبيق على هاتف المشرف العام</li>
-            <li><ShieldCheck className="w-4 h-4" /> اضغط «ربط جهاز» في لوحة الإدارة</li>
-            <li>وجّه الكاميرا نحو الرمز واختر الحساب</li>
+            <li><Smartphone className="w-4 h-4" /> افتح الموقع على هاتفك وأنت مسجّل الدخول</li>
+            <li><ShieldCheck className="w-4 h-4" /> اضغط «ربط جهاز» من قائمة حسابك أو لوحة الإدارة</li>
+            <li>وجّه الكاميرا نحو الرمز واختر الرقم الظاهر هنا</li>
           </ol>
         </>
       )}

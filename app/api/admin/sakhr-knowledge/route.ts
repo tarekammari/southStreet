@@ -6,6 +6,8 @@ import { verifyToken } from '@/lib/auth';
 import { getTokenFromRequest } from '@/lib/request-auth';
 import { normalizeLoginRole } from '@/lib/roles';
 import { requireRole, ADMINS, SUPER_ONLY } from '@/lib/staff-gate';
+import { getBrand } from '@/lib/brand-server';
+import { brandDomain } from '@/lib/brand';
 
 const READ_ROLES = new Set(['SUPER_ADMIN', 'AGENCY_MANAGER']);
 const WRITE_ROLES = new Set(['SUPER_ADMIN', 'AGENCY_MANAGER']);
@@ -58,7 +60,7 @@ export async function POST(req: NextRequest) {
       is_active: true,
       answerMode: answerMode || 'official_exact',
       matchStrategy: matchStrategy || 'keywords_or_title',
-      updatedBy: updatedBy || gate.payload.email || gate.payload.name || 'admin@southstreet.dz',
+      updatedBy: updatedBy || gate.payload.email || gate.payload.name || `admin@${brandDomain(getBrand())}`,
       updatedAt: new Date().toISOString()
     };
 

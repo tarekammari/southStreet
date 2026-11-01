@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { CheckCircle2, Loader2, Wallet, X } from 'lucide-react';
 import { fmtMoney, PAY_METHODS } from './money';
 import { resolveClientAvatarFromIndex } from '@/lib/entity-avatar-display';
+import { adminFetch, keyErrorMessage } from '@/lib/webauthn-client';
 import './client-payment.css';
 
 export type Collectible = {
@@ -31,10 +32,14 @@ export default function ClientPaymentModal({
   onClose,
   onSaved,
   preset,
+  override = false,
 }: {
   onClose: () => void;
-  onSaved: () => void;
+  /** message: what the server said (e.g. the payment waits for validation / approval). */
+  onSaved: (message?: string) => void;
   preset?: { customer_name?: string; customer_code?: string; reservation_id?: string } | null;
+  /** Super Admin break-glass: a written reason and a security-key tap; the accountant is told. */
+  override?: boolean;
 }) {
   const [accounts, setAccounts] = useState<{ id: string; name_ar: string }[]>([]);
   const [selected, setSelected] = useState<Collectible | null>(null);
@@ -47,6 +52,7 @@ export default function ClientPaymentModal({
   const [accountId, setAccountId] = useState('');
   const [entryDate, setEntryDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [note, setNote] = useState('');
+  const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
@@ -122,9 +128,11 @@ export default function ClientPaymentModal({
     e.preventDefault();
     setErr('');
     if (!selected) { setErr('لا يوجد حجز مرتبط بهذا العميل'); return; }
+    if (override && reason.trim().length < 5) { setErr('اكتب سبب تجاوز الإدارة (5 أحرف على الأقل)'); return; }
     setBusy(true);
     try {
-      const res = await fetch('/api/finance/clients/payments', {
+      // adminFetch asks for the security-key tap when the server answers 428.
+      const res = await (override ? adminFetch : fetch)('/api/finance/clients/payments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -138,14 +146,15 @@ export default function ClientPaymentModal({
           customer_name: selected.customer_name,
           customer_code: selected.customer_code,
           package_name: selected.package_name,
+          ...(override ? { override_reason: reason.trim() } : {}),
         }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { setErr(data.error || 'تعذّر تسجيل الدفعة'); return; }
-      onSaved();
+      onSaved(data.message);
       onClose();
-    } catch {
-      setErr('تعذّر الاتصال بالخادم');
+    } catch (e) {
+      setErr(override ? keyErrorMessage(e) : 'تعذّر الاتصال بالخادم');
     } finally {
       setBusy(false);
     }
@@ -169,8 +178,8 @@ export default function ClientPaymentModal({
         <header className="cpm-head">
           <span className="cpm-head-icon"><Wallet aria-hidden /></span>
           <div>
-            <h4 id="cpm-title">تسجيل دفعة</h4>
-            <small>تحصيل مبلغ من العميل على حجزه</small>
+            <h4 id="cpm-title">{override ? 'تجاوز الإدارة — تسجيل دفعة' : 'تسجيل دفعة'}</h4>
+            <small>{override ? 'اعتماد استثنائي بسبب مكتوب ومفتاح الأمان — يُبلَّغ المحاسب' : 'تحصيل مبلغ من العميل على حجزه'}</small>
           </div>
           <button type="button" className="cpm-close" onClick={onClose} aria-label="إغلاق"><X aria-hidden /></button>
         </header>
@@ -295,13 +304,30 @@ export default function ClientPaymentModal({
               <input id="cpm-note" placeholder="اختياري: رقم الوصل…" value={note} onChange={(e) => setNote(e.target.value)} />
             </section>
           </div>
+
+          {override ? (
+            <section className="cpm-field">
+              <label htmlFor="cpm-reason">سبب تجاوز الإدارة (إلزامي)</label>
+              <textarea
+                id="cpm-reason"
+                required
+                minLength={5}
+                maxLength={500}
+                rows={3}
+                placeholder="مثال: المحاسب غائب والعميل حاضر بالمبلغ نقداً"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+              />
+              <small className="cpm-hint">يُحفظ السبب في سجل التدقيق ويصل إلى المحاسب.</small>
+            </section>
+          ) : null}
         </div>
 
         <footer className="cpm-foot">
           <button type="button" className="cpm-cancel" onClick={onClose}>إلغاء</button>
           <button type="submit" className="cpm-submit" disabled={busy || !selected || amount <= 0}>
             {busy ? <Loader2 className="animate-spin" aria-hidden /> : <CheckCircle2 aria-hidden />}
-            {busy ? 'جارٍ التسجيل…' : `تسجيل الدفعة${amount > 0 ? ` · ${fmtMoney(amount)}` : ''}`}
+            {busy ? 'جارٍ التسجيل…' : `${override ? 'تجاوز الإدارة' : 'تسجيل الدفعة'}${amount > 0 ? ` · ${fmtMoney(amount)}` : ''}`}
           </button>
         </footer>
       </form>

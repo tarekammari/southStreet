@@ -5,6 +5,7 @@ import { resolveRequestIp } from '@/lib/security-threats';
 import { runSakhr, SakhrNotConfiguredError, type AgentReply, type ChatTurn } from '@/lib/sakhr/agent';
 import { cacheGet, cacheSet, normalizeQuestion, PUBLIC_TOOLS, recordMetric, SakhrBusyError, withSlot } from '@/lib/sakhr/capacity';
 import type { Who } from '@/lib/sakhr/tools';
+import { getBrand } from '@/lib/brand-server';
 
 /**
  * Sakhr chat endpoint. Works for visitors (public tools only) and for every
@@ -38,6 +39,8 @@ function rateLimited(key: string, limit: number): boolean {
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const message = String(body.message || '').trim().slice(0, MAX_MESSAGE);
+  // Spoken question: short spoken answer (read aloud at once).
+  const voice = body.voice === true;
   if (!message) return NextResponse.json({ error: 'اكتب رسالتك أولاً' }, { status: 400 });
 
   const history: ChatTurn[] = (Array.isArray(body.history) ? body.history : [])
@@ -60,7 +63,7 @@ export async function POST(req: Request) {
   }
 
   // A visitor's opening question ("which programmes are open?") is the same for everyone.
-  const cacheKey = role === 'ANON' && history.length === 0 ? `anon:${normalizeQuestion(message)}` : null;
+  const cacheKey = role === 'ANON' && history.length === 0 ? `anon:${voice ? 'v:' : ''}${normalizeQuestion(message)}` : null;
   if (cacheKey) {
     const hit = cacheGet<Omit<AgentReply, 'meta'>>(cacheKey);
     if (hit) {
@@ -77,13 +80,14 @@ export async function POST(req: Request) {
       ctx: { req, role, userId: signedIn ? session.account.id : undefined },
       userName: signedIn ? session.account.name : undefined,
       agency: {
-        name: agency.agency_name || 'ساوث ستريت للأسفار والعمرة',
+        name: agency.agency_name || getBrand().agency_name,
         phone: agency.phone,
         email: agency.email,
         address: [agency.address, agency.city].filter(Boolean).join('، '),
       },
       history,
       message,
+      voice,
     }));
     const { meta, ...reply } = result;
     recordMetric({
@@ -106,8 +110,8 @@ export async function POST(req: Request) {
         {
           error:
             error.reason === 'same-user'
-              ? 'صخر ما زال يجيب على رسالتك السابقة، لحظة من فضلك…'
-              : 'صخر يخدم عدداً كبيراً من الزوار الآن. لحظة من فضلك ثم أعد الإرسال.',
+              ? `${getBrand().assistant_name || 'صخر'} ما زال يجيب على رسالتك السابقة، لحظة من فضلك…`
+              : `${getBrand().assistant_name || 'صخر'} يخدم عدداً كبيراً من الزوار الآن. لحظة من فضلك ثم أعد الإرسال.`,
           busy: true,
         },
         { status: error.reason === 'same-user' ? 429 : 503 }
@@ -116,7 +120,7 @@ export async function POST(req: Request) {
     recordMetric({ role, provider: 'failed', ms: Date.now() - started, tokens: 0, rounds: 0, tools: [], cached: false, ok: false });
     if (error instanceof SakhrNotConfiguredError) {
       return NextResponse.json(
-        { error: 'صخر غير مُفعَّل بعد: يلزم إضافة مفتاح GROQ_API_KEY أو GEMINI_API_KEY في إعدادات الخادم.' },
+        { error: `${getBrand().assistant_name || 'صخر'} غير مُفعَّل بعد: يلزم إضافة مفتاح GROQ_API_KEY أو GEMINI_API_KEY في إعدادات الخادم.` },
         { status: 503 }
       );
     }
@@ -128,6 +132,6 @@ export async function POST(req: Request) {
     if (status === 503 || error?.name === 'TimeoutError' || error?.name === 'AbortError') {
       return NextResponse.json({ error: 'خدمة الذكاء الاصطناعي مزدحمة الآن. أعد المحاولة بعد لحظات.' }, { status: 503 });
     }
-    return NextResponse.json({ error: 'تعذّر على صخر الرد الآن. أعد المحاولة بعد لحظات.' }, { status: 502 });
+    return NextResponse.json({ error: `تعذّر على ${getBrand().assistant_name || 'صخر'} الرد الآن. أعد المحاولة بعد لحظات.` }, { status: 502 });
   }
 }

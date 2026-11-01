@@ -248,6 +248,10 @@ export interface Package {
   image_url: string;
   /** Extra photos (rooms, restaurant, sights…) after the main image_url. */
   images?: string[];
+  /** UMRAH | HAJJ | TOURISM — empty on older programs (see lib/tour.ts tripKindOf). */
+  trip_type?: string | null;
+  /** Tourist trips: country, cities, itinerary, hotels, highlights, visa note. */
+  tour?: import('@/lib/tour').TourDetails | null;
 }
 
 export interface TravelerInfo {
@@ -271,7 +275,8 @@ export type ReservationStatus =
   | 'READY_FOR_TRAVEL'
   | 'COMPLETED'
   | 'CANCELLED'
-  | 'REJECTED';
+  | 'REJECTED'
+  | 'EXPIRED';
 
 export interface InvoiceLine {
   id: string;
@@ -355,6 +360,14 @@ export interface Reservation {
   agency_confirmed_by?: string;
   document_verify_code?: string;
   agency_note?: string;
+  /** TRIP = a program (Umrah / Hajj / tourist trip), HOTEL = a hotel-only stay. */
+  booking_kind?: 'TRIP' | 'HOTEL';
+  hotel_stay?: import('@/lib/hotels/types').HotelStay;
+  /** Tourist trips: visa follow-up (lib/visa.ts). */
+  visa_status?: string;
+  visa_note?: string;
+  /** Kind of the booked program (lib/tour.ts). */
+  trip_kind?: 'UMRAH' | 'HAJJ' | 'TOURISM';
 }
 
 /** Pending Umrah demand with linked customer account info (for agency review). */

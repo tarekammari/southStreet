@@ -85,7 +85,7 @@ export function guidePrograms(guideId: string): GuideProgram[] {
   const reservations = (d.prepare('SELECT * FROM reservations').all() as any[])
     .map(mapReservationRow)
     .filter((r) => ids.has(String(r.package_id)))
-    .filter((r) => !['REJECTED', 'CANCELLED'].includes(String(r.status || '').toUpperCase()));
+    .filter((r) => !['REJECTED', 'CANCELLED', 'EXPIRED'].includes(String(r.status || '').toUpperCase()));
   const checkins = d.prepare('SELECT * FROM guide_checkins').all() as any[];
 
   return packages
@@ -115,7 +115,7 @@ export function guidePrograms(guideId: string): GuideProgram[] {
             name: r.customer_name,
             phone: r.customer_phone || '',
             room: ROOM_LABELS[r.room_type as keyof typeof ROOM_LABELS] || r.room_type,
-            confirmed: ['CONFIRMED', 'APPROVED', 'PAID', 'COMPLETED'].includes(String(r.status || '').toUpperCase()),
+            confirmed: ['CONFIRMED', 'APPROVED', 'PARTIALLY_PAID', 'PAID', 'DOCUMENTS_PENDING', 'READY_FOR_TRAVEL', 'COMPLETED'].includes(String(r.status || '').toUpperCase()),
             travelers: travelers.length ? travelers : [{ name: r.customer_name, passport: false, type: 'ADULT' }],
             checkins: mine,
           };

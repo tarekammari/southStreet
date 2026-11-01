@@ -13,11 +13,19 @@ import android.os.PowerManager
  * top of the phone by default (or a Bluetooth / wired headset when one is
  * connected), the loudspeaker only when the user taps «مكبّر الصوت». On the
  * earpiece the screen turns off when the phone is at the ear.
+ *
+ * After the call the phone must be back to normal sound, or YouTube and other
+ * apps keep playing through the small earpiece. The WebView's own call engine
+ * closes its audio a moment AFTER the page says the call ended, and puts back
+ * the "in a call" mode it saw when the call started — so the reset is repeated
+ * for a few seconds ([settle]) while no call is going on.
  */
 object CallAudio {
     private val main = Handler(Looper.getMainLooper())
     private var active = false
     private var proximity: PowerManager.WakeLock? = null
+    /** When our last call ended (only then do we touch the phone's sound). */
+    private var endedAt = 0L
 
     private val HEADSETS = setOf(
         AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
@@ -31,15 +39,18 @@ object CallAudio {
     fun route(ctx: Context, speaker: Boolean) {
         val app = ctx.applicationContext
         apply(app, speaker)
-        // The WebView sets up its own audio when the voice starts flowing: apply again after it.
+        // The WebView's call engine picks the LOUDSPEAKER itself when the voice starts
+        // flowing (and again on reconnects): apply our choice again after it.
         main.removeCallbacksAndMessages(null)
-        main.postDelayed({ if (active) apply(app, speaker) }, 800)
-        main.postDelayed({ if (active) apply(app, speaker) }, 2500)
+        for (delay in longArrayOf(800, 2500, 5000)) main.postDelayed({ if (active) apply(app, speaker) }, delay)
     }
 
     private fun apply(ctx: Context, speaker: Boolean) {
-        val am = ctx.getSystemService(AudioManager::class.java) ?: return
         active = true
+        // Telecom (Bluetooth, car, the system's call state) is told the route too — but the
+        // sound itself is set here: Telecom alone does not override the WebView's loudspeaker.
+        Telecom.route(speaker)
+        val am = ctx.getSystemService(AudioManager::class.java) ?: return
         try {
             am.mode = AudioManager.MODE_IN_COMMUNICATION
             if (Build.VERSION.SDK_INT >= 31) {
@@ -58,22 +69,46 @@ object CallAudio {
         screenOffAtEar(ctx, !speaker)
     }
 
-    /** Call over (or ringing for an incoming call): back to normal sound. */
+    /** Call over (or ringing for an incoming call): back to normal sound, and again for a few seconds. */
     fun reset(ctx: Context) {
         main.removeCallbacksAndMessages(null)
-        if (!active) return
+        val app = ctx.applicationContext
+        val wasActive = active
         active = false
-        val am = ctx.applicationContext.getSystemService(AudioManager::class.java) ?: return
+        if (wasActive) {
+            endedAt = System.currentTimeMillis()
+            normal(app)
+        }
+        screenOffAtEar(app, false)
+        settle(app)
+    }
+
+    /**
+     * No call going on: put normal sound back now and at 1.5 s, 4 s and 8 s, in
+     * case the call engine sets the call mode back while it closes. A new call
+     * ([route]) cancels the pending checks.
+     */
+    fun settle(ctx: Context) {
+        if (System.currentTimeMillis() - endedAt > 120_000) return // no call of ours lately: not our business
+        val app = ctx.applicationContext
+        for (delay in longArrayOf(0, 1500, 4000, 8000)) {
+            main.postDelayed({ if (!active) normal(app) }, delay)
+        }
+    }
+
+    private fun normal(ctx: Context) {
+        val am = ctx.getSystemService(AudioManager::class.java) ?: return
+        // Only the internet-call mode (ours / the WebView's): never a phone call (MODE_IN_CALL) or ringing.
+        if (am.mode != AudioManager.MODE_IN_COMMUNICATION && am.mode != AudioManager.MODE_NORMAL) return
         try {
             if (Build.VERSION.SDK_INT >= 31) {
-                am.clearCommunicationDevice()
+                if (am.communicationDevice != null) am.clearCommunicationDevice()
             } else {
                 @Suppress("DEPRECATION")
-                am.isSpeakerphoneOn = false
+                if (am.isSpeakerphoneOn) am.isSpeakerphoneOn = false
             }
-            am.mode = AudioManager.MODE_NORMAL
+            if (am.mode != AudioManager.MODE_NORMAL) am.mode = AudioManager.MODE_NORMAL
         } catch (_: Exception) { }
-        screenOffAtEar(ctx, false)
     }
 
     private fun screenOffAtEar(ctx: Context, on: Boolean) {

@@ -80,6 +80,7 @@ class IncomingCallActivity : AppCompatActivity() {
     private fun answer() {
         val c = call ?: return finish()
         CallService.stop(this)
+        Telecom.active()
         startActivity(
             Intent(this, MainActivity::class.java)
                 .putExtra(MainActivity.EXTRA_URL, "/connect?call=${c.id}&answer=1")
@@ -92,6 +93,7 @@ class IncomingCallActivity : AppCompatActivity() {
     private fun decline() {
         val c = call
         CallService.stop(this)
+        Telecom.end(android.telecom.DisconnectCause.REJECTED)
         if (c != null) Net.postJson("/api/connect/call", "{\"action\":\"decline\",\"id\":${Net.quote(c.id)}}")
         finish()
     }
@@ -119,6 +121,13 @@ class IncomingCallActivity : AppCompatActivity() {
 
     companion object {
         private var instance: WeakReference<IncomingCallActivity>? = null
+
+        /** Answered on a headset / car (Telecom): answer from this screen. False when it is not open. */
+        fun answerFromSystem(): Boolean {
+            val a = instance?.get() ?: return false
+            a.runOnUiThread { a.answer() }
+            return true
+        }
 
         /** Closes the screen when the call is cancelled / answered elsewhere. */
         fun close() {

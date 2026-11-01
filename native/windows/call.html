@@ -86,7 +86,7 @@
     <button class="pill hangup" data-a="hangup">إنهاء</button>
   </div>
 </div>
-<audio id="ring" src="assets/ringtone.wav" loop preload="auto"></audio>
+<audio id="ring" loop preload="auto"></audio>
 <script>
   const $ = (id) => document.getElementById(id);
   const ring = $('ring');
@@ -132,6 +132,13 @@
     $('status').textContent = incoming ? 'مكالمة صوتية واردة' : LABEL[call.phase] || '';
 
     if (incoming) {
+      // The ringtone picked in the app (sounds/ringtone_<id>.wav; the original otherwise).
+      const id = /^[a-z-]{2,30}$/.test(call.ringtone || '') && call.ringtone !== 'south-street' ? call.ringtone : '';
+      const file = `${window.card.sounds}/${id ? `ringtone_${id.replace(/-/g, '_')}.wav` : 'ringtone.wav'}`;
+      if (ring.paused && ring.dataset.file !== file) {
+        ring.src = file;
+        ring.dataset.file = file;
+      }
       if (ring.paused) {
         // Start soft, then swell to full volume over ~8 s.
         ring.volume = 0.35;

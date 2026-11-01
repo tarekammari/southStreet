@@ -15,6 +15,7 @@ import { toolGetAgencySettings } from '../ai-tools';
 import { LOGIN_ROLE_LABELS, normalizeLoginRole } from '../roles';
 import { downloadMedia, markReadAndTyping, sendText, toWhatsAppText, whatsappConfig } from './cloud';
 import { conversation, messages, normalizePhone, saveMessage, setBotEnabled } from './store';
+import { getBrand } from '../brand-server';
 
 export type IncomingMessage = {
   id: string;
@@ -27,6 +28,8 @@ export type IncomingMessage = {
 
 const HANDOFF = /^(موظف|موضف|مستشار|انسان|إنسان|agent|human|conseiller|عامل)$/i;
 const BOT_BACK = /^(صخر|sakhr|بوت|bot)$/i;
+/** «صخر» or the agency's own assistant name brings the bot back. */
+const isBotBack = (text: string) => BOT_BACK.test(text) || text.trim().toLowerCase() === (getBrand().assistant_name || '').trim().toLowerCase();
 const WINDOW_MS = 10 * 60 * 1000;
 const hits = new Map<string, number[]>();
 
@@ -124,9 +127,9 @@ export async function handleIncoming(msg: IncomingMessage, origin: string): Prom
     await reply(phone, 'تمّ تحويل محادثتك إلى فريق الوكالة، سيردّ عليك أحد الموظفين قريباً إن شاء الله. 🌿\nلإعادة المساعد الذكي اكتب: صخر');
     return;
   }
-  if (BOT_BACK.test(text) && conv && !conv.botEnabled) {
+  if (isBotBack(text) && conv && !conv.botEnabled) {
     setBotEnabled(conv.phoneHash, true);
-    await reply(phone, 'أهلاً بك من جديد، أنا صخر مساعد الوكالة الذكي. كيف أساعدك؟');
+    await reply(phone, `أهلاً بك من جديد، أنا ${getBrand().assistant_name || 'صخر'} مساعد الوكالة الذكي. كيف أساعدك؟`);
     return;
   }
   if (conv && !conv.botEnabled) return; // a team member is handling this conversation
@@ -159,7 +162,7 @@ export async function handleIncoming(msg: IncomingMessage, origin: string): Prom
       ctx: { req: new Request(`${origin}/api/ai/sakhr`, { headers: { 'user-agent': 'WhatsApp-Sakhr' } }), role: 'ANON' },
       userName: known?.name || msg.profileName,
       agency: {
-        name: agency.agency_name || 'ساوث ستريت للأسفار والعمرة',
+        name: agency.agency_name || getBrand().agency_name,
         phone: agency.phone,
         email: agency.email,
         address: [agency.address, agency.city].filter(Boolean).join('، '),

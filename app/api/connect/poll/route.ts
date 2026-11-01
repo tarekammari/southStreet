@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { connectSession } from '@/lib/connect/session';
-import { chatStamps, incomingFor, userById } from '@/lib/connect/store';
+import { chatStamps, incomingEvent, incomingFor, markDelivered, touchPresence, userById } from '@/lib/connect/store';
 import { linksStamp } from '@/lib/connect/links';
+import { groupsFor } from '@/lib/connect/groups';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,7 +10,13 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: Request) {
   const s = connectSession(req);
   if ('error' in s) return s.error;
-  const { unread, stamps } = chatStamps(s.me);
+  touchPresence(s.me.id);
+  markDelivered(s.me.id);
+  const { unread: dmUnread, stamps } = chatStamps(s.me);
+  // Group chats count too (new message → the app reloads its lists).
+  const groups = groupsFor(s.me);
+  for (const g of groups) stamps[g.chatId] = g.lastTs;
+  const unread = dmUnread + groups.reduce((n, g) => n + g.unread, 0);
   const call = incomingFor(s.me.id);
   const caller = call ? userById(call.callerId) : null;
   return NextResponse.json(
@@ -18,10 +25,7 @@ export async function GET(req: Request) {
       unread,
       stamps,
       people: linksStamp(s.me.id),
-      incoming:
-        call && caller
-          ? { id: call.id, offer: call.offer, caller: { id: caller.id, name: caller.name, roleLabel: caller.roleLabel, photo: caller.photo } }
-          : null,
+      incoming: call && caller ? incomingEvent(call, caller) : null,
     },
     { headers: { 'Cache-Control': 'no-store' } }
   );

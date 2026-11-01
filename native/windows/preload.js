@@ -13,6 +13,12 @@ contextBridge.exposeInMainWorld('ssNative', {
   callState: (state) => ipcRenderer.send('ss:call-state', state),
   /** "التحقق من التحديثات": resolves to { state: 'latest' | 'ready' | 'busy' | 'error', version }. */
   checkUpdate: () => ipcRenderer.invoke('ss:check-update'),
+  /** While a new version downloads: {version, pct} (0–100). */
+  onUpdateProgress: (cb) => {
+    const handler = (_e, p) => cb(p);
+    ipcRenderer.on('ss:update-progress', handler);
+    return () => ipcRenderer.removeListener('ss:update-progress', handler);
+  },
   onCallAction: (cb) => {
     const handler = (_e, action) => cb(action);
     ipcRenderer.on('ss:call-action', handler);

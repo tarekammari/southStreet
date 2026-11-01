@@ -16,7 +16,8 @@ import {
 export const dynamic = 'force-dynamic';
 
 /**
- * The new device's side of "sign in with the Super Admin's phone".
+ * The new device's side of "sign in with your phone" (a signed-in phone opens
+ * its own account; the Super Admin's phone chooses which account).
  *   POST → a fresh QR (the device secret goes into an httpOnly cookie);
  *   GET  → long-poll for the request's state; once the phone approves, this
  *          same call opens the session on this browser.
@@ -57,7 +58,12 @@ function accountToOpen(row: QrRequest): any | null {
   const target = db.prepare('SELECT * FROM users WHERE id = ?').get(String(row.target_id || '')) as any;
   if (!approver || !target) return null;
   const ok = (u: any) => u.loginEnabled !== 0 && u.status !== 'SUSPENDED' && u.status !== 'REJECTED';
-  if (!ok(approver) || !ok(target) || normalizeLoginRole(approver.role) !== 'SUPER_ADMIN') return null;
+  if (!ok(approver) || !ok(target)) return null;
+  const approverRole = normalizeLoginRole(approver.role);
+  // Any other phone signs the device in as its own (non-admin) account.
+  if (approverRole !== 'SUPER_ADMIN') {
+    return !isPrivilegedRole(approverRole) && target.id === approver.id ? target : null;
+  }
   const role = normalizeLoginRole(target.role);
   if (!isQrTargetRole(role)) return null;
   // The only privileged account a phone can open is its own.

@@ -16,13 +16,14 @@ export const maxDuration = 300;
  *   GET  ?platform=…&t=<link token>         download from a link made below (15 min)
  *   POST {platform} (signed in)             such a link — for old apps that download in the browser
  */
-const FILES = { android: 'SouthStreetConnect.apk', windows: 'SouthStreetConnect-Setup.exe' } as const;
+/** `windows-app`: the light update of the Windows app (its own files, gzip, ~100–200 KB). */
+const FILES = { android: 'SouthStreetConnect.apk', windows: 'SouthStreetConnect-Setup.exe', 'windows-app': 'SouthStreetConnect-app.asar.gz' } as const;
 type Platform = keyof typeof FILES;
-const TYPES: Record<Platform, string> = { android: 'application/vnd.android.package-archive', windows: 'application/octet-stream' };
+const TYPES: Record<Platform, string> = { android: 'application/vnd.android.package-archive', windows: 'application/octet-stream', 'windows-app': 'application/gzip' };
 const LINK_ISSUER = 'south-street-download';
 
 const dir = () => process.env.CONNECT_DOWNLOADS_DIR?.trim() || '/var/www/connect-downloads';
-const platformOf = (v: unknown): Platform | null => (v === 'android' || v === 'windows' ? v : null);
+const platformOf = (v: unknown): Platform | null => (v === 'android' || v === 'windows' || v === 'windows-app' ? v : null);
 
 function validLink(token: string, platform: Platform): boolean {
   try {

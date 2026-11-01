@@ -72,6 +72,9 @@ class CallService : Service() {
         stopSound() // never leave an earlier ringtone playing
         ringing = call
         current = call.id
+        ringingNow = call.id
+        // The caller's screen switches from «جارٍ الاتصال…» to «يرنّ…».
+        Net.postJson("/api/connect/call", "{\"action\":\"ringing\",\"id\":${Net.quote(call.id)}}")
         foreground(Notify.incoming(this, call, null), ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL)
         // Caller photo: refresh the notification once it has loaded.
         thread {
@@ -86,7 +89,12 @@ class CallService : Service() {
             .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "ssconnect:ring").apply { acquire(60_000) }
         startSound()
         // Nobody answered: the server also marks it missed after 45 s.
-        handler.postDelayed({ if (ringing?.id == call.id) stopEverything() }, 50_000)
+        handler.postDelayed({
+            if (ringing?.id == call.id) {
+                stopEverything()
+                Telecom.end(android.telecom.DisconnectCause.MISSED)
+            }
+        }, 50_000)
     }
 
     private fun startSound() {
@@ -102,7 +110,7 @@ class CallService : Service() {
                         .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                         .build()
                 )
-                setDataSource(this@CallService, Uri.parse("android.resource://$packageName/${R.raw.ringtone}"))
+                setDataSource(this@CallService, Uri.parse("android.resource://$packageName/${Prefs.ringtoneRes(this@CallService)}"))
                 isLooping = true
                 prepare()
                 setVolume(0.35f, 0.35f)
@@ -152,6 +160,7 @@ class CallService : Service() {
     private fun ongoing(caller: String) {
         stopSound()
         ringing = null
+        ringingNow = null
         val type = if (Build.VERSION.SDK_INT >= 30) {
             ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
         } else ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL
@@ -171,6 +180,7 @@ class CallService : Service() {
         stopSound()
         ringing = null
         current = null
+        ringingNow = null
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -192,19 +202,37 @@ class CallService : Service() {
         const val ACTION_ONGOING = "ongoing"
         const val ACTION_STOP = "stop"
 
-        /** Id of the call ringing on this phone right now, if any. */
+        /** Id of the call ringing or ongoing on this phone right now, if any. */
         @Volatile var current: String? = null
 
+        /**
+         * Id of the call still ringing here (not yet answered). "Answered" / "ended"
+         * news stops only that — never the ongoing call this phone just picked up.
+         */
+        @Volatile var ringingNow: String? = null
+
+        /**
+         * A call came in (push or live stream). Through Android's calling system when it
+         * can ([Telecom], which then asks for [ringNow]); otherwise straight away.
+         */
         fun ring(ctx: Context, call: CallInfo) {
             synchronized(this) {
                 if (current == call.id) return
                 current = call.id
+                ringingNow = call.id
             }
+            if (!Telecom.incoming(ctx, call)) ringNow(ctx, call)
+        }
+
+        /** Our ringing screen + ringtone now (Telecom agreed, refused, or is not there). */
+        fun ringNow(ctx: Context, call: CallInfo) {
+            if (ringingNow != call.id) return // ended / answered meanwhile
             start(ctx, Intent(ctx, CallService::class.java).setAction(ACTION_RING).putExtras(call.toBundle()))
         }
         fun ongoing(ctx: Context, caller: String) = start(ctx, Intent(ctx, CallService::class.java).setAction(ACTION_ONGOING).putExtra("caller", caller))
         fun stop(ctx: Context) {
             current = null
+            ringingNow = null
             try { ctx.startService(Intent(ctx, CallService::class.java).setAction(ACTION_STOP)) } catch (_: Exception) { }
             NotificationManagerCompat.from(ctx).cancel(Notify.ID_CALL)
         }

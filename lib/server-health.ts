@@ -7,6 +7,7 @@ import { getSqliteDb } from '@/lib/sqlite';
 import { resolveDbPath } from '@/lib/db-path';
 import { collectTopUsers, type TopUserUsage } from '@/lib/top-users';
 import { getAdminKeyMeta, type AdminKeyMeta } from '@/lib/admin-key';
+import { getBrand } from './brand-server';
 
 export type HealthSample = {
   t: number;
@@ -167,7 +168,7 @@ function listSqliteFiles(mainPath: string): { id: string; name: string; label: s
     found.set(filePath, { id: name, name, label, path: filePath, bytes });
   };
 
-  add(mainPath, 'قاعدة ساوث ستريت');
+  add(mainPath, `قاعدة ${getBrand().short_name}`);
 
   try {
     for (const entry of fs.readdirSync(dir)) {

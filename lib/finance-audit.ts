@@ -8,7 +8,9 @@ export type FinanceAuditActor = {
   role: LoginRole | string;
 };
 
-export type FinanceAuditAction = 'create' | 'update' | 'delete' | 'void' | 'close_period' | 'reopen_period';
+export type FinanceAuditAction =
+  | 'create' | 'update' | 'delete' | 'void' | 'close_period' | 'reopen_period'
+  | 'validate' | 'approve' | 'override' | 'reject';
 
 export function auditFinanceMutation(
   gate: FinanceAuthOk,

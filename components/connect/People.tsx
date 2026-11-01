@@ -130,7 +130,7 @@ export function Directory({ title, people, onAction, empty }: { title: string; p
                 <Avatar p={p} />
                 <span className="cn-row-main">
                   <span className="cn-row-top"><b>{p.name}</b></span>
-                  <span className="cn-row-sub"><small>{s === 'sent' ? 'تم إرسال الطلب' : s === 'received' ? 'أرسل لك طلباً' : p.online ? 'متصل الآن' : 'عميل South Street'}</small></span>
+                  <span className="cn-row-sub"><small>{s === 'sent' ? 'تم إرسال الطلب' : s === 'received' ? 'أرسل لك طلباً' : p.online ? 'متصل الآن' : 'عميل الوكالة'}</small></span>
                 </span>
               </div>
               {s === 'sent' ? (
@@ -235,7 +235,7 @@ export function AddPersonSheet({ onClose, onAction, onOpenChat }: { onClose: () 
             <Avatar p={result} big />
             <div>
               <b>{result.name}</b>
-              <small>{team ? result.roleLabel : state === 'friend' ? 'في جهات اتصالك' : state === 'sent' ? 'تم إرسال الطلب' : state === 'received' ? 'أرسل لك طلباً' : 'عميل South Street'}</small>
+              <small>{team ? result.roleLabel : state === 'friend' ? 'في جهات اتصالك' : state === 'sent' ? 'تم إرسال الطلب' : state === 'received' ? 'أرسل لك طلباً' : 'عميل الوكالة'}</small>
             </div>
             {team || state === 'friend' ? (
               <button type="button" className="cn-chip is-main" onClick={() => { onOpenChat(result.id); onClose(); }}>مراسلة</button>

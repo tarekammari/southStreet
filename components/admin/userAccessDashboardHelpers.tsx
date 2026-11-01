@@ -30,6 +30,7 @@ import {
   type FirewallDateFilter,
   type FirewallScope,
 } from '@/components/admin/SecurityCenter';
+import { DEFAULT_BRAND } from '@/lib/brand';
 
 export type DashboardStats = {
   total: number;
@@ -123,7 +124,7 @@ export function roleLabelOf(user: { role?: string; email?: string; roleName?: st
   return LOGIN_ROLE_LABELS[userLoginRole(user)];
 }
 
-export const AGENCY_LOGO_FALLBACK = '/images/south_street_logo.png';
+export const AGENCY_LOGO_FALLBACK = DEFAULT_BRAND.logo_url;
 
 export function resolveAgencyLogo(logo?: string | null): string {
   if (!logo) return AGENCY_LOGO_FALLBACK;

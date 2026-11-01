@@ -1,5 +1,6 @@
 import { getSqliteDb } from '@/lib/sqlite';
 import { LOGIN_ROLE_LABELS, normalizeLoginRole } from '@/lib/roles';
+import { getBrand } from './brand-server';
 
 export type UserTableUse = {
   name: string;
@@ -42,7 +43,7 @@ const TABLE_LABELS: Record<string, string> = {
 
 const MAIN_DB = {
   id: 'south_street.db',
-  label: 'قاعدة ساوث ستريت',
+  label: 'القاعدة الرئيسية',
   engine: 'SQLite',
 };
 
@@ -206,7 +207,7 @@ export function collectTopUsers(limit = 10): TopUserUsage[] {
         messages: msg,
         reservations: resv,
         lastActive: lastActive.get(id) || null,
-        databases: tables.length ? [{ ...MAIN_DB, tables }] : [],
+        databases: tables.length ? [{ ...MAIN_DB, label: `قاعدة ${getBrand().short_name}`, tables }] : [],
       } satisfies TopUserUsage;
     })
     .filter((row) => row.score > 0 || row.sessions > 0)

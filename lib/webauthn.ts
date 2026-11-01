@@ -9,6 +9,8 @@ import {
   type RegistrationResponseJSON,
 } from '@simplewebauthn/server';
 import { getSqliteDb } from '@/lib/sqlite';
+import { getBrand } from '@/lib/brand-server';
+import { DEFAULT_BRAND } from '@/lib/brand';
 import { lookupHash } from '@/lib/db-crypto';
 import { signPurposeToken, verifyPurposeToken } from '@/lib/auth';
 
@@ -18,7 +20,10 @@ import { signPurposeToken, verifyPurposeToken } from '@/lib/auth';
  * one-time enrollment links.
  */
 
-const RP_NAME = 'South Street';
+/** Name shown in the security-key prompt: the agency's (display only; the RP ID comes from the env). */
+function rpName(): string {
+  return getBrand().name_latin.trim() || DEFAULT_BRAND.name_latin;
+}
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 export const RECOVERY_CODE_COUNT = 10;
 export const MAX_KEYS_PER_USER = 10;
@@ -147,7 +152,7 @@ export async function beginRegistration(
   const existing = listCredentials(user.id);
   if (existing.length >= MAX_KEYS_PER_USER) throw new Error('MAX_KEYS');
   const options = await generateRegistrationOptions({
-    rpName: RP_NAME,
+    rpName: rpName(),
     rpID,
     userID: new TextEncoder().encode(user.id),
     userName: user.username || user.id,

@@ -14,6 +14,7 @@ import { adminFetch, keyErrorMessage } from '@/lib/webauthn-client';
 import { EMPTY_SOCIAL, SOCIAL_KEY, SOCIAL_LABELS, readSocialLinks, waLink, withUtm, type SocialLinks } from '@/lib/social';
 import type { PageContentRow } from '@/lib/page-content';
 import { SOCIAL_ICON, WhatsAppIcon } from '@/components/social/SocialIcons';
+import { useBrand } from '@/components/social/useAgencyInfo';
 
 type Tab = 'inbox' | 'channels' | 'connect' | 'kit';
 type Conv = { phoneHash: string; phone: string; name: string; userId: string; botEnabled: boolean; lastTs: number; unread: number; lastText: string };
@@ -268,6 +269,7 @@ function Connect({ configured, origin, onToast }: { configured: boolean; origin:
 
 /* ---------------- Publishing kit ---------------- */
 function Kit({ social, origin, onToast }: { social: SocialLinks; origin: string; onToast: (t: string) => void }) {
+  const brand = useBrand();
   const [qrWa, setQrWa] = useState('');
   const [qrLinks, setQrLinks] = useState('');
   const wa = social.whatsapp ? waLink(social.whatsapp, social.welcome) : '';
@@ -292,7 +294,7 @@ function Kit({ social, origin, onToast }: { social: SocialLinks; origin: string;
     [linksPage, wa, origin]
   );
 
-  const greeting = `السلام عليكم 👋 مرحباً بكم في ساوث ستريت.
+  const greeting = `السلام عليكم 👋 مرحباً بكم في ${brand.short_name}.
 للرد الفوري على مدار الساعة تحدّث مع صخر، مساعدنا الذكي:
 ${origin}/sakhr
 أو اترك رسالتك وسيردّ عليك فريقنا قريباً إن شاء الله.`;

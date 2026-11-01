@@ -1,4 +1,6 @@
 import { fmtAmount } from '@/components/accountant/money';
+import { getBrand } from './brand-server';
+import { agencyLabel } from './brand';
 
 function escapeHtml(value: string): string {
   return String(value ?? '')
@@ -109,7 +111,7 @@ function letterhead(printedAt: string, meta: string): string {
   return `<header class="letterhead">
     <div>
       <div class="letterhead-en">SOUTH STREET AGENCY</div>
-      <div class="letterhead-ar">وكالة ساوث ستريت — الرواتب</div>
+      <div class="letterhead-ar">${escapeHtml(agencyLabel(getBrand()))} — الرواتب</div>
     </div>
     <div class="letterhead-meta"><div>${escapeHtml(meta)}</div><div>${escapeHtml(printedAt)}</div></div>
   </header>`;

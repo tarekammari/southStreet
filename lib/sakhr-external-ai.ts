@@ -4,6 +4,8 @@
  * Always labels the source clearly.
  */
 
+import { rebrandText } from './brand';
+import { getBrand } from './brand-server';
 import { toolGetAgencySettings } from './ai-tools';
 import {
   sanitizeSakhrReply,
@@ -52,7 +54,7 @@ const LOCAL_FAQ: Array<{ keywords: string[]; answer: string }> = [
       '🧕 **حكم المحرم للمرأة في العمرة:**\n\n' +
       '• جمهور العلماء يرى **وجوب محرم** للمرأة في سفر العمرة إذا تجاوزت مسافة القصر.\n' +
       '• **التأشيرة السعودية (نسك)** تشترط عادةً محرماً أو مجموعة نسائية معتمدة حسب اللوائح الرسمية.\n' +
-      '• **وكالة ساوث ستريت** تلتزم بالأنظمة ولا تقبل ملفات مخالفة لاشتراطات التأشيرة.\n\n' +
+      '• **الوكالة** تلتزم بالأنظمة ولا تقبل ملفات مخالفة لاشتراطات التأشيرة.\n\n' +
       '📞 للاستشارة الخاصة: تواصل مع الإدارة أو المرشدة الدينية عبر بوابة الوكالة.',
   },
   {
@@ -75,7 +77,7 @@ function searchLocalFaq(prompt: string): string | null {
   const n = normalize(prompt);
   for (const faq of LOCAL_FAQ) {
     if (faq.keywords.some(kw => n.includes(normalize(kw)))) {
-      return faq.answer;
+      return rebrandText(faq.answer, getBrand());
     }
   }
   return null;
@@ -83,15 +85,15 @@ function searchLocalFaq(prompt: string): string | null {
 
 function buildSystemInstruction(agency: { agency_name?: string; phone?: string }): string {
   return (
-    'أنت **صخر**، المساعد الذكي لوكالة ' +
-    (agency.agency_name || 'ساوث ستريت') +
+    `أنت **${getBrand().assistant_name || 'صخر'}**، المساعد الذكي لوكالة ` +
+    (agency.agency_name || getBrand().short_name) +
     ' للعمرة والحج بالجزائر.\n\n' +
     'دورك: الإجابة على أسئلة المستخدم بلغة عربية واضحة ومهنية.\n\n' +
     'قواعد:\n' +
     '1. استخدم معرفتك في أحكام العمرة والحج والفقه والسفر.\n' +
     '2. لا تخترع أسعاراً أو باقات محددة.\n' +
     '3. للسياسات الخاصة بالوكالة، اقترح التواصل: ' +
-    (agency.phone || '+213 21 55 44 33') +
+    (agency.phone || getBrand().phone) +
     '.\n' +
     '4. كن مختصراً ومفيداً.' +
     buildGroundedSystemExtras()
@@ -400,7 +402,7 @@ export async function callExternalAI(
         'عذراً، لم أتمكن من جلب إجابة من الخدمات الخارجية الآن.\n\n' +
         'جرّب سؤالاً عن العمرة/الحج أو بيانات الوكالة، أو أعد المحاولة بعد لحظات.\n\n' +
         'للاستفسار المباشر: ' +
-        (agency.phone || '+213 21 55 44 33') +
+        (agency.phone || getBrand().phone) +
         '.'
       ),
       source: LOCAL_FAQ_SOURCE,

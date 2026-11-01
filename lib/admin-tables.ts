@@ -17,7 +17,7 @@ export interface AdminTableDef {
 
 /** Tables the editor can open. Order = order in the menu. */
 export const ADMIN_TABLES: Record<string, AdminTableDef> = {
-  packages: { label: 'باقات العمرة والحج', icon: '📦', write: true },
+  packages: { label: 'البرامج والرحلات', icon: '📦', write: true },
   hotels: { label: 'الفنادق المعتمدة', icon: '🏨', write: true },
   morshids: { label: 'المرشدين وطاقم العمل', icon: '👨‍💼', write: true },
   seasons: { label: 'المواسم والرحلات', icon: '🗓️', write: true },

@@ -14,6 +14,7 @@ import { dbLogAudit, dbSaveMessage, dbSaveReceipt } from '@/lib/db';
 import { resolveRequestIp } from '@/lib/security-threats';
 import { buildDmChatId } from '@/lib/chat-utils';
 import {
+  bookingRequestNoun,
   BOOKING_EXTRAS,
   applyReservationChanges,
   buildAppointments,
@@ -25,6 +26,7 @@ import {
   getOwnedReservation,
   isActiveReservation,
   listCustomerReservations,
+  listCustomerHotelBookings,
   loadPublishedPackage,
   lookupMorshidPhone,
   mapReservationRow,
@@ -35,8 +37,10 @@ import {
 import { pilgrimSignupStatus } from '@/lib/feature-flags';
 import { notifyBookingSubmitted, notifySignup } from '@/lib/notifications';
 import { isPackageExpired } from '@/lib/booking-catalog';
+import { sweepBookingLifecycle } from '@/lib/booking-lifecycle';
 import { documentVerifyCode } from '@/lib/booking-documents';
 import { tokenVersionOf } from '@/lib/webauthn';
+import { tripKindOf } from '@/lib/tour';
 
 export const dynamic = 'force-dynamic';
 
@@ -258,9 +262,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'يلزم تسجيل الدخول' }, { status: 401 });
   }
 
+  sweepBookingLifecycle();
   const db = getSqliteDb();
   const account = db.prepare('SELECT * FROM users WHERE id = ?').get(auth.id) as any;
   const reservations = listCustomerReservations(auth.id);
+  const hotelBookings = listCustomerHotelBookings(auth.id);
   const activeReservation = reservations.find((row) => isActiveReservation(row.status)) || null;
 
   const allReceipts = db.prepare('SELECT * FROM receipts').all() as any[];
@@ -268,11 +274,11 @@ export async function GET(req: NextRequest) {
     .filter((row) =>
       row.pilgrimCode === account?.code ||
       row.pilgrimName === account?.name ||
-      reservations.some((res) => row.packageName === res.package_name && row.pilgrimName === res.customer_name)
+      [...reservations, ...hotelBookings].some((res) => row.packageName === res.package_name && row.pilgrimName === res.customer_name)
     )
     .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
 
-  return NextResponse.json({ reservations, receipts, activeReservation });
+  return NextResponse.json({ reservations, hotelBookings, receipts, activeReservation });
 }
 
 export async function POST(req: NextRequest) {
@@ -542,7 +548,7 @@ export async function POST(req: NextRequest) {
           senderName: agent.name,
           senderAvatar: agent.avatar || 'س',
           senderRole: 'agent',
-          text: `مرحباً ${name}، استلمنا طلب عمرتك رقم ${reservationNumber}. فريق الوكالة يراجع الطلب ويؤكده خلال 24–48 ساعة. يمكنك طباعة طلب الحجز من بوابة المعتمر.`,
+          text: `مرحباً ${name}، استلمنا ${tripKindOf(pkg) === 'TOURISM' ? 'طلب رحلتك' : tripKindOf(pkg) === 'HAJJ' ? 'طلب الحج' : 'طلب عمرتك'} رقم ${reservationNumber}. فريق الوكالة يراجع الطلب ويؤكده خلال 24–48 ساعة. يمكنك طباعة طلب الحجز من بوابة المعتمر.`,
           time: '',
         });
         dbSaveMessage({
@@ -594,7 +600,7 @@ export async function POST(req: NextRequest) {
 
     const session = issueSession(account, req);
     try {
-      dbLogAudit(name, 'PILGRIM_USER', 'تقديم طلب عمرة', `${reservationNumber} — ${pkg.name}`, session.ip);
+      dbLogAudit(name, 'PILGRIM_USER', tripKindOf(pkg) === 'TOURISM' ? 'تقديم طلب رحلة سياحية' : 'تقديم طلب عمرة', `${reservationNumber} — ${pkg.name}`, session.ip);
     } catch {
       /* audit optional */
     }
@@ -668,7 +674,7 @@ export async function PUT(req: NextRequest) {
     const priceDelta = reservation.total_amount - existing.total_amount;
     notifyAgency(
       account,
-      `تم تعديل طلب العمرة رقم ${reservation.reservation_number}. المجموع الجديد ${reservation.total_amount.toLocaleString('ar-DZ')} دج. ${reservation.status === 'REQUESTED' ? 'بانتظار إعادة تأكيد الوكالة.' : ''}`
+      `تم تعديل ${bookingRequestNoun(reservation)} رقم ${reservation.reservation_number}. المجموع الجديد ${reservation.total_amount.toLocaleString('ar-DZ')} دج. ${reservation.status === 'REQUESTED' ? 'بانتظار إعادة تأكيد الوكالة.' : ''}`
     );
 
     return NextResponse.json({
@@ -703,13 +709,13 @@ export async function DELETE(req: NextRequest) {
 
     notifyAgency(
       account,
-      `تم إلغاء طلب العمرة رقم ${reservation.reservation_number} (${reservation.package_name}) بناءً على طلب المعتمر.`
+      `تم إلغاء ${bookingRequestNoun(reservation)} رقم ${reservation.reservation_number} (${reservation.package_name}) بناءً على طلب العميل.`
     );
 
     return NextResponse.json({
       status: 'CANCELLED',
       reservation,
-      user: { redirect: '/book' },
+      user: { redirect: reservation.booking_kind === 'HOTEL' ? '/my-bookings' : '/book' },
     });
   } catch (error: any) {
     return NextResponse.json({ error: error?.message || 'تعذّر إلغاء الطلب' }, { status: 500 });
