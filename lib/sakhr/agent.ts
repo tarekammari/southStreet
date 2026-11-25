@@ -37,6 +37,17 @@ const STAFF_BUDGET: Budget = { rounds: 6, turns: 10, turnChars: 1200, toolChars:
 const PUBLIC_BUDGET: Budget = { rounds: 4, turns: 6, turnChars: 600, toolChars: 3000 };
 const PUBLIC_ROLES = new Set<string>(['ANON', 'PILGRIM_USER']);
 const budgetFor = (role: Who): Budget => (PUBLIC_ROLES.has(role) ? PUBLIC_BUDGET : STAFF_BUDGET);
+/**
+ * gpt-oss "thinks" before it answers; that thinking is most of the wait.
+ * Visitors' questions (prices, programmes, office) need little of it; staff
+ * tasks with several tool steps get a bit more. SAKHR_REASONING overrides both.
+ */
+type Effort = 'low' | 'medium' | 'high';
+function reasoningFor(role: Who): Effort {
+  const forced = process.env.SAKHR_REASONING?.trim().toLowerCase();
+  if (forced === 'low' || forced === 'medium' || forced === 'high') return forced;
+  return PUBLIC_ROLES.has(role) ? 'low' : 'medium';
+}
 /** Per-request limit so a stuck call fails fast instead of hanging the chat. */
 const CALL_TIMEOUT_MS = 12_000;
 export const ACTION_TTL = '10m';
@@ -222,14 +233,18 @@ function groq(): Groq | null {
   return groqClient;
 }
 
-/** Groq's per-minute limit usually clears within seconds ("try again in 1.4s"); wait that out once. */
+/**
+ * Groq's per-minute limit often clears within a second ("try again in 0.6s"):
+ * wait that out once. A longer wait is not worth it: the other model answers
+ * at once (runSakhr), and it only waits when every model is limited.
+ */
 async function groqCreate<T>(call: () => Promise<T>): Promise<T> {
   try {
     return await call();
   } catch (error) {
     const e = error as { status?: number; message?: string };
     const wait = Number(String(e?.message || '').match(/try again in ([\d.]+)s/i)?.[1]);
-    if (e?.status !== 429 || !(wait > 0) || wait > 4) throw error;
+    if (e?.status !== 429 || !(wait > 0) || wait > 1) throw error;
     await new Promise((resolve) => setTimeout(resolve, wait * 1000 + 250));
     return call();
   }
@@ -263,6 +278,7 @@ async function runOnGroq(client: Groq, model: string, opts: RunOpts): Promise<Ag
         tool_choice: 'auto',
         temperature: 0.4,
         max_completion_tokens: 2048,
+        ...(model.includes('gpt-oss') ? { reasoning_effort: reasoningFor(opts.ctx.role) } : {}),
       })
     );
     out.tokens += completion.usage?.total_tokens || 0;
@@ -392,9 +408,12 @@ export async function runSakhr(opts: RunOpts): Promise<AgentReply> {
 
   const groqApi = groq();
   if (groqApi) {
-    const primary = process.env.GROQ_MODEL?.trim() || DEFAULT_GROQ_MODEL;
-    const fallback = process.env.GROQ_FALLBACK_MODEL?.trim() || FALLBACK_GROQ_MODEL;
-    for (const model of primary === fallback ? [primary] : [primary, fallback]) {
+    const big = process.env.GROQ_MODEL?.trim() || DEFAULT_GROQ_MODEL;
+    const small = process.env.GROQ_FALLBACK_MODEL?.trim() || FALLBACK_GROQ_MODEL;
+    // Visitors and pilgrims get the fast small model first (their questions are
+    // short); staff keep the big one first for multi-step tasks.
+    const order = PUBLIC_ROLES.has(opts.ctx.role) ? [small, big] : [big, small];
+    for (const model of big === small ? [big] : order) {
       attempts.push({ key: `groq:${model}`, run: () => runOnGroq(groqApi, model, opts) });
     }
   }

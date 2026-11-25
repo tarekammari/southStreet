@@ -389,6 +389,15 @@ function chunksOf(text: string): string[] {
     } else cur = cur ? `${cur} ${s}` : s;
   }
   if (cur) out.push(cur);
+  // A long first sentence would delay the first sound: cut it after a few words
+  // (at a comma when there is one) so playback starts while the rest is prepared.
+  if (out[0] && out[0].length > 110) {
+    const first = out[0];
+    const head = first.slice(0, 90);
+    const comma = Math.max(head.lastIndexOf('،'), head.lastIndexOf(','));
+    const cut = comma > 30 ? comma + 1 : head.lastIndexOf(' ') > 30 ? head.lastIndexOf(' ') : -1;
+    if (cut > 0) out.splice(0, 1, first.slice(0, cut), first.slice(cut));
+  }
   return out.flatMap((c) => (c.length > 560 ? c.match(/.{1,560}(\s|$)/g) || [c] : [c])).map((c) => c.trim()).filter(Boolean);
 }
 
@@ -479,19 +488,29 @@ export function speak(text: string, onEnd?: () => void): boolean {
 
   const parts = chunksOf(clean);
   void (async () => {
-    let next: Promise<Blob> | null = fetchChunk(parts[0]);
+    // The first two pieces are asked for together: the second is usually ready
+    // before the first finishes playing, so there is no gap between them.
+    const pending: (Promise<Blob> | null)[] = parts.map(() => null);
+    const want = (i: number) => {
+      if (i < parts.length && !pending[i]) {
+        pending[i] = fetchChunk(parts[i]);
+        pending[i]!.catch(() => undefined);
+      }
+    };
+    want(0);
+    want(1);
     for (let i = 0; i < parts.length; i += 1) {
       if (mine !== session) return;
       let blob: Blob;
       try {
-        blob = await next!;
+        blob = await pending[i]!;
       } catch {
         // Server voice failed: finish with the device voice when there is one.
         if (mine === session && !browserSpeak(parts.slice(i).join(' '), mine, onEnd)) onEnd?.();
         return;
       }
-      next = i + 1 < parts.length ? fetchChunk(parts[i + 1]) : null;
-      next?.catch(() => undefined);
+      want(i + 1);
+      want(i + 2);
       try {
         await playBlob(blob, mine);
       } catch {
