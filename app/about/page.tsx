@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -21,7 +21,7 @@ import TestimonialsSection from '@/components/TestimonialsSection';
 import { initialOf, photoOf, type MorshidRow } from '@/components/AboutSection';
 import { useReveal } from '@/components/info/useReveal';
 import { CountUp, ScrollProgress } from '@/components/about/effects';
-import { CalligraphyRing, IslamicArabesque, IslamicPattern, IslamicRosette } from '@/components/about/IslamicOrnament';
+import { CalligraphyRing, IslamicPattern, IslamicRosette } from '@/components/about/IslamicOrnament';
 import { useAgencyInfo } from '@/components/social/useAgencyInfo';
 import { SOCIAL_ICON } from '@/components/social/SocialIcons';
 import { socialProfiles } from '@/lib/social';
@@ -140,6 +140,16 @@ export default function AboutPage() {
   }, []);
 
   useReveal();
+
+  // Pause the hero's loops while it is off screen (no work for animations nobody sees).
+  const heroRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = heroRef.current;
+    if (!el || !('IntersectionObserver' in window)) return;
+    const io = new IntersectionObserver(([entry]) => el.classList.toggle('is-off', !entry.isIntersecting));
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
   const profiles = socialProfiles(agency.social);
 
   const name = agency.agency_name || agencyLabel(agency);
@@ -196,12 +206,14 @@ export default function AboutPage() {
 
       <main className="ip gc page-main" dir="rtl">
         {/* Hero: white, with a gold-and-green Islamic pattern at the edges, a turning ring
-            of calligraphy, and an arch-shaped panel in the centre with the logo, title and
-            one line. The logo and pattern follow the pointer. */}
-        <section className="gc-hero" onPointerMove={followPointer} onPointerLeave={resetPointer}>
+            of calligraphy on the right, the agency name in blue calligraphy and the logo crest.
+            The crest and pattern follow the pointer; animations pause when the hero is off screen. */}
+        <section ref={heroRef} className="gc-hero" onPointerMove={followPointer} onPointerLeave={resetPointer}>
           <div className="gc-hero-pattern" aria-hidden><IslamicPattern /></div>
           <div className="gc-ring-wrap" aria-hidden><CalligraphyRing className="gc-ring" /></div>
           <div className="gc-hero-in">
+            {/* Page title for screen readers and search engines (the hero shows no text block). */}
+            <h1 className="sr-only">{about.hero.title} — {name.replace(/\s+(تور|تورز|tours?)$/i, '')}</h1>
             {/* The agency name in calligraphy, written in from right to left, with small ornaments. */}
             <p className="gc-callig" aria-label={name.replace(/\s+(تور|تورز|tours?)$/i, '')}>
               <span className="gc-callig-text" aria-hidden>{calligraphyName(name)}</span>
@@ -221,17 +233,6 @@ export default function AboutPage() {
                 {logo ? <img src={logo} alt={name} className="gc-hero-logo" /> : <b className="gc-hero-logo is-letter">{name.slice(0, 1)}</b>}
               </span>
             </div>
-            </div>
-            <div className="gc-hero-panel ab-in" style={delay(2)}>
-              <span className="gc-panel-art" aria-hidden><IslamicArabesque /></span>
-              <h1 className="gc-h1"><Accent text={about.hero.title} /></h1>
-              <span className="gc-hero-rule" aria-hidden><i /></span>
-              <p className="gc-intro">{intro}</p>
-              <nav className="gc-crumbs" aria-label="مسار الصفحة">
-                <Link href="/">الرئيسية</Link>
-                <span aria-hidden>/</span>
-                <span aria-current="page">عن الوكالة</span>
-              </nav>
             </div>
           </div>
         </section>
