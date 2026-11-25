@@ -75,16 +75,46 @@
 
 .gc-section { padding: 110px 0 0; }
 
-/* ---------- Header ---------- */
-.gc-header { padding-top: 64px; }
-.gc-header-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 32px; margin-bottom: 40px; }
-.gc-crumbs { display: flex; align-items: center; gap: 10px; font-size: .88rem; color: var(--gc-muted); white-space: nowrap; }
+/* ---------- Hero: full photo under a white veil, Islamic ornament, centred ---------- */
+.gc-hero {
+  position: relative; isolation: isolate; overflow: hidden; display: grid; place-items: center; text-align: center;
+  min-height: clamp(560px, calc(100svh - 72px), 860px); background: #fff;
+}
+.gc-hero-bg { position: absolute; inset: 0; z-index: -3; width: 100%; height: 100%; object-fit: cover; animation: gc-settle 2.4s var(--ab-ease) both; }
+@keyframes gc-settle { from { transform: scale(1.08); } to { transform: scale(1); } }
+/* White in the middle (for the text), the photo shows more toward the edges. */
+.gc-hero-veil {
+  position: absolute; inset: 0; z-index: -2;
+  background:
+    radial-gradient(ellipse 58% 62% at 50% 50%, rgba(255, 255, 255, .97) 0%, rgba(255, 255, 255, .9) 45%, rgba(255, 255, 255, .62) 78%, rgba(255, 255, 255, .45) 100%),
+    linear-gradient(180deg, rgba(255, 255, 255, .5), rgba(255, 255, 255, 0) 30%, rgba(255, 255, 255, 0) 70%, #fff 100%);
+}
+/* The lattice drifts diagonally; it is twice as large, so the loop never shows an edge. */
+.gc-hero-pattern {
+  position: absolute; inset: -80px; z-index: -1; color: #b08a3e; opacity: .32; pointer-events: none;
+  -webkit-mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, transparent 22%, #000 70%);
+  mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, transparent 22%, #000 70%);
+}
+.gc-hero-pattern svg { display: block; width: 100%; height: 100%; animation: gc-drift 40s linear infinite; will-change: transform; }
+@keyframes gc-drift { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(80px, 80px, 0); } }
+
+.gc-hero-in { display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 820px; padding: 72px 16px 96px; }
+.gc-hero-mark { position: relative; display: grid; place-items: center; width: 200px; height: 200px; margin-bottom: 26px; }
+.gc-rosette { position: absolute; inset: 0; width: 100%; height: 100%; color: var(--gc-deep); opacity: .55; animation: gc-turn 120s linear 2.4s infinite; }
+@keyframes gc-turn { to { transform: rotate(360deg); } }
+.gc-draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: gc-draw 1.8s var(--ab-ease) forwards; }
+@keyframes gc-draw { to { stroke-dashoffset: 0; } }
+.gc-hero-logo {
+  position: relative; width: 112px; height: 112px; border-radius: 999px; object-fit: cover; background: #fff;
+  box-shadow: 0 0 0 6px #fff, 0 0 0 7px rgba(176, 138, 62, .45), 0 24px 50px -22px rgba(26, 60, 43, .55);
+}
+.gc-hero-logo.is-letter { display: grid; place-items: center; color: var(--gc-deep); font-size: 2.6rem; font-weight: 800; }
+.gc-hero .gc-h1 { max-width: 16ch; margin-inline: auto; }
+.gc-hero .gc-intro { margin-inline: auto; color: var(--gc-text); }
+.gc-crumbs { display: flex; align-items: center; gap: 10px; margin-top: 26px; padding: 8px 18px; border-radius: 999px; background: rgba(255, 255, 255, .85); box-shadow: inset 0 0 0 1px var(--gc-line); font-size: .88rem; color: var(--gc-muted); white-space: nowrap; }
 .gc-crumbs a { color: var(--gc-muted); text-decoration: none; }
 .gc-crumbs a:hover { color: var(--gc-deep); }
 .gc-crumbs [aria-current] { color: var(--gc-ink); }
-.gc-hero-media { position: relative; overflow: hidden; border-radius: 28px; aspect-ratio: 16 / 7.5; background: var(--gc-sand); }
-.gc-hero-media img { width: 100%; height: 100%; object-fit: cover; animation: gc-settle 2.4s var(--ab-ease) both; }
-@keyframes gc-settle { from { transform: scale(1.08); } to { transform: scale(1); } }
 
 /* ---------- About ---------- */
 .gc-about { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(32px, 6vw, 88px); align-items: center; }
@@ -220,9 +250,11 @@ a.ab-detail:hover i { transform: scale(1.1); }
   .gc-plans.is-1 { grid-template-columns: minmax(0, 1fr); max-width: 480px; margin-inline: auto; }
 }
 @media (max-width: 767.98px) {
-  .gc-header { padding-top: 36px; }
-  .gc-header-row { flex-direction: column-reverse; align-items: flex-start; gap: 18px; margin-bottom: 26px; }
-  .gc-hero-media { aspect-ratio: 4 / 3.4; border-radius: 20px; }
+  .gc-hero { min-height: clamp(520px, calc(100svh - 64px), 720px); }
+  .gc-hero-in { padding: 48px 16px 72px; }
+  .gc-hero-mark { width: 156px; height: 156px; margin-bottom: 18px; }
+  .gc-hero-logo { width: 88px; height: 88px; }
+  .gc-hero-veil { background: radial-gradient(ellipse 90% 60% at 50% 50%, rgba(255, 255, 255, .96) 0%, rgba(255, 255, 255, .88) 55%, rgba(255, 255, 255, .6) 100%), linear-gradient(180deg, rgba(255, 255, 255, 0) 70%, #fff 100%); }
   .gc-section { padding-top: 76px; }
   .gc-about { grid-template-columns: minmax(0, 1fr); }
   .gc-about-media { border-radius: 20px; }
@@ -241,7 +273,8 @@ a.ab-detail:hover i { transform: scale(1.1); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ab-in, .gc-hero-media img { animation: none; }
+  .ab-in, .gc-hero-bg, .gc-hero-pattern svg, .gc-rosette { animation: none; }
+  .gc-draw { animation: none; stroke-dashoffset: 0; }
   .gc-btn, .gc-btn svg, .gc-plan, .gc-about-media img { transition: none; }
   .gc-about-media img { transform: none; }
   .ab-progress { display: none; }

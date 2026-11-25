@@ -21,6 +21,7 @@ import TestimonialsSection from '@/components/TestimonialsSection';
 import { initialOf, photoOf, type MorshidRow } from '@/components/AboutSection';
 import { useReveal } from '@/components/info/useReveal';
 import { CountUp, ScrollProgress } from '@/components/about/effects';
+import { IslamicPattern, IslamicRosette } from '@/components/about/IslamicOrnament';
 import { useAgencyInfo } from '@/components/social/useAgencyInfo';
 import { SOCIAL_ICON } from '@/components/social/SocialIcons';
 import { socialProfiles } from '@/lib/social';
@@ -109,6 +110,7 @@ export default function AboutPage() {
   // An admin's own photo wins; otherwise the agency's hero start photo, then the built-in ones.
   const heroImg = about.hero.image !== ABOUT_DEFAULTS.hero.image ? about.hero.image : agency.hero_start || PHOTOS.hero;
   const storyImg = story.image !== ABOUT_DEFAULTS.story.image ? story.image : PHOTOS.story;
+  const logo = agency.logo_url || agency.mark_url;
   const lead = team.find((m) => photoOf(m)) || team[0];
 
   // Programs still open (or opening soon), the featured one in the middle.
@@ -155,23 +157,24 @@ export default function AboutPage() {
       <Navbar variant="light" />
 
       <main className="ip gc page-main" dir="rtl">
-        {/* Page header: title, one line, breadcrumb, then a wide rounded photo */}
-        <section className="gc-header">
-          <div className="ip-wrap">
-            <div className="gc-header-row">
-              <div>
-                <h1 className="gc-h1 ab-in"><Accent text={about.hero.title} /></h1>
-                <p className="gc-intro ab-in" style={delay(2)}>{intro}</p>
-              </div>
-              <nav className="gc-crumbs ab-in" style={delay(3)} aria-label="مسار الصفحة">
-                <Link href="/">الرئيسية</Link>
-                <span aria-hidden>/</span>
-                <span aria-current="page">عن الوكالة</span>
-              </nav>
+        {/* Hero: the photo fills it under a white veil, an Islamic pattern drifts over it,
+            and the logo, title and one line sit in the centre. */}
+        <section className="gc-hero">
+          <img className="gc-hero-bg" src={heroImg} alt="" fetchPriority="high" decoding="async" />
+          <span className="gc-hero-veil" aria-hidden />
+          <div className="gc-hero-pattern" aria-hidden><IslamicPattern /></div>
+          <div className="gc-hero-in">
+            <div className="gc-hero-mark ab-in">
+              <IslamicRosette className="gc-rosette" />
+              {logo ? <img src={logo} alt={name} className="gc-hero-logo" /> : <b className="gc-hero-logo is-letter">{name.slice(0, 1)}</b>}
             </div>
-            <div className="gc-hero-media ab-in" style={delay(3)}>
-              <img src={heroImg} alt="المسجد الحرام" fetchPriority="high" decoding="async" />
-            </div>
+            <h1 className="gc-h1 ab-in" style={delay(2)}><Accent text={about.hero.title} /></h1>
+            <p className="gc-intro ab-in" style={delay(3)}>{intro}</p>
+            <nav className="gc-crumbs ab-in" style={delay(4)} aria-label="مسار الصفحة">
+              <Link href="/">الرئيسية</Link>
+              <span aria-hidden>/</span>
+              <span aria-current="page">عن الوكالة</span>
+            </nav>
           </div>
         </section>
 
