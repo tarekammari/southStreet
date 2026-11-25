@@ -140,16 +140,16 @@ const TALBIYAH = 'لَبَّيْكَ اللَّهُمَّ لَبَّيْكَ ، 
  * A ring of calligraphy (the Talbiyah) with a fine dotted circle inside,
  * for the edge of the hero. The CSS turns it slowly.
  */
-export function CalligraphyRing({ className = '' }: { className?: string }) {
+export function CalligraphyRing({ className = '', pathId = 'gc-ring-path' }: { className?: string; pathId?: string }) {
   return (
     <svg className={className} viewBox="-300 -300 600 600" aria-hidden focusable="false">
       <defs>
-        <path id="gc-ring-path" d="M0 -232 a232 232 0 1 1 0 464 a232 232 0 1 1 0 -464" />
+        <path id={pathId} d="M0 -232 a232 232 0 1 1 0 464 a232 232 0 1 1 0 -464" />
       </defs>
       <circle className="gc-ring-dots" r="205" />
       <circle className="gc-ring-line" r="294" />
       <text className="gc-ring-text">
-        <textPath href="#gc-ring-path" textLength="1450" lengthAdjust="spacing">{TALBIYAH}</textPath>
+        <textPath href={`#${pathId}`} textLength="1450" lengthAdjust="spacing">{TALBIYAH}</textPath>
       </text>
     </svg>
   );

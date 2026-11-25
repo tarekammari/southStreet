@@ -205,11 +205,12 @@ export default function AboutPage() {
       <Navbar variant="light" />
 
       <main className="ip gc page-main" dir="rtl">
+        {/* The Islamic lattice is the background of the whole page: fixed to the screen, the sections slide over it. */}
+        <div className="gc-hero-pattern" aria-hidden><IslamicPattern /></div>
         {/* Hero: white, with a gold-and-green Islamic pattern at the edges, a turning ring
             of calligraphy on the right, the agency name in blue calligraphy and the logo crest.
             The crest and pattern follow the pointer; animations pause when the hero is off screen. */}
         <section ref={heroRef} className="gc-hero" onPointerMove={followPointer} onPointerLeave={resetPointer}>
-          <div className="gc-hero-pattern" aria-hidden><IslamicPattern /></div>
           <div className="gc-ring-wrap" aria-hidden><CalligraphyRing className="gc-ring" /></div>
           <div className="gc-hero-in">
             {/* Page title for screen readers and search engines (the hero shows no text block). */}
@@ -226,6 +227,8 @@ export default function AboutPage() {
             {/* The load-in runs on a wrapper, so the pointer tilt (a transform) is not overridden. */}
             <div className="gc-mark-in ab-in">
             <div className="gc-hero-mark">
+              {/* On phones the ring of letters frames the crest instead of sitting at the edge. */}
+              <CalligraphyRing className="gc-ring gc-ring-mobile" pathId="gc-ring-path-m" />
               <span className="gc-mark-glow" aria-hidden />
               <IslamicRosette className="gc-rosette" />
               <IslamicRosette className="gc-rosette is-inner" inner />

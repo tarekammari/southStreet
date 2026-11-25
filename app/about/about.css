@@ -34,6 +34,8 @@
   --ip-muted: var(--gc-muted);
   color: var(--gc-text);
   background: #fff;
+  /* Own stacking context: the fixed lattice (z-index -1) paints over this white and under every section. */
+  isolation: isolate;
   overflow-x: clip;
 }
 .gc .ip-reveal { transition-delay: var(--d, 0ms); }
@@ -128,7 +130,8 @@
   --hx: 0; --hy: 0;
   position: relative; isolation: isolate; overflow: hidden; clip-path: inset(0); display: grid; place-items: center; text-align: center;
   min-height: clamp(460px, 72vh, 660px);
-  background: radial-gradient(ellipse 70% 60% at 50% 45%, #fffdf6 0%, #fff 70%);
+  /* A soft warm glow behind the name; the lattice of the page shows through around it. */
+  background: radial-gradient(ellipse 50% 55% at 50% 45%, rgba(255, 253, 246, .9) 0%, rgba(255, 253, 246, 0) 70%);
 }
 
 .gc-hero.is-off *, .gc-hero.is-off *::before, .gc-hero.is-off *::after { animation-play-state: paused !important; }
@@ -137,8 +140,7 @@
    slides over it when scrolling; clip-path on .gc-hero keeps it inside), drifts, and follows
    the pointer a little. Lighter on the right so the ring of letters stays clear. */
 .gc-hero-pattern {
-  position: fixed; inset: -110px; z-index: -1; opacity: .32; pointer-events: none;
-  translate: calc(var(--hx) * -36px) calc(var(--hy) * -36px); transition: translate 1s var(--ab-ease);
+  position: fixed; inset: -110px; z-index: -1; opacity: .26; pointer-events: none;
   -webkit-mask-image: linear-gradient(to left, rgba(0, 0, 0, .25) 6%, #000 38%);
   mask-image: linear-gradient(to left, rgba(0, 0, 0, .25) 6%, #000 38%);
 }
@@ -162,6 +164,7 @@
 }
 @keyframes gc-ring-in { from { opacity: 0; transform: rotate(40deg) scale(.92); } to { opacity: 1; transform: none; } }
 /* direction: ltr — Chrome cannot lay RTL text along a path; the Arabic still reads right to left. */
+.gc-ring-mobile { display: none; }
 .gc-ring-text { direction: ltr; font-family: 'Aref Ruqaa Ink', 'Amiri', serif; font-weight: 700; font-size: 53px; font-palette: --gc-gold; fill: #a98336; }
 .gc-ring-dots { fill: none; stroke: #b8913f; stroke-width: 2.4; stroke-linecap: round; stroke-dasharray: 0 14; opacity: .85; }
 .gc-ring-line { fill: none; stroke: rgba(21, 128, 82, .45); stroke-width: 1; }
@@ -398,7 +401,10 @@ a.ab-detail:hover i { transform: scale(1.1); }
   .gc-hero-in { padding: 40px 14px 56px; }
   .gc-hero-mark { width: 200px; height: 200px; }
   .gc-callig { padding: 6px 22px 2px; }
-  .gc-ring-wrap { width: 360px; top: calc(64px + 390px); transform: translate(52%, -50%); }
+  /* Phones: the edge ring would cross the crest, so the ring frames the crest instead. */
+  .gc-ring-wrap { display: none; }
+  .gc-ring-mobile { display: block; position: absolute; inset: -72px; width: calc(100% + 144px); height: calc(100% + 144px); max-width: none; }
+  .gc-hero-mark { margin: 70px 0 64px; }
   .gc-hero { min-height: 480px; }
   .gc-callig-text { font-size: clamp(2.2rem, 11vw, 3rem); }
   .gc-logo-wrap { width: 108px; height: 108px; }
@@ -427,7 +433,7 @@ a.ab-detail:hover i { transform: scale(1.1); }
   .gc-ring { animation: none; }
   .gc-ring-wrap { translate: none; transition: none; }
   .gc-orn, .gc-orn-h { animation: none; opacity: 1; }
-  .gc-hero-mark, .gc-hero-pattern { transform: none; translate: none; transition: none; }
+  .gc-hero-mark { transform: none; transition: none; }
   .gc-draw { animation: none; stroke-dashoffset: 0; }
   .gc-btn, .gc-btn svg, .gc-plan, .gc-about-media img { transition: none; }
   .gc-about-media img { transform: none; }
