@@ -150,6 +150,19 @@
 .gi-fill { fill: rgba(201, 169, 98, .16); }
 .gi-dot { fill: rgba(21, 128, 82, .55); }
 
+/* Ring of calligraphy (the Talbiyah) half off the right edge, turning slowly. */
+.gc-ring-wrap {
+  position: absolute; z-index: -1; top: 50%; right: 0; width: clamp(440px, 82vh, 780px); aspect-ratio: 1; pointer-events: none;
+  transform: translate(46%, -50%); translate: calc(var(--hx) * -18px) calc(var(--hy) * -18px); transition: translate 1.2s var(--ab-ease);
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .55)) drop-shadow(0 0 18px rgba(5, 42, 28, .55));
+}
+.gc-ring { display: block; width: 100%; height: 100%; animation: gc-ring-in 2s var(--ab-ease) .6s both, gc-turn-back 140s linear 2.6s infinite; }
+@keyframes gc-ring-in { from { opacity: 0; transform: rotate(40deg) scale(.92); } to { opacity: 1; transform: none; } }
+/* direction: ltr — Chrome cannot lay RTL text along a path; the Arabic still reads right to left. */
+.gc-ring-text { direction: ltr; font-family: 'Aref Ruqaa Ink', 'Amiri', serif; font-weight: 700; font-size: 53px; font-palette: --gc-gold; fill: #ecd28f; }
+.gc-ring-dots { fill: none; stroke: #ecd28f; stroke-width: 2.4; stroke-linecap: round; stroke-dasharray: 0 14; opacity: .85; }
+.gc-ring-line { fill: none; stroke: rgba(236, 210, 143, .6); stroke-width: 1; }
+
 .gc-hero-in { display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 760px; padding: 56px 16px 72px; }
 
 /* Logo crest: glow, two rosettes turning opposite ways, a floating logo with a passing shine.
@@ -382,6 +395,7 @@ a.ab-detail:hover i { transform: scale(1.1); }
   .gc-hero-in { padding: 40px 14px 56px; }
   .gc-hero-mark { width: 170px; height: 170px; margin-bottom: -66px; }
   .gc-callig { padding: 6px 22px 2px; }
+  .gc-ring-wrap { width: 380px; top: 88%; transform: translate(55%, -50%); opacity: .75; }
   .gc-callig-text { font-size: clamp(2.2rem, 11vw, 3rem); }
   .gc-logo-wrap { width: 92px; height: 92px; }
   .gc-hero-panel { padding: 82px 18px 26px; border-radius: 200px 200px 22px 22px / 150px 150px 22px 22px; }
@@ -406,6 +420,8 @@ a.ab-detail:hover i { transform: scale(1.1); }
 @media (prefers-reduced-motion: reduce) {
   .ab-in, .gc-hero-bg, .gc-hero-pattern svg, .gc-rosette, .gc-mark-glow, .gc-logo-wrap, .gc-logo-wrap::after, .gc-h1 em, .gc-h2 em, .gi-petal, .gc-petals, .gc-panel-art svg { animation: none; }
   .gc-callig-text { animation: none; clip-path: none; }
+  .gc-ring { animation: none; }
+  .gc-ring-wrap { translate: none; transition: none; }
   .gc-orn, .gc-orn-h { animation: none; opacity: 1; }
   .gc-hero-mark, .gc-hero-pattern { transform: none; translate: none; transition: none; }
   .gc-draw { animation: none; stroke-dashoffset: 0; }

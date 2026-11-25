@@ -132,3 +132,25 @@ export function IslamicRosette({ className = '', inner = false }: { className?: 
     </svg>
   );
 }
+
+/** The Talbiyah, written around a circle. */
+const TALBIYAH = 'لَبَّيْكَ اللَّهُمَّ لَبَّيْكَ ، لَبَّيْكَ لَا شَرِيكَ لَكَ لَبَّيْكَ ، إِنَّ الْحَمْدَ وَالنِّعْمَةَ لَكَ وَالْمُلْكَ ، لَا شَرِيكَ لَكَ ،';
+
+/**
+ * A ring of calligraphy (the Talbiyah) with a fine dotted circle inside,
+ * for the edge of the hero. The CSS turns it slowly.
+ */
+export function CalligraphyRing({ className = '' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="-300 -300 600 600" aria-hidden focusable="false">
+      <defs>
+        <path id="gc-ring-path" d="M0 -232 a232 232 0 1 1 0 464 a232 232 0 1 1 0 -464" />
+      </defs>
+      <circle className="gc-ring-dots" r="205" />
+      <circle className="gc-ring-line" r="294" />
+      <text className="gc-ring-text">
+        <textPath href="#gc-ring-path" textLength="1450" lengthAdjust="spacing">{TALBIYAH}</textPath>
+      </text>
+    </svg>
+  );
+}

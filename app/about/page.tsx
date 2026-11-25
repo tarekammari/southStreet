@@ -21,7 +21,7 @@ import TestimonialsSection from '@/components/TestimonialsSection';
 import { initialOf, photoOf, type MorshidRow } from '@/components/AboutSection';
 import { useReveal } from '@/components/info/useReveal';
 import { CountUp, ScrollProgress } from '@/components/about/effects';
-import { IslamicArabesque, IslamicPattern, IslamicRosette } from '@/components/about/IslamicOrnament';
+import { CalligraphyRing, IslamicArabesque, IslamicPattern, IslamicRosette } from '@/components/about/IslamicOrnament';
 import { useAgencyInfo } from '@/components/social/useAgencyInfo';
 import { SOCIAL_ICON } from '@/components/social/SocialIcons';
 import { socialProfiles } from '@/lib/social';
@@ -203,6 +203,7 @@ export default function AboutPage() {
         <section className="gc-hero" onPointerMove={followPointer} onPointerLeave={resetPointer}>
           <img className="gc-hero-bg" src={heroImg} alt="" fetchPriority="high" decoding="async" />
           <div className="gc-hero-pattern" aria-hidden><IslamicPattern /></div>
+          <div className="gc-ring-wrap" aria-hidden><CalligraphyRing className="gc-ring" /></div>
           <div className="gc-hero-in">
             {/* The agency name in calligraphy, written in from right to left, with small ornaments. */}
             <p className="gc-callig" aria-label={name.replace(/\s+(تور|تورز|tours?)$/i, '')}>
