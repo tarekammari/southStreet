@@ -96,6 +96,24 @@ function resetPointer(e: React.PointerEvent<HTMLElement>) {
   e.currentTarget.style.setProperty('--hy', '0');
 }
 
+/** Harakat for words that often appear in agency names (calligraphy looks bare without them). */
+const TASHKEEL: Record<string, string> = {
+  'وكالة': 'وَكَالَة',
+  'رزاق': 'رَزَّاق',
+  'هبلة': 'هَبْلَة',
+  'للسياحة': 'لِلسِّيَاحَة',
+  'والأسفار': 'وَالأَسْفَار',
+  'السفر': 'السَّفَر',
+};
+/** The agency name for the calligraphy line: no trailing "تور", with harakat where known. */
+function calligraphyName(name: string): string {
+  return name
+    .replace(/\s+(تور|تورز|tours?)$/i, '')
+    .split(/\s+/)
+    .map((w) => TASHKEEL[w] || w)
+    .join(' ');
+}
+
 /** Staggered reveal delay for the n-th item of a list. */
 const delay = (i: number, step = 90) => ({ '--d': `${i * step}ms` }) as React.CSSProperties;
 
@@ -186,6 +204,15 @@ export default function AboutPage() {
           <img className="gc-hero-bg" src={heroImg} alt="" fetchPriority="high" decoding="async" />
           <div className="gc-hero-pattern" aria-hidden><IslamicPattern /></div>
           <div className="gc-hero-in">
+            {/* The agency name in calligraphy, written in from right to left, with small ornaments. */}
+            <p className="gc-callig" aria-label={name.replace(/\s+(تور|تورز|tours?)$/i, '')}>
+              <span className="gc-callig-text" aria-hidden>{calligraphyName(name)}</span>
+              <i className="gc-orn is-v1" aria-hidden />
+              <i className="gc-orn is-v2" aria-hidden />
+              <i className="gc-orn is-v3" aria-hidden />
+              <b className="gc-orn-h is-h1" aria-hidden>ه</b>
+              <b className="gc-orn-h is-h2" aria-hidden>ه</b>
+            </p>
             {/* The load-in runs on a wrapper, so the pointer tilt (a transform) is not overridden. */}
             <div className="gc-mark-in ab-in">
             <div className="gc-hero-mark">

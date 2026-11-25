@@ -89,6 +89,44 @@
 
 .gc-section { padding: 110px 0 0; }
 
+/* Calligraphy font for the agency name (OFL, Aref Ruqaa Ink, Arabic bold only, self-hosted). */
+@font-face {
+  font-family: 'Aref Ruqaa Ink'; font-style: normal; font-weight: 700; font-display: swap;
+  src: url('/fonts/aref-ruqaa-ink-arabic-700.woff2') format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
+}
+
+/* ---------- Agency name in calligraphy (top of the hero) ---------- */
+/* The Ink font has coloured layers (red dots); paint them all gold. */
+@font-palette-values --gc-gold { font-family: 'Aref Ruqaa Ink'; override-colors: 0 #e3c57a, 1 #e3c57a, 2 #e3c57a, 3 #e3c57a; }
+.gc-callig { position: relative; display: inline-block; margin: 0 0 6px; padding: 10px 34px 4px; line-height: 1; }
+/* Soft dark shade only behind the name, so it reads over the sky */
+.gc-callig::before {
+  content: ''; position: absolute; inset: -6% -4%; z-index: -1; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(5, 42, 28, .62), rgba(5, 42, 28, .3) 55%, rgba(5, 42, 28, 0) 72%);
+}
+.gc-callig-text {
+  display: block; font-family: 'Aref Ruqaa Ink', 'Amiri', serif; font-weight: 700; font-size: clamp(3rem, 7.4vw, 6rem); line-height: 1.35; font-palette: --gc-gold;
+  background: linear-gradient(100deg, #caa24c, #fbe9b3 40%, #d8b45e 60%, #fff3cf 80%, #caa24c); background-size: 220% 100%;
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: #e3c57a;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .55)) drop-shadow(0 6px 18px rgba(5, 42, 28, .65));
+  clip-path: inset(0 0 0 100%);
+  animation: gc-write 2.2s cubic-bezier(.45, 0, .2, 1) .3s forwards, gc-gold 6s ease-in-out 2.5s infinite alternate;
+}
+/* Written in from right to left, like a pen */
+@keyframes gc-write { to { clip-path: inset(0 -10% 0 -10%); } }
+/* Small calligraphic ornaments around the name: chevrons and little ha */
+.gc-orn, .gc-orn-h { position: absolute; pointer-events: none; opacity: 0; animation: gc-orn-in .6s ease-out forwards, gc-orn-float 5s ease-in-out infinite; }
+.gc-orn { width: 9px; height: 9px; border: solid var(--ar-gold-2); border-width: 0 2px 2px 0; rotate: 45deg; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .6)); }
+.gc-orn.is-v1 { top: 6%; right: 30%; animation-delay: 2.2s, 2.8s; }
+.gc-orn.is-v2 { top: 0; right: 46%; animation-delay: 2.35s, 3.3s; }
+.gc-orn.is-v3 { bottom: 14%; left: 22%; animation-delay: 2.5s, 3.8s; }
+.gc-orn-h { font-family: 'Aref Ruqaa Ink', 'Amiri', serif; font-size: .95rem; font-weight: 700; color: var(--ar-gold-2); text-shadow: 0 1px 3px rgba(0, 0, 0, .7); }
+.gc-orn-h.is-h1 { top: 12%; left: 14%; animation-delay: 2.45s, 3s; }
+.gc-orn-h.is-h2 { bottom: 4%; right: 12%; animation-delay: 2.6s, 3.6s; }
+@keyframes gc-orn-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes gc-orn-float { 0%, 100% { translate: 0 0; } 50% { translate: 0 -4px; } }
+
 /* ---------- Hero: the photo in its own colours, ornament, arch panel ---------- */
 .gc-hero {
   --hx: 0; --hy: 0;
@@ -343,6 +381,8 @@ a.ab-detail:hover i { transform: scale(1.1); }
   .gc-hero { min-height: clamp(560px, calc(100svh - 64px), 760px); }
   .gc-hero-in { padding: 40px 14px 56px; }
   .gc-hero-mark { width: 170px; height: 170px; margin-bottom: -66px; }
+  .gc-callig { padding: 6px 22px 2px; }
+  .gc-callig-text { font-size: clamp(2.2rem, 11vw, 3rem); }
   .gc-logo-wrap { width: 92px; height: 92px; }
   .gc-hero-panel { padding: 82px 18px 26px; border-radius: 200px 200px 22px 22px / 150px 150px 22px 22px; }
   .gc-hero-pattern { -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, transparent 35%, #000 80%); mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, transparent 35%, #000 80%); }
@@ -365,6 +405,8 @@ a.ab-detail:hover i { transform: scale(1.1); }
 
 @media (prefers-reduced-motion: reduce) {
   .ab-in, .gc-hero-bg, .gc-hero-pattern svg, .gc-rosette, .gc-mark-glow, .gc-logo-wrap, .gc-logo-wrap::after, .gc-h1 em, .gc-h2 em, .gi-petal, .gc-petals, .gc-panel-art svg { animation: none; }
+  .gc-callig-text { animation: none; clip-path: none; }
+  .gc-orn, .gc-orn-h { animation: none; opacity: 1; }
   .gc-hero-mark, .gc-hero-pattern { transform: none; translate: none; transition: none; }
   .gc-draw { animation: none; stroke-dashoffset: 0; }
   .gc-btn, .gc-btn svg, .gc-plan, .gc-about-media img { transition: none; }
