@@ -4,12 +4,12 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
+  Check,
   Clock,
-  Download,
   ExternalLink,
+  Leaf,
   Mail,
   MapPin,
-  MessageCircle,
   Navigation,
   Phone,
   Star,
@@ -21,14 +21,15 @@ import TestimonialsSection from '@/components/TestimonialsSection';
 import { initialOf, photoOf, type MorshidRow } from '@/components/AboutSection';
 import { useReveal } from '@/components/info/useReveal';
 import { CountUp, ScrollProgress } from '@/components/about/effects';
-import { openSakhr } from '@/components/sakhr/openSakhr';
 import { useAgencyInfo } from '@/components/social/useAgencyInfo';
 import { SOCIAL_ICON } from '@/components/social/SocialIcons';
 import { socialProfiles } from '@/lib/social';
 import { publicList, publicReviews } from '@/lib/public-catalog';
 import type { PageContentRow } from '@/lib/page-content';
+import type { Package } from '@/types';
 import { ABOUT_DEFAULTS, readAboutContent } from '@/lib/about-content';
-import { agencyLabel, brandCoordinates, brandDirectionsUrl, brandGeo, brandMapEmbed, brandMapUrl, connectName, telHref } from '@/lib/brand';
+import { formatProgramDate, isBookable, programAvailability, programMinPrice } from '@/lib/program-display';
+import { agencyLabel, brandCoordinates, brandDirectionsUrl, brandGeo, brandMapEmbed, brandMapUrl, telHref } from '@/lib/brand';
 import '@/app/info-pages.css';
 import './about.css';
 
@@ -39,10 +40,13 @@ import './about.css';
 const PHOTOS = {
   hero: '/images/kaaba_sharifa_home_page.webp',
   story: '/images/maka06.webp',
-  values: '/images/maka05.webp',
-  cta: '/images/maka01.webp',
-  gallery: ['/images/section2_09.webp', '/images/section2_08.webp', '/images/section2_05.webp', '/images/section2_06.webp', '/images/section2_07.webp'],
+  cta: '/images/section2_09.webp',
 };
+
+/** Programs marked «مميز» by the admin (not in the shared Package type). */
+const isFeatured = (pkg: Package) => Boolean((pkg as Package & { featured?: unknown }).featured);
+
+type Review = { id: string; reviewerName: string; stars: number; body: string };
 
 /** "a، b، c" without repeating a part that is already in the previous ones. */
 function joinAddress(parts: (string | undefined)[]): string {
@@ -54,6 +58,21 @@ function joinAddress(parts: (string | undefined)[]): string {
   return out.join('، ');
 }
 
+/** A title whose last words are set in the serif accent. */
+function Accent({ text, words = 2 }: { text: string; words?: number }) {
+  const parts = text.split(/\s+/).filter(Boolean);
+  const cut = parts.length > words ? parts.length - words : Math.max(parts.length - 1, 0);
+  const head = parts.slice(0, cut).join(' ');
+  const tail = parts.slice(cut).join(' ');
+  return (
+    <>
+      {head}
+      {head && tail ? ' ' : null}
+      {tail ? <em>{tail}</em> : null}
+    </>
+  );
+}
+
 /** Staggered reveal delay for the n-th item of a list. */
 const delay = (i: number, step = 90) => ({ '--d': `${i * step}ms` }) as React.CSSProperties;
 
@@ -61,17 +80,21 @@ export default function AboutPage() {
   const [content, setContent] = useState<PageContentRow[]>([]);
   const agency = useAgencyInfo();
   const [team, setTeam] = useState<MorshidRow[]>([]);
-  const [stats, setStats] = useState({ programs: 0, hotels: 0, rating: 0, reviews: 0 });
+  const [programs, setPrograms] = useState<Package[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [stats, setStats] = useState({ hotels: 0, rating: 0, reviews: 0 });
+  const [reviewForm, setReviewForm] = useState(false);
 
   useEffect(() => {
     publicList<PageContentRow>('content').then(setContent);
     publicList<MorshidRow>('staff').then(setTeam);
-    Promise.all([publicList<unknown>('packages'), publicList<unknown>('hotels'), publicReviews()]).then(([programs, hotels, reviews]) => {
+    publicList<Package>('packages').then(setPrograms);
+    Promise.all([publicList<unknown>('hotels'), publicReviews()]).then(([hotels, r]) => {
+      setReviews(Array.isArray(r?.reviews) ? r.reviews : []);
       setStats({
-        programs: programs.length,
         hotels: hotels.length,
-        rating: Number(reviews?.summary?.average) || 0,
-        reviews: Number(reviews?.summary?.count) || 0,
+        rating: Number(r?.summary?.average) || 0,
+        reviews: Number(r?.summary?.count) || 0,
       });
     });
   }, []);
@@ -80,23 +103,28 @@ export default function AboutPage() {
   const profiles = socialProfiles(agency.social);
 
   const name = agency.agency_name || agencyLabel(agency);
-  const assistant = agency.assistant_name || 'صخر';
   const about = readAboutContent(content);
-  const hero = { ...about.hero, text: about.hero.text || agency.description || 'وكالة سياحة وأسفار متخصصة في رحلات العمرة والحج، نرافقكم من لحظة اختيار البرنامج حتى عودتكم سالمين، بتنظيم واضح ومرافقة دينية متخصصة.' };
+  const intro = about.hero.text || agency.description || 'وكالة متخصصة في رحلات العمرة والحج، بنفس الوجوه ونفس العناية من الحجز حتى العودة.';
   const story = about.story;
   // An admin's own photo wins; otherwise the agency's hero start photo, then the built-in ones.
   const heroImg = about.hero.image !== ABOUT_DEFAULTS.hero.image ? about.hero.image : agency.hero_start || PHOTOS.hero;
   const storyImg = story.image !== ABOUT_DEFAULTS.story.image ? story.image : PHOTOS.story;
-  const gallery = about.gallery.items.length ? about.gallery.items : PHOTOS.gallery.map((url) => ({ url, caption: '' }));
-  // The last words of the title get the brand gradient.
-  const words = hero.title.split(/\s+/).filter(Boolean);
-  const accentFrom = words.length >= 4 ? words.length - 2 : words.length - 1;
+  const lead = team.find((m) => photoOf(m)) || team[0];
+
+  // Programs still open (or opening soon), the featured one in the middle.
+  const plans = programs
+    .map((pkg) => ({ pkg, availability: programAvailability(pkg) }))
+    .filter((p) => p.availability !== 'expired')
+    .sort((a, b) => Number(isFeatured(b.pkg)) - Number(isFeatured(a.pkg)))
+    .slice(0, 3);
+  const featuredAt = plans.length === 3 ? 1 : 0;
+  const orderedPlans = plans.length === 3 ? [plans[1], plans[0], plans[2]] : plans;
 
   const statCards = [
-    { value: stats.programs, decimals: 0, label: 'برامج متاحة' },
-    { value: stats.hotels, decimals: 0, label: 'فنادق شريكة' },
-    { value: team.length, decimals: 0, label: 'الطاقم والمرشدون' },
-    { value: stats.rating, decimals: 1, label: 'تقييم المعتمرين' },
+    { value: programs.length, decimals: 0, suffix: '', label: 'برامج' },
+    { value: stats.hotels, decimals: 0, suffix: '+', label: 'فنادق شريكة' },
+    { value: team.length, decimals: 0, suffix: '', label: 'مرشدون وطاقم' },
+    { value: stats.rating, decimals: 1, suffix: '', label: 'تقييم المعتمرين' },
   ].filter((s) => s.value > 0);
 
   // Contact card and map from «هوية الوكالة» (the map pin, else a search for the address).
@@ -126,135 +154,123 @@ export default function AboutPage() {
       <ScrollProgress />
       <Navbar variant="light" />
 
-      <main className="ip ab lx page-main" dir="rtl">
-        {/* Hero: one full-width photo, the title and two buttons */}
-        <section className="lx-hero">
-          <img className="lx-hero-img" src={heroImg} alt="" fetchPriority="high" decoding="async" />
-          <span className="lx-hero-shade" aria-hidden />
-          <div className="ip-wrap lx-hero-in">
-            <span className="lx-kicker ab-in" style={delay(0)}>{name}</span>
-            <h1 className="lx-title">
-              {words.map((w, i) => (
-                <React.Fragment key={`${w}-${i}`}>
-                  <span className={`ab-word${i >= accentFrom ? ' is-accent' : ''}`} style={{ '--i': i } as React.CSSProperties}>{w}</span>
-                  {i < words.length - 1 ? ' ' : null}
-                </React.Fragment>
-              ))}
-            </h1>
-            <div className="lx-actions ab-in" style={delay(5)}>
-              <Link href="/packages" className="lx-btn is-gold ab-shine">
-                تصفح البرامج <ArrowLeft className="w-4 h-4" />
-              </Link>
-              <a href="#contact" className="lx-btn is-glass">تواصل معنا</a>
-            </div>
-          </div>
-          {stats.rating > 0 ? (
-            <span className="lx-rating ab-in" style={delay(6)}>
-              <Star className="w-4 h-4" aria-hidden /> <b dir="ltr">{stats.rating.toFixed(1)}</b>
-            </span>
-          ) : null}
-        </section>
-
-        {about.settings.stats && statCards.length ? (
+      <main className="ip gc page-main" dir="rtl">
+        {/* Page header: title, one line, breadcrumb, then a wide rounded photo */}
+        <section className="gc-header">
           <div className="ip-wrap">
-            <div className="lx-stats ip-reveal">
-              {statCards.map((s) => (
-                <div key={s.label} className="lx-stat">
-                  <b dir="ltr"><CountUp value={s.value} decimals={s.decimals} /></b>
-                  <small>{s.label}</small>
-                </div>
-              ))}
+            <div className="gc-header-row">
+              <div>
+                <h1 className="gc-h1 ab-in"><Accent text={about.hero.title} /></h1>
+                <p className="gc-intro ab-in" style={delay(2)}>{intro}</p>
+              </div>
+              <nav className="gc-crumbs ab-in" style={delay(3)} aria-label="مسار الصفحة">
+                <Link href="/">الرئيسية</Link>
+                <span aria-hidden>/</span>
+                <span aria-current="page">عن الوكالة</span>
+              </nav>
             </div>
-          </div>
-        ) : null}
-
-        {/* Story: the photo fills half the screen, edge to edge */}
-        <section className="lx-story" id="story">
-          <div className="lx-story-media ip-reveal">
-            <img src={storyImg} alt="" loading="lazy" decoding="async" />
-          </div>
-          <div className="lx-story-text ip-reveal">
-            <span className="lx-eyebrow">قصتنا</span>
-            <h2 className="lx-h2">{story.title}</h2>
-            <p>{story.text}</p>
+            <div className="gc-hero-media ab-in" style={delay(3)}>
+              <img src={heroImg} alt="المسجد الحرام" fetchPriority="high" decoding="async" />
+            </div>
           </div>
         </section>
 
-        {/* Values: titles only, over a dark photo */}
-        {about.values.items.length ? (
-          <section className="lx-values">
-            <img className="lx-bg" src={PHOTOS.values} alt="" loading="lazy" decoding="async" />
-            <div className="ip-wrap">
-              <span className="lx-eyebrow is-light ip-reveal">لماذا نحن</span>
-              <h2 className="lx-h2 is-light ip-reveal">{about.values.heading}</h2>
-              <ol className="lx-values-list">
-                {about.values.items.map((v, i) => (
-                  <li key={`${v.title}-${i}`} className="ip-reveal" style={delay(i, 110)} title={v.text || undefined}>
-                    <span dir="ltr">{String(i + 1).padStart(2, '0')}</span>
-                    <h3>{v.title}</h3>
-                  </li>
-                ))}
-              </ol>
+        {/* About us: photo + story, a short checklist and the person behind it */}
+        <section className="gc-section">
+          <div className="ip-wrap gc-about">
+            <div className="gc-about-media ip-reveal">
+              <img src={storyImg} alt="" loading="lazy" decoding="async" />
             </div>
-          </section>
-        ) : null}
-
-        {/* Gallery: big photos, edge to edge */}
-        {gallery.length ? (
-          <section className="lx-gallery-sec">
-            <div className="ip-wrap lx-head ip-reveal">
-              <span className="lx-eyebrow">صور</span>
-              <h2 className="lx-h2">{about.gallery.heading}</h2>
-            </div>
-            <div className={`lx-gallery${gallery.length < 5 ? ' is-few' : ''}`}>
-              {gallery.map((p, i) => (
-                <figure key={`${p.url}-${i}`} className="lx-tile ip-reveal" style={delay(i, 80)}>
-                  <img src={p.url} alt={p.caption || ''} loading="lazy" decoding="async" />
-                  {p.caption ? <figcaption>{p.caption}</figcaption> : null}
-                </figure>
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        {/* How it works: numbered steps, titles only */}
-        {about.journey.items.length ? (
-          <section className="ip-section lx-journey">
-            <div className="ip-wrap">
-              <div className="lx-head ip-reveal">
-                <span className="lx-eyebrow">كيف نعمل</span>
-                <h2 className="lx-h2">{about.journey.heading}</h2>
+            <div className="gc-about-text">
+              <span className="gc-tag ip-reveal"><Leaf aria-hidden /> من نحن</span>
+              <h2 className="gc-h2 ip-reveal"><Accent text={story.title === ABOUT_DEFAULTS.story.title ? `رفقاؤكم في رحلة العمر` : story.title} /></h2>
+              <p className="gc-text ip-reveal">{story.text}</p>
+              {about.values.items.length ? (
+                <ul className="gc-checks">
+                  {about.values.items.slice(0, 5).map((v, i) => (
+                    <li key={`${v.title}-${i}`} className="ip-reveal" style={delay(i, 70)}>
+                      <span aria-hidden><Check /></span>
+                      {v.title}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              <div className="gc-person ip-reveal">
+                {lead && photoOf(lead) ? (
+                  <img src={photoOf(lead)} alt="" loading="lazy" />
+                ) : agency.mark_url || agency.logo_url ? (
+                  <img src={agency.mark_url || agency.logo_url} alt="" loading="lazy" className="is-logo" />
+                ) : (
+                  <b>{lead ? initialOf(lead) : name.slice(0, 1)}</b>
+                )}
+                <div>
+                  <strong>{lead?.name || name}</strong>
+                  <small>{lead?.roleName || 'وكالة سياحة وأسفار'}</small>
+                </div>
               </div>
-              <ol className="ab-steps ip-reveal" style={{ '--n': about.journey.items.length } as React.CSSProperties}>
-                {about.journey.items.map((s, i) => (
-                  <li key={`${s.title}-${i}`} className="ab-step" style={delay(i, 140)} title={s.text || undefined}>
-                    <span className="ab-step-num">{i + 1}</span>
-                    <h3>{s.title}</h3>
-                  </li>
+            </div>
+          </div>
+        </section>
+
+        {/* Numbers */}
+        {about.settings.stats && statCards.length ? (
+          <section className="gc-section gc-stats-sec">
+            <div className="ip-wrap">
+              <h2 className="gc-h2 is-center ip-reveal">تجربتنا <em>تتحدث عنا</em></h2>
+              <div className="gc-stats">
+                {statCards.map((s, i) => (
+                  <div key={s.label} className="gc-stat ip-reveal" style={delay(i, 100)}>
+                    <b dir="ltr"><CountUp value={s.value} decimals={s.decimals} />{s.suffix}</b>
+                    <small>{s.label}</small>
+                  </div>
                 ))}
-              </ol>
+              </div>
             </div>
           </section>
         ) : null}
 
-        {/* Team: portraits with name and role */}
-        {about.settings.team && team.length ? (
-          <section className="ip-section lx-team-sec">
+        {/* Programs as plan cards */}
+        {orderedPlans.length ? (
+          <section className="gc-section">
             <div className="ip-wrap">
-              <div className="lx-head ip-reveal">
-                <span className="lx-eyebrow">فريقنا</span>
-                <h2 className="lx-h2">الطاقم والمرشدون</h2>
+              <div className="gc-center-head">
+                <span className="gc-tag ip-reveal"><Leaf aria-hidden /> البرامج</span>
+                <h2 className="gc-h2 is-center ip-reveal">اختاروا <em>البرنامج</em> المناسب لكم</h2>
+                <p className="gc-sub ip-reveal">أسعار واضحة. نفس المرشد من الذهاب حتى العودة.</p>
               </div>
-              <div className="lx-team">
-                {team.map((m, i) => {
-                  const photo = photoOf(m);
+              <div className={`gc-plans is-${orderedPlans.length}`}>
+                {orderedPlans.map(({ pkg, availability }, i) => {
+                  const price = programMinPrice(pkg);
+                  const featured = orderedPlans.length === 1 || i === featuredAt;
+                  const points = [
+                    pkg.start_date ? `الانطلاق ${formatProgramDate(pkg.start_date)}` : '',
+                    pkg.duration_days ? `${pkg.duration_days} يوماً` : '',
+                    pkg.departure_city ? `من ${pkg.departure_city}${pkg.departure_airport ? ` · ${pkg.departure_airport}` : ''}` : '',
+                    pkg.makkah_hotel_name ? `مكة: ${pkg.makkah_hotel_name}` : '',
+                    pkg.madinah_hotel_name ? `المدينة: ${pkg.madinah_hotel_name}` : '',
+                    pkg.morshid_name ? `برفقة ${pkg.morshid_name}` : '',
+                    Number(pkg.available) > 0 ? `${pkg.available} مقعداً متاحاً` : '',
+                  ].filter(Boolean).slice(0, 6);
                   return (
-                    <article key={m.morshid_id} className="lx-member ip-reveal" style={delay(i, 80)}>
-                      {photo ? <img src={photo} alt={m.name} loading="lazy" decoding="async" /> : <b className="lx-member-initial">{initialOf(m)}</b>}
-                      <div className="lx-member-name">
-                        <h3>{m.name}</h3>
-                        {m.roleName ? <small>{m.roleName}</small> : null}
-                      </div>
+                    <article key={pkg.package_id} className={`gc-plan ip-reveal${featured ? ' is-featured' : ''}`} style={delay(i, 120)}>
+                      {featured && isFeatured(pkg) ? <span className="gc-plan-flag">الأكثر طلباً</span> : null}
+                      <span className="gc-plan-kind">{pkg.season_name || pkg.type || 'برنامج'}</span>
+                      <h3>{pkg.name}</h3>
+                      <p className="gc-plan-price">
+                        {price > 0 ? (
+                          <>
+                            <b>{price.toLocaleString('ar-DZ')}</b> <small>دج / للشخص</small>
+                          </>
+                        ) : (
+                          <b className="is-ask">السعر عند الطلب</b>
+                        )}
+                      </p>
+                      <ul>
+                        {points.map((p) => <li key={p}>{p}</li>)}
+                      </ul>
+                      <Link href={`/packages/${encodeURIComponent(pkg.package_id)}`} className="gc-btn">
+                        {isBookable(availability) ? 'التفاصيل والحجز' : 'التفاصيل'} <ArrowLeft aria-hidden />
+                      </Link>
                     </article>
                   );
                 })}
@@ -263,46 +279,58 @@ export default function AboutPage() {
           </section>
         ) : null}
 
-        {/* Reviews (existing component, shows only approved reviews) */}
-        {about.settings.reviews ? <TestimonialsSection /> : null}
+        {/* Reviews */}
+        {about.settings.reviews ? (
+          reviews.length ? (
+            <section className="gc-section">
+              <div className="ip-wrap">
+                <div className="gc-center-head">
+                  <span className="gc-tag ip-reveal"><Leaf aria-hidden /> آراء المعتمرين</span>
+                  <h2 className="gc-h2 is-center ip-reveal">ماذا قال ضيوفنا <em>بعد رحلتهم</em></h2>
+                  {stats.rating > 0 ? (
+                    <p className="gc-sub ip-reveal"><Star className="gc-star" aria-hidden /> <span dir="ltr">{stats.rating.toFixed(1)}</span> من {stats.reviews} تقييم</p>
+                  ) : null}
+                </div>
+                <div className="gc-reviews">
+                  {reviews.slice(0, 6).map((r, i) => (
+                    <figure key={r.id} className="gc-review ip-reveal" style={delay(i % 3, 100)}>
+                      <span className="gc-review-stars" aria-label={`${r.stars} من 5`}>{'★'.repeat(Math.max(0, Math.min(5, Math.round(r.stars))))}</span>
+                      <blockquote>{r.body}</blockquote>
+                      <figcaption>
+                        <b aria-hidden>{(r.reviewerName || '؟').slice(0, 1)}</b>
+                        {r.reviewerName}
+                      </figcaption>
+                    </figure>
+                  ))}
+                </div>
+              </div>
+            </section>
+          ) : (
+            <section className="gc-section">
+              <div className="ip-wrap">
+                <div className="gc-center-head">
+                  <span className="gc-tag ip-reveal"><Leaf aria-hidden /> آراء المعتمرين</span>
+                  <h2 className="gc-h2 is-center ip-reveal">شاركونا <em>تجربتكم</em></h2>
+                  <p className="gc-sub ip-reveal">سافرتم معنا؟ كونوا أول من يكتب رأيه.</p>
+                  {!reviewForm ? (
+                    <button type="button" className="gc-btn is-light gc-review-open ip-reveal" onClick={() => setReviewForm(true)}>
+                      <Star aria-hidden /> اكتبوا تقييمكم
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+              {reviewForm ? <TestimonialsSection /> : null}
+            </section>
+          )
+        ) : null}
 
-        {/* Contact: the assistant, the Connect app, then where to find us */}
-        <section className="ip-section lx-contact" id="contact">
+        {/* Visit: map + details */}
+        <section className="gc-section" id="contact">
           <div className="ip-wrap">
-            <div className="lx-head ip-reveal">
-              <span className="lx-eyebrow">تواصل معنا</span>
-              <h2 className="lx-h2">نحن هنا لمساعدتكم</h2>
+            <div className="gc-center-head">
+              <span className="gc-tag ip-reveal"><Leaf aria-hidden /> تواصل معنا</span>
+              <h2 className="gc-h2 is-center ip-reveal">زورونا <em>في الوكالة</em></h2>
             </div>
-
-            <div className="ip-help">
-              <article className="ip-help-card is-sakhr ip-reveal">
-                <div className="ip-help-top">
-                  <span className="ip-help-mark is-sakhr" aria-hidden>{assistant.slice(0, 1)}</span>
-                  <div>
-                    <h3>{assistant}، المساعد الذكي</h3>
-                    <small>كتابة أو صوت · في أي وقت</small>
-                  </div>
-                </div>
-                <button type="button" className="ip-btn is-sakhr ab-shine" onClick={() => openSakhr()}>
-                  <MessageCircle className="w-4 h-4" /> اسأل {assistant}
-                </button>
-              </article>
-
-              <article className="ip-help-card is-connect ip-reveal" style={delay(1)}>
-                <div className="ip-help-top">
-                  <img className="ip-help-mark" src="/icons/connect-192.png" alt="" width={52} height={52} loading="lazy" />
-                  <div>
-                    <h3>تطبيق {connectName(agency)}</h3>
-                    <small>رسائل ومكالمات مع فريق الوكالة</small>
-                  </div>
-                </div>
-                <div className="ip-help-actions">
-                  <Link href="/app" className="ip-btn is-primary ab-shine"><Download className="w-4 h-4" /> حمّل التطبيق</Link>
-                  <Link href="/connect" className="ip-btn is-ghost">افتح Connect</Link>
-                </div>
-              </article>
-            </div>
-
             <div className="ab-visit ip-reveal">
               <div className="ab-map">
                 {geo ? (
@@ -342,7 +370,6 @@ export default function AboutPage() {
                 )}
               </div>
               <div className="ab-visit-info">
-                <h3>زورونا في الوكالة</h3>
                 <div className="ab-details">
                   {details.map((d) => {
                     const body = (
@@ -376,22 +403,23 @@ export default function AboutPage() {
                     })}
                   </div>
                 ) : null}
-                <a href={directionsUrl} target="_blank" rel="noreferrer" className="ip-btn is-primary ab-shine ab-visit-btn">
-                  <Navigation className="w-4 h-4" /> الاتجاهات إلى الوكالة <ExternalLink className="w-3.5 h-3.5" />
+                <a href={directionsUrl} target="_blank" rel="noreferrer" className="gc-btn ab-visit-btn">
+                  <Navigation aria-hidden /> الاتجاهات إلى الوكالة
                 </a>
               </div>
             </div>
           </div>
         </section>
 
-        {/* Closing call to action over a full-width photo */}
-        <section className="lx-cta">
-          <img className="lx-bg" src={PHOTOS.cta} alt="" loading="lazy" decoding="async" />
-          <div className="ip-wrap lx-cta-in ip-reveal">
-            <h2>جاهزون لرحلتكم القادمة؟</h2>
-            <div className="lx-actions">
-              <Link href="/book" className="lx-btn is-gold ab-shine">احجز الآن <ArrowLeft className="w-4 h-4" /></Link>
-              <Link href="/guide" className="lx-btn is-glass">دليل العمرة</Link>
+        {/* Closing: a photo that fades in from the page */}
+        <section className="gc-cta">
+          <img className="gc-cta-img" src={PHOTOS.cta} alt="" loading="lazy" decoding="async" />
+          <div className="ip-wrap gc-cta-in ip-reveal">
+            <h2 className="gc-h2 is-center">جاهزون لرحلة <em>العمر</em>؟</h2>
+            <p>اختاروا برنامجكم وأرسلوا طلبكم، وسنتواصل معكم لتأكيد التفاصيل.</p>
+            <div className="gc-cta-actions">
+              <Link href="/book" className="gc-btn">احجز الآن <ArrowLeft aria-hidden /></Link>
+              <Link href="/packages" className="gc-btn is-light">تصفح البرامج</Link>
             </div>
           </div>
         </section>
@@ -406,7 +434,7 @@ export default function AboutPage() {
               '@context': 'https://schema.org',
               '@type': 'TravelAgency',
               name: agency.agency_name,
-              description: hero.text,
+              description: intro,
               // From the brand, not window: the same on the server and in the browser.
               url: agency.website || undefined,
               logo: agency.website ? new URL(agency.logo_url, agency.website).href : agency.logo_url,
