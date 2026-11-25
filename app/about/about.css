@@ -18,6 +18,13 @@
   --gc-pale: #eef6e8;
   --gc-sand: #f4f2ec;
   --gc-line: #e7e3d9;
+  /* Arabic palette: emerald, gold, ivory, ink */
+  --ar-emerald: #158052;
+  --ar-emerald-deep: #0b3d2a;
+  --ar-gold: #b8913f;
+  --ar-gold-2: #e3c57a;
+  --ar-ivory: #fbf7ec;
+  --ar-ink: #3b3326;
   /* The shared map/details styles follow these. */
   --ip-brand: var(--gc-deep);
   --ip-brand-2: var(--gc-deep-2);
@@ -43,15 +50,22 @@
 @keyframes gc-rise { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
 
 /* ---------- Type ---------- */
-.ip .gc-h1, .ip .gc-h2 { font-family: var(--font-cairo), 'Cairo', sans-serif; color: var(--gc-ink); font-weight: 500; letter-spacing: -.01em; }
-.gc-h1 em, .gc-h2 em { font-family: 'Amiri', serif; font-style: normal; font-weight: 400; color: var(--gc-deep); }
+.ip .gc-h1, .ip .gc-h2 { font-family: 'Amiri', var(--font-cairo), serif; color: var(--ar-emerald-deep); font-weight: 700; letter-spacing: 0; }
+/* Accent words in gold leaf */
+.gc-h1 em, .gc-h2 em {
+  font-style: normal; font-weight: 700; color: var(--ar-gold); white-space: nowrap;
+  background: linear-gradient(100deg, #9c7526, var(--ar-gold-2) 45%, #a8802f 70%, var(--ar-gold-2)); background-size: 200% 100%;
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  animation: gc-gold 6s ease-in-out infinite alternate;
+}
+@keyframes gc-gold { from { background-position: 0% 0; } to { background-position: 100% 0; } }
 .ip .gc-h1 { font-size: clamp(2.3rem, 5vw, 4rem); line-height: 1.25; max-width: 15ch; }
 .ip .gc-h2 { font-size: clamp(1.8rem, 3.4vw, 2.7rem); line-height: 1.3; }
 .gc-h2.is-center { text-align: center; }
-.gc-intro { margin-top: 18px; max-width: 46ch; font-size: 1.02rem; line-height: 1.9; color: var(--gc-muted); }
+.gc-intro { margin-top: 18px; max-width: 46ch; font-family: 'Tajawal', var(--font-cairo), sans-serif; font-weight: 500; font-size: 1.05rem; line-height: 1.95; color: var(--ar-ink); }
 .gc-sub { margin-top: 12px; text-align: center; color: var(--gc-muted); font-size: 1rem; display: flex; align-items: center; justify-content: center; gap: 6px; }
 .gc-star { width: 16px; height: 16px; color: #e2a33a; fill: #e2a33a; }
-.gc-text { margin-top: 18px; font-size: 1rem; line-height: 2; color: var(--gc-muted); white-space: pre-line; }
+.gc-text { margin-top: 18px; font-family: 'Tajawal', var(--font-cairo), sans-serif; font-size: 1.04rem; line-height: 2; color: var(--ar-ink); white-space: pre-line; }
 
 .gc-tag {
   display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 999px;
@@ -75,46 +89,97 @@
 
 .gc-section { padding: 110px 0 0; }
 
-/* ---------- Hero: full photo under a white veil, Islamic ornament, centred ---------- */
+/* ---------- Hero: the photo in its own colours, ornament, arch panel ---------- */
 .gc-hero {
+  --hx: 0; --hy: 0;
   position: relative; isolation: isolate; overflow: hidden; display: grid; place-items: center; text-align: center;
-  min-height: clamp(560px, calc(100svh - 72px), 860px); background: #fff;
+  min-height: clamp(600px, calc(100svh - 72px), 900px); background: #1b1a17;
 }
-.gc-hero-bg { position: absolute; inset: 0; z-index: -3; width: 100%; height: 100%; object-fit: cover; animation: gc-settle 2.4s var(--ab-ease) both; }
+.gc-hero-bg { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; animation: gc-settle 2.4s var(--ab-ease) both; }
 @keyframes gc-settle { from { transform: scale(1.08); } to { transform: scale(1); } }
-/* White in the middle (for the text), the photo shows more toward the edges. */
-.gc-hero-veil {
-  position: absolute; inset: 0; z-index: -2;
-  background:
-    radial-gradient(ellipse 58% 62% at 50% 50%, rgba(255, 255, 255, .97) 0%, rgba(255, 255, 255, .9) 45%, rgba(255, 255, 255, .62) 78%, rgba(255, 255, 255, .45) 100%),
-    linear-gradient(180deg, rgba(255, 255, 255, .5), rgba(255, 255, 255, 0) 30%, rgba(255, 255, 255, 0) 70%, #fff 100%);
-}
-/* The lattice drifts diagonally; it is twice as large, so the loop never shows an edge. */
+
+/* Gold and green lattice at the edges (clear over the centre); drifts and follows the pointer a little. */
 .gc-hero-pattern {
-  position: absolute; inset: -80px; z-index: -1; color: #b08a3e; opacity: .32; pointer-events: none;
-  -webkit-mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, transparent 22%, #000 70%);
-  mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, transparent 22%, #000 70%);
+  position: absolute; inset: -110px; z-index: -1; opacity: .7; pointer-events: none;
+  translate: calc(var(--hx) * -36px) calc(var(--hy) * -36px); transition: translate 1s var(--ab-ease);
+  -webkit-mask-image: radial-gradient(ellipse 62% 66% at 50% 50%, transparent 30%, #000 78%);
+  mask-image: radial-gradient(ellipse 62% 66% at 50% 50%, transparent 30%, #000 78%);
 }
 .gc-hero-pattern svg { display: block; width: 100%; height: 100%; animation: gc-drift 40s linear infinite; will-change: transform; }
 @keyframes gc-drift { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(80px, 80px, 0); } }
+.gi-gold { stroke: var(--ar-gold); }
+.gi-green { stroke: var(--ar-emerald); }
+.gi-fill { fill: rgba(201, 169, 98, .16); }
+.gi-dot { fill: rgba(21, 128, 82, .55); }
 
-.gc-hero-in { display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 820px; padding: 72px 16px 96px; }
-.gc-hero-mark { position: relative; display: grid; place-items: center; width: 200px; height: 200px; margin-bottom: 26px; }
-.gc-rosette { position: absolute; inset: 0; width: 100%; height: 100%; color: var(--gc-deep); opacity: .55; animation: gc-turn 120s linear 2.4s infinite; }
+.gc-hero-in { display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 760px; padding: 56px 16px 72px; }
+
+/* Logo crest: glow, two rosettes turning opposite ways, a floating logo with a passing shine.
+   The whole crest tilts toward the pointer and the light on the logo follows it. */
+.gc-mark-in { position: relative; z-index: 2; }
+.gc-hero-mark {
+  position: relative; display: grid; place-items: center; width: 220px; height: 220px; margin-bottom: -84px;
+  transform: perspective(700px) rotateY(calc(var(--hx) * 26deg)) rotateX(calc(var(--hy) * -26deg)) translate3d(calc(var(--hx) * 14px), calc(var(--hy) * 14px), 0);
+  transition: transform .6s var(--ab-ease);
+}
+.gc-mark-glow {
+  position: absolute; inset: 22%; border-radius: 999px; pointer-events: none;
+  background: radial-gradient(circle, rgba(212, 175, 55, .55), rgba(212, 175, 55, 0) 70%);
+  animation: gc-glow 4.5s ease-in-out infinite;
+}
+@keyframes gc-glow { 0%, 100% { transform: scale(1); opacity: .55; } 50% { transform: scale(1.5); opacity: 1; } }
+.gc-rosette { position: absolute; inset: 0; width: 100%; height: 100%; animation: gc-turn 90s linear 2.4s infinite; }
+.gc-rosette.is-inner { inset: 12%; width: 76%; height: 76%; animation: gc-turn-back 55s linear 2.4s infinite; }
+.gc-rosette .gi-gold, .gc-rosette .gi-green { stroke-width: 1.4; }
 @keyframes gc-turn { to { transform: rotate(360deg); } }
+@keyframes gc-turn-back { to { transform: rotate(-360deg); } }
 .gc-draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: gc-draw 1.8s var(--ab-ease) forwards; }
 @keyframes gc-draw { to { stroke-dashoffset: 0; } }
-.gc-hero-logo {
-  position: relative; width: 112px; height: 112px; border-radius: 999px; object-fit: cover; background: #fff;
-  box-shadow: 0 0 0 6px #fff, 0 0 0 7px rgba(176, 138, 62, .45), 0 24px 50px -22px rgba(26, 60, 43, .55);
+
+.gc-logo-wrap {
+  position: relative; display: block; width: 118px; height: 118px; border-radius: 999px; overflow: hidden;
+  box-shadow: 0 0 0 5px var(--ar-ivory), 0 0 0 7px var(--ar-gold), 0 0 0 9px var(--ar-ivory), 0 26px 50px -20px rgba(11, 61, 42, .7);
+  animation: gc-float 6s ease-in-out 2s infinite;
 }
-.gc-hero-logo.is-letter { display: grid; place-items: center; color: var(--gc-deep); font-size: 2.6rem; font-weight: 800; }
-.gc-hero .gc-h1 { max-width: 16ch; margin-inline: auto; }
-.gc-hero .gc-intro { margin-inline: auto; color: var(--gc-text); }
-.gc-crumbs { display: flex; align-items: center; gap: 10px; margin-top: 26px; padding: 8px 18px; border-radius: 999px; background: rgba(255, 255, 255, .85); box-shadow: inset 0 0 0 1px var(--gc-line); font-size: .88rem; color: var(--gc-muted); white-space: nowrap; }
+@keyframes gc-float { 0%, 100% { translate: 0 0; } 50% { translate: 0 -8px; } }
+.gc-logo-wrap::before, .gc-logo-wrap::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; }
+/* Light that follows the pointer */
+.gc-logo-wrap::before {
+  z-index: 1; mix-blend-mode: soft-light;
+  background: radial-gradient(circle at calc(50% + var(--hx) * 120%) calc(50% + var(--hy) * 120%), rgba(255, 255, 255, .85), rgba(255, 255, 255, 0) 55%);
+}
+/* Shine that passes every few seconds */
+.gc-logo-wrap::after {
+  z-index: 2; background: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, .7) 50%, transparent 62%);
+  transform: translateX(-130%); animation: gc-shine 7s ease-in-out 3s infinite;
+}
+@keyframes gc-shine { 0%, 70% { transform: translateX(-130%); } 85%, 100% { transform: translateX(130%); } }
+.gc-hero-logo { display: block; width: 100%; height: 100%; object-fit: cover; background: #fff; }
+.gc-hero-logo.is-letter { display: grid; place-items: center; color: var(--ar-emerald-deep); font-size: 2.6rem; font-weight: 800; }
+.gc-hero-mark:hover .gc-mark-glow { animation-duration: 1.6s; }
+
+/* Arch-shaped ivory panel (a mihrab) carrying the text; the crest sits on its top. */
+.gc-hero-panel {
+  position: relative; width: min(100%, 680px); padding: 104px clamp(22px, 5vw, 60px) 34px;
+  background: rgba(251, 247, 236, .93); border: 1px solid rgba(184, 145, 63, .55);
+  border-radius: 340px 340px 28px 28px / 230px 230px 28px 28px;
+  box-shadow: 0 40px 80px -40px rgba(0, 0, 0, .55);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+.gc-hero-panel::before {
+  content: ''; position: absolute; inset: 9px; border-radius: inherit; pointer-events: none;
+  border: 1px solid rgba(21, 128, 82, .35);
+}
+.ip .gc-hero .gc-h1 { max-width: 15ch; margin-inline: auto; font-size: clamp(2.4rem, 5.4vw, 4.4rem); line-height: 1.35; }
+.gc-hero-rule { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 14px auto 4px; }
+.gc-hero-rule::before, .gc-hero-rule::after { content: ''; width: 64px; height: 1px; background: linear-gradient(90deg, transparent, var(--ar-gold)); }
+.gc-hero-rule::after { transform: scaleX(-1); }
+.gc-hero-rule i { width: 10px; height: 10px; rotate: 45deg; background: var(--ar-emerald); box-shadow: 0 0 0 3px var(--ar-ivory), 0 0 0 4px var(--ar-gold); }
+.gc-hero .gc-intro { margin: 14px auto 0; max-width: 40ch; color: var(--ar-ink); font-size: 1.08rem; }
+.gc-crumbs { display: inline-flex; align-items: center; gap: 10px; margin-top: 22px; padding: 7px 18px; border-radius: 999px; background: #fff; box-shadow: inset 0 0 0 1px rgba(184, 145, 63, .45); font-size: .88rem; color: var(--gc-muted); white-space: nowrap; }
 .gc-crumbs a { color: var(--gc-muted); text-decoration: none; }
-.gc-crumbs a:hover { color: var(--gc-deep); }
-.gc-crumbs [aria-current] { color: var(--gc-ink); }
+.gc-crumbs a:hover { color: var(--ar-emerald); }
+.gc-crumbs [aria-current] { color: var(--ar-emerald-deep); font-weight: 700; }
 
 /* ---------- About ---------- */
 .gc-about { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(32px, 6vw, 88px); align-items: center; }
@@ -250,11 +315,12 @@ a.ab-detail:hover i { transform: scale(1.1); }
   .gc-plans.is-1 { grid-template-columns: minmax(0, 1fr); max-width: 480px; margin-inline: auto; }
 }
 @media (max-width: 767.98px) {
-  .gc-hero { min-height: clamp(520px, calc(100svh - 64px), 720px); }
-  .gc-hero-in { padding: 48px 16px 72px; }
-  .gc-hero-mark { width: 156px; height: 156px; margin-bottom: 18px; }
-  .gc-hero-logo { width: 88px; height: 88px; }
-  .gc-hero-veil { background: radial-gradient(ellipse 90% 60% at 50% 50%, rgba(255, 255, 255, .96) 0%, rgba(255, 255, 255, .88) 55%, rgba(255, 255, 255, .6) 100%), linear-gradient(180deg, rgba(255, 255, 255, 0) 70%, #fff 100%); }
+  .gc-hero { min-height: clamp(560px, calc(100svh - 64px), 760px); }
+  .gc-hero-in { padding: 40px 14px 56px; }
+  .gc-hero-mark { width: 170px; height: 170px; margin-bottom: -66px; }
+  .gc-logo-wrap { width: 92px; height: 92px; }
+  .gc-hero-panel { padding: 82px 18px 26px; border-radius: 200px 200px 22px 22px / 150px 150px 22px 22px; }
+  .gc-hero-pattern { -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, transparent 35%, #000 80%); mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, transparent 35%, #000 80%); }
   .gc-section { padding-top: 76px; }
   .gc-about { grid-template-columns: minmax(0, 1fr); }
   .gc-about-media { border-radius: 20px; }
@@ -273,7 +339,8 @@ a.ab-detail:hover i { transform: scale(1.1); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ab-in, .gc-hero-bg, .gc-hero-pattern svg, .gc-rosette { animation: none; }
+  .ab-in, .gc-hero-bg, .gc-hero-pattern svg, .gc-rosette, .gc-mark-glow, .gc-logo-wrap, .gc-logo-wrap::after, .gc-h1 em, .gc-h2 em { animation: none; }
+  .gc-hero-mark, .gc-hero-pattern { transform: none; translate: none; transition: none; }
   .gc-draw { animation: none; stroke-dashoffset: 0; }
   .gc-btn, .gc-btn svg, .gc-plan, .gc-about-media img { transition: none; }
   .gc-about-media img { transform: none; }

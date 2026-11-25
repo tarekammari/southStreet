@@ -74,6 +74,28 @@ function Accent({ text, words = 2 }: { text: string; words?: number }) {
   );
 }
 
+/**
+ * Pointer position over the hero as --hx / --hy (-0.5 … 0.5), once per frame.
+ * CSS turns these into the logo tilt, its light and the pattern parallax.
+ */
+let pointerFrame = 0;
+function followPointer(e: React.PointerEvent<HTMLElement>) {
+  if (e.pointerType !== 'mouse') return;
+  const el = e.currentTarget;
+  const { clientX, clientY } = e;
+  cancelAnimationFrame(pointerFrame);
+  pointerFrame = requestAnimationFrame(() => {
+    const r = el.getBoundingClientRect();
+    el.style.setProperty('--hx', ((clientX - r.left) / r.width - 0.5).toFixed(3));
+    el.style.setProperty('--hy', ((clientY - r.top) / r.height - 0.5).toFixed(3));
+  });
+}
+function resetPointer(e: React.PointerEvent<HTMLElement>) {
+  cancelAnimationFrame(pointerFrame);
+  e.currentTarget.style.setProperty('--hx', '0');
+  e.currentTarget.style.setProperty('--hy', '0');
+}
+
 /** Staggered reveal delay for the n-th item of a list. */
 const delay = (i: number, step = 90) => ({ '--d': `${i * step}ms` }) as React.CSSProperties;
 
@@ -157,24 +179,34 @@ export default function AboutPage() {
       <Navbar variant="light" />
 
       <main className="ip gc page-main" dir="rtl">
-        {/* Hero: the photo fills it under a white veil, an Islamic pattern drifts over it,
-            and the logo, title and one line sit in the centre. */}
-        <section className="gc-hero">
+        {/* Hero: the photo in its own colours, a gold-and-green Islamic pattern at the
+            edges, and an arch-shaped panel in the centre with the logo, title and one line.
+            The logo and pattern follow the pointer. */}
+        <section className="gc-hero" onPointerMove={followPointer} onPointerLeave={resetPointer}>
           <img className="gc-hero-bg" src={heroImg} alt="" fetchPriority="high" decoding="async" />
-          <span className="gc-hero-veil" aria-hidden />
           <div className="gc-hero-pattern" aria-hidden><IslamicPattern /></div>
           <div className="gc-hero-in">
-            <div className="gc-hero-mark ab-in">
+            {/* The load-in runs on a wrapper, so the pointer tilt (a transform) is not overridden. */}
+            <div className="gc-mark-in ab-in">
+            <div className="gc-hero-mark">
+              <span className="gc-mark-glow" aria-hidden />
               <IslamicRosette className="gc-rosette" />
-              {logo ? <img src={logo} alt={name} className="gc-hero-logo" /> : <b className="gc-hero-logo is-letter">{name.slice(0, 1)}</b>}
+              <IslamicRosette className="gc-rosette is-inner" inner />
+              <span className="gc-logo-wrap">
+                {logo ? <img src={logo} alt={name} className="gc-hero-logo" /> : <b className="gc-hero-logo is-letter">{name.slice(0, 1)}</b>}
+              </span>
             </div>
-            <h1 className="gc-h1 ab-in" style={delay(2)}><Accent text={about.hero.title} /></h1>
-            <p className="gc-intro ab-in" style={delay(3)}>{intro}</p>
-            <nav className="gc-crumbs ab-in" style={delay(4)} aria-label="مسار الصفحة">
-              <Link href="/">الرئيسية</Link>
-              <span aria-hidden>/</span>
-              <span aria-current="page">عن الوكالة</span>
-            </nav>
+            </div>
+            <div className="gc-hero-panel ab-in" style={delay(2)}>
+              <h1 className="gc-h1"><Accent text={about.hero.title} /></h1>
+              <span className="gc-hero-rule" aria-hidden><i /></span>
+              <p className="gc-intro">{intro}</p>
+              <nav className="gc-crumbs" aria-label="مسار الصفحة">
+                <Link href="/">الرئيسية</Link>
+                <span aria-hidden>/</span>
+                <span aria-current="page">عن الوكالة</span>
+              </nav>
+            </div>
           </div>
         </section>
 
