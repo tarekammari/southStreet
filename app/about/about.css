@@ -97,19 +97,14 @@
 }
 
 /* ---------- Agency name in calligraphy (top of the hero) ---------- */
-/* The Ink font has coloured layers (red dots); paint them all gold. */
-@font-palette-values --gc-gold { font-family: 'Aref Ruqaa Ink'; override-colors: 0 #e3c57a, 1 #e3c57a, 2 #e3c57a, 3 #e3c57a, 4 #e3c57a, 5 #e3c57a, 6 #e3c57a, 7 #e3c57a, 8 #e3c57a, 9 #e3c57a, 10 #e3c57a, 11 #e3c57a; }
+/* The Ink font has coloured layers (red dots); paint them all a deep gold that reads on white. */
+@font-palette-values --gc-gold { font-family: 'Aref Ruqaa Ink'; override-colors: 0 #a98336, 1 #a98336, 2 #a98336, 3 #a98336, 4 #a98336, 5 #a98336, 6 #a98336, 7 #a98336, 8 #a98336, 9 #a98336, 10 #a98336, 11 #a98336; }
 .gc-callig { position: relative; display: inline-block; margin: 0 0 6px; padding: 10px 34px 4px; line-height: 1; }
-/* Soft dark shade only behind the name, so it reads over the sky */
-.gc-callig::before {
-  content: ''; position: absolute; inset: -6% -4%; z-index: -1; border-radius: 50%; pointer-events: none;
-  background: radial-gradient(ellipse at center, rgba(5, 42, 28, .62), rgba(5, 42, 28, .3) 55%, rgba(5, 42, 28, 0) 72%);
-}
 .gc-callig-text {
   display: block; font-family: 'Aref Ruqaa Ink', 'Amiri', serif; font-weight: 700; font-size: clamp(3rem, 7.4vw, 6rem); line-height: 1.35; font-palette: --gc-gold;
-  background: linear-gradient(100deg, #caa24c, #fbe9b3 40%, #d8b45e 60%, #fff3cf 80%, #caa24c); background-size: 220% 100%;
-  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: #e3c57a;
-  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .55)) drop-shadow(0 6px 18px rgba(5, 42, 28, .65));
+  background: linear-gradient(100deg, #8a6a24, #c9a24e 40%, #9c7526 60%, #d8b45e 80%, #8a6a24); background-size: 220% 100%;
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: #a98336;
+  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, .9)) drop-shadow(0 6px 14px rgba(120, 90, 30, .22));
   clip-path: inset(0 0 0 100%);
   animation: gc-write 2.2s cubic-bezier(.45, 0, .2, 1) .3s forwards, gc-gold 6s ease-in-out 2.5s infinite alternate;
 }
@@ -117,28 +112,27 @@
 @keyframes gc-write { to { clip-path: inset(0 -10% 0 -10%); } }
 /* Small calligraphic ornaments around the name: chevrons and little ha */
 .gc-orn, .gc-orn-h { position: absolute; pointer-events: none; opacity: 0; animation: gc-orn-in .6s ease-out forwards, gc-orn-float 5s ease-in-out infinite; }
-.gc-orn { width: 9px; height: 9px; border: solid var(--ar-gold-2); border-width: 0 2px 2px 0; rotate: 45deg; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .6)); }
+.gc-orn { width: 9px; height: 9px; border: solid var(--ar-gold); border-width: 0 2px 2px 0; rotate: 45deg; }
 .gc-orn.is-v1 { top: 6%; right: 30%; animation-delay: 2.2s, 2.8s; }
 .gc-orn.is-v2 { top: 0; right: 46%; animation-delay: 2.35s, 3.3s; }
 .gc-orn.is-v3 { bottom: 14%; left: 22%; animation-delay: 2.5s, 3.8s; }
-.gc-orn-h { font-family: 'Aref Ruqaa Ink', 'Amiri', serif; font-palette: --gc-gold; font-size: 1.05rem; font-weight: 700; color: var(--ar-gold-2); text-shadow: 0 1px 3px rgba(0, 0, 0, .7); }
+.gc-orn-h { font-family: 'Aref Ruqaa Ink', 'Amiri', serif; font-palette: --gc-gold; font-size: 1.05rem; font-weight: 700; color: var(--ar-gold); }
 .gc-orn-h.is-h1 { top: 12%; left: 14%; animation-delay: 2.45s, 3s; }
 .gc-orn-h.is-h2 { bottom: 4%; right: 12%; animation-delay: 2.6s, 3.6s; }
 @keyframes gc-orn-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @keyframes gc-orn-float { 0%, 100% { translate: 0 0; } 50% { translate: 0 -4px; } }
 
-/* ---------- Hero: the photo in its own colours, ornament, arch panel ---------- */
+/* ---------- Hero: white, ornament, arch panel ---------- */
 .gc-hero {
   --hx: 0; --hy: 0;
   position: relative; isolation: isolate; overflow: hidden; display: grid; place-items: center; text-align: center;
-  min-height: clamp(600px, calc(100svh - 72px), 900px); background: #1b1a17;
+  min-height: clamp(600px, calc(100svh - 72px), 900px);
+  background: radial-gradient(ellipse 70% 60% at 50% 45%, #fffdf6 0%, #fff 70%);
 }
-.gc-hero-bg { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; animation: gc-settle 2.4s var(--ab-ease) both; }
-@keyframes gc-settle { from { transform: scale(1.08); } to { transform: scale(1); } }
 
 /* Gold and green lattice at the edges (clear over the centre); drifts and follows the pointer a little. */
 .gc-hero-pattern {
-  position: absolute; inset: -110px; z-index: -1; opacity: .7; pointer-events: none;
+  position: absolute; inset: -110px; z-index: -1; opacity: .55; pointer-events: none;
   translate: calc(var(--hx) * -36px) calc(var(--hy) * -36px); transition: translate 1s var(--ab-ease);
   -webkit-mask-image: radial-gradient(ellipse 62% 66% at 50% 50%, transparent 30%, #000 78%);
   mask-image: radial-gradient(ellipse 62% 66% at 50% 50%, transparent 30%, #000 78%);
@@ -154,14 +148,14 @@
 .gc-ring-wrap {
   position: absolute; z-index: -1; top: 50%; right: 0; width: clamp(440px, 82vh, 780px); aspect-ratio: 1; pointer-events: none;
   transform: translate(46%, -50%); translate: calc(var(--hx) * -18px) calc(var(--hy) * -18px); transition: translate 1.2s var(--ab-ease);
-  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .55)) drop-shadow(0 0 18px rgba(5, 42, 28, .55));
+  filter: drop-shadow(0 2px 6px rgba(120, 90, 30, .18));
 }
 .gc-ring { display: block; width: 100%; height: 100%; animation: gc-ring-in 2s var(--ab-ease) .6s both, gc-turn-back 140s linear 2.6s infinite; }
 @keyframes gc-ring-in { from { opacity: 0; transform: rotate(40deg) scale(.92); } to { opacity: 1; transform: none; } }
 /* direction: ltr — Chrome cannot lay RTL text along a path; the Arabic still reads right to left. */
-.gc-ring-text { direction: ltr; font-family: 'Aref Ruqaa Ink', 'Amiri', serif; font-weight: 700; font-size: 53px; font-palette: --gc-gold; fill: #ecd28f; }
-.gc-ring-dots { fill: none; stroke: #ecd28f; stroke-width: 2.4; stroke-linecap: round; stroke-dasharray: 0 14; opacity: .85; }
-.gc-ring-line { fill: none; stroke: rgba(236, 210, 143, .6); stroke-width: 1; }
+.gc-ring-text { direction: ltr; font-family: 'Aref Ruqaa Ink', 'Amiri', serif; font-weight: 700; font-size: 53px; font-palette: --gc-gold; fill: #a98336; }
+.gc-ring-dots { fill: none; stroke: #b8913f; stroke-width: 2.4; stroke-linecap: round; stroke-dasharray: 0 14; opacity: .85; }
+.gc-ring-line { fill: none; stroke: rgba(21, 128, 82, .45); stroke-width: 1; }
 
 .gc-hero-in { display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 760px; padding: 56px 16px 72px; }
 
@@ -418,7 +412,7 @@ a.ab-detail:hover i { transform: scale(1.1); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ab-in, .gc-hero-bg, .gc-hero-pattern svg, .gc-rosette, .gc-mark-glow, .gc-logo-wrap, .gc-logo-wrap::after, .gc-h1 em, .gc-h2 em, .gi-petal, .gc-petals, .gc-panel-art svg { animation: none; }
+  .ab-in, .gc-hero-pattern svg, .gc-rosette, .gc-mark-glow, .gc-logo-wrap, .gc-logo-wrap::after, .gc-h1 em, .gc-h2 em, .gi-petal, .gc-petals, .gc-panel-art svg { animation: none; }
   .gc-callig-text { animation: none; clip-path: none; }
   .gc-ring { animation: none; }
   .gc-ring-wrap { translate: none; transition: none; }

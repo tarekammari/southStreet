@@ -39,7 +39,6 @@ import './about.css';
  * admin has not chosen a photo of their own.
  */
 const PHOTOS = {
-  hero: '/images/kaaba_sharifa_home_page.webp',
   story: '/images/maka06.webp',
   cta: '/images/section2_09.webp',
 };
@@ -147,8 +146,7 @@ export default function AboutPage() {
   const about = readAboutContent(content);
   const intro = about.hero.text || agency.description || 'وكالة متخصصة في رحلات العمرة والحج، بنفس الوجوه ونفس العناية من الحجز حتى العودة.';
   const story = about.story;
-  // An admin's own photo wins; otherwise the agency's hero start photo, then the built-in ones.
-  const heroImg = about.hero.image !== ABOUT_DEFAULTS.hero.image ? about.hero.image : agency.hero_start || PHOTOS.hero;
+  // An admin's own photo wins; otherwise the built-in one.
   const storyImg = story.image !== ABOUT_DEFAULTS.story.image ? story.image : PHOTOS.story;
   const logo = agency.logo_url || agency.mark_url;
   const lead = team.find((m) => photoOf(m)) || team[0];
@@ -197,11 +195,10 @@ export default function AboutPage() {
       <Navbar variant="light" />
 
       <main className="ip gc page-main" dir="rtl">
-        {/* Hero: the photo in its own colours, a gold-and-green Islamic pattern at the
-            edges, and an arch-shaped panel in the centre with the logo, title and one line.
-            The logo and pattern follow the pointer. */}
+        {/* Hero: white, with a gold-and-green Islamic pattern at the edges, a turning ring
+            of calligraphy, and an arch-shaped panel in the centre with the logo, title and
+            one line. The logo and pattern follow the pointer. */}
         <section className="gc-hero" onPointerMove={followPointer} onPointerLeave={resetPointer}>
-          <img className="gc-hero-bg" src={heroImg} alt="" fetchPriority="high" decoding="async" />
           <div className="gc-hero-pattern" aria-hidden><IslamicPattern /></div>
           <div className="gc-ring-wrap" aria-hidden><CalligraphyRing className="gc-ring" /></div>
           <div className="gc-hero-in">
