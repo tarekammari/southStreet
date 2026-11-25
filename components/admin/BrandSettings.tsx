@@ -7,9 +7,9 @@
  * still the default one.
  */
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Check, ExternalLink, FolderInput, ImagePlus, Loader2, Palette, Plus, Save, Trash2, Upload, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, ExternalLink, FolderInput, ImagePlus, Loader2, Palette, Plus, Save, Star, Trash2, Upload, X } from 'lucide-react';
 import { adminFetch, keyErrorMessage } from '@/lib/webauthn-client';
-import { BRAND_FIELDS, DEFAULT_BRAND, brandHeroImages, fullAddress, type Brand, type BrandBranch, type BrandField, type BrandPhone } from '@/lib/brand';
+import { BRAND_FIELDS, DEFAULT_BRAND, brandHeroImages, fullAddress, heroStartIndex, type Brand, type BrandBranch, type BrandField, type BrandPhone } from '@/lib/brand';
 import { profileAssets, profileToBrand, type BrandKnowledge, type BrandProfile } from '@/lib/brand-profile';
 import { SOCIAL_LABELS, type SocialLinks } from '@/lib/social';
 
@@ -277,16 +277,28 @@ function PhotosSection({ draft, set, fail }: SectionProps) {
   const [busy, setBusy] = useState(false);
   const photos = brandHeroImages(draft);
   const write = (list: string[]) => set('hero_images', list.join('\n'));
+  const startAt = heroStartIndex(photos, draft.hero_start);
   return (
-    <Card title="صور الواجهة" hint="صور البطاقات المتحركة في أعلى الصفحة الرئيسية. بدونها تظهر صور الحرم المدمجة.">
+    <Card title="صور الواجهة" hint="صور البطاقات المتحركة في أعلى الصفحة الرئيسية. بدونها تظهر صور الحرم المدمجة. اختر الصورة التي تظهر في الوسط عند فتح الموقع (افتراضياً صورة الكعبة).">
       <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(140px,1fr))]">
-        {photos.map((url, i) => (
-          <figure key={`${url}-${i}`} className="m-0 relative rounded-xl border border-slate-200 overflow-hidden">
-            <img src={url} alt="" className="w-full aspect-[4/5] object-cover" />
-            <button type="button" aria-label="حذف" onClick={() => write(photos.filter((_, j) => j !== i))}
-              className="absolute top-1.5 left-1.5 grid place-items-center w-8 h-8 rounded-lg bg-white/90 text-slate-600 hover:text-red-600"><X className="w-4 h-4" /></button>
-          </figure>
-        ))}
+        {photos.map((url, i) => {
+          const isStart = i === startAt;
+          return (
+            <figure key={`${url}-${i}`} className={`m-0 relative rounded-xl border overflow-hidden ${isStart ? 'border-emerald-600 ring-2 ring-emerald-600' : 'border-slate-200'}`}>
+              <img src={url} alt="" className="w-full aspect-[4/5] object-cover" />
+              <button type="button" aria-label="حذف" onClick={() => {
+                write(photos.filter((_, j) => j !== i));
+                if (url === draft.hero_start) set('hero_start', '');
+              }}
+                className="absolute top-1.5 left-1.5 grid place-items-center w-8 h-8 rounded-lg bg-white/90 text-slate-600 hover:text-red-600"><X className="w-4 h-4" /></button>
+              <button type="button" aria-pressed={isStart} onClick={() => set('hero_start', url)}
+                className={`absolute bottom-1.5 inset-x-1.5 inline-flex items-center justify-center gap-1 min-h-8 rounded-lg text-xs font-bold ${isStart ? 'bg-emerald-600 text-white' : 'bg-white/90 text-slate-700 hover:text-emerald-700'}`}>
+                <Star className={`w-3.5 h-3.5 ${isStart ? 'fill-current' : ''}`} aria-hidden="true" />
+                {isStart ? 'في الوسط عند الفتح' : 'اجعلها في الوسط'}
+              </button>
+            </figure>
+          );
+        })}
         {photos.length < 8 ? (
           <button type="button" onClick={() => ref.current?.click()} disabled={busy}
             className="aspect-[4/5] rounded-xl border-2 border-dashed border-slate-300 text-slate-500 font-bold text-sm grid place-items-center hover:border-emerald-600 hover:text-emerald-700">

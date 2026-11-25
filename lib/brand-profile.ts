@@ -27,7 +27,7 @@ export type BrandProfile = {
   destinations?: string[];
   departureAirports?: string[];
   /** hero first, then programs, then gallery: the home page album, in that order. */
-  images?: { hero?: string; programs?: string[]; gallery?: string[]; posts?: string[] };
+  images?: { hero?: string; programs?: string[]; gallery?: string[]; posts?: string[]; /** the album photo in the centre on first load */ start?: string };
   knowledge?: string[];
   /** The agency's current programme, created by `npm run brand:import` (not by the dashboard button). */
   starterProgram?: {
@@ -123,6 +123,8 @@ export function profileToBrand(p: BrandProfile, asset: (rel: string) => string):
   if (hero.length) {
     values.hero_images = hero.join('\n');
     values.og_image_url = hero[0];
+    const start = text(p.images?.start) ? asset(text(p.images?.start)) : '';
+    if (start && hero.includes(start)) values.hero_start = start;
   }
 
   const phones: BrandPhone[] = [];

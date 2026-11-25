@@ -10302,3 +10302,121 @@ body.modal-open .sakhr-panel-shell {
 /* Journal: live lines vs archived history (components/accountant/LedgerPanel.tsx) */
 .acct-ledger-mode { display: flex; gap: 0.4rem; }
 .acct-ledger-archive-note { margin: 0; padding: 0.6rem 0.8rem; border-radius: 12px; background: #fffbeb; border: 1px solid #fde68a; color: #92400e; font-size: 0.75rem; font-weight: 700; line-height: 1.6; }
+
+/* ---------------------------------------------------------------- assistant robot
+   The floating assistant button: a white robot head whose eyes follow the pointer
+   (components/sakhr/AssistantBot.tsx), same design as Aaref on 1zayd1.tech. */
+@property --abot-a { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+
+.abot {
+  --s: 56px; --px: -0.05; --py: 0.04;
+  --abot-ease: cubic-bezier(.28, .11, .32, 1);
+  position: relative; display: inline-block; flex: none;
+  width: var(--s); height: var(--s); isolation: isolate; vertical-align: middle;
+}
+.abot::before, .abot::after {
+  content: ""; position: absolute; z-index: -1; border-radius: 50%; pointer-events: none; transform-origin: 50% 50%;
+}
+/* rainbow glow under the head */
+.abot::before {
+  left: 6%; right: 6%; top: 86%; height: 24%;
+  background: conic-gradient(from var(--abot-a), #5ac8fa, #0a84ff, #5e5ce6, #bf5af2, #ff375f, #5ac8fa);
+  filter: blur(calc(var(--s) * .09)); opacity: .75;
+  animation: abot-spin 6s linear infinite; transition: opacity .4s;
+}
+/* shadow on the "floor" */
+.abot::after {
+  left: 22%; right: 22%; top: 92%; height: 11%;
+  background: rgba(0, 0, 0, .32); filter: blur(calc(var(--s) * .045));
+}
+.abot-head { position: absolute; inset: 0; }
+.abot-face {
+  position: absolute; inset: 0; overflow: hidden; border-radius: 50%;
+  border: max(1px, calc(var(--s) * .022)) solid #111114;
+  background: radial-gradient(circle at 38% 30%, #fff 0 45%, #f1f1f6 75%, #dedee8);
+  box-shadow: inset 0 calc(var(--s) * -.04) calc(var(--s) * .08) rgba(0, 0, 0, .08), 0 calc(var(--s) * .05) calc(var(--s) * .1) rgba(0, 0, 0, .14);
+}
+.abot-eyes {
+  position: absolute; inset: 0;
+  transform: translate(calc(var(--s) * var(--px)), calc(var(--s) * var(--py)));
+  transition: transform .35s var(--abot-ease);
+}
+.abot-eye {
+  position: absolute; top: 33%; width: 13%; height: 33%; border-radius: 999px; background: #111114;
+  transform-origin: 50% 60%;
+  transition: height .3s var(--abot-ease), top .3s var(--abot-ease), border-radius .3s;
+  animation: abot-blink 5.5s infinite;
+}
+.abot-eye.is-l { left: 30%; }
+.abot-eye.is-r { left: 55%; animation-delay: .04s; }
+
+/* moods */
+.abot.is-listening .abot-eyes { transform: translate(calc(var(--s) * .02), calc(var(--s) * .1)); }
+.abot.is-listening .abot-eye { height: 37%; animation: none; }
+.abot.is-listening::before { opacity: .9; }
+.abot.is-thinking .abot-eyes { animation: abot-scan 1.4s ease-in-out infinite; }
+.abot.is-thinking .abot-eye { height: 26%; animation: none; }
+.abot.is-thinking::before { opacity: 1; animation-duration: 1.1s; }
+.abot.is-talking .abot-eyes { animation: abot-bob .32s ease-in-out infinite alternate; }
+.abot.is-talking .abot-eye,
+.sakhr-bot-launch:hover .abot-eye,
+.sakhr-bot-launch.is-open .abot-eye { top: 40%; height: 16%; border-radius: 999px 999px 40% 40%; animation: none; }
+.abot.is-talking::before { opacity: 1; animation-duration: 2.5s; }
+
+/* the button around it */
+.sakhr-bot-launch {
+  position: relative; display: grid; place-items: center; border: 0; padding: 0; background: transparent;
+  width: var(--ls, 60px); height: var(--ls, 60px); border-radius: 50%; cursor: pointer;
+  transition: transform .5s cubic-bezier(.28, .11, .32, 1); -webkit-tap-highlight-color: transparent;
+}
+.sakhr-bot-launch:active { transform: scale(.95); }
+.sakhr-bot-launch:focus-visible { outline: 2px solid #0a84ff; outline-offset: 6px; }
+.sakhr-bot-launch .abot-head { animation: abot-idle 5.5s ease-in-out infinite; }
+.sakhr-bot-launch .abot::after { animation: abot-shade 5.5s ease-in-out infinite; }
+.sakhr-bot-launch::after {
+  content: ""; position: absolute; inset: 0; border-radius: 50%;
+  border: 1.5px solid rgba(191, 90, 242, .7); opacity: 0; pointer-events: none;
+}
+.sakhr-bot-launch.is-pop::after { animation: abot-ripple 1.2s ease-out .15s; }
+.sakhr-bot-sp {
+  position: absolute; width: max(4px, calc(var(--ls, 60px) * .07)); height: max(4px, calc(var(--ls, 60px) * .07));
+  border-radius: 50%; opacity: 0; pointer-events: none;
+}
+.sakhr-bot-sp.s1 { left: -6%; top: 10%; background: #0a84ff; }
+.sakhr-bot-sp.s2 { right: -8%; top: 4%; background: #bf5af2; }
+.sakhr-bot-sp.s3 { right: -4%; bottom: 8%; background: #ff375f; }
+.sakhr-bot-sp.s4 { left: 2%; bottom: -4%; background: #5ac8fa; }
+.sakhr-bot-launch.is-pop .abot-head { animation: abot-hop .9s cubic-bezier(.28, .11, .32, 1); }
+.sakhr-bot-launch.is-pop .abot::before { opacity: 1; animation: abot-spin 1.2s linear infinite; }
+.sakhr-bot-launch.is-pop .sakhr-bot-sp { animation: abot-pop-sp 1.1s ease-out both; }
+.sakhr-bot-launch.is-pop .s2 { animation-delay: .15s; }
+.sakhr-bot-launch.is-pop .s3 { animation-delay: .3s; }
+.sakhr-bot-launch.is-pop .s4 { animation-delay: .45s; }
+@media (hover: hover) {
+  .sakhr-bot-launch:hover { transform: scale(1.08); }
+  .sakhr-bot-launch:hover .abot-head { animation: abot-hop .9s cubic-bezier(.28, .11, .32, 1); }
+  .sakhr-bot-launch:hover .abot::before { opacity: 1; animation: abot-spin 1.5s linear infinite; }
+  .sakhr-bot-launch:hover .sakhr-bot-sp { animation: abot-pop-sp 1.1s ease-out both; }
+  .sakhr-bot-launch:hover .s2 { animation-delay: .12s; }
+  .sakhr-bot-launch:hover .s3 { animation-delay: .24s; }
+  .sakhr-bot-launch:hover .s4 { animation-delay: .36s; }
+}
+/* small chevron badge while the chat is open (click again to minimise) */
+.sakhr-bot-close {
+  position: absolute; right: -2px; bottom: -2px; display: grid; place-items: center;
+  width: 22px; height: 22px; border-radius: 50%; background: #111114; color: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .25);
+}
+@media (prefers-reduced-motion: reduce) {
+  .abot::before, .abot-eye, .abot-eyes, .sakhr-bot-launch .abot-head, .sakhr-bot-launch .abot::after { animation: none !important; }
+}
+
+@keyframes abot-spin { to { --abot-a: 360deg; } }
+@keyframes abot-blink { 0%, 91%, 100% { transform: scaleY(1); } 93% { transform: scaleY(.08); } 95% { transform: scaleY(1); } }
+@keyframes abot-scan { 0%, 100% { transform: translate(calc(var(--s) * -.13), calc(var(--s) * -.12)); } 50% { transform: translate(calc(var(--s) * .13), calc(var(--s) * -.12)); } }
+@keyframes abot-bob { from { transform: translate(0, calc(var(--s) * .02)); } to { transform: translate(0, calc(var(--s) * -.04)); } }
+@keyframes abot-hop { 0%, 100% { transform: none; } 30% { transform: translateY(-14%) scale(1.06); } 55% { transform: translateY(0) scale(.97, 1.03); } 75% { transform: translateY(-4%); } }
+@keyframes abot-idle { 0%, 100% { transform: none; } 30% { transform: translateY(-7%) rotate(-4deg); } 65% { transform: translateY(-3%) rotate(3deg); } }
+@keyframes abot-shade { 50% { transform: scaleX(.78); opacity: .45; } }
+@keyframes abot-ripple { from { opacity: .9; transform: scale(1); } to { opacity: 0; transform: scale(1.9); } }
+@keyframes abot-pop-sp { 0% { opacity: 0; transform: scale(0); } 30% { opacity: 1; transform: scale(1.5); } 100% { opacity: 0; transform: scale(0) translateY(-10px); } }

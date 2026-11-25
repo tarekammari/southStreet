@@ -38,6 +38,8 @@ export type Brand = {
   og_image_url: string;
   /** Home hero photos, one URL per line ('' = the built-in Makkah photos). */
   hero_images: string;
+  /** The hero photo shown in the centre on first load ('' = the Kaaba close-up when there is one, else the first). */
+  hero_start: string;
   /** Main colour (#rrggbb). */
   primary_color: string;
   /** Second colour for highlights (#rrggbb, '' = the built-in gold). */
@@ -84,6 +86,7 @@ export const DEFAULT_BRAND: Brand = {
   favicon_url: '',
   og_image_url: '/og/south-street-og.jpg',
   hero_images: '',
+  hero_start: '',
   primary_color: '#047857',
   accent_color: '',
   address: 'شارع خميستي الرئيسي، وسط مدينة الوادي',
@@ -108,7 +111,7 @@ export const DEFAULT_BRAND: Brand = {
 /** Text fields stored as agency_settings columns (same names). */
 export const BRAND_FIELDS: BrandField[] = [
   'agency_name', 'short_name', 'name_latin', 'legal_name', 'tagline', 'site_title', 'description',
-  'logo_url', 'mark_url', 'favicon_url', 'og_image_url', 'hero_images', 'primary_color', 'accent_color',
+  'logo_url', 'mark_url', 'favicon_url', 'og_image_url', 'hero_images', 'hero_start', 'primary_color', 'accent_color',
   'address', 'city', 'country', 'map_url', 'map_lat', 'map_lng',
   'phone', 'whatsapp', 'emergency_phone', 'email', 'website', 'opening_hours', 'assistant_name',
 ];
@@ -117,7 +120,7 @@ export const BRAND_FIELDS: BrandField[] = [
 export const BRAND_NEW_COLUMNS: (BrandField | BrandListField)[] = [
   'short_name', 'name_latin', 'tagline', 'site_title', 'logo_url', 'mark_url', 'favicon_url', 'og_image_url',
   'hero_images', 'primary_color', 'accent_color', 'map_url', 'map_lat', 'map_lng', 'branches', 'phones',
-  'assistant_name',
+  'assistant_name', 'hero_start',
 ];
 
 const clip = (v: unknown, max = 200) => String(v ?? '').trim().slice(0, max);
@@ -277,6 +280,20 @@ export function brandMapEmbed(brand: Brand): string {
 /** Hero photos chosen by the agency ([] = the built-in ones). */
 export function brandHeroImages(brand: Pick<Brand, 'hero_images'>): string[] {
   return brand.hero_images.split(/\r?\n|,/).map((s) => s.trim()).filter(Boolean);
+}
+
+/** The built-in Kaaba close-up: the hero's default centre photo. */
+export const DEFAULT_HERO_START = 'kaaba_sharifa_home_page';
+
+/**
+ * Which hero photo is in the centre on first load: the one the admin chose
+ * (hero_start), else the Kaaba close-up when the album has it, else the first.
+ */
+export function heroStartIndex(photos: readonly string[], start: string): number {
+  const chosen = start ? photos.indexOf(start) : -1;
+  if (chosen > -1) return chosen;
+  const kaaba = photos.findIndex((src) => src.includes(DEFAULT_HERO_START));
+  return kaaba > -1 ? kaaba : 0;
 }
 
 /**

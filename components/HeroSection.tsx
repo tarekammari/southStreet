@@ -10,7 +10,7 @@ import { useIntroDone } from '@/lib/intro';
 import { isOpenPackageStatus } from '@/lib/package-status';
 import { socialProfiles } from '@/lib/social';
 import { useAgencyInfo } from '@/components/social/useAgencyInfo';
-import { brandHeroImages } from '@/lib/brand';
+import { brandHeroImages, heroStartIndex } from '@/lib/brand';
 import { SOCIAL_ICON } from '@/components/social/SocialIcons';
 import { PROGRAM_KIND_LABEL, ProgramKind, programImages, programKind, tripGallery, type TripPhoto } from '@/lib/program-display';
 
@@ -233,6 +233,8 @@ export default function HeroSection({ content: _content }: { content?: PageConte
 
   const agency = useAgencyInfo();
   const cards = offer === undefined ? [] : offerPostcards(offer, brandHeroImages(agency));
+  // A tourism trip opens on its own main photo; the agency album on the photo the admin chose.
+  const start = offer?.kind === 'tourism' ? 0 : heroStartIndex(cards.map((c) => c.src), agency.hero_start);
   const social = agency.social;
   const profiles = socialProfiles(social);
 
@@ -252,7 +254,7 @@ export default function HeroSection({ content: _content }: { content?: PageConte
       transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
     >
       <div className="hero-apple-inner">
-        {cards.length ? <PostcardCoverFlow key={offer?.id || 'default'} cards={cards} /> : null}
+        {cards.length ? <PostcardCoverFlow key={offer?.id || 'default'} cards={cards} start={start} /> : null}
 
         <div className="hero-apple-copy-col">
           <motion.div
@@ -433,7 +435,7 @@ function coverStyle(offset: number, mobile: boolean): React.CSSProperties {
   };
 }
 
-function PostcardCoverFlow({ cards }: { cards: readonly Postcard[] }) {
+function PostcardCoverFlow({ cards, start = 0 }: { cards: readonly Postcard[]; start?: number }) {
   // Each card's distance from the centre on first render sets its entrance delay.
   const introOrder = useRef<Map<string, number> | null>(null);
   const count = cards.length;
@@ -445,7 +447,7 @@ function PostcardCoverFlow({ cards }: { cards: readonly Postcard[] }) {
   const shiftRef = useRef(0);
   const stageRef = useRef<HTMLDivElement>(null);
 
-  const [active, setActive] = useState(0);
+  const [active, setActive] = useState(() => (start >= 0 && start < cards.length ? start : 0));
   const [shift, setShift] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [isMobile, setIsMobile] = useState(false);

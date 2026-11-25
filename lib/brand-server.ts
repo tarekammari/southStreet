@@ -42,7 +42,7 @@ export function invalidateBrand(): void {
 /* ------------------------------------------------------------------ saving */
 
 const LIMITS: Partial<Record<BrandField, number>> = { description: 600, hero_images: 4000, opening_hours: 200 };
-const URL_FIELDS = new Set<BrandField>(['logo_url', 'mark_url', 'favicon_url', 'og_image_url', 'map_url', 'website']);
+const URL_FIELDS = new Set<BrandField>(['logo_url', 'mark_url', 'favicon_url', 'og_image_url', 'hero_start', 'map_url', 'website']);
 const COLOR_FIELDS = new Set<BrandField>(['primary_color', 'accent_color']);
 const SOCIAL_FIELDS = ['facebook', 'instagram', 'tiktok', 'youtube', 'telegram', 'x'] as const;
 

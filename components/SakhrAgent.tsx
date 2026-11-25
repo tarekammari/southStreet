@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowUp, Brain, Check, ChevronDown, Copy, Loader2, Mic, Minus, RefreshCw, Table, Trash2, Volume2, VolumeX, X } from 'lucide-react';
+import { ArrowUp, Check, ChevronDown, Copy, Loader2, Mic, Minus, RefreshCw, Table, Trash2, Volume2, VolumeX, X } from 'lucide-react';
 import { SAKHR_OPEN_EVENT, SAKHR_OPEN_KEY } from '@/components/sakhr/openSakhr';
 import { openLogin, type LoginRequest } from '@/components/auth/openLogin';
 import { CONNECT_INSTALL_EVENT, connectInstallHref, type ConnectInstallPlatform } from '@/components/connect/installConnect';
@@ -14,6 +14,7 @@ import type { VisualSpec } from '@/lib/sakhr/visual';
 import { chime, speak, stopSpeaking, unlockAudio, useArabicVoice, useVoiceRecorder, voiceInputSupported } from '@/components/sakhr/voice';
 import { isStopCommand } from '@/components/sakhr/stop-command';
 import { useBrand } from '@/components/social/useAgencyInfo';
+import AssistantBot, { type BotMood } from '@/components/sakhr/AssistantBot';
 
 const TableBrowser = dynamic(() => import('@/components/sakhr/TableBrowser'), { ssr: false });
 const SakhrVisual = dynamic(() => import('@/components/sakhr/SakhrVisual'), { ssr: false });
@@ -602,6 +603,30 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
               : unread
                 ? 'reply'
                 : null;
+  // The robot button: what its face shows, its size, and a hop that says hello once.
+  const botMood: BotMood = voice.state === 'recording'
+    ? 'listening'
+    : thinking || voice.state === 'transcribing'
+      ? 'thinking'
+      : speakingId
+        ? 'talking'
+        : 'idle';
+  const [botSize, setBotSize] = useState(56);
+  const [pop, setPop] = useState(false);
+  useEffect(() => {
+    const wide = window.matchMedia('(min-width: 640px)');
+    const sync = () => setBotSize(wide.matches ? 64 : 56);
+    sync();
+    wide.addEventListener('change', sync);
+    const hello = window.setTimeout(() => setPop(true), 2500);
+    const done = window.setTimeout(() => setPop(false), 4200);
+    return () => {
+      wide.removeEventListener('change', sync);
+      window.clearTimeout(hello);
+      window.clearTimeout(done);
+    };
+  }, []);
+
   const islandLabel: Record<NonNullable<typeof island>, string> = {
     listen: handsFree ? 'أستمع إليك… تكلّم' : 'أستمع إليك…',
     transcribe: 'أحوّل صوتك إلى نص…',
@@ -668,21 +693,17 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
           aria-label={open ? `تصغير ${assistant}` : `فتح ${assistant}، المساعد الذكي`}
           title={open ? 'تصغير' : `${assistant}، المساعد الذكي`}
           aria-expanded={open}
-          className={`sakhr-fab-future relative w-14 h-14 sm:w-[64px] sm:h-[64px] rounded-full focus:outline-none group cursor-pointer flex items-center justify-center ${open ? 'is-open' : ''}`}
+          className={`sakhr-bot-launch${open ? ' is-open' : ''}${pop ? ' is-pop' : ''}`}
+          style={{ ['--ls' as string]: `${botSize}px` }}
         >
-          <span className="sakhr-fab-attention" aria-hidden="true" />
-          <span className="sakhr-fab-aura" aria-hidden="true" />
-          <span className="sakhr-fab-ring" aria-hidden="true" />
-          <span className="sakhr-fab-ring sakhr-fab-ring-outer" aria-hidden="true" />
-          <span className="sakhr-fab-spark-track" aria-hidden="true">
-            <span className="sakhr-fab-spark" />
-          </span>
-          <span className="sakhr-fab-core">
-            {open ? <ChevronDown className="w-6 h-6 text-white drop-shadow" /> : <span className="sakhr-fab-letter">{assistantMark}</span>}
-          </span>
-          {!open ? (
-            <span className="sakhr-fab-brain-badge" aria-hidden="true">
-              <Brain className="w-3 h-3" />
+          <AssistantBot size={botSize} mood={botMood} />
+          <i className="sakhr-bot-sp s1" aria-hidden="true" />
+          <i className="sakhr-bot-sp s2" aria-hidden="true" />
+          <i className="sakhr-bot-sp s3" aria-hidden="true" />
+          <i className="sakhr-bot-sp s4" aria-hidden="true" />
+          {open ? (
+            <span className="sakhr-bot-close" aria-hidden="true">
+              <ChevronDown className="w-3.5 h-3.5" />
             </span>
           ) : null}
         </button>
