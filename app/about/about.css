@@ -98,7 +98,7 @@
 
 /* ---------- Agency name in calligraphy (top of the hero) ---------- */
 /* The Ink font has coloured layers (red dots); paint them all gold. */
-@font-palette-values --gc-gold { font-family: 'Aref Ruqaa Ink'; override-colors: 0 #e3c57a, 1 #e3c57a, 2 #e3c57a, 3 #e3c57a; }
+@font-palette-values --gc-gold { font-family: 'Aref Ruqaa Ink'; override-colors: 0 #e3c57a, 1 #e3c57a, 2 #e3c57a, 3 #e3c57a, 4 #e3c57a, 5 #e3c57a, 6 #e3c57a, 7 #e3c57a, 8 #e3c57a, 9 #e3c57a, 10 #e3c57a, 11 #e3c57a; }
 .gc-callig { position: relative; display: inline-block; margin: 0 0 6px; padding: 10px 34px 4px; line-height: 1; }
 /* Soft dark shade only behind the name, so it reads over the sky */
 .gc-callig::before {
@@ -121,7 +121,7 @@
 .gc-orn.is-v1 { top: 6%; right: 30%; animation-delay: 2.2s, 2.8s; }
 .gc-orn.is-v2 { top: 0; right: 46%; animation-delay: 2.35s, 3.3s; }
 .gc-orn.is-v3 { bottom: 14%; left: 22%; animation-delay: 2.5s, 3.8s; }
-.gc-orn-h { font-family: 'Aref Ruqaa Ink', 'Amiri', serif; font-size: .95rem; font-weight: 700; color: var(--ar-gold-2); text-shadow: 0 1px 3px rgba(0, 0, 0, .7); }
+.gc-orn-h { font-family: 'Aref Ruqaa Ink', 'Amiri', serif; font-palette: --gc-gold; font-size: 1.05rem; font-weight: 700; color: var(--ar-gold-2); text-shadow: 0 1px 3px rgba(0, 0, 0, .7); }
 .gc-orn-h.is-h1 { top: 12%; left: 14%; animation-delay: 2.45s, 3s; }
 .gc-orn-h.is-h2 { bottom: 4%; right: 12%; animation-delay: 2.6s, 3.6s; }
 @keyframes gc-orn-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
