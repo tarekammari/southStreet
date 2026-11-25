@@ -21,7 +21,7 @@ import TestimonialsSection from '@/components/TestimonialsSection';
 import { initialOf, photoOf, type MorshidRow } from '@/components/AboutSection';
 import { useReveal } from '@/components/info/useReveal';
 import { CountUp, ScrollProgress } from '@/components/about/effects';
-import { IslamicPattern, IslamicRosette } from '@/components/about/IslamicOrnament';
+import { IslamicArabesque, IslamicPattern, IslamicRosette } from '@/components/about/IslamicOrnament';
 import { useAgencyInfo } from '@/components/social/useAgencyInfo';
 import { SOCIAL_ICON } from '@/components/social/SocialIcons';
 import { socialProfiles } from '@/lib/social';
@@ -198,6 +198,7 @@ export default function AboutPage() {
             </div>
             </div>
             <div className="gc-hero-panel ab-in" style={delay(2)}>
+              <span className="gc-panel-art" aria-hidden><IslamicArabesque /></span>
               <h1 className="gc-h1"><Accent text={about.hero.title} /></h1>
               <span className="gc-hero-rule" aria-hidden><i /></span>
               <p className="gc-intro">{intro}</p>

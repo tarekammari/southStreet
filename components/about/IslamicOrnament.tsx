@@ -35,12 +35,75 @@ export function IslamicPattern({ className = '' }: { className?: string }) {
   );
 }
 
+/** Arabesque (plant scroll) lattice: interlaced vines with leaves and buds. */
+export function IslamicArabesque({ className = '' }: { className?: string }) {
+  return (
+    <svg className={className} aria-hidden focusable="false" width="100%" height="100%">
+      <defs>
+        <pattern id="gc-arabesque" width="120" height="120" patternUnits="userSpaceOnUse">
+          {/* Vines */}
+          <g fill="none" className="ga-vine" strokeWidth="1.1" strokeLinecap="round">
+            <path d="M0 60 C20 18 40 18 60 60 S100 102 120 60" />
+            <path d="M60 0 C102 20 102 40 60 60 S18 100 60 120" />
+            <path d="M52 60 a8 8 0 1 1 16 0 a5 5 0 1 1 -10 0" />
+            <path d="M14 0 a14 14 0 0 1 -14 14 M106 0 a14 14 0 0 0 14 14 M14 120 a14 14 0 0 0 -14 -14 M106 120 a14 14 0 0 1 14 -14" />
+          </g>
+          {/* Leaves */}
+          <g className="ga-leaf">
+            <path d="M28 33 q11 -15 24 -6 q-11 13 -24 6z" />
+            <path d="M92 87 q-11 15 -24 6 q11 -13 24 -6z" />
+            <path d="M87 28 q15 11 6 24 q-13 -11 -6 -24z" />
+            <path d="M33 92 q-15 -11 -6 -24 q13 11 6 24z" />
+          </g>
+          {/* Buds */}
+          <g className="ga-bud">
+            <circle cx="60" cy="60" r="2.6" />
+            <circle cx="0" cy="60" r="2" />
+            <circle cx="120" cy="60" r="2" />
+            <circle cx="60" cy="0" r="2" />
+            <circle cx="60" cy="120" r="2" />
+          </g>
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#gc-arabesque)" />
+    </svg>
+  );
+}
+
+/** Kite-shaped petal between two radii, centred on angle `deg`. */
+function petal(deg: number, r1: number, r2: number, spread: number): string {
+  const pt = (r: number, a: number) => {
+    const rad = ((a - 90) * Math.PI) / 180;
+    return `${(r * Math.cos(rad)).toFixed(2)} ${(r * Math.sin(rad)).toFixed(2)}`;
+  };
+  const mid = (r1 + r2) / 2;
+  return `M${pt(r1, deg)} L${pt(mid, deg - spread)} L${pt(r2, deg)} L${pt(mid, deg + spread)} Z`;
+}
+
 export function IslamicRosette({ className = '', inner = false }: { className?: string; inner?: boolean }) {
   const turns = [0, 22.5, 45, 67.5];
   const big = inner ? 52 : 66;
   const small = inner ? 30 : 38;
   return (
     <svg className={className} viewBox="-100 -100 200 200" aria-hidden focusable="false">
+      {/* Coloured petals around the logo (outer rosette only): 16 long and 16 short ones.
+          Each cycles green, emerald, gold, teal, in a wave around the ring. */}
+      {inner ? null : (
+        <g className="gc-petals">
+          {Array.from({ length: 32 }, (_, i) => {
+            const long = i % 2 === 0;
+            const deg = (360 / 32) * i;
+            return (
+              <path
+                key={i}
+                className={`gi-petal${long ? '' : ' is-short'}`}
+                d={long ? petal(deg, 58, 90, 6) : petal(deg, 62, 78, 4.5)}
+                style={{ animationDelay: `${(-(i / 32) * 8).toFixed(2)}s` }}
+              />
+            );
+          })}
+        </g>
+      )}
       <g fill="none" strokeWidth={inner ? 0.9 : 0.7} strokeLinejoin="round">
         {inner ? null : <circle className="gi-gold gc-draw" r="97" pathLength={1} />}
         {inner ? null : <circle className="gi-gold gc-draw" r="91" pathLength={1} style={{ animationDelay: '.15s' }} />}

@@ -133,6 +133,16 @@
 .gc-rosette .gi-gold, .gc-rosette .gi-green { stroke-width: 1.4; }
 @keyframes gc-turn { to { transform: rotate(360deg); } }
 @keyframes gc-turn-back { to { transform: rotate(-360deg); } }
+.gi-petal { fill: #0f6b43; fill-opacity: .85; stroke: rgba(251, 247, 236, .55); stroke-width: .5; animation: gc-petal 8s ease-in-out infinite; }
+.gi-petal.is-short { fill-opacity: .7; }
+@keyframes gc-petal {
+  0%, 100% { fill: #0f6b43; }
+  25% { fill: #22a06b; }
+  50% { fill: #c9a24e; }
+  75% { fill: #0e8a7c; }
+}
+.gc-petals { animation: gc-bloom 1.4s var(--ab-ease) .9s both; transform-origin: center; transform-box: fill-box; }
+@keyframes gc-bloom { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: none; } }
 .gc-draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: gc-draw 1.8s var(--ab-ease) forwards; }
 @keyframes gc-draw { to { stroke-dashoffset: 0; } }
 
@@ -157,29 +167,44 @@
 .gc-hero-logo { display: block; width: 100%; height: 100%; object-fit: cover; background: #fff; }
 .gc-hero-logo.is-letter { display: grid; place-items: center; color: var(--ar-emerald-deep); font-size: 2.6rem; font-weight: 800; }
 .gc-hero-mark:hover .gc-mark-glow { animation-duration: 1.6s; }
+.gc-hero-mark:hover .gi-petal { animation-duration: 2.4s; }
 
-/* Arch-shaped ivory panel (a mihrab) carrying the text; the crest sits on its top. */
+/* Arch-shaped panel (a mihrab) in see-through deep green with a gold arabesque;
+   the crest sits on its top. */
 .gc-hero-panel {
-  position: relative; width: min(100%, 680px); padding: 104px clamp(22px, 5vw, 60px) 34px;
-  background: rgba(251, 247, 236, .93); border: 1px solid rgba(184, 145, 63, .55);
+  position: relative; isolation: isolate; overflow: hidden; width: min(100%, 680px); padding: 104px clamp(22px, 5vw, 60px) 34px;
+  background: linear-gradient(180deg, rgba(9, 66, 44, .74), rgba(5, 42, 28, .86));
+  border: 1px solid rgba(227, 197, 122, .7);
   border-radius: 340px 340px 28px 28px / 230px 230px 28px 28px;
-  box-shadow: 0 40px 80px -40px rgba(0, 0, 0, .55);
-  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  box-shadow: 0 40px 80px -36px rgba(0, 0, 0, .7), inset 0 1px 0 rgba(255, 255, 255, .12);
+  -webkit-backdrop-filter: blur(7px) saturate(1.2); backdrop-filter: blur(7px) saturate(1.2);
 }
 .gc-hero-panel::before {
   content: ''; position: absolute; inset: 9px; border-radius: inherit; pointer-events: none;
-  border: 1px solid rgba(21, 128, 82, .35);
+  border: 1px solid rgba(227, 197, 122, .35);
 }
-.ip .gc-hero .gc-h1 { max-width: 15ch; margin-inline: auto; font-size: clamp(2.4rem, 5.4vw, 4.4rem); line-height: 1.35; }
+/* Arabesque layer: faint in the middle, brighter toward the edges, drifting very slowly */
+.gc-panel-art {
+  position: absolute; inset: -120px; z-index: -1; pointer-events: none; opacity: .5;
+  -webkit-mask-image: radial-gradient(ellipse 60% 55% at 50% 58%, rgba(0, 0, 0, .25) 0%, #000 85%);
+  mask-image: radial-gradient(ellipse 60% 55% at 50% 58%, rgba(0, 0, 0, .25) 0%, #000 85%);
+}
+.gc-panel-art svg { display: block; width: 100%; height: 100%; animation: gc-vines 60s linear infinite; }
+@keyframes gc-vines { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(-120px, 120px, 0); } }
+.ga-vine { stroke: #e3c57a; }
+.ga-leaf { fill: rgba(74, 196, 135, .55); }
+.ga-bud { fill: #e3c57a; }
+.ip .gc-hero .gc-h1 { color: var(--ar-ivory); text-shadow: 0 2px 18px rgba(0, 0, 0, .35); max-width: 15ch; margin-inline: auto; font-size: clamp(2.4rem, 5.4vw, 4.4rem); line-height: 1.35; }
 .gc-hero-rule { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 14px auto 4px; }
-.gc-hero-rule::before, .gc-hero-rule::after { content: ''; width: 64px; height: 1px; background: linear-gradient(90deg, transparent, var(--ar-gold)); }
+.gc-hero-rule::before, .gc-hero-rule::after { content: ''; width: 64px; height: 1px; background: linear-gradient(90deg, transparent, var(--ar-gold-2)); }
 .gc-hero-rule::after { transform: scaleX(-1); }
-.gc-hero-rule i { width: 10px; height: 10px; rotate: 45deg; background: var(--ar-emerald); box-shadow: 0 0 0 3px var(--ar-ivory), 0 0 0 4px var(--ar-gold); }
-.gc-hero .gc-intro { margin: 14px auto 0; max-width: 40ch; color: var(--ar-ink); font-size: 1.08rem; }
-.gc-crumbs { display: inline-flex; align-items: center; gap: 10px; margin-top: 22px; padding: 7px 18px; border-radius: 999px; background: #fff; box-shadow: inset 0 0 0 1px rgba(184, 145, 63, .45); font-size: .88rem; color: var(--gc-muted); white-space: nowrap; }
-.gc-crumbs a { color: var(--gc-muted); text-decoration: none; }
-.gc-crumbs a:hover { color: var(--ar-emerald); }
-.gc-crumbs [aria-current] { color: var(--ar-emerald-deep); font-weight: 700; }
+.gc-hero-rule i { width: 10px; height: 10px; rotate: 45deg; background: var(--ar-gold-2); box-shadow: 0 0 0 3px rgba(5, 42, 28, .9), 0 0 0 4px var(--ar-gold-2); }
+.gc-hero .gc-h1 em { background-image: linear-gradient(100deg, #d8b45e, #f7e6ae 45%, #caa24c 70%, #f7e6ae); }
+.gc-hero .gc-intro { margin: 14px auto 0; max-width: 40ch; color: rgba(251, 247, 236, .9); font-size: 1.08rem; }
+.gc-crumbs { display: inline-flex; align-items: center; gap: 10px; margin-top: 22px; padding: 7px 18px; border-radius: 999px; background: rgba(255, 255, 255, .08); box-shadow: inset 0 0 0 1px rgba(227, 197, 122, .5); font-size: .88rem; color: rgba(251, 247, 236, .7); white-space: nowrap; }
+.gc-crumbs a { color: rgba(251, 247, 236, .7); text-decoration: none; }
+.gc-crumbs a:hover { color: var(--ar-gold-2); }
+.gc-crumbs [aria-current] { color: var(--ar-gold-2); font-weight: 700; }
 
 /* ---------- About ---------- */
 .gc-about { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(32px, 6vw, 88px); align-items: center; }
@@ -339,7 +364,7 @@ a.ab-detail:hover i { transform: scale(1.1); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ab-in, .gc-hero-bg, .gc-hero-pattern svg, .gc-rosette, .gc-mark-glow, .gc-logo-wrap, .gc-logo-wrap::after, .gc-h1 em, .gc-h2 em { animation: none; }
+  .ab-in, .gc-hero-bg, .gc-hero-pattern svg, .gc-rosette, .gc-mark-glow, .gc-logo-wrap, .gc-logo-wrap::after, .gc-h1 em, .gc-h2 em, .gi-petal, .gc-petals, .gc-panel-art svg { animation: none; }
   .gc-hero-mark, .gc-hero-pattern { transform: none; translate: none; transition: none; }
   .gc-draw { animation: none; stroke-dashoffset: 0; }
   .gc-btn, .gc-btn svg, .gc-plan, .gc-about-media img { transition: none; }
