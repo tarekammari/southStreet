@@ -207,11 +207,12 @@ export default function AboutPage() {
       <main className="ip gc page-main" dir="rtl">
         {/* The Islamic lattice is the background of the whole page: fixed to the screen, the sections slide over it. */}
         <div className="gc-hero-pattern" aria-hidden><IslamicPattern /></div>
+        {/* The ring of calligraphy stays on screen above every section (computers only; on phones it frames the logo). */}
+        <div className="gc-ring-wrap" aria-hidden><CalligraphyRing className="gc-ring" /></div>
         {/* Hero: white, with a gold-and-green Islamic pattern at the edges, a turning ring
             of calligraphy on the right, the agency name in blue calligraphy and the logo crest.
             The crest and pattern follow the pointer; animations pause when the hero is off screen. */}
         <section ref={heroRef} className="gc-hero" onPointerMove={followPointer} onPointerLeave={resetPointer}>
-          <div className="gc-ring-wrap" aria-hidden><CalligraphyRing className="gc-ring" /></div>
           <div className="gc-hero-in">
             {/* Page title for screen readers and search engines (the hero shows no text block). */}
             <h1 className="sr-only">{about.hero.title} — {name.replace(/\s+(تور|تورز|tours?)$/i, '')}</h1>
