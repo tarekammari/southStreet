@@ -164,6 +164,8 @@ export default function ConnectApp() {
   const [standalone, setStandalone] = useState(true);
   const [updateReady, setUpdateReady] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  /** The sign-in window can be closed (X): the page then offers to open it again or go back to the site. */
+  const [loginOpen, setLoginOpen] = useState(true);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [live, setLive] = useState(false);
@@ -768,8 +770,14 @@ export default function ConnectApp() {
           <h1>{connectName(brand)}</h1>
           {/* No install before sign-in: the app is for account holders only. */}
           <p>رسائل ومكالمات صوتية بين المعتمرين وفريق الوكالة. سجّل الدخول بحسابك في {brand.short_name} لاستعمال التطبيق وتثبيته.</p>
+          {!loginOpen && (
+            <div className="cn-login-actions">
+              <button type="button" className="cn-sheet-btn cn-login-primary" onClick={() => setLoginOpen(true)}>تسجيل الدخول</button>
+              <a href="/" className="cn-sheet-btn">العودة إلى الموقع</a>
+            </div>
+          )}
         </div>
-        <LoginModal onClose={() => undefined} redirectTo="/connect" />
+        {loginOpen && <LoginModal onClose={() => setLoginOpen(false)} redirectTo="/connect" />}
       </div>
     );
   }

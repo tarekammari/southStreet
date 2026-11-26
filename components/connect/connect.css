@@ -197,6 +197,9 @@
 .cn-login-card img { width: 76px; height: 76px; border-radius: 20px; margin: 0 auto 10px; }
 .cn-login-card h1 { font-family: var(--font-cairo), 'Cairo', sans-serif; font-size: 1.4rem; font-weight: 900; color: var(--cn-brand-2); }
 .cn-login-card p { color: var(--cn-muted); font-size: 0.9rem; margin-top: 4px; }
+.cn-login-actions { display: grid; gap: 10px; margin-top: 20px; }
+.cn-login-actions .cn-sheet-btn { width: 100%; background: #fff; color: var(--cn-brand-2); text-decoration: none; }
+.cn-login-actions .cn-login-primary { background: var(--cn-brand); border-color: var(--cn-brand); color: #fff; }
 
 /* ---------- phones: one pane at a time ---------- */
 @media (max-width: 760px) {
