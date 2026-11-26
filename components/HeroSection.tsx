@@ -2,7 +2,8 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, BedDouble, ChevronDown, LayoutGrid } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
+import HeroShowcase from '@/components/about/HeroShowcase';
 import { motion } from 'framer-motion';
 import { publicList } from '@/lib/public-catalog';
 import { PageContentRow } from '@/lib/page-content';
@@ -247,13 +248,8 @@ export function HeroOfferCopy() {
             <p className="ho-price"><span>السعر عند الطلب</span></p>
           )}
           <div className="ho-actions">
-            <Link href={offerHref(offer)} className="ho-btn is-primary">
-              <span>{offer.kind === 'tourism' ? 'تفاصيل الرحلة' : 'ابدأ الحجز'}</span>
-              <i className="ho-btn-go" aria-hidden><ArrowLeft /></i>
-            </Link>
-            <Link href="/packages" className="ho-btn is-ghost">
-              <LayoutGrid aria-hidden /> <span>جميع الرحلات والعروض</span>
-            </Link>
+            <Link href={offerHref(offer)} className="ho-btn is-primary"><span>{offer.kind === 'tourism' ? 'تفاصيل الرحلة' : 'ابدأ الحجز'}</span></Link>
+            <Link href="/packages" className="ho-btn is-gold"><span>جميع الرحلات والعروض</span></Link>
           </div>
           {offer.alsoTrip ? (
             <Link href={`/packages/${encodeURIComponent(offer.alsoTrip.id)}`} className="ho-also">
@@ -267,13 +263,8 @@ export function HeroOfferCopy() {
           <h1 className="ho-title">لا توجد رحلات متاحة حالياً</h1>
           <p className="ho-sub">نُحضّر برامج العمرة والرحلات القادمة. يمكنك حجز فندقك الآن في أي وجهة، أو مراسلتنا ليصلك أول برنامج.</p>
           <div className="ho-actions">
-            <Link href="/hotels" className="ho-btn is-primary">
-              <BedDouble aria-hidden /> <span>احجز فندقاً</span>
-              <i className="ho-btn-go" aria-hidden><ArrowLeft /></i>
-            </Link>
-            <Link href="/packages" className="ho-btn is-ghost">
-              <LayoutGrid aria-hidden /> <span>كل البرامج</span>
-            </Link>
+            <Link href="/hotels" className="ho-btn is-primary"><span>احجز فندقاً</span></Link>
+            <Link href="/packages" className="ho-btn is-gold"><span>كل البرامج</span></Link>
           </div>
         </>
       )}
@@ -294,7 +285,7 @@ export function HeroOfferCopy() {
   );
 }
 
-export default function HeroSection({ content: _content, showCopy = true }: { content?: PageContentRow[]; showCopy?: boolean }) {
+export default function HeroSection({ content: _content, showCopy = true, stats = false }: { content?: PageContentRow[]; showCopy?: boolean; /** The strip of agency numbers under the album. */ stats?: boolean }) {
   const introDone = useIntroDone();
   /** undefined while the catalog loads, null when no trip is open. */
   const [offer, setOffer] = useState<HeroOffer | null | undefined>(undefined);
@@ -460,6 +451,8 @@ export default function HeroSection({ content: _content, showCopy = true }: { co
         </div>
         ) : null}
       </div>
+
+      {stats ? <div className="hero-stats-row" dir="rtl"><HeroShowcase /></div> : null}
 
       <button
         type="button"

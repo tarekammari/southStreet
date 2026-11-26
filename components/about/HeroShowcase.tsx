@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { CountUp } from '@/components/about/effects';
 import { publicList, publicReviews } from '@/lib/public-catalog';
+import './agency-hero.css';
 
 /**
  * Bottom of the agency hero: a strip of real numbers from the catalogue
