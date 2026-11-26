@@ -69,15 +69,19 @@ export const HOTEL_TOOLS: SakhrTool[] = [
   {
     name: 'hotels_search',
     description:
-      'Search hotels for a hotel-only stay: destination (country code TR/MY/EG/TN/ES/GB/SA, a city or a hotel name), dates and rooms. Returns each hotel with the cheapest total for the whole stay in DZD, meal plan, free cancellation and a link. Ask for the dates if the user did not give them.',
+      'Search bookable hotels for a hotel-only stay: destination (country code TR/MY/EG/TN/ES/GB/SA/DZ, a country or city name in any language, or a hotel name), dates and rooms. Returns each hotel with the cheapest total for the whole stay in DZD, meal plan, free cancellation and a link. Call it right away: if the user gave no dates, leave them out and it uses example dates (say so and offer to use theirs).',
     parameters: {
       type: 'object',
-      properties: { destination: { type: 'string', description: 'Country code, city or hotel name.' }, ...STAY_PARAMS },
-      required: ['destination', 'check_in', 'check_out'],
+      properties: { destination: { type: 'string', description: 'Country code (best), country or city name, or hotel name.' }, ...STAY_PARAMS },
+      required: ['destination'],
     },
     roles: EVERYONE,
     kind: 'read',
-    run: async (ctx, a) => {
+    run: async (ctx, input) => {
+      // No dates yet: search a 3-night stay starting in a week, so the answer can show real hotels and prices.
+      const datesAssumed = !input?.check_in || !input?.check_out;
+      const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
+      const a = datesAssumed ? { ...input, check_in: input?.check_in || day(7), check_out: input?.check_out || day(10) } : input;
       const rooms = roomsArg(a);
       const res = await callRoute(hotelSearchGET as any, ctx, {
         path: '/api/hotels/search',
@@ -100,6 +104,7 @@ export const HOTEL_TOOLS: SakhrTool[] = [
         ok: true,
         data: {
           count: hotels.length,
+          ...(datesAssumed ? { dates_assumed: `${a.check_in} → ${a.check_out} (example dates: say so and ask for the real ones)` } : {}),
           hotels,
           search_page: `/hotels/search?${new URLSearchParams({ dest: a.destination, checkIn: a.check_in, checkOut: a.check_out, rooms: encodeRooms(rooms) })}`,
         },

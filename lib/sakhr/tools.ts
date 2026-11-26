@@ -414,25 +414,41 @@ export const SAKHR_TOOLS: SakhrTool[] = [
   },
   {
     name: 'list_hotels',
-    description: 'List the agency partner hotels in Makkah and Madinah with category, distance from the Haram and services.',
-    parameters: { type: 'object', properties: { city: { type: 'string', enum: ['MAKKAH', 'MADINAH'] } } },
+    description: 'List the agency hotels in every country (Makkah, Madinah, Malaysia, Turkey, Egypt, Tunisia, Spain, London, Algeria…) with country, city, stars, category, distance from the Haram, services and page link. Optional filters: country (code or name) and city. Use it to say which hotels exist; use hotels_search for prices on dates.',
+    parameters: {
+      type: 'object',
+      properties: {
+        country: { type: 'string', description: 'Optional country code (SA, MY, TR, EG, TN, ES, GB, DZ) or name.' },
+        city: { type: 'string', description: 'Optional city (e.g. MAKKAH, MADINAH, كوالالمبور, إسطنبول).' },
+      },
+    },
     roles: EVERYONE,
     kind: 'read',
     run: async (ctx, args) => {
       // Visitors and clients only hear about hotels shown on the site; staff see all.
       const res = await callRoute(hotelsGET as any, ctx, { path: '/api/admin/hotels', query: { site: STAFF.includes(ctx.role) ? undefined : 1 } });
       if (!res.ok || !Array.isArray(res.data)) return fail(res);
-      const hotels = (res.data as any[])
-        .filter((h) => !args?.city || String(h.city).toUpperCase() === args.city)
-        .map((h) => ({
-          id: h.hotel_id,
-          name: h.name,
-          city: h.city,
-          category: h.category,
-          distance: h.distance_from_haram,
-          services: clip(h.services),
-        }));
-      return { ok: true, data: { hotels } };
+      const norm = (v: unknown) => String(v || '').trim().toLowerCase().replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه');
+      const COUNTRY: Record<string, string> = { malaysia: 'MY', 'ماليزيا': 'MY', turkey: 'TR', 'تركيا': 'TR', egypt: 'EG', 'مصر': 'EG', tunisia: 'TN', 'تونس': 'TN', spain: 'ES', 'اسبانيا': 'ES', uk: 'GB', london: 'GB', 'لندن': 'GB', 'بريطانيا': 'GB', saudi: 'SA', 'السعوديه': 'SA', algeria: 'DZ', 'الجزائر': 'DZ' };
+      const wantCountry = args?.country ? COUNTRY[norm(args.country)] || String(args.country).toUpperCase() : '';
+      const wantCity = norm(args?.city);
+      const all = (res.data as any[]).filter((h) => {
+        if (wantCountry && String(h.country || 'SA').toUpperCase() !== wantCountry) return false;
+        if (wantCity && ![h.city, h.city_label, h.area].some((v) => norm(v).includes(wantCity))) return false;
+        return true;
+      });
+      const hotels = all.slice(0, 30).map((h) => ({
+        id: h.hotel_id,
+        name: h.name,
+        country: h.country,
+        city: h.city_label || h.city,
+        stars: h.stars || undefined,
+        category: h.category,
+        distance: h.distance_from_haram || undefined,
+        services: clip(h.services),
+        page: `/hotels/${encodeURIComponent(h.hotel_id)}`,
+      }));
+      return { ok: true, data: { count: all.length, shown: hotels.length, hotels } };
     },
   },
   {

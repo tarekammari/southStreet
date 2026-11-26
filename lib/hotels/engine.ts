@@ -169,8 +169,31 @@ function testOffers(h: TestHotel, s: HotelSearch): RoomOffer[][] {
  * Search
  * ------------------------------------------------------------------ */
 
+/** Country names people (and the assistant) type in other languages → the country code. */
+const COUNTRY_ALIASES: Record<string, string> = {
+  malaysia: 'MY', malaisie: 'MY', 'مالیزیا': 'MY', 'ماليزيا': 'MY',
+  turkey: 'TR', turkiye: 'TR', 'türkiye': 'TR', turquie: 'TR', 'تركيا': 'TR',
+  egypt: 'EG', egypte: 'EG', 'égypte': 'EG', 'مصر': 'EG',
+  tunisia: 'TN', tunisie: 'TN', 'تونس': 'TN',
+  spain: 'ES', espagne: 'ES', 'españa': 'ES', 'اسبانيا': 'ES', 'إسبانيا': 'ES',
+  uk: 'GB', 'united kingdom': 'GB', england: 'GB', britain: 'GB', 'royaume-uni': 'GB', 'بريطانيا': 'GB', 'انجلترا': 'GB', 'إنجلترا': 'GB',
+  'saudi arabia': 'SA', saudi: 'SA', 'arabie saoudite': 'SA', 'السعوديه': 'SA', 'السعودية': 'SA',
+  algeria: 'DZ', 'algérie': 'DZ', algerie: 'DZ', 'الجزائر': 'DZ',
+};
+/** City names in Latin letters → the Arabic label used in the catalogue. */
+const CITY_ALIASES: Record<string, string> = {
+  'kuala lumpur': 'كوالالمبور', penang: 'بينانغ', langkawi: 'لنكاوي', malacca: 'ملاكا', melaka: 'ملاكا', 'genting': 'جنتنج',
+  istanbul: 'إسطنبول', antalya: 'أنطاليا', bursa: 'بورصة', trabzon: 'طرابزون', cairo: 'القاهرة', alexandria: 'الإسكندرية',
+  'sharm el sheikh': 'شرم الشيخ', hurghada: 'الغردقة', tunis: 'تونس', sousse: 'سوسة', hammamet: 'الحمامات', djerba: 'جربة', monastir: 'المنستير',
+  madrid: 'مدريد', barcelona: 'برشلونة', seville: 'إشبيلية', london: 'لندن', makkah: 'مكة', mecca: 'مكة', medina: 'المدينة', madinah: 'المدينة', algiers: 'الجزائر', oran: 'وهران',
+};
+
 function matchesDest(h: HotelRow, dest: string): boolean {
-  const d = normAr(dest);
+  const raw = String(dest || '').trim().toLowerCase().replace(/^(في|الى|إلى|in|to|à)\s+/, '');
+  const code = COUNTRY_ALIASES[raw] || COUNTRY_ALIASES[normAr(raw)];
+  if (code) return String(h.country).toUpperCase() === code;
+  const city = CITY_ALIASES[raw];
+  const d = normAr(city || raw);
   if (!d) return true;
   if (normAr(h.country) === d) return true;
   return [h.city, h.city_label, h.name, h.area, h.country_label].some((v) => normAr(v).includes(d));
