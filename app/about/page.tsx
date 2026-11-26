@@ -39,7 +39,6 @@ import './about.css';
  * admin has not chosen a photo of their own.
  */
 const PHOTOS = {
-  story: '/images/maka06.webp',
   cta: '/images/section2_09.webp',
 };
 
@@ -108,7 +107,6 @@ export default function AboutPage() {
   const intro = about.hero.text || agency.description || 'وكالة متخصصة في رحلات العمرة والحج، بنفس الوجوه ونفس العناية من الحجز حتى العودة.';
   const story = about.story;
   // An admin's own photo wins; otherwise the built-in one.
-  const storyImg = story.image !== ABOUT_DEFAULTS.story.image ? story.image : PHOTOS.story;
   const lead = team.find((m) => photoOf(m)) || team[0];
 
   // Programs still open (or opening soon), the featured one in the middle.
@@ -159,13 +157,11 @@ export default function AboutPage() {
         <AgencyHeroLayers />
         <AgencyHero layers="page" title={about.hero.title} />
 
-        {/* About us: photo + story, a short checklist and the person behind it */}
+        {/* About us: the story on a see-through card over the page pattern (no photo),
+            a short checklist and the person behind it */}
         <section className="gc-section">
-          <div className="ip-wrap gc-about">
-            <div className="gc-about-media ip-reveal">
-              <img src={storyImg} alt="" loading="lazy" decoding="async" />
-            </div>
-            <div className="gc-about-text">
+          <div className="ip-wrap gc-about is-card">
+            <div className="gc-about-text gc-about-card ip-reveal">
               <span className="gc-tag ip-reveal"><Leaf aria-hidden /> من نحن</span>
               <h2 className="gc-h2 ip-reveal"><Accent text={story.title === ABOUT_DEFAULTS.story.title ? `رفقاؤكم في رحلة العمر` : story.title} /></h2>
               <p className="gc-text ip-reveal">{story.text}</p>

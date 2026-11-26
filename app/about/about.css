@@ -248,3 +248,31 @@ a.ab-detail:hover i { transform: scale(1.1); }
   .gc-about-media img { transform: none; }
   .ab-progress { display: none; }
 }
+
+/* «من نحن» without a photo: the text sits on an ivory, see-through card that lets the
+   page pattern show through, with a thin gold frame. */
+.gc-about.is-card { display: block; }
+.gc-about-card {
+  position: relative; max-width: 860px; margin: 0 auto;
+  padding: clamp(28px, 5vw, 56px) clamp(22px, 5vw, 64px);
+  border-radius: 28px; text-align: center;
+  background: linear-gradient(180deg, rgba(251, 247, 236, .86), rgba(255, 255, 255, .72));
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+  border: 1px solid rgba(184, 145, 63, .35);
+  box-shadow: 0 30px 70px -40px rgba(11, 61, 42, .45), inset 0 0 0 6px rgba(255, 255, 255, .55), inset 0 0 0 7px rgba(184, 145, 63, .18);
+}
+.gc-about-card::before {
+  content: ""; position: absolute; top: -1px; left: 50%; width: 120px; height: 3px; transform: translateX(-50%);
+  border-radius: 0 0 3px 3px; background: linear-gradient(90deg, transparent, var(--ar-gold), transparent);
+}
+.gc-about-card .gc-text { max-width: 62ch; margin-inline: auto; }
+.gc-about-card .gc-checks { flex-direction: row; flex-wrap: wrap; justify-content: center; gap: 10px 14px; }
+.gc-about-card .gc-checks li {
+  padding: 8px 16px 8px 18px; border-radius: 999px;
+  background: rgba(255, 255, 255, .8); border: 1px solid rgba(184, 145, 63, .25);
+}
+.gc-about-card .gc-person { justify-content: center; border-top-color: rgba(184, 145, 63, .25); text-align: right; }
+@media (max-width: 640px) {
+  .gc-about-card { border-radius: 22px; }
+  .gc-about-card .gc-checks { flex-direction: column; align-items: stretch; }
+}
