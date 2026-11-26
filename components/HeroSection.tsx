@@ -676,7 +676,7 @@ function PostcardCoverFlow({ cards, start = 0 }: { cards: readonly Postcard[]; s
                 }}
               >
                 <div className="hero-postcard-photo-wrap">
-                  <img src={card.src} alt={card.alt} className="hero-postcard-photo" draggable={false} />
+                  <img src={card.src} alt={card.alt} className="hero-postcard-photo" draggable={false} loading="lazy" decoding="async" />
                 </div>
                 <div className="hero-album-label" dir="rtl">
                   <p className="hero-postcard-place">{card.place}</p>
