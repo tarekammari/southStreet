@@ -9882,6 +9882,13 @@ body.modal-open .sakhr-panel-shell {
   animation: bkbPulse 2s ease-in-out infinite;
 }
 @keyframes bkbPulse { 50% { box-shadow: 0 0 0 5px rgba(249, 115, 22, 0.18); } }
+.bkb-card:not(.is-skeleton) { min-height: 0; }
+.bkb-card.is-skeleton { min-height: 5.5rem; }
+.bkb-total { display: flex; align-items: baseline; gap: 0.35rem; }
+.bkb-total strong { font-size: 1.6rem; font-weight: 900; line-height: 1; color: var(--k); font-variant-numeric: tabular-nums; }
+.bkb-total small { font-size: 0.72rem; font-weight: 700; color: #64748b; }
+.bkb-more { justify-self: start; font-size: 0.74rem; font-weight: 800; color: #64748b; padding: 0.1rem 0.2rem; }
+.bkb-more:hover { color: #0f172a; text-decoration: underline; }
 .bkb-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.35rem; }
 .bkb-stats > span { display: flex; flex-direction: column; align-items: flex-start; gap: 0.1rem; }
 .bkb-stats strong { font-size: 1.35rem; font-weight: 900; line-height: 1; color: var(--k); font-variant-numeric: tabular-nums; }

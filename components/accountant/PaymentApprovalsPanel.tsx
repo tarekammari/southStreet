@@ -145,15 +145,22 @@ export default function PaymentApprovalsPanel({ onChanged }: { onChanged?: () =>
   };
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3" dir="rtl">
+    <section className={`rounded-2xl border border-slate-200 bg-white ${data.open.length ? 'p-4 space-y-3' : 'px-4 py-3 space-y-2'}`} dir="rtl">
       <header className="flex flex-wrap items-center gap-2">
         <BadgeCheck className="w-5 h-5 text-emerald-600" aria-hidden />
-        <h3 className="font-bold text-slate-900">اعتماد الدفعات</h3>
-        <span className="text-xs text-slate-500">
-          فوق {fmtMoney(data.threshold)} يوافق المشرف العام
-        </span>
+        <h3 className="font-bold text-slate-900" title={`فوق ${fmtMoney(data.threshold)} يوافق المشرف العام`}>اعتماد الدفعات</h3>
+        {data.open.length ? (
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">{data.open.length}</span>
+        ) : (
+          <span className="text-xs text-slate-400">لا شيء بانتظارك</span>
+        )}
         {isSuper ? (
-          <button type="button" className="text-xs font-bold text-emerald-700 underline" onClick={() => { setText(String(data.threshold)); setDialog({ kind: 'threshold' }); }}>
+          <button
+            type="button"
+            className="text-xs text-slate-400 hover:text-emerald-700"
+            title={`الحد الحالي: فوق ${fmtMoney(data.threshold)} يوافق المشرف العام`}
+            onClick={() => { setText(String(data.threshold)); setDialog({ kind: 'threshold' }); }}
+          >
             تعديل الحد
           </button>
         ) : null}
@@ -165,9 +172,7 @@ export default function PaymentApprovalsPanel({ onChanged }: { onChanged?: () =>
       {error ? <p className="text-sm text-rose-700" role="alert">{error}</p> : null}
       {flash ? <p className="text-sm text-emerald-700">{flash}</p> : null}
 
-      {data.open.length === 0 ? (
-        <p className="text-sm text-slate-500">لا توجد دفعات بانتظار الاعتماد.</p>
-      ) : (
+      {data.open.length === 0 ? null : (
         <ul className="divide-y divide-slate-100">
           {data.open.map((r) => (
             <li key={r.id} className="py-3 flex flex-col gap-2">

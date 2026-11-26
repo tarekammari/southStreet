@@ -70,6 +70,8 @@ export default function BookingKindsBoard({
 }) {
   const [own, setOwn] = useState<Lists | null>(null);
   const [trips, setTrips] = useState<Package[] | null>(null);
+  /** The breakdown (new / deposit / confirmed) and the money: shown on demand. */
+  const [details, setDetails] = useState(false);
 
   useEffect(() => {
     if (lists) return;
@@ -131,35 +133,42 @@ export default function BookingKindsBoard({
                     <b>{meta.plural}</b>
                     {lead > 0 ? <span className="bkb-alert">{lead} {role === 'accountant' ? 'عربون' : 'جديد'}</span> : null}
                   </span>
-                  <span className="bkb-stats">
-                    <span><strong>{s.fresh}</strong><small>طلبات جديدة</small></span>
-                    <span><strong>{s.deposit}</strong><small>بانتظار العربون</small></span>
-                    <span><strong>{s.confirmed}</strong><small>مؤكدة</small></span>
-                  </span>
-                  <span className="bkb-money">
-                    <span>القيمة <b>{money(s.value)}</b></span>
-                    <span>المحصّل <b>{money(s.collected)}</b></span>
-                  </span>
-                  {s.value > 0 ? (
-                    <span className="bkb-bar" aria-hidden><i style={{ width: `${Math.min(100, Math.round((s.collected / s.value) * 100))}%` }} /></span>
-                  ) : null}
+                  {details ? (
+                    <>
+                      <span className="bkb-stats">
+                        <span><strong>{s.fresh}</strong><small>طلبات جديدة</small></span>
+                        <span><strong>{s.deposit}</strong><small>بانتظار العربون</small></span>
+                        <span><strong>{s.confirmed}</strong><small>مؤكدة</small></span>
+                      </span>
+                      <span className="bkb-money">
+                        <span>القيمة <b>{money(s.value)}</b></span>
+                        <span>المحصّل <b>{money(s.collected)}</b></span>
+                      </span>
+                      {s.value > 0 ? (
+                        <span className="bkb-bar" aria-hidden><i style={{ width: `${Math.min(100, Math.round((s.collected / s.value) * 100))}%` }} /></span>
+                      ) : null}
+                    </>
+                  ) : (
+                    <span className="bkb-total"><strong>{s.fresh + s.deposit + s.confirmed}</strong><small>حجز</small></span>
+                  )}
                 </button>
               );
             })
           : [0, 1, 2].map((i) => <span key={i} className="bkb-card is-skeleton" aria-hidden />)}
       </div>
+      {data ? (
+        <button type="button" className="bkb-more" onClick={() => setDetails((d) => !d)} aria-expanded={details}>
+          {details ? 'إخفاء التفاصيل' : 'التفاصيل والمبالغ'}
+        </button>
+      ) : null}
 
+      {trips && trips.length ? (
       <div className="bkb-trips">
         <div className="bkb-trips-head">
           <Plane aria-hidden />
           <b>الرحلات السياحية المفتوحة للحجز</b>
           <Link href="/packages?kind=tourism" className="bkb-trips-all">كل الرحلات <ArrowLeft aria-hidden /></Link>
         </div>
-        {trips === null ? (
-          <p className="bkb-muted">جاري التحميل…</p>
-        ) : trips.length === 0 ? (
-          <p className="bkb-muted">لا رحلة سياحية مفتوحة الآن — أضف رحلة من «البرامج» واختر نوعها «رحلة سياحية» لتظهر في الصفحة الرئيسية.</p>
-        ) : (
           <ul className="bkb-trip-list">
             {trips.slice(0, 6).map((p) => {
               const fill = seatFillPercent(p);
@@ -174,8 +183,8 @@ export default function BookingKindsBoard({
               );
             })}
           </ul>
-        )}
       </div>
+      ) : null}
     </section>
   );
 }

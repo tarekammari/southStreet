@@ -266,12 +266,12 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
     <>
       <div className={`${compact ? '' : 'luxury-card p-4 sm:p-5'} pipe space-y-4 animate-fade-up`} dir="rtl">
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <h2 className="text-base font-bold font-cairo text-slate-900">مسار الحجوزات — عمرة، رحلات، فنادق</h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              العميل يطلب ← المشرف يقبل ← المحاسب يسجّل العربون فيتأكد الحجز ويُضاف المسافر لمجموعة رحلته مع المرشد
-            </p>
-          </div>
+          <h2
+            className="text-base font-bold font-cairo text-slate-900"
+            title="العميل يطلب ← المشرف يقبل ← المحاسب يسجّل العربون فيتأكد الحجز ويُضاف المسافر لمجموعة رحلته مع المرشد"
+          >
+            الحجوزات
+          </h2>
           <button type="button" className="pipe-btn" onClick={load} disabled={loading} aria-label="تحديث">
             <RefreshCw className={`w-3.5 h-3.5${loading ? ' animate-spin' : ''}`} /> تحديث
           </button>
@@ -292,14 +292,11 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
                     setOpenId('');
                   }}
                   className={`pipe-step${on ? ' is-on' : ''}${s.mine && s.count > 0 ? ' is-mine' : ''}`}
+                  title={`${s.step}. ${s.owner}${s.mine && s.count > 0 ? ' · دورك' : ''}`}
                 >
                   <span className="pipe-step-icon"><Icon className="w-4 h-4" aria-hidden /></span>
                   <span className="pipe-step-text">
                     <span className="pipe-step-label">{s.label}</span>
-                    <span className="pipe-step-owner">
-                      {s.step}. {s.owner}
-                      {s.mine && s.count > 0 ? ' · دورك' : ''}
-                    </span>
                   </span>
                   <span className="pipe-step-count">{s.count}</span>
                 </button>
@@ -318,6 +315,8 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
           }}
         />
 
+        {/* The kind cards above filter the list (click again for all); this chip row only shows while a kind is picked. */}
+        {kind !== 'all' ? (
         <div className="pipe-kinds" role="tablist" aria-label="نوع الحجز">
           {kindFilters.map((f) => {
             const Icon = f.id === 'all' ? Inbox : KIND_META[f.id].icon;
@@ -340,6 +339,7 @@ export default function AgencyPendingBookings({ compact }: { compact?: boolean }
             );
           })}
         </div>
+        ) : null}
 
         {error ? <p className="book-error" role="alert">{error}</p> : null}
         {flash ? <p className="pipe-flash" role="status">{flash}</p> : null}

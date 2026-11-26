@@ -183,10 +183,10 @@ export default function OwnerSecuritySetup() {
         </>
       ) : (
         <>
-          <span className="osec-icon"><ShieldCheck className="w-7 h-7" /></span>
-          <div className="osec-copy">
+          <span className="osec-icon"><ShieldCheck className="w-5 h-5" /></span>
+          <div className="osec-copy" title="أضف مفتاحاً احتياطياً على الكمبيوتر (Windows Hello) من «أمان الحساب»، حتى تبقى قادراً على الدخول إن تعطّل الهاتف.">
             <strong>حسابك محمي ببصمتك ✓</strong>
-            <p>نصيحة: أضف مفتاحاً احتياطياً على الكمبيوتر (Windows Hello) من «أمان الحساب»، حتى تبقى قادراً على الدخول إن تعطّل الهاتف.</p>
+            <p>أضف مفتاحاً احتياطياً من «أمان الحساب».</p>
           </div>
           <button type="button" className="osec-close" onClick={dismissBackup} aria-label="إخفاء"><X className="w-4 h-4" /></button>
         </>
