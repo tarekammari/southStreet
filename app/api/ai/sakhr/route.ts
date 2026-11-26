@@ -4,6 +4,7 @@ import { toolGetAgencySettings } from '@/lib/ai-tools';
 import { resolveRequestIp } from '@/lib/security-threats';
 import { runSakhr, SakhrNotConfiguredError, type AgentReply, type ChatTurn } from '@/lib/sakhr/agent';
 import { cacheGet, cacheSet, normalizeQuestion, PUBLIC_TOOLS, recordMetric, SakhrBusyError, withSlot } from '@/lib/sakhr/capacity';
+import { recall, remember } from '@/lib/sakhr/memory';
 import type { Who } from '@/lib/sakhr/tools';
 import { getBrand } from '@/lib/brand-server';
 
@@ -13,8 +14,13 @@ import { getBrand } from '@/lib/brand-server';
  * they come back as confirmation cards handled by ./action.
  * Capacity (lib/sakhr/capacity.ts): one message per user at a time and a fair
  * queue for everyone; visitors' common first questions are answered from a
- * 5-minute cache; every answer is measured (npm run sakhr:stats).
+ * 5-minute cache, then from the answer memory (lib/sakhr/memory.ts: the same
+ * question in other words, kept until the agency's data changes) without
+ * calling the AI service; every answer is measured (npm run sakhr:stats).
  */
+
+/** Read-only public tools whose answers may be kept for other visitors. */
+const MEMORY_TOOLS = new Set([...PUBLIC_TOOLS, 'hotel_destinations', 'hotels_search', 'hotel_rooms']);
 
 export const dynamic = 'force-dynamic';
 // Gemini + a few tool rounds; Vercel Hobby allows up to 60 s.
@@ -70,6 +76,12 @@ export async function POST(req: Request) {
       recordMetric({ role, provider: 'cache', ms: 0, tokens: 0, rounds: 0, tools: [], cached: true, ok: true });
       return NextResponse.json({ ...hit, role });
     }
+    const known = recall<Omit<AgentReply, 'meta'>>(message, voice);
+    if (known) {
+      cacheSet(cacheKey, known);
+      recordMetric({ role, provider: 'memory', ms: 0, tokens: 0, rounds: 0, tools: [], cached: true, ok: true });
+      return NextResponse.json({ ...known, role });
+    }
   }
 
   const agency = toolGetAgencySettings();
@@ -100,8 +112,11 @@ export async function POST(req: Request) {
       cached: false,
       ok: true,
     });
-    if (cacheKey && reply.reply && !reply.actions.length && !reply.clientActions.length && (meta?.tools || []).every((t) => PUBLIC_TOOLS.has(t))) {
-      cacheSet(cacheKey, reply);
+    if (cacheKey && reply.reply && !reply.actions.length && !reply.clientActions.length) {
+      const tools = meta?.tools || [];
+      if (tools.every((t) => PUBLIC_TOOLS.has(t))) cacheSet(cacheKey, reply);
+      // Only answers built from public data (or none) are kept; a failed tool is not a fact to repeat.
+      if (tools.every((t) => MEMORY_TOOLS.has(t))) remember(message, voice, reply, tools);
     }
     return NextResponse.json({ ...reply, role });
   } catch (error: any) {

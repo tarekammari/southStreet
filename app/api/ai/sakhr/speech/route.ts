@@ -1,4 +1,6 @@
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import { spawn } from 'child_process';
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
@@ -44,6 +46,39 @@ function accentStyle(): string {
 const MAX_CHARS = 600;
 const WINDOW_MS = 5 * 60 * 1000;
 const CACHE_MAX = 200;
+/** Spoken sentences kept on disk: the same sentence is never sent to a voice service twice. */
+const DISK_DIR = path.join(process.cwd(), '.tts-cache');
+const DISK_MAX_FILES = 4000;
+let diskWrites = 0;
+
+function diskGet(id: string): { audio: Buffer; type: string } | null {
+  for (const [ext, type] of [['mp3', 'audio/mpeg'], ['wav', 'audio/wav']] as const) {
+    const file = path.join(DISK_DIR, `${id}.${ext}`);
+    try {
+      return { audio: fs.readFileSync(file), type };
+    } catch {
+      /* not there */
+    }
+  }
+  return null;
+}
+
+function diskPut(id: string, out: { audio: Buffer; type: string }) {
+  const file = path.join(DISK_DIR, `${id}.${out.type === 'audio/mpeg' ? 'mp3' : 'wav'}`);
+  fs.promises
+    .mkdir(DISK_DIR, { recursive: true })
+    .then(() => fs.promises.writeFile(file, out.audio))
+    .then(async () => {
+      // Now and then keep the folder small: the oldest files go first.
+      if (++diskWrites % 100) return;
+      const names = await fs.promises.readdir(DISK_DIR);
+      if (names.length <= DISK_MAX_FILES) return;
+      const aged = await Promise.all(names.map(async (n) => ({ n, t: (await fs.promises.stat(path.join(DISK_DIR, n))).mtimeMs })));
+      aged.sort((a, b) => a.t - b.t);
+      await Promise.all(aged.slice(0, names.length - DISK_MAX_FILES + 500).map((f) => fs.promises.unlink(path.join(DISK_DIR, f.n)).catch(() => undefined)));
+    })
+    .catch(() => undefined);
+}
 /** One sentence must not hold the conversation: give up and let the next voice (or the device) speak. */
 const CALL_TIMEOUT_MS = 9_000;
 
@@ -208,11 +243,12 @@ export async function POST(req: NextRequest) {
   const voice = process.env.SAKHR_VOICE?.trim() || 'Charon';
   const id = crypto.createHash('sha256').update(`${voice}|${accentStyle()}|${text}`).digest('hex');
   const headers = (type: string) => ({ 'Content-Type': type, 'Cache-Control': 'private, max-age=86400' });
-  const cached = cache.get(id);
+  const cached = cache.get(id) || diskGet(id);
   if (cached) {
     cache.delete(id);
     cache.set(id, cached);
-    return new NextResponse(new Uint8Array(cached.audio), { headers: headers(cached.type) });
+    if (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value as string);
+    return new NextResponse(new Uint8Array(cached.audio), { headers: { ...headers(cached.type), 'X-Voice': 'saved' } });
   }
 
   // Only uncached audio counts against the limit (replays are free).
@@ -230,6 +266,7 @@ export async function POST(req: NextRequest) {
       const out = await toMp3(wav);
       cache.set(id, out);
       if (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value as string);
+      diskPut(id, out);
       return new NextResponse(new Uint8Array(out.audio), { headers: { ...headers(out.type), 'X-Voice': p.id, 'X-Voice-Ms': String(Date.now() - started) } });
     } catch (error: any) {
       const status = Number(error?.status) || 0;

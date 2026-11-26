@@ -60,3 +60,5 @@ logs/
 
 # Resized photo copies made by /api/staff-image?w=
 .image-cache/
+# Spoken sentences kept by /api/ai/sakhr/speech
+.tts-cache/
