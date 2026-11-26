@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -21,7 +21,7 @@ import TestimonialsSection from '@/components/TestimonialsSection';
 import { initialOf, photoOf, type MorshidRow } from '@/components/AboutSection';
 import { useReveal } from '@/components/info/useReveal';
 import { CountUp, ScrollProgress } from '@/components/about/effects';
-import { CalligraphyRing, IslamicPattern, IslamicRosette } from '@/components/about/IslamicOrnament';
+import AgencyHero, { AgencyHeroLayers } from '@/components/about/AgencyHero';
 import { useAgencyInfo } from '@/components/social/useAgencyInfo';
 import { SOCIAL_ICON } from '@/components/social/SocialIcons';
 import { socialProfiles } from '@/lib/social';
@@ -73,46 +73,6 @@ function Accent({ text, words = 2 }: { text: string; words?: number }) {
   );
 }
 
-/**
- * Pointer position over the hero as --hx / --hy (-0.5 … 0.5), once per frame.
- * CSS turns these into the logo tilt, its light and the pattern parallax.
- */
-let pointerFrame = 0;
-function followPointer(e: React.PointerEvent<HTMLElement>) {
-  if (e.pointerType !== 'mouse') return;
-  const el = e.currentTarget;
-  const { clientX, clientY } = e;
-  cancelAnimationFrame(pointerFrame);
-  pointerFrame = requestAnimationFrame(() => {
-    const r = el.getBoundingClientRect();
-    el.style.setProperty('--hx', ((clientX - r.left) / r.width - 0.5).toFixed(3));
-    el.style.setProperty('--hy', ((clientY - r.top) / r.height - 0.5).toFixed(3));
-  });
-}
-function resetPointer(e: React.PointerEvent<HTMLElement>) {
-  cancelAnimationFrame(pointerFrame);
-  e.currentTarget.style.setProperty('--hx', '0');
-  e.currentTarget.style.setProperty('--hy', '0');
-}
-
-/** Harakat for words that often appear in agency names (calligraphy looks bare without them). */
-const TASHKEEL: Record<string, string> = {
-  'وكالة': 'وَكَالَة',
-  'رزاق': 'رَزَّاق',
-  'هبلة': 'هَبْلَة',
-  'للسياحة': 'لِلسِّيَاحَة',
-  'والأسفار': 'وَالأَسْفَار',
-  'السفر': 'السَّفَر',
-};
-/** The agency name for the calligraphy line: no trailing "تور", with harakat where known. */
-function calligraphyName(name: string): string {
-  return name
-    .replace(/\s+(تور|تورز|tours?)$/i, '')
-    .split(/\s+/)
-    .map((w) => TASHKEEL[w] || w)
-    .join(' ');
-}
-
 /** Staggered reveal delay for the n-th item of a list. */
 const delay = (i: number, step = 90) => ({ '--d': `${i * step}ms` }) as React.CSSProperties;
 
@@ -141,15 +101,6 @@ export default function AboutPage() {
 
   useReveal();
 
-  // Pause the hero's loops while it is off screen (no work for animations nobody sees).
-  const heroRef = useRef<HTMLElement>(null);
-  useEffect(() => {
-    const el = heroRef.current;
-    if (!el || !('IntersectionObserver' in window)) return;
-    const io = new IntersectionObserver(([entry]) => el.classList.toggle('is-off', !entry.isIntersecting));
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
   const profiles = socialProfiles(agency.social);
 
   const name = agency.agency_name || agencyLabel(agency);
@@ -158,7 +109,6 @@ export default function AboutPage() {
   const story = about.story;
   // An admin's own photo wins; otherwise the built-in one.
   const storyImg = story.image !== ABOUT_DEFAULTS.story.image ? story.image : PHOTOS.story;
-  const logo = agency.logo_url || agency.mark_url;
   const lead = team.find((m) => photoOf(m)) || team[0];
 
   // Programs still open (or opening soon), the featured one in the middle.
@@ -205,41 +155,9 @@ export default function AboutPage() {
       <Navbar variant="light" />
 
       <main className="ip gc page-main" dir="rtl">
-        {/* The Islamic lattice is the background of the whole page: fixed to the screen, the sections slide over it. */}
-        <div className="gc-hero-pattern" aria-hidden><IslamicPattern /></div>
-        {/* The ring of calligraphy stays on screen above every section (computers only; on phones it frames the logo). */}
-        <div className="gc-ring-wrap" aria-hidden><CalligraphyRing className="gc-ring" /></div>
-        {/* Hero: white, with a gold-and-green Islamic pattern at the edges, a turning ring
-            of calligraphy on the right, the agency name in blue calligraphy and the logo crest.
-            The crest and pattern follow the pointer; animations pause when the hero is off screen. */}
-        <section ref={heroRef} className="gc-hero" onPointerMove={followPointer} onPointerLeave={resetPointer}>
-          <div className="gc-hero-in">
-            {/* Page title for screen readers and search engines (the hero shows no text block). */}
-            <h1 className="sr-only">{about.hero.title} — {name.replace(/\s+(تور|تورز|tours?)$/i, '')}</h1>
-            {/* The agency name in calligraphy, written in from right to left, with small ornaments. */}
-            <p className="gc-callig" aria-label={name.replace(/\s+(تور|تورز|tours?)$/i, '')}>
-              <span className="gc-callig-text" aria-hidden>{calligraphyName(name)}</span>
-              <i className="gc-orn is-v1" aria-hidden />
-              <i className="gc-orn is-v2" aria-hidden />
-              <i className="gc-orn is-v3" aria-hidden />
-              <b className="gc-orn-h is-h1" aria-hidden>ه</b>
-              <b className="gc-orn-h is-h2" aria-hidden>ه</b>
-            </p>
-            {/* The load-in runs on a wrapper, so the pointer tilt (a transform) is not overridden. */}
-            <div className="gc-mark-in ab-in">
-            <div className="gc-hero-mark">
-              {/* On phones the ring of letters frames the crest instead of sitting at the edge. */}
-              <CalligraphyRing className="gc-ring gc-ring-mobile" pathId="gc-ring-path-m" />
-              <span className="gc-mark-glow" aria-hidden />
-              <IslamicRosette className="gc-rosette" />
-              <IslamicRosette className="gc-rosette is-inner" inner />
-              <span className="gc-logo-wrap">
-                {logo ? <img src={logo} alt={name} className="gc-hero-logo" /> : <b className="gc-hero-logo is-letter">{name.slice(0, 1)}</b>}
-              </span>
-            </div>
-            </div>
-          </div>
-        </section>
+        {/* The lattice is the background of the whole page and the ring of letters stays beside every section. */}
+        <AgencyHeroLayers />
+        <AgencyHero layers="page" title={about.hero.title} />
 
         {/* About us: photo + story, a short checklist and the person behind it */}
         <section className="gc-section">

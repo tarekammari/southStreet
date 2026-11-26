@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Navbar from '@/components/Navbar';
 import HeroSection from '@/components/HeroSection';
+import AgencyHero from '@/components/about/AgencyHero';
 import AgencySection from '@/components/AgencySection';
 import PromoBillboard from '@/components/PromoBillboard';
 import AboutSection from '@/components/AboutSection';
@@ -50,6 +51,8 @@ export default function HomePage() {
       <PendingRequestBanner user={currentUser} variant="home" />
       {currentUser ? <div className="max-w-5xl mx-auto px-4 pt-3"><WelcomeBanner /></div> : null}
       <main className="page-main relative overflow-x-clip pb-6">
+        {/* First: the agency's calligraphy hero (as on /about); then the photo hero with the programs. */}
+        <AgencyHero />
         <HeroSection content={pageContent} />
         <section id="agency-section" className="relative z-10 w-full px-3 py-8 sm:px-6 sm:py-12">
           <AgencySection />

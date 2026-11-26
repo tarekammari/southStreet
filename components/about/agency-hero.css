@@ -1,0 +1,183 @@
+/* ------------------------------------------------------------------ *
+ * Agency calligraphy hero (components/about/AgencyHero.tsx): the name in
+ * blue calligraphy, the logo crest, the Islamic lattice and the turning
+ * ring of the Talbiyah. Used first on the home page and on /about.
+ *
+ * Light on purpose: transforms, opacity and stroke offsets only; shadows
+ * sit on the turning layers so they are drawn once; every loop pauses
+ * while the hero is off screen (.is-off) and stops for reduced motion.
+ * ------------------------------------------------------------------ */
+
+.gc-hero, .gc-hero-pattern, .gc-ring-wrap {
+  --ab-ease: cubic-bezier(.16, 1, .3, 1);
+  --ar-emerald: #158052;
+  --ar-emerald-deep: #0b3d2a;
+  --ar-gold: #b8913f;
+  --ar-gold-2: #e3c57a;
+  --ar-ivory: #fbf7ec;
+}
+/* Home page: the hero carries its own white background (on /about the page lattice shows through). */
+.gc-hero.is-contained { background-color: #fff; }
+
+/* Load-in for the crest */
+.gc-in { animation: gc-in .9s var(--ab-ease) both; animation-delay: 60ms; }
+@keyframes gc-in { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
+
+/* Calligraphy font for the agency name (OFL, Aref Ruqaa Ink, Arabic bold only, self-hosted). */
+@font-face {
+  font-family: 'Aref Ruqaa Ink'; font-style: normal; font-weight: 700; font-display: swap;
+  src: url('/fonts/aref-ruqaa-ink-arabic-700.woff2') format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
+}
+
+/* ---------- Agency name in calligraphy (top of the hero) ---------- */
+/* The Ink font has coloured layers (red dots); paint them one colour: gold for the ring, blue for the name. */
+@font-palette-values --gc-gold { font-family: 'Aref Ruqaa Ink'; override-colors: 0 #a98336, 1 #a98336, 2 #a98336, 3 #a98336, 4 #a98336, 5 #a98336, 6 #a98336, 7 #a98336, 8 #a98336, 9 #a98336, 10 #a98336, 11 #a98336; }
+@font-palette-values --gc-blue { font-family: 'Aref Ruqaa Ink'; override-colors: 0 #1e3a8a, 1 #1e3a8a, 2 #1e3a8a, 3 #1e3a8a, 4 #1e3a8a, 5 #1e3a8a, 6 #1e3a8a, 7 #1e3a8a, 8 #1e3a8a, 9 #1e3a8a, 10 #1e3a8a, 11 #1e3a8a; }
+.gc-callig { position: relative; display: inline-block; margin: 0 0 6px; padding: 10px 34px 4px; line-height: 1; }
+.gc-callig-text {
+  display: block; font-family: 'Aref Ruqaa Ink', 'Amiri', serif; font-weight: 700; font-size: clamp(3rem, 7.4vw, 6rem); line-height: 1.35; font-palette: --gc-blue;
+  background: linear-gradient(100deg, #0b2560, #1d4ed8 40%, #12307a 60%, #2b5fd9 80%, #0b2560); background-size: 220% 100%;
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: #1e3a8a;
+  filter: drop-shadow(0 2px 0 #fff) drop-shadow(0 8px 14px rgba(30, 58, 138, .3));
+  clip-path: inset(0 0 0 100%);
+  animation: gc-write 1.1s cubic-bezier(.45, 0, .2, 1) .1s forwards, gc-gold 3s ease-in-out 1.2s 2 alternate;
+}
+/* Written in from right to left, like a pen */
+@keyframes gc-write { to { clip-path: inset(0 -10% 0 -10%); } }
+/* Small calligraphic ornaments around the name: chevrons and little ha */
+.gc-orn, .gc-orn-h { position: absolute; pointer-events: none; opacity: 0; animation: gc-orn-in .4s ease-out forwards; }
+.gc-orn { width: 9px; height: 9px; border: solid #1d4ed8; border-width: 0 2px 2px 0; rotate: 45deg; filter: drop-shadow(0 2px 3px rgba(30, 58, 138, .35)); }
+.gc-orn.is-v1 { top: 6%; right: 30%; animation-delay: 1s; }
+.gc-orn.is-v2 { top: 0; right: 46%; animation-delay: 1.05s; }
+.gc-orn.is-v3 { bottom: 14%; left: 22%; animation-delay: 1.1s; }
+.gc-orn-h { font-family: 'Aref Ruqaa Ink', 'Amiri', serif; font-palette: --gc-blue; font-size: 1.05rem; font-weight: 700; color: #1d4ed8; text-shadow: 0 2px 4px rgba(30, 58, 138, .35); }
+.gc-orn-h.is-h1 { top: 12%; left: 14%; animation-delay: 1.1s; }
+.gc-orn-h.is-h2 { bottom: 4%; right: 12%; animation-delay: 1.15s; }
+@keyframes gc-orn-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes gc-orn-float { 0%, 100% { translate: 0 0; } 50% { translate: 0 -4px; } }
+
+/* ---------- Hero: white, ornament, arch panel ---------- */
+.gc-hero {
+  --hx: 0; --hy: 0;
+  position: relative; isolation: isolate; overflow: hidden; clip-path: inset(0); display: grid; place-items: center; text-align: center;
+  min-height: clamp(460px, 72vh, 660px);
+  /* A soft warm glow behind the name; the lattice of the page shows through around it. */
+  background: radial-gradient(ellipse 50% 55% at 50% 45%, rgba(255, 253, 246, .9) 0%, rgba(255, 253, 246, 0) 70%);
+}
+
+.gc-hero.is-off *, .gc-hero.is-off *::before, .gc-hero.is-off *::after { animation-play-state: paused !important; }
+
+/* Gold and green lattice over the whole hero, light. It is fixed to the screen (the hero
+   slides over it when scrolling; clip-path on .gc-hero keeps it inside), drifts, and follows
+   the pointer a little. Lighter on the right so the ring of letters stays clear. */
+.gc-hero-pattern {
+  position: fixed; inset: -110px; z-index: -1; opacity: .26; pointer-events: none;
+  -webkit-mask-image: linear-gradient(to left, rgba(0, 0, 0, .25) 6%, #000 38%);
+  mask-image: linear-gradient(to left, rgba(0, 0, 0, .25) 6%, #000 38%);
+}
+.gc-hero-pattern svg { display: block; width: 100%; height: 100%; animation: gc-drift 30s linear infinite; }
+@keyframes gc-drift { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(80px, 80px, 0); } }
+.gi-gold { stroke: var(--ar-gold); }
+.gi-green { stroke: var(--ar-emerald); }
+.gi-fill { fill: rgba(201, 169, 98, .16); }
+.gi-dot { fill: rgba(21, 128, 82, .55); }
+
+/* Ring of calligraphy (the Talbiyah) half off the right edge, turning slowly. Fixed to the screen and
+   above the sections (it lets clicks through), so it stays in view on the whole page. */
+.gc-ring-wrap {
+  position: fixed; z-index: 5; top: calc(72px + clamp(230px, 36vh, 330px)); right: 0; width: clamp(440px, 82vh, 780px); aspect-ratio: 1; pointer-events: none;
+  transform: translate(46%, -50%);
+}
+.gc-ring {
+  display: block; width: 100%; height: 100%; animation: gc-ring-in 1s var(--ab-ease) .2s both, gc-turn-back 80s linear 1.2s infinite;
+  /* The shadow sits on the turning layer itself (an even glow, so turning does not change it):
+     the browser draws it once and only turns the result. */
+  filter: drop-shadow(0 0 5px rgba(120, 90, 30, .35)); will-change: transform;
+}
+@keyframes gc-ring-in { from { opacity: 0; transform: rotate(40deg) scale(.92); } to { opacity: 1; transform: none; } }
+/* direction: ltr — Chrome cannot lay RTL text along a path; the Arabic still reads right to left. */
+.gc-ring-mobile { display: none; }
+.gc-ring-text { direction: ltr; font-family: 'Aref Ruqaa Ink', 'Amiri', serif; font-weight: 700; font-size: 53px; font-palette: --gc-gold; fill: #a98336; }
+.gc-ring-dots { fill: none; stroke: #b8913f; stroke-width: 2.4; stroke-linecap: round; stroke-dasharray: 0 14; opacity: .85; }
+.gc-ring-line { fill: none; stroke: rgba(21, 128, 82, .45); stroke-width: 1; }
+
+.gc-hero-in { display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 760px; padding: 56px 16px 72px; }
+
+/* Logo crest: glow, two rosettes turning opposite ways, a floating logo with a passing shine.
+   The whole crest tilts toward the pointer and the light on the logo follows it. */
+.gc-mark-in { position: relative; z-index: 2; }
+.gc-hero-mark {
+  position: relative; display: grid; place-items: center; width: 250px; height: 250px; margin-top: 6px;
+  transform: perspective(700px) rotateY(calc(var(--hx) * 26deg)) rotateX(calc(var(--hy) * -26deg)) translate3d(calc(var(--hx) * 14px), calc(var(--hy) * 14px), 0);
+  transition: transform .6s var(--ab-ease);
+}
+.gc-mark-glow {
+  position: absolute; inset: 22%; border-radius: 999px; pointer-events: none;
+  background: radial-gradient(circle, rgba(212, 175, 55, .55), rgba(212, 175, 55, 0) 70%);
+  animation: gc-glow 4.5s ease-in-out infinite;
+}
+@keyframes gc-glow { 0%, 100% { transform: scale(1); opacity: .55; } 50% { transform: scale(1.5); opacity: 1; } }
+.gc-rosette { position: absolute; inset: 0; width: 100%; height: 100%; animation: gc-turn 60s linear 1s infinite; filter: drop-shadow(0 0 6px rgba(11, 61, 42, .3)); }
+.gc-rosette.is-inner { inset: 12%; width: 76%; height: 76%; animation: gc-turn-back 40s linear 1s infinite; }
+.gc-rosette .gi-gold, .gc-rosette .gi-green { stroke-width: 1.4; }
+@keyframes gc-turn { to { transform: rotate(360deg); } }
+@keyframes gc-turn-back { to { transform: rotate(-360deg); } }
+.gi-petal { fill: #0f6b43; fill-opacity: .85; stroke: rgba(251, 247, 236, .55); stroke-width: .5; animation: gc-petal 8s ease-in-out infinite; }
+.gi-petal.is-short { fill-opacity: .7; }
+@keyframes gc-petal {
+  0%, 100% { fill: #0f6b43; }
+  25% { fill: #22a06b; }
+  50% { fill: #c9a24e; }
+  75% { fill: #0e8a7c; }
+}
+.gc-petals { animation: gc-bloom .8s var(--ab-ease) .3s both; transform-origin: center; transform-box: fill-box; }
+@keyframes gc-bloom { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: none; } }
+.gc-draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: gc-draw .9s var(--ab-ease) forwards; }
+@keyframes gc-draw { to { stroke-dashoffset: 0; } }
+
+.gc-logo-wrap {
+  position: relative; display: block; width: 134px; height: 134px; border-radius: 999px; overflow: hidden;
+  box-shadow: 0 0 0 5px var(--ar-ivory), 0 0 0 7px var(--ar-gold), 0 0 0 9px var(--ar-ivory), 0 26px 50px -18px rgba(11, 61, 42, .75), 0 6px 16px rgba(0, 0, 0, .18);
+  animation: gc-float 5s ease-in-out 1s infinite;
+}
+@keyframes gc-float { 0%, 100% { translate: 0 0; } 50% { translate: 0 -8px; } }
+.gc-logo-wrap::before, .gc-logo-wrap::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; }
+/* Light that follows the pointer */
+.gc-logo-wrap::before {
+  z-index: 1; mix-blend-mode: soft-light;
+  background: radial-gradient(circle at calc(50% + var(--hx) * 120%) calc(50% + var(--hy) * 120%), rgba(255, 255, 255, .85), rgba(255, 255, 255, 0) 55%);
+}
+/* Shine that passes every few seconds */
+.gc-logo-wrap::after {
+  z-index: 2; background: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, .7) 50%, transparent 62%);
+  transform: translateX(-130%); animation: gc-shine 7s ease-in-out 3s infinite;
+}
+@keyframes gc-shine { 0%, 70% { transform: translateX(-130%); } 85%, 100% { transform: translateX(130%); } }
+.gc-hero-logo { display: block; width: 100%; height: 100%; object-fit: cover; background: #fff; }
+.gc-hero-logo.is-letter { display: grid; place-items: center; color: var(--ar-emerald-deep); font-size: 2.6rem; font-weight: 800; }
+.gc-hero-mark:hover .gc-mark-glow { animation-duration: 1.6s; }
+.gc-hero-mark:hover .gi-petal { animation-duration: 2.4s; }
+
+@media (max-width: 767.98px) {
+  .gc-hero { min-height: clamp(560px, calc(100svh - 64px), 760px); }
+  .gc-hero-in { padding: 40px 14px 56px; }
+  .gc-hero-mark { width: 200px; height: 200px; }
+  .gc-callig { padding: 6px 22px 2px; }
+  /* Phones: the edge ring would cross the crest, so the ring frames the crest instead. */
+  .gc-ring-wrap { display: none; }
+  .gc-ring-mobile { display: block; position: absolute; inset: -72px; width: calc(100% + 144px); height: calc(100% + 144px); max-width: none; }
+  .gc-hero-mark { margin: 70px 0 64px; }
+  .gc-hero { min-height: 480px; }
+  .gc-callig-text { font-size: clamp(2.2rem, 11vw, 3rem); }
+  .gc-logo-wrap { width: 108px; height: 108px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gc-in, .gc-hero-pattern svg, .gc-rosette, .gc-mark-glow, .gc-logo-wrap, .gc-logo-wrap::after, .gi-petal, .gc-petals { animation: none; }
+  .gc-callig-text { animation: none; clip-path: none; }
+  .gc-ring { animation: none; }
+  .gc-orn, .gc-orn-h { animation: none; opacity: 1; }
+  .gc-hero-mark { transform: none; transition: none; }
+  .gc-draw { animation: none; stroke-dashoffset: 0; }
+}
