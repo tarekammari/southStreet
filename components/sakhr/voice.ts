@@ -364,17 +364,22 @@ export function useArabicVoice(): boolean {
 
 /** Plain speakable text: no markdown, tables, links or emoji; amounts and emails in words. */
 export function speakableText(markdown: string): string {
-  const plain = markdown
-    .split('\n')
-    .filter((l) => !/^\s*\|/.test(l))
-    .join('. ')
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+  // Links, amounts and emails first, while they are intact: stripping markdown turns the «_» in
+  // «/hotels/smp_MY_68699_4?…» into spaces, and the broken link would then be read aloud.
+  const words = spokenForms(
+    markdown
+      .split('\n')
+      .filter((l) => !/^\s*\|/.test(l))
+      .map((l) => l.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/`([^`]*)`/g, '$1'))
+      .join('. ')
+  );
+  const plain = words
     .replace(/[*_#`>|]/g, ' ')
     .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, '')
     .replace(/\s+/g, ' ')
     .replace(/(\s*\.\s*){2,}/g, '. ')
     .trim();
-  return spokenForms(plain).slice(0, 1500);
+  return plain.slice(0, 1500);
 }
 
 /** Sentence-sized pieces; the first is short so speech starts quickly. */

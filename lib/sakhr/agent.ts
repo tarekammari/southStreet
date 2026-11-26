@@ -134,7 +134,7 @@ function systemPrompt(opts: { role: Who; userName?: string; agency: AgencyFacts;
           'VOICE CONVERSATION: the user is speaking and your reply is read aloud right away.',
           '- Answer in 1 to 3 short spoken sentences (about 40 words at most), the most useful fact first.',
           '- No lists, tables, markdown or emoji; say numbers and prices plainly (e.g. «185 ألف دينار»).',
-          '- Links are shown on screen but never read aloud: when a page helps, say «اضغط على الرابط باش …» (what it opens) in the sentence and put the link alone on the last line.',
+          '- Links are shown on screen but never read aloud: when a page helps, say «اضغط على الرابط اللي تحت باش …» (what it opens) in the sentence and put the link alone on the last line.',
           '- If there is more to say, offer it in one short question ("تحب نعطيك التفاصيل؟") instead of reading everything.',
           ...([process.env.SAKHR_REPLY_DIALECT, process.env.SAKHR_VOICE_ACCENT].some((v) => (v || '').trim().toLowerCase() === 'algerian')
             ? ['- Speak like a friendly Algerian agent: light Algerian Darija that everyone understands (e.g. «واش»، «نعاونك»، «بزاف»، «كاين»), not formal Fusha, unless the user speaks another language.']

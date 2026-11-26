@@ -112,8 +112,10 @@ const HOST_WORDS: Record<string, string> = {
 const hostWords = (host: string) => host.split('.').map((p) => HOST_WORDS[p.toLowerCase()] || p.replace(/-/g, ' ')).join(' دوت ');
 
 /** What the voice says instead of reading a link. */
-const CLICK = 'اضغط على الرابط';
-const LINK_LABEL = new RegExp(`(?:الرابط|رابط|link|lien)\\s*[:：]?\\s*${CLICK}`, 'gi');
+const CLICK = 'اضغط على الرابط اللي تحت';
+/** Stands in for each link while the text is being prepared (an invisible separator, never spoken). */
+const LINK_MARK = '⁣LINK⁣';
+const LINK_LABEL = new RegExp(`(?:الرابط|رابط|link|lien)\\s*[:：]?\\s*${LINK_MARK}`, 'gi');
 const CLICK_REPEATS = new RegExp(`(${CLICK}[\\s،,.:]*){2,}`, 'g');
 
 /** Money and emails → words a voice reads naturally; links → «اضغط على الرابط». */
@@ -128,13 +130,17 @@ export function spokenForms(text: string): string {
   // Links are never read out: a web address or a page path («/hotels/…?checkIn=…») becomes
   // «اضغط على الرابط» (the link itself is on screen), and a «رابط:» label before it is dropped.
   // When the reply already says «اضغط على الرابط …» itself, the links are simply left unsaid.
+  // A list of hotels has one link per line: the phrase is said once, where the last link was.
   const saysClick = /اضغط على الرابط|انقر على الرابط/.test(s);
-  const link = saysClick ? ' ' : ` ${CLICK} `;
-  s = s.replace(/\b(?:https?:\/\/)?(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|dz|tech|fr|sa|info|io|app)(?:\/[^\s]*)?/gi, link);
-  s = s.replace(/(^|[\s(«"'])\/[a-z][\w\-./%]*(?:\?[^\s)»"']*)?/gi, `$1${link}`);
-  if (saysClick) s = s.replace(/(?:الرابط|رابط|link|lien)\s*[:：]\s*(?=\s|$)/gi, '');
-  s = s.replace(LINK_LABEL, CLICK);
-  s = s.replace(CLICK_REPEATS, `${CLICK} `);
+  s = s.replace(/\b(?:https?:\/\/)?(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|dz|tech|fr|sa|info|io|app)(?:\/[^\s]*)?/gi, ` ${LINK_MARK} `);
+  s = s.replace(/(^|[\s(«"'])\/[a-z][\w\-./%]*(?:\?[^\s)»"']*)?/gi, `$1${LINK_MARK} `);
+  s = s.replace(LINK_LABEL, LINK_MARK);
+  const marks = s.split(LINK_MARK).length - 1;
+  if (marks) {
+    let seen = 0;
+    s = s.split(LINK_MARK).reduce((acc, part) => acc + (seen++ === 0 ? '' : seen - 1 === marks && !saysClick ? CLICK : '') + part, '');
+  }
+  s = s.replace(CLICK_REPEATS, `${CLICK} `).replace(/\s+([.،,:])/g, '$1');
 
   // Currency after the amount ("160600.00 دج") and before it ("دج 160600.00").
   s = s.replace(new RegExp(`(${NUM})\\s*(${CUR})`, 'g'), (m, num: string, cur: string) => {
