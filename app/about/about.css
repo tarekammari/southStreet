@@ -276,3 +276,77 @@ a.ab-detail:hover i { transform: scale(1.1); }
   .gc-about-card { border-radius: 22px; }
   .gc-about-card .gc-checks { flex-direction: column; align-items: stretch; }
 }
+
+/* =====================================================================
+ * All sections under the hero: the same see-through ivory cards with a
+ * thin gold frame as «من نحن», so the page lattice shows through; and
+ * where the ring of words shows (768 px and wider) the sections keep
+ * clear of it on the right.
+ * ===================================================================== */
+.ip.gc { --gc-glass: linear-gradient(180deg, rgba(251, 247, 236, .88), rgba(255, 255, 255, .74)); --gc-frame: rgba(184, 145, 63, .3); }
+@media (min-width: 768px) {
+  .ip.gc { --gc-ring-space: calc(min(100svh - 128px, 820px) * .54 + 28px); }
+  .ip.gc > section.gc-section { padding-right: var(--gc-ring-space); }
+}
+
+/* Section heads: a small gold rule under each title */
+.gc-center-head::after {
+  content: ""; width: 120px; height: 10px; margin-top: 18px;
+  background:
+    linear-gradient(90deg, transparent, var(--ar-gold) 45%, transparent 45% 55%, var(--ar-gold) 55%, transparent) center / 100% 1px no-repeat,
+    linear-gradient(45deg, transparent 40%, var(--ar-gold) 40% 60%, transparent 60%) center / 10px 10px no-repeat;
+}
+
+/* Cards */
+.gc-stats, .gc-plan:not(.is-featured), .gc-review, .gc .ab-visit, .gc-center-head.is-card {
+  background: var(--gc-glass);
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+  border: 1px solid var(--gc-frame);
+  box-shadow: 0 30px 70px -44px rgba(11, 61, 42, .45), inset 0 0 0 5px rgba(255, 255, 255, .5);
+}
+
+/* Numbers: one framed strip with gold dividers */
+.gc-stats { max-width: 980px; margin: 44px auto 0; padding: 30px 12px; border-radius: 28px; }
+.gc-stat + .gc-stat { border-inline-start-color: var(--gc-frame); }
+.gc-stat b { color: var(--ar-emerald-deep); }
+.gc-stat small { color: var(--ar-ink); }
+
+/* Programs */
+.gc-plan { border-radius: 26px; }
+.gc-plan.is-featured {
+  background: linear-gradient(160deg, var(--ar-emerald-deep), #14563b);
+  border: 1px solid rgba(227, 197, 122, .45);
+  box-shadow: 0 34px 70px -38px rgba(11, 61, 42, .8);
+}
+.gc-plan.is-featured .gc-plan-price b { color: var(--ar-gold-2); }
+.gc-plan:not(.is-featured) .gc-plan-price { border-color: var(--gc-frame); }
+
+/* Reviews */
+.gc-review { border-radius: 24px; }
+.gc-review-stars { color: var(--ar-gold); }
+.gc-review blockquote { font-family: 'Amiri', var(--font-cairo), serif; font-size: 1.06rem; }
+
+/* No reviews yet: the invitation sits on a card */
+.gc-center-head.is-card { max-width: 640px; margin: 0 auto; padding: 40px 28px; border-radius: 28px; text-align: center; }
+
+/* Visit */
+.gc .ab-visit { border-radius: 28px; }
+.gc .ab-map { border-start-start-radius: 0; }
+.gc .ab-detail:hover { background: rgba(255, 255, 255, .7); }
+.gc .ab-detail i { color: var(--ar-emerald-deep); }
+
+/* Closing: the photo becomes a framed, rounded card beside the ring */
+.ip.gc > section.gc-cta {
+  margin: 110px 24px 56px; border-radius: 32px; border: 1px solid var(--gc-frame);
+  box-shadow: 0 40px 80px -50px rgba(11, 61, 42, .6);
+  min-height: clamp(460px, 70vh, 680px);
+}
+@media (min-width: 768px) { .ip.gc > section.gc-cta { margin-right: var(--gc-ring-space); } }
+.gc-cta::before {
+  background: linear-gradient(180deg, rgba(251, 247, 236, .97) 0%, rgba(251, 247, 236, .9) 30%, rgba(251, 247, 236, .55) 52%, rgba(251, 247, 236, 0) 78%, rgba(11, 61, 42, .3) 100%);
+}
+@media (max-width: 767.98px) {
+  .ip.gc > section.gc-cta { margin: 76px 12px 32px; border-radius: 24px; }
+  .gc-stats { padding: 24px 8px; border-radius: 22px; }
+  .gc-center-head.is-card { padding: 30px 18px; border-radius: 22px; }
+}

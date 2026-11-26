@@ -288,7 +288,7 @@ export default function AboutPage() {
           ) : (
             <section className="gc-section">
               <div className="ip-wrap">
-                <div className="gc-center-head">
+                <div className="gc-center-head is-card">
                   <span className="gc-tag ip-reveal"><Leaf aria-hidden /> آراء المعتمرين</span>
                   <h2 className="gc-h2 is-center ip-reveal">شاركونا <em>تجربتكم</em></h2>
                   <p className="gc-sub ip-reveal">سافرتم معنا؟ كونوا أول من يكتب رأيه.</p>
