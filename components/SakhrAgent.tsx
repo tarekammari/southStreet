@@ -121,6 +121,9 @@ function renderInline(text: string, keyBase: string): React.ReactNode[] {
 const TABLE_ROW = /^\s*\|.*\|\s*$/;
 const TABLE_RULE = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/;
 const cells = (line: string) => line.trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
+/** A table cell: «<br>» written by the model becomes a real line break (no HTML is injected). */
+const cellLines = (c: string, key: string) =>
+  c.split(/<br\s*\/?>/i).flatMap((part, n) => (n ? [<br key={`${key}-br${n}`} />, ...renderInline(part, `${key}-${n}`)] : renderInline(part, `${key}-${n}`)));
 
 function FormattedText({ text }: { text: string }) {
   const blocks: React.ReactNode[] = [];
@@ -135,11 +138,11 @@ function FormattedText({ text }: { text: string }) {
         <div key={`t${k}`} className="skr-mdtable-wrap">
           <table>
             <thead>
-              <tr>{head.map((c, j) => <th key={j}>{renderInline(c, `th${k}-${j}`)}</th>)}</tr>
+              <tr>{head.map((c, j) => <th key={j}>{cellLines(c, `th${k}-${j}`)}</th>)}</tr>
             </thead>
             <tbody>
               {body.map((row, i) => (
-                <tr key={i}>{head.map((_, j) => <td key={j}>{renderInline(row[j] || '', `td${k}-${i}-${j}`)}</td>)}</tr>
+                <tr key={i}>{head.map((_, j) => <td key={j}>{cellLines(row[j] || '', `td${k}-${i}-${j}`)}</td>)}</tr>
               ))}
             </tbody>
           </table>
@@ -178,7 +181,7 @@ function FormattedText({ text }: { text: string }) {
       return;
     }
     flush(k);
-    if (line.trim()) blocks.push(<p key={`p${k}`}>{renderInline(line.replace(/^#+\s*/, ''), `p${k}`)}</p>);
+    if (line.trim()) blocks.push(<p key={`p${k}`}>{renderInline(line.replace(/^\s*(>\s*)+/, '').replace(/^#+\s*/, ''), `p${k}`)}</p>);
   });
   flush(-1);
   flushTable(-2);
@@ -687,7 +690,7 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
           ) : null}
         </div>
       ) : null}
-      <div ref={fabRef} className="fixed bottom-5 right-5 sm:bottom-8 sm:right-8 z-50 select-none sakhr-fab-shell">
+      <div ref={fabRef} className={`fixed bottom-5 right-5 sm:bottom-8 sm:right-8 z-50 select-none sakhr-fab-shell${open ? ' is-chat-open' : ''}`}>
         <button
           onClick={() => (open ? closeChat() : setOpen(true))}
           aria-label={open ? `تصغير ${assistant}` : `فتح ${assistant}، المساعد الذكي`}

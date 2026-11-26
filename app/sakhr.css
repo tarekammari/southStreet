@@ -469,3 +469,68 @@ html.skr-side .luxury-modal-overlay .luxury-table-shell { height: 100%; }
 @media (prefers-reduced-motion: reduce) {
   .skr-island, .skr-island-wave i, .skr-island-dots i, .skr-island.is-reply .skr-island-avatar { animation: none; }
 }
+
+/* ------------------------------------------------------------------ *
+ * Computers: the open chat spreads over the page width (under the menu),
+ * the assistant's face sits at its top centre, and the conversation is
+ * a centred reading column. Not while a table is docked beside it.
+ * ------------------------------------------------------------------ */
+@media (min-width: 1024px) {
+  html:not(.skr-side) .skr-panel {
+    top: 112px; bottom: 20px; left: 24px; right: 24px;
+    width: auto; height: auto;
+    border-radius: 28px;
+    background:
+      radial-gradient(900px 320px at 50% -120px, rgba(201, 169, 98, 0.16), transparent 70%),
+      radial-gradient(600px 400px at 100% 100%, rgba(10, 132, 255, 0.07), transparent 70%),
+      var(--skr-bg);
+    border-color: rgba(201, 169, 98, 0.22);
+    box-shadow: 0 0 0 100vmax rgba(8, 10, 18, 0.38), 0 40px 120px rgba(0, 0, 0, 0.5);
+    animation: skr-wide-in 0.38s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  html:not(.skr-side) .skr-head {
+    position: relative; justify-content: center;
+    padding: 2.9rem 1.25rem 0.9rem;
+    border-bottom-color: rgba(255, 255, 255, 0.06);
+  }
+  html:not(.skr-side) .skr-head > .skr-avatar { display: none; }
+  html:not(.skr-side) .skr-title { flex: none; align-items: center; text-align: center; }
+  html:not(.skr-side) .skr-title strong {
+    font-size: 1.15rem; letter-spacing: 0.06em;
+    background: linear-gradient(90deg, #f3e3b5, #c9a962 50%, #f3e3b5); -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  html:not(.skr-side) .skr-head-acts { position: absolute; top: 1rem; left: 1.25rem; }
+  html:not(.skr-side) .skr-body {
+    padding: 1.5rem max(1.25rem, calc((100% - 860px) / 2)) 1rem;
+    gap: 1.1rem;
+  }
+  html:not(.skr-side) .skr-bubble { font-size: 0.98rem; line-height: 1.85; }
+  html:not(.skr-side) .skr-msg.is-user .skr-bubble { padding: 0.75rem 1.1rem; border-radius: 1.2rem; border-start-start-radius: 0.4rem; background: #26262c; }
+  html:not(.skr-side) .skr-input,
+  html:not(.skr-side) .skr-voice-note {
+    width: min(860px, calc(100% - 2.5rem)); margin-inline: auto;
+  }
+  html:not(.skr-side) .skr-input {
+    margin-bottom: 1.25rem; padding: 0.55rem; border-radius: 1.3rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  }
+  html:not(.skr-side) .skr-input textarea { font-size: 1rem; }
+  html:not(.skr-side) .skr-empty p { font-size: 1.35rem; }
+
+  /* The face moves to the top centre of the open chat, half over its edge. */
+  html:not(.skr-side) .sakhr-fab-shell.is-chat-open {
+    top: calc(112px - 32px) !important; bottom: auto !important;
+    right: calc(50% - 32px) !important;
+    z-index: 260;
+    animation: skr-face-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  html:not(.skr-side) .sakhr-fab-shell.is-chat-open .sakhr-bot-launch {
+    border-radius: 50%;
+    box-shadow: 0 0 0 5px var(--skr-ring, #141416), 0 0 0 6px rgba(201, 169, 98, 0.45), 0 14px 34px rgba(0, 0, 0, 0.45);
+  }
+}
+@keyframes skr-wide-in { from { opacity: 0; transform: translateY(18px) scale(0.985); } to { opacity: 1; transform: none; } }
+@keyframes skr-face-in { from { opacity: 0; transform: translateY(30px) scale(0.8); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  html:not(.skr-side) .skr-panel, html:not(.skr-side) .sakhr-fab-shell.is-chat-open { animation: none; }
+}
