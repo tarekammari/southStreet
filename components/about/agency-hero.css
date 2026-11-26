@@ -207,44 +207,10 @@
 .ho-price b { font: 800 1.9rem/1 var(--font-cairo), 'Cairo', sans-serif; color: var(--ar-emerald-deep); }
 
 .ho-actions { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 16px; margin-top: 24px; }
-/* Two strong colour buttons: an emerald one (main) and a gold one. A slowly moving gradient,
-   a light that sweeps across, a soft glow that pulses out, and a lift on hover. */
-.ho-btn {
-  position: relative; isolation: isolate; overflow: hidden; display: inline-flex; align-items: center; justify-content: center;
-  min-height: 58px; min-width: 170px; padding: 0 34px; border-radius: 999px;
-  font: 800 1.12rem/1 var(--font-cairo), 'Cairo', sans-serif; letter-spacing: .01em; text-decoration: none; white-space: nowrap;
-  background-size: 220% 100%; animation: ho-flow 6s ease-in-out infinite alternate;
-  transition: transform .35s var(--ab-ease), box-shadow .35s;
-}
-.ho-btn span { position: relative; z-index: 1; }
-@keyframes ho-flow { from { background-position: 0% 50%; } to { background-position: 100% 50%; } }
-.ho-btn.is-primary {
-  color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, .25);
-  background-image: linear-gradient(110deg, #0b3d2a, #148a55 35%, #22b573 55%, #0f6b43 80%, #0b3d2a);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), 0 14px 30px -12px rgba(15, 107, 67, .75);
-  animation: ho-flow 6s ease-in-out infinite alternate, ho-pulse 2.6s ease-out 1.2s infinite;
-}
-@keyframes ho-pulse {
-  0% { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), 0 14px 30px -12px rgba(15, 107, 67, .75), 0 0 0 0 rgba(34, 181, 115, .55); }
-  75%, 100% { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), 0 14px 30px -12px rgba(15, 107, 67, .75), 0 0 0 16px rgba(34, 181, 115, 0); }
-}
-.ho-btn.is-gold {
-  color: #2a1d04;
-  background-image: linear-gradient(110deg, #b08a3e, #e9c977 35%, #fbe7ad 55%, #d4ad57 80%, #b08a3e);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6), 0 14px 30px -14px rgba(176, 138, 62, .85);
-}
-.ho-btn::after {
-  content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
-  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, .45) 50%, transparent 70%);
-  transform: translateX(130%); animation: ho-sweep 4.2s ease-in-out 1.8s infinite;
-}
-.ho-btn.is-gold::after { animation-delay: 3.2s; }
-@keyframes ho-sweep { 0%, 55% { transform: translateX(130%); } 85%, 100% { transform: translateX(-130%); } }
-.ho-btn:hover { transform: translateY(-3px) scale(1.03); }
-.ho-btn.is-primary:hover { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), 0 20px 36px -12px rgba(15, 107, 67, .85); }
-.ho-btn.is-gold:hover { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6), 0 20px 36px -14px rgba(176, 138, 62, .95); }
-.ho-btn:active { transform: translateY(-1px) scale(.99); }
-.ho-btn:focus-visible { outline: 3px solid rgba(34, 181, 115, .45); outline-offset: 4px; }
+/* The buttons keep the home page's own style (.hero-buy-btn in app/globals.css): blue, and
+   white with a blue outline. Over the lattice the outline one gets a white fill. */
+.ho-actions .hero-buy-btn-secondary { background: rgba(255, 255, 255, .9); }
+.ho-actions .hero-buy-btn-secondary:hover { background: #fff; }
 .ho-also { display: inline-flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: 6px; margin-top: 14px; font: 400 1rem/1.5 'Amiri', serif; color: #6b5a2e; text-decoration: none; }
 .ho-also b { color: #1e3a8a; }
 .ho-also:hover b { text-decoration: underline; }
@@ -274,8 +240,8 @@
 .hero-apple-section.is-album-only .hero-apple-inner { justify-content: center; }
 
 @media (max-width: 767.98px) {
-  .ho-actions { gap: 12px; width: 100%; }
-  .ho-btn { flex: 1 1 100%; min-height: 54px; }
+  .ho-actions { gap: 10px; width: 100%; }
+  .ho-actions .hero-buy-btn { flex: 1 1 100%; }
   .hs-stats { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; border-radius: 20px; }
   .hs-stat { padding: 12px 6px; }
   .hs-stat + .hs-stat { border-inline-start: 0; }
@@ -286,8 +252,6 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .hs-in { animation: none; }
-  .ho-btn { transition: none; }
-  .ho-btn, .ho-btn.is-primary, .ho-btn::after { animation: none; }
 }
 
 /* Home page: the ring turns behind the hero's content, so it never covers the cards. */

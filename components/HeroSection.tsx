@@ -248,8 +248,8 @@ export function HeroOfferCopy() {
             <p className="ho-price"><span>السعر عند الطلب</span></p>
           )}
           <div className="ho-actions">
-            <Link href={offerHref(offer)} className="ho-btn is-primary"><span>{offer.kind === 'tourism' ? 'تفاصيل الرحلة' : 'ابدأ الحجز'}</span></Link>
-            <Link href="/packages" className="ho-btn is-gold"><span>جميع الرحلات والعروض</span></Link>
+            <Link href={offerHref(offer)} className="hero-buy-btn hero-buy-btn-primary"><span>{offer.kind === 'tourism' ? 'تفاصيل الرحلة' : 'ابدأ الحجز'}</span></Link>
+            <Link href="/packages" className="hero-buy-btn hero-buy-btn-secondary"><span>جميع الرحلات والعروض</span></Link>
           </div>
           {offer.alsoTrip ? (
             <Link href={`/packages/${encodeURIComponent(offer.alsoTrip.id)}`} className="ho-also">
@@ -263,8 +263,8 @@ export function HeroOfferCopy() {
           <h1 className="ho-title">لا توجد رحلات متاحة حالياً</h1>
           <p className="ho-sub">نُحضّر برامج العمرة والرحلات القادمة. يمكنك حجز فندقك الآن في أي وجهة، أو مراسلتنا ليصلك أول برنامج.</p>
           <div className="ho-actions">
-            <Link href="/hotels" className="ho-btn is-primary"><span>احجز فندقاً</span></Link>
-            <Link href="/packages" className="ho-btn is-gold"><span>كل البرامج</span></Link>
+            <Link href="/hotels" className="hero-buy-btn hero-buy-btn-primary"><span>احجز فندقاً</span></Link>
+            <Link href="/packages" className="hero-buy-btn hero-buy-btn-secondary"><span>كل البرامج</span></Link>
           </div>
         </>
       )}
