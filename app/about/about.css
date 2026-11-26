@@ -306,7 +306,7 @@ a.ab-detail:hover i { transform: scale(1.1); }
 }
 
 /* Numbers: one framed strip with gold dividers */
-.gc-stats { max-width: 980px; margin: 44px auto 0; padding: 30px 12px; border-radius: 28px; }
+.gc-stats { width: fit-content; max-width: 980px; margin: 44px auto 0; padding: 30px 12px; border-radius: 28px; }
 .gc-stat + .gc-stat { border-inline-start-color: var(--gc-frame); }
 .gc-stat b { color: var(--ar-emerald-deep); }
 .gc-stat small { color: var(--ar-ink); }
