@@ -347,6 +347,8 @@ a.ab-detail:hover i { transform: scale(1.1); }
 }
 @media (max-width: 767.98px) {
   .ip.gc > section.gc-cta { margin: 76px 12px 32px; border-radius: 24px; }
-  .gc-stats { padding: 24px 8px; border-radius: 22px; }
+  .gc-stats { width: auto; padding: 24px 8px; border-radius: 22px; }
   .gc-center-head.is-card { padding: 30px 18px; border-radius: 22px; }
 }
+/* The phone ring around the crest is wider than the screen: never a sideways scroll. */
+main.ip.gc { overflow-x: clip; }
