@@ -690,7 +690,7 @@ export default function SakhrAgent(_props: SakhrAgentProps) {
           ) : null}
         </div>
       ) : null}
-      <div ref={fabRef} className={`fixed bottom-5 right-5 sm:bottom-8 sm:right-8 z-50 select-none sakhr-fab-shell${open ? ' is-chat-open' : ''}`}>
+      <div ref={fabRef} className="fixed bottom-5 right-5 sm:bottom-8 sm:right-8 z-50 select-none sakhr-fab-shell">
         <button
           onClick={() => (open ? closeChat() : setOpen(true))}
           aria-label={open ? `تصغير ${assistant}` : `فتح ${assistant}، المساعد الذكي`}
