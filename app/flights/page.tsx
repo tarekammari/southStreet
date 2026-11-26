@@ -11,7 +11,7 @@ import './flights.css';
 
 /** Flight booking is not open yet: the home page's Air Algérie section leads here. */
 const SOON = [
-  { icon: PlaneTakeoff, title: 'رحلات مباشرة', text: 'من الجزائر إلى جدة والمدينة المنورة.' },
+  { icon: PlaneTakeoff, title: 'كل الوجهات', text: 'من الجزائر إلى مدن العالم: البقاع المقدسة، تركيا، أوروبا، آسيا وغيرها.' },
   { icon: CalendarDays, title: 'مواعيد واضحة', text: 'تختار تاريخ الذهاب والعودة وترى الأماكن المتاحة.' },
   { icon: Luggage, title: 'الأمتعة والدرجة', text: 'الوزن المسموح والدرجة والسعر قبل الحجز.' },
   { icon: Ticket, title: 'تذكرتك في حسابك', text: 'الحجز والتذكرة في «حجوزاتي» دون تنقل.' },
@@ -33,10 +33,10 @@ export default function FlightsPage() {
             <p className="fl-kicker">Air Algérie · الخطوط الجوية الجزائرية</p>
             <h1>حجز تذاكر الطيران</h1>
             <p className="fl-lead">
-              نعمل على فتح حجز رحلات الطيران إلى البقاع المقدسة مباشرة من الموقع. إلى ذلك الحين، الوكالة تحجز لكم الرحلة بالهاتف أو مع برنامج العمرة.
+              نعمل على فتح حجز تذاكر الطيران إلى كل الوجهات حول العالم مباشرة من الموقع. إلى ذلك الحين، الوكالة تحجز لكم رحلتكم بالهاتف أو مع أحد برامجنا.
             </p>
             <div className="fl-actions">
-              <Link href="/packages" className="fl-btn fl-btn-main">برامج العمرة مع الطيران <ArrowLeft className="w-4 h-4" /></Link>
+              <Link href="/trips" className="fl-btn fl-btn-main">رحلاتنا وبرامجنا <ArrowLeft className="w-4 h-4" /></Link>
               {phone && (
                 <a href={telHref(phone)} className="fl-btn fl-btn-ghost"><Phone className="w-4 h-4" /> <span dir="ltr">{phone}</span></a>
               )}
