@@ -242,8 +242,6 @@
 @media (max-width: 767.98px) {
   .ho-actions { gap: 10px; width: 100%; }
   .ho-actions .hero-buy-btn { flex: 1 1 100%; }
-  /* Phones: the buttons come first, right under the logo, then the title and the description. */
-  .ho-actions { order: -1; margin: 4px 0 18px; }
   .hs-stats { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; border-radius: 20px; }
   .hs-stat { padding: 12px 6px; }
   .hs-stat + .hs-stat { border-inline-start: 0; }
