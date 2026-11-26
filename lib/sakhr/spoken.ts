@@ -103,6 +103,13 @@ function currencyOf(token: string): Currency {
   return DINAR;
 }
 
+/** Common mail providers and endings, written as an Arabic voice should say them. */
+const HOST_WORDS: Record<string, string> = {
+  gmail: 'جيميل', yahoo: 'ياهو', hotmail: 'هوتميل', outlook: 'أوتلوك', live: 'لايف', icloud: 'آي كلاود', aol: 'إيه أو إل',
+  com: 'كوم', net: 'نت', org: 'أورغ', fr: 'إف آر', dz: 'دي زد', tech: 'تك', sa: 'إس إيه', info: 'إنفو', io: 'آي أو', app: 'آب',
+};
+const hostWords = (host: string) => host.split('.').map((p) => HOST_WORDS[p.toLowerCase()] || p.replace(/-/g, ' ')).join(' دوت ');
+
 /** Money, emails and web addresses → words a voice reads naturally. */
 export function spokenForms(text: string): string {
   // Unicode hyphens (the model sometimes writes «rh‑tours» with U+2011) count as plain hyphens.
@@ -110,11 +117,11 @@ export function spokenForms(text: string): string {
 
   // Emails: the parts as words ("rh tours آت yahoo دوت fr").
   s = s.replace(/\b([A-Za-z0-9._%+-]+)@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)\b/g, (_m, user: string, host: string) =>
-    ` ${user.replace(/[._%+-]+/g, ' ').trim()} آت ${host.split('.').join(' دوت ')} `
+    ` ${user.replace(/[._%+-]+/g, ' ').trim()} آت ${hostWords(host)} `
   );
   // Web addresses: drop the scheme and "www", read the dots as «دوت».
   s = s.replace(/\b(?:https?:\/\/)?(?:www\.)?([a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|dz|tech|fr|sa|info|io|app))(\/[^\s]*)?/gi, (_m, host: string) =>
-    ` ${host.replace(/-/g, ' ').split('.').join(' دوت ')} `
+    ` ${hostWords(host)} `
   );
 
   // Currency after the amount ("160600.00 دج") and before it ("دج 160600.00").
