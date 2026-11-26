@@ -508,9 +508,10 @@ export default function Navbar({ currentUser, onLogout, onSelectRole, variant = 
           ) : (
             <button
               onClick={() => setIsLoginOpen(true)}
-              className={isApple ? 'nav-apple-cta' : 'btn-pro-primary text-sm py-2.5 px-4'}
+              className={isApple ? 'nav-apple-cta' : 'btn-pro-primary text-sm py-2.5 px-4 max-[400px]:px-3 max-[400px]:text-xs max-[400px]:gap-1.5'}
             >
-              {!isApple && <Sparkles className="w-4 h-4" />}
+              {/* Narrow phones: no sparkle icon, so a long agency name and the menu still fit. */}
+              {!isApple && <Sparkles className="w-4 h-4 max-[400px]:hidden" />}
               بوابة الوكالة
             </button>
           )}
