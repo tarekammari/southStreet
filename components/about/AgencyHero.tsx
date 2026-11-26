@@ -73,7 +73,7 @@ export default function AgencyHero({
   className = '',
 }: {
   layers?: 'inside' | 'page';
-  /** Three 3D cards under the crest: Umrah (Kaaba), flights (plane), tourist trips (suitcase). */
+  /** Under the crest: the main buttons and a strip of real numbers (programs, hotels, guides, rating). */
   showcase?: boolean;
   /** Rendered as a hidden h1 (the page title for screen readers and search engines). */
   title?: string;
