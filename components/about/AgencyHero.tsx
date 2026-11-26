@@ -62,7 +62,11 @@ export function AgencyHeroLayers() {
   return (
     <>
       <div className="gc-hero-pattern" aria-hidden><IslamicPattern /></div>
-      <div className="gc-ring-wrap" aria-hidden><CalligraphyRing className="gc-ring" /></div>
+      <div className="gc-ring-wrap" aria-hidden>
+        {/* The Kaaba in the middle of the turning ring (the photo itself stays still) */}
+        <span className="gc-ring-kaaba"><img src="/images/kaaba_sharifa_home_page.webp" alt="" decoding="async" /></span>
+        <CalligraphyRing className="gc-ring" />
+      </div>
     </>
   );
 }
