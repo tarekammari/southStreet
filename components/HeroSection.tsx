@@ -236,7 +236,7 @@ export function HeroOfferCopy() {
       <span className="ho-rule" aria-hidden><i /></span>
       {offer ? (
         <>
-          <h1 className={`ho-title${offer.kind === 'tourism' ? ' is-tourism' : ''}`}>{PROGRAM_KIND_LABEL[offer.kind]}</h1>
+          <h1 className={`ho-title is-offer${offer.kind === 'tourism' ? ' is-tourism' : ''}`}>{PROGRAM_KIND_LABEL[offer.kind]}</h1>
           {offer.kind === 'tourism' && offer.name ? <p className="ho-name">{offer.name}</p> : null}
           {offer.date ? <p className="ho-date">{offer.date}</p> : null}
           {offer.priceFrom != null ? (
