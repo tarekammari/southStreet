@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 import { requireSession } from '@/lib/staff-gate';
 import { resolveRequestIp } from '@/lib/security-threats';
+import { spokenForms } from '@/lib/sakhr/spoken';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -20,12 +21,26 @@ export const maxDuration = 30;
  *    the page is told at once (code BUSY) and reads with the device voice;
  *  - audio goes out as MP3 (ffmpeg), about 10× smaller than WAV on mobile data.
  * GET tells the page whether server speech is available.
+ *
+ * Accent (per install, SAKHR_VOICE_ACCENT, e.g. "algerian"): Gemini 2.5 TTS is
+ * asked first with a style line ("…in a natural Algerian accent: <text>"). That
+ * model follows the line without reading it aloud (checked by transcribing the
+ * audio back); the newer TTS models read it aloud, so they never get it. When it
+ * is resting (quota), the normal voices answer.
  */
 
-type Provider = { id: string; kind: 'groq' | 'gemini'; model: string };
+type Provider = { id: string; kind: 'groq' | 'gemini'; model: string; style?: string };
 
 const GEMINI_MODELS = ['gemini-3.8-flash-lite-tts', 'gemini-3.8-flash-tts', 'gemini-2.5-flash-preview-tts'];
 const GROQ_TTS_MODEL = 'canopylabs/orpheus-arabic-saudi';
+/** The one Gemini TTS model that follows a style line without speaking it. */
+const ACCENT_MODEL = 'gemini-2.5-flash-preview-tts';
+const ACCENTS: Record<string, string> = {
+  algerian: 'Read the following Arabic text aloud in a natural Algerian accent (Algerian Darija pronunciation), warm and friendly',
+};
+function accentStyle(): string {
+  return ACCENTS[(process.env.SAKHR_VOICE_ACCENT || '').trim().toLowerCase()] || '';
+}
 const MAX_CHARS = 600;
 const WINDOW_MS = 5 * 60 * 1000;
 const CACHE_MAX = 200;
@@ -68,6 +83,8 @@ function groqKey(): string {
 
 function providers(): Provider[] {
   const list: Provider[] = [];
+  const style = accentStyle();
+  if (style && geminiKey()) list.push({ id: `gemini-accent:${ACCENT_MODEL}`, kind: 'gemini', model: ACCENT_MODEL, style });
   if (groqKey() && process.env.SAKHR_GROQ_TTS !== 'off') list.push({ id: 'groq', kind: 'groq', model: GROQ_TTS_MODEL });
   if (geminiKey()) for (const model of GEMINI_MODELS) list.push({ id: `gemini:${model}`, kind: 'gemini', model });
   return list;
@@ -145,12 +162,13 @@ async function groqSpeech(text: string): Promise<Buffer> {
   return Buffer.from(await res.arrayBuffer());
 }
 
-async function geminiSpeech(model: string, text: string, voice: string): Promise<Buffer> {
+async function geminiSpeech(model: string, text: string, voice: string, style?: string): Promise<Buffer> {
   const ai = new GoogleGenAI({ apiKey: geminiKey() });
   const result = await ai.models.generateContent({
     model,
-    // Only the words to say: TTS models read any instruction aloud.
-    contents: [{ role: 'user', parts: [{ text }] }],
+    // Only the words to say (most TTS models read any instruction aloud); the accent
+    // model alone gets a style line in front.
+    contents: [{ role: 'user', parts: [{ text: style ? `${style}: ${text}` : text }] }],
     config: {
       responseModalities: ['AUDIO'],
       speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
@@ -183,11 +201,12 @@ export async function POST(req: NextRequest) {
     : `user:${session.account.id}`;
 
   const body = await req.json().catch(() => ({}));
-  const text = String(body.text || '').replace(/\s+/g, ' ').trim().slice(0, MAX_CHARS);
+  // Amounts and emails in words (the page does this too; doing it again changes nothing).
+  const text = spokenForms(String(body.text || '').replace(/\s+/g, ' ').trim()).slice(0, MAX_CHARS);
   if (!text) return NextResponse.json({ error: 'لا يوجد نص' }, { status: 400 });
 
   const voice = process.env.SAKHR_VOICE?.trim() || 'Charon';
-  const id = crypto.createHash('sha256').update(`${voice}|${text}`).digest('hex');
+  const id = crypto.createHash('sha256').update(`${voice}|${accentStyle()}|${text}`).digest('hex');
   const headers = (type: string) => ({ 'Content-Type': type, 'Cache-Control': 'private, max-age=86400' });
   const cached = cache.get(id);
   if (cached) {
@@ -207,7 +226,7 @@ export async function POST(req: NextRequest) {
   for (const p of ready) {
     const started = Date.now();
     try {
-      const wav = p.kind === 'groq' ? await groqSpeech(text) : await geminiSpeech(p.model, text, voice);
+      const wav = p.kind === 'groq' ? await groqSpeech(text) : await geminiSpeech(p.model, text, voice, p.style);
       const out = await toMp3(wav);
       cache.set(id, out);
       if (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value as string);

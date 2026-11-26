@@ -134,6 +134,9 @@ function systemPrompt(opts: { role: Who; userName?: string; agency: AgencyFacts;
           '- Answer in 1 to 3 short spoken sentences (about 40 words at most), the most useful fact first.',
           '- No lists, tables, markdown, emoji or links in the text; say numbers and prices plainly (e.g. «185 ألف دينار»).',
           '- If there is more to say, offer it in one short question ("تحب نعطيك التفاصيل؟") instead of reading everything.',
+          ...((process.env.SAKHR_VOICE_ACCENT || '').trim().toLowerCase() === 'algerian'
+            ? ['- Speak like a friendly Algerian agent: light Algerian Darija that everyone understands (e.g. «واش»، «نعاونك»، «بزاف»، «كاين»), not formal Fusha, unless the user speaks another language.']
+            : []),
           '- Visuals and confirmation cards still appear on screen; just mention them in a few words.',
         ]
       : []),

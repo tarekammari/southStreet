@@ -1,5 +1,6 @@
 'use client';
 
+import { spokenForms } from '@/lib/sakhr/spoken';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 /**
@@ -361,9 +362,9 @@ export function useArabicVoice(): boolean {
   return ok;
 }
 
-/** Plain speakable text: no markdown, tables, links or emoji. */
+/** Plain speakable text: no markdown, tables, links or emoji; amounts and emails in words. */
 export function speakableText(markdown: string): string {
-  return markdown
+  const plain = markdown
     .split('\n')
     .filter((l) => !/^\s*\|/.test(l))
     .join('. ')
@@ -372,8 +373,8 @@ export function speakableText(markdown: string): string {
     .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, '')
     .replace(/\s+/g, ' ')
     .replace(/(\s*\.\s*){2,}/g, '. ')
-    .trim()
-    .slice(0, 1500);
+    .trim();
+  return spokenForms(plain).slice(0, 1500);
 }
 
 /** Sentence-sized pieces; the first is short so speech starts quickly. */
