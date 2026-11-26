@@ -52,7 +52,7 @@ export default function HomePage() {
       {currentUser ? <div className="max-w-5xl mx-auto px-4 pt-3"><WelcomeBanner /></div> : null}
       <main className="page-main relative overflow-x-clip pb-6">
         {/* First: the agency's calligraphy hero (as on /about); then the photo hero with the programs. */}
-        <AgencyHero />
+        <AgencyHero showcase />
         <HeroSection content={pageContent} />
         <section id="agency-section" className="relative z-10 w-full px-3 py-8 sm:px-6 sm:py-12">
           <AgencySection />

@@ -4,6 +4,7 @@ import React, { useEffect, useRef } from 'react';
 import { CalligraphyRing, IslamicPattern, IslamicRosette } from '@/components/about/IslamicOrnament';
 import { useAgencyInfo } from '@/components/social/useAgencyInfo';
 import { agencyLabel } from '@/lib/brand';
+import HeroShowcase from '@/components/about/HeroShowcase';
 import './agency-hero.css';
 
 /**
@@ -68,9 +69,12 @@ export function AgencyHeroLayers() {
 export default function AgencyHero({
   layers = 'inside',
   title,
+  showcase = false,
   className = '',
 }: {
   layers?: 'inside' | 'page';
+  /** Three 3D cards under the crest: Umrah (Kaaba), flights (plane), tourist trips (suitcase). */
+  showcase?: boolean;
   /** Rendered as a hidden h1 (the page title for screen readers and search engines). */
   title?: string;
   className?: string;
@@ -122,6 +126,7 @@ export default function AgencyHero({
             </span>
           </div>
         </div>
+        {showcase ? <HeroShowcase /> : null}
       </div>
     </section>
   );
