@@ -72,12 +72,16 @@ const SHIPPED = /^\/images\/(destinations|hotels)\/[\w-]+\.jpg$/;
 
 /**
  * The light file for a photo: 'sm' (640 px) for cards and thumbnails, 'lg'
- * (1280 px) for full-width pictures. Uploaded photos are returned as they are.
+ * (1280 px) for full-width pictures. Uploaded photos (/api/staff-image/…) get a
+ * resized WebP from the image route; other URLs are returned as they are.
  */
 export function lightPhoto(src: string | undefined | null, size: 'sm' | 'lg' = 'sm'): string {
   const s = String(src || '');
   if (SHIPPED.test(s)) return s.replace(/\.jpg$/, size === 'sm' ? '-sm.webp' : '.webp');
-  if (s.startsWith('https://images.unsplash.com/')) return s.replace(/([?&])w=\d+/, `$1w=${size === 'sm' ? 720 : 1600}`);
+  // Full-width tiles look the same at 1200 px; 1600 px cost 250–650 KB each.
+  if (s.startsWith('https://images.unsplash.com/')) return s.replace(/([?&])w=\d+/, `$1w=${size === 'sm' ? 720 : 1200}`).replace(/([?&])q=\d+/, '$1q=62');
+  // Uploaded photos: the image route makes a light WebP copy on request.
+  if (/^\/api\/staff-image\/[^?]+\.(jpe?g|png|webp)$/i.test(s)) return `${s}?w=${size === 'sm' ? 640 : 1280}`;
   return s;
 }
 

@@ -38,6 +38,30 @@ const CONTENT_TYPES: Record<string, string> = {
 
 const resolvedPaths = new Map<string, string>();
 
+const RESIZE_WIDTHS = new Set([480, 640, 960, 1280]);
+const LIGHT_DIR = path.join(process.env.DATA_DIR || process.cwd(), '.image-cache');
+
+/**
+ * A resized WebP of an image file, cached next to the data (keyed by file, size and
+ * modification time). null when sharp is not available: the original is served.
+ */
+async function lightCopy(file: string, width: number): Promise<Buffer | null> {
+  try {
+    const stat = await fs.promises.stat(file);
+    const key = `${path.basename(file).replace(/[^\w.-]/g, '_')}-${Math.round(stat.mtimeMs)}-${width}.webp`;
+    const cached = path.join(LIGHT_DIR, key);
+    if (fs.existsSync(cached)) return await fs.promises.readFile(cached);
+    // eval('require'): sharp is a native module loaded at run time, not bundled.
+    const sharp = eval('require')('sharp');
+    const out: Buffer = await sharp(file).rotate().resize({ width, withoutEnlargement: true }).webp({ quality: 72 }).toBuffer();
+    await fs.promises.mkdir(LIGHT_DIR, { recursive: true });
+    await fs.promises.writeFile(cached, out);
+    return out;
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ filename: string }> }
@@ -74,6 +98,19 @@ export async function GET(
   }
 
   const contentType = CONTENT_TYPES[path.extname(filename).toLowerCase()] || 'application/octet-stream';
+
+  // ?w=640|960|1280: a light WebP copy of an uploaded photo (cards and albums show it far smaller
+  // than the original), made once with sharp and kept on disk.
+  const width = Number(new URL(request.url).searchParams.get('w'));
+  if (RESIZE_WIDTHS.has(width) && /^image\/(jpeg|png|webp)$/.test(contentType)) {
+    const light = await lightCopy(targetPath, width);
+    if (light) {
+      return new NextResponse(new Uint8Array(light), {
+        headers: { 'Content-Type': 'image/webp', 'Content-Length': String(light.length), 'Cache-Control': 'public, max-age=31536000, immutable' },
+      });
+    }
+  }
+
   const stat = await fs.promises.stat(targetPath);
   const range = request.headers.get('range');
   if (range) {

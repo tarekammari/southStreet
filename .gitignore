@@ -57,3 +57,6 @@ logs/
 
 # Data package for the VPS (secrets + database): never commit
 /deploy-upload/
+
+# Resized photo copies made by /api/staff-image?w=
+.image-cache/

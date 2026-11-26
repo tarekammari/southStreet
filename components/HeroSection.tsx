@@ -12,6 +12,7 @@ import { isOpenPackageStatus } from '@/lib/package-status';
 import { socialProfiles } from '@/lib/social';
 import { useAgencyInfo } from '@/components/social/useAgencyInfo';
 import { brandHeroImages, heroStartIndex } from '@/lib/brand';
+import { photoProps } from '@/lib/destination-photos';
 import { SOCIAL_ICON } from '@/components/social/SocialIcons';
 import { PROGRAM_KIND_LABEL, ProgramKind, programImages, programKind, tripGallery, type TripPhoto } from '@/lib/program-display';
 
@@ -676,7 +677,7 @@ function PostcardCoverFlow({ cards, start = 0 }: { cards: readonly Postcard[]; s
                 }}
               >
                 <div className="hero-postcard-photo-wrap">
-                  <img src={card.src} alt={card.alt} className="hero-postcard-photo" draggable={false} loading="lazy" decoding="async" />
+                  <img {...photoProps(card.src, '(max-width: 767px) 72vw, 440px')} alt={card.alt} className="hero-postcard-photo" draggable={false} loading="lazy" decoding="async" />
                 </div>
                 <div className="hero-album-label" dir="rtl">
                   <p className="hero-postcard-place">{card.place}</p>
