@@ -1,16 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { ArrowLeft, CalendarCheck, Hotel, MessageCircle, Star, Users } from 'lucide-react';
 import { CountUp } from '@/components/about/effects';
 import { publicList, publicReviews } from '@/lib/public-catalog';
-import { openSakhr } from '@/components/sakhr/openSakhr';
 
 /**
- * Bottom of the agency hero: the main actions, then a strip of real numbers
- * from the catalogue (programs, partner hotels, guides, rating). Numbers count
- * up once when they come into view; an item with no data is left out.
+ * Bottom of the agency hero: a strip of real numbers from the catalogue
+ * (programs, partner hotels, guides, rating). Numbers count up once when they
+ * come into view; an item with no data is left out.
  * Styles: components/about/agency-hero.css (.hs-*).
  */
 export default function HeroShowcase() {
@@ -31,35 +28,21 @@ export default function HeroShowcase() {
   }, []);
 
   const stats = [
-    { icon: CalendarCheck, value: n.programs, decimals: 0, suffix: '', label: 'برامج العمرة والرحلات' },
-    { icon: Hotel, value: n.hotels, decimals: 0, suffix: '+', label: 'فنادق شريكة' },
-    { icon: Users, value: n.team, decimals: 0, suffix: '', label: 'مرشدون وطاقم' },
-    { icon: Star, value: n.rating, decimals: 1, suffix: '', label: n.reviews ? `تقييم المعتمرين (${n.reviews})` : 'تقييم المعتمرين' },
+    { value: n.programs, decimals: 0, suffix: '', label: 'برامج العمرة والرحلات' },
+    { value: n.hotels, decimals: 0, suffix: '+', label: 'فنادق شريكة' },
+    { value: n.team, decimals: 0, suffix: '', label: 'مرشدون وطاقم' },
+    { value: n.rating, decimals: 1, suffix: '', label: n.reviews ? `تقييم المعتمرين (${n.reviews})` : 'تقييم المعتمرين' },
   ].filter((s) => s.value > 0);
 
+  if (!stats.length) return null;
   return (
-    <div className="hs-wrap">
-      <div className="hs-actions hs-in" style={{ animationDelay: '250ms' }}>
-        <Link href="/packages" className="hs-btn is-primary">
-          تصفح البرامج <ArrowLeft aria-hidden />
-        </Link>
-        <Link href="/book" className="hs-btn is-gold">احجز رحلتك</Link>
-        <button type="button" className="hs-btn is-ghost" onClick={() => openSakhr()}>
-          <MessageCircle aria-hidden /> اسأل المساعد
-        </button>
-      </div>
-
-      {stats.length ? (
-        <dl className="hs-stats hs-in" style={{ animationDelay: '400ms' }}>
-          {stats.map((s) => (
-            <div key={s.label} className="hs-stat">
-              <span className="hs-stat-icon" aria-hidden><s.icon /></span>
-              <dd dir="ltr"><CountUp value={s.value} decimals={s.decimals} />{s.suffix}</dd>
-              <dt>{s.label}</dt>
-            </div>
-          ))}
-        </dl>
-      ) : null}
-    </div>
+    <dl className="hs-stats hs-in" style={{ animationDelay: '450ms' }}>
+      {stats.map((s) => (
+        <div key={s.label} className="hs-stat">
+          <dd dir="ltr"><CountUp value={s.value} decimals={s.decimals} />{s.suffix}</dd>
+          <dt>{s.label}</dt>
+        </div>
+      ))}
+    </dl>
   );
 }

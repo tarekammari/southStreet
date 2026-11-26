@@ -5,6 +5,7 @@ import { CalligraphyRing, IslamicPattern, IslamicRosette } from '@/components/ab
 import { useAgencyInfo } from '@/components/social/useAgencyInfo';
 import { agencyLabel } from '@/lib/brand';
 import HeroShowcase from '@/components/about/HeroShowcase';
+import { HeroOfferCopy } from '@/components/HeroSection';
 import './agency-hero.css';
 
 /**
@@ -70,11 +71,14 @@ export default function AgencyHero({
   layers = 'inside',
   title,
   showcase = false,
+  offer = false,
   className = '',
 }: {
   layers?: 'inside' | 'page';
   /** Under the crest: the main buttons and a strip of real numbers (programs, hotels, guides, rating). */
   showcase?: boolean;
+  /** Under the crest: the open offer (or "no trips yet"), its buttons and the social links. */
+  offer?: boolean;
   /** Rendered as a hidden h1 (the page title for screen readers and search engines). */
   title?: string;
   className?: string;
@@ -126,6 +130,7 @@ export default function AgencyHero({
             </span>
           </div>
         </div>
+        {offer ? <HeroOfferCopy /> : null}
         {showcase ? <HeroShowcase /> : null}
       </div>
     </section>

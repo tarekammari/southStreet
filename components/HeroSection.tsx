@@ -211,7 +211,80 @@ const heroPricePop = {
   },
 };
 
-export default function HeroSection({ content: _content }: { content?: PageContentRow[] }) {
+/**
+ * The offer text of the home hero (the open program, or "no trips yet"), its
+ * buttons, the "also a trip" link and the social links, for showing under the
+ * agency calligraphy hero in an Arabic style. Styles: components/about/agency-hero.css (.ho-*).
+ */
+export function HeroOfferCopy() {
+  const [offer, setOffer] = useState<HeroOffer | null | undefined>(undefined);
+  useEffect(() => {
+    let cancelled = false;
+    publicList<any>('packages')
+      .then((data) => { if (!cancelled) setOffer(pickHeroOffer(Array.isArray(data) ? data : [])); })
+      .catch(() => { if (!cancelled) setOffer(null); });
+    return () => { cancelled = true; };
+  }, []);
+  const agency = useAgencyInfo();
+  const profiles = socialProfiles(agency.social);
+  if (offer === undefined) return <div className="ho is-loading" aria-hidden />;
+
+  return (
+    <div className="ho gc-in" dir="rtl">
+      <span className="ho-rule" aria-hidden><i /></span>
+      {offer ? (
+        <>
+          <h1 className={`ho-title${offer.kind === 'tourism' ? ' is-tourism' : ''}`}>{PROGRAM_KIND_LABEL[offer.kind]}</h1>
+          {offer.kind === 'tourism' && offer.name ? <p className="ho-name">{offer.name}</p> : null}
+          {offer.date ? <p className="ho-date">{offer.date}</p> : null}
+          {offer.priceFrom != null ? (
+            <p className="ho-price">
+              <span>ابتداءً من</span>
+              <b dir="ltr">{offer.priceFrom.toLocaleString('ar-DZ')}</b>
+              <span>دج</span>
+            </p>
+          ) : (
+            <p className="ho-price"><span>السعر عند الطلب</span></p>
+          )}
+          <div className="ho-actions">
+            <Link href={offerHref(offer)} className="ho-btn is-primary">{offer.kind === 'tourism' ? 'تفاصيل الرحلة' : 'ابدأ الحجز'}</Link>
+            <Link href="/packages" className="ho-btn">جميع الرحلات والعروض</Link>
+          </div>
+          {offer.alsoTrip ? (
+            <Link href={`/packages/${encodeURIComponent(offer.alsoTrip.id)}`} className="ho-also">
+              <span>{PROGRAM_KIND_LABEL.tourism} متاحة أيضاً:</span> <b>{offer.alsoTrip.name}</b>
+              {offer.alsoTrip.date ? <small>{offer.alsoTrip.date}</small> : null}
+            </Link>
+          ) : null}
+        </>
+      ) : (
+        <>
+          <h1 className="ho-title">لا توجد رحلات متاحة حالياً</h1>
+          <p className="ho-sub">نُحضّر برامج العمرة والرحلات القادمة. يمكنك حجز فندقك الآن في أي وجهة، أو مراسلتنا ليصلك أول برنامج.</p>
+          <div className="ho-actions">
+            <Link href="/hotels" className="ho-btn is-primary">احجز فندقاً</Link>
+            <Link href="/packages" className="ho-btn">كل البرامج</Link>
+          </div>
+        </>
+      )}
+      {profiles.length ? (
+        <div className="ho-socials">
+          <span>تابعونا</span>
+          {profiles.map((p) => {
+            const Icon = SOCIAL_ICON[p.key];
+            return (
+              <a key={p.key} href={p.url} target="_blank" rel="noreferrer" className={`hero-social is-${p.key}`} aria-label={p.label} title={p.label}>
+                <Icon />
+              </a>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export default function HeroSection({ content: _content, showCopy = true }: { content?: PageContentRow[]; showCopy?: boolean }) {
   const introDone = useIntroDone();
   /** undefined while the catalog loads, null when no trip is open. */
   const [offer, setOffer] = useState<HeroOffer | null | undefined>(undefined);
@@ -246,7 +319,7 @@ export default function HeroSection({ content: _content }: { content?: PageConte
   return (
     <motion.section
       id="hero-section"
-      className="hero-apple-section"
+      className={`hero-apple-section${showCopy ? '' : ' is-album-only'}`}
       dir="ltr"
       aria-label="الصفحة الرئيسية"
       initial={{ opacity: 0 }}
@@ -256,6 +329,7 @@ export default function HeroSection({ content: _content }: { content?: PageConte
       <div className="hero-apple-inner">
         {cards.length ? <PostcardCoverFlow key={offer?.id || 'default'} cards={cards} start={start} /> : null}
 
+        {showCopy ? (
         <div className="hero-apple-copy-col">
           <motion.div
             variants={heroStagger}
@@ -374,6 +448,7 @@ export default function HeroSection({ content: _content }: { content?: PageConte
             </motion.div>
           ) : null}
         </div>
+        ) : null}
       </div>
 
       <button
