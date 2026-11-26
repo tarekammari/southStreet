@@ -19,8 +19,8 @@ export default function PromoBillboard({ content }: { content?: PageContentRow[]
   return (
     <motion.section
       id="direct-flight-section"
-      initial={{ opacity: 0, y: 32, filter: 'blur(8px)' }}
-      whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+      initial={{ opacity: 0, y: 32 }}
+      whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.18 }}
       transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
       className="w-full my-4 md:my-6 px-3 sm:px-6 font-tajawal"

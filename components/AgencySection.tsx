@@ -71,8 +71,8 @@ export default function AgencySection() {
   return (
     <motion.section
       className="w-full relative overflow-hidden"
-      initial={{ opacity: 0, y: 32, filter: 'blur(8px)' }}
-      whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+      initial={{ opacity: 0, y: 32 }}
+      whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.18 }}
       transition={{ duration: 0.75, ease: [0.16, 1, 0.3, 1] }}
     >
