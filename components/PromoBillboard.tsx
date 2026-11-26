@@ -36,6 +36,8 @@ export default function PromoBillboard({ content }: { content?: PageContentRow[]
           whileInView={{ scale: 1 }}
           transition={{ duration: 1.4, ease: 'easeOut' }}
           className="absolute inset-0 w-full h-full object-cover object-center"
+          loading="lazy"
+          decoding="async"
         />
 
         {/* BIGGER TEXT INSIDE A MORE TRANSPARENT LABEL WITH 12PX CORNER RADIUS */}

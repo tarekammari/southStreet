@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
+import { preload } from 'react-dom';
 import { CalligraphyRing, IslamicPattern, IslamicRosette } from '@/components/about/IslamicOrnament';
 import { useAgencyInfo } from '@/components/social/useAgencyInfo';
 import { agencyLabel } from '@/lib/brand';
@@ -64,7 +65,7 @@ export function AgencyHeroLayers() {
       <div className="gc-hero-pattern" aria-hidden><IslamicPattern /></div>
       <div className="gc-ring-wrap" aria-hidden>
         {/* The Kaaba in the middle of the turning ring (the photo itself stays still) */}
-        <span className="gc-ring-kaaba"><img src="/images/kaaba_sharifa_home_page.webp" alt="" decoding="async" /></span>
+        <span className="gc-ring-kaaba"><img src="/images/kaaba_ring_640.webp" alt="" width={640} height={640} decoding="async" /></span>
         <CalligraphyRing className="gc-ring" />
       </div>
     </>
@@ -90,6 +91,9 @@ export default function AgencyHero({
   const agency = useAgencyInfo();
   const name = agency.agency_name || agencyLabel(agency);
   const logo = agency.logo_url || agency.mark_url;
+  // The calligraphy font is the first thing the hero shows: ask for it with the page instead of
+  // after the stylesheet (it was arriving late, so the name appeared in a plain font first).
+  preload('/fonts/aref-ruqaa-ink-arabic-700.woff2', { as: 'font', type: 'font/woff2', crossOrigin: 'anonymous' });
 
   // Pause the hero's loops while it is off screen (no work for animations nobody sees).
   const heroRef = useRef<HTMLElement>(null);

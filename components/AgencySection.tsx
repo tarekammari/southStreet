@@ -80,7 +80,12 @@ export default function AgencySection() {
       <div className="relative w-full h-[85vh] sm:h-screen rounded-2xl md:rounded-3xl overflow-hidden bg-slate-950 flex items-end justify-center pb-10 sm:pb-14">
         
         {/* AUTOMATIC CROSS-FADE IMAGES */}
-        {SECTION2_IMAGES.map((item, i) => (
+        {/* Only the shown photo, the one fading out and the next one are in the page: all ten
+            (about 2 MB) were preloaded with the home page before its fonts. */}
+        {SECTION2_IMAGES.map((item, i) => {
+          const n = SECTION2_IMAGES.length;
+          if (i !== current && i !== (current + 1) % n && i !== (current - 1 + n) % n) return null;
+          return (
           <motion.img
             key={item.src}
             src={item.src}
@@ -96,8 +101,11 @@ export default function AgencySection() {
             }}
             className="absolute inset-0 w-full h-full object-cover object-center pointer-events-none"
             style={{ zIndex: i === current ? 2 : 1 }}
+            loading="lazy"
+            decoding="async"
           />
-        ))}
+          );
+        })}
 
         {/* ELEGANT GLASSY TRANSPARENT TEXT COMPONENT */}
         <div className="relative z-10 w-full max-w-xl mx-4">

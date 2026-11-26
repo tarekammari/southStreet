@@ -25,7 +25,7 @@
 
 /* Calligraphy font for the agency name (OFL, Aref Ruqaa Ink, Arabic bold only, self-hosted). */
 @font-face {
-  font-family: 'Aref Ruqaa Ink'; font-style: normal; font-weight: 700; font-display: swap;
+  font-family: 'Aref Ruqaa Ink'; font-style: normal; font-weight: 700; font-display: block;
   src: url('/fonts/aref-ruqaa-ink-arabic-700.woff2') format('woff2');
   unicode-range: U+0600-06FF, U+0750-077F, U+0870-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
 }
@@ -39,9 +39,9 @@
   display: block; font-family: 'Aref Ruqaa Ink', 'Amiri', serif; font-weight: 700; font-size: clamp(3rem, 7.4vw, 6rem); line-height: 1.35; font-palette: --gc-blue;
   background: linear-gradient(100deg, #0b2560, #1d4ed8 40%, #12307a 60%, #2b5fd9 80%, #0b2560); background-size: 220% 100%;
   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: #1e3a8a;
-  filter: drop-shadow(0 2px 0 #fff) drop-shadow(0 8px 14px rgba(30, 58, 138, .3));
+  filter: drop-shadow(0 6px 10px rgba(30, 58, 138, .28));
   clip-path: inset(0 0 0 100%);
-  animation: gc-write 1.1s cubic-bezier(.45, 0, .2, 1) .1s forwards, gc-gold 3s ease-in-out 1.2s 2 alternate;
+  animation: gc-write 1s cubic-bezier(.45, 0, .2, 1) .05s forwards;
 }
 /* Written in from right to left, like a pen */
 @keyframes gc-write { to { clip-path: inset(0 -10% 0 -10%); } }
@@ -74,7 +74,7 @@
 .gc-hero-pattern {
   position: fixed; inset: -110px; z-index: -1; opacity: .26; pointer-events: none;
 }
-.gc-hero-pattern svg { display: block; width: 100%; height: 100%; animation: gc-drift 30s linear infinite; }
+.gc-hero-pattern svg { display: block; width: 100%; height: 100%; }
 @keyframes gc-drift { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(80px, 80px, 0); } }
 .gi-gold { stroke: var(--ar-gold); }
 .gi-green { stroke: var(--ar-emerald); }
@@ -123,7 +123,7 @@
   animation: gc-glow 4.5s ease-in-out infinite;
 }
 @keyframes gc-glow { 0%, 100% { transform: scale(1); opacity: .55; } 50% { transform: scale(1.5); opacity: 1; } }
-.gc-rosette { position: absolute; inset: 0; width: 100%; height: 100%; animation: gc-turn 60s linear 1s infinite; filter: drop-shadow(0 0 6px rgba(11, 61, 42, .3)); }
+.gc-rosette { position: absolute; inset: 0; width: 100%; height: 100%; animation: gc-turn 60s linear 1s infinite; will-change: transform; }
 .gc-rosette.is-inner { inset: 12%; width: 76%; height: 76%; animation: gc-turn-back 40s linear 1s infinite; }
 .gc-rosette .gi-gold, .gc-rosette .gi-green { stroke-width: 1.4; }
 @keyframes gc-turn { to { transform: rotate(360deg); } }
@@ -200,7 +200,7 @@
   text-shadow: 0 2px 0 #fff, 0 8px 18px rgba(11, 61, 42, .18);
 }
 .ho-title.is-tourism { color: #1e3a8a; }
-.ho-name { margin: 2px 0 0; font: 700 1.25rem/1.6 'Amiri', serif; color: #1e3a8a; }
+.ho-name { margin: 2px 0 0; font: 400 1.3rem/1.6 'Amiri', serif; color: #1e3a8a; }
 .ho-date { margin: 2px 0 0; font: 400 1.1rem/1.6 'Amiri', serif; color: #6b5a2e; }
 .ho-sub { margin: 4px 0 0; max-width: 46ch; font: 400 1.12rem/1.95 'Amiri', serif; color: #3b3326; }
 .ho-price { display: inline-flex; align-items: baseline; gap: 8px; margin: 8px 0 0; font: 400 1.08rem/1.4 'Amiri', serif; color: #6b5a2e; }
@@ -230,7 +230,7 @@
 .hs-stat { display: grid; justify-items: center; gap: 4px; padding: 16px 12px 14px; text-align: center; }
 .hs-stat + .hs-stat { border-inline-start: 1px solid rgba(184, 145, 63, .28); }
 .hs-stat dd { margin: 0; font: 800 clamp(1.7rem, 3vw, 2.2rem)/1.1 var(--font-cairo), 'Cairo', sans-serif; color: var(--ar-emerald-deep); font-variant-numeric: tabular-nums; }
-.hs-stat dt { font: 700 1rem/1.3 'Amiri', serif; color: #6b5a2e; }
+.hs-stat dt { font: 400 1.02rem/1.3 'Amiri', serif; color: #6b5a2e; }
 
 /* Rise in (translate/opacity) */
 .hs-in { animation: hs-in .8s var(--ab-ease) both; }
