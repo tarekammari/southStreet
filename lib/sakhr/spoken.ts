@@ -105,7 +105,8 @@ function currencyOf(token: string): Currency {
 
 /** Money, emails and web addresses → words a voice reads naturally. */
 export function spokenForms(text: string): string {
-  let s = toLatinDigits(text);
+  // Unicode hyphens (the model sometimes writes «rh‑tours» with U+2011) count as plain hyphens.
+  let s = toLatinDigits(text).replace(/[‐-―−]/g, '-');
 
   // Emails: the parts as words ("rh tours آت yahoo دوت fr").
   s = s.replace(/\b([A-Za-z0-9._%+-]+)@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)\b/g, (_m, user: string, host: string) =>

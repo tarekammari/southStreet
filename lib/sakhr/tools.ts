@@ -345,8 +345,22 @@ export const SAKHR_TOOLS: SakhrTool[] = [
       const res = await callRoute(packagesGET as any, ctx, { path: '/api/admin/packages' });
       if (!res.ok || !Array.isArray(res.data)) return fail(res);
       const q = String(args?.query || '').trim().toLowerCase();
-      const rows = (res.data as any[])
-        .filter((p) => args?.include_past || programAvailability(p) !== 'expired')
+      const all = res.data as any[];
+      // Nothing open matches a named program: also look at departed ones, so the answer can be
+      // "it left on …" (with its price) instead of "not found".
+      const openMatch = all.some((p) => programAvailability(p) !== 'expired' && matches(p));
+      const withPast = Boolean(args?.include_past) || Boolean(q && !openMatch);
+      function matches(p: any): boolean {
+        if (args?.kind && (args.kind === 'tourism') !== isTourism(p)) return false;
+        if (!q) return true;
+        const t = tourOf(p);
+        return [p.name, p.makkah_hotel_name, p.madinah_hotel_name, p.airline, p.season_name, destinationOf(t.country)?.label, t.country, ...t.cities]
+          .join(' ')
+          .toLowerCase()
+          .includes(q);
+      }
+      const rows = all
+        .filter((p) => withPast || programAvailability(p) !== 'expired')
         .filter((p) => !args?.kind || (args.kind === 'tourism') === isTourism(p))
         .filter((p) => {
           if (!q) return true;
@@ -386,7 +400,16 @@ export const SAKHR_TOOLS: SakhrTool[] = [
           page: `/packages/${encodeURIComponent(p.package_id)}`,
           book_link: `/book?package=${encodeURIComponent(p.package_id)}`,
         }));
-      return { ok: true, data: { count: rows.length, programs: rows } };
+      return {
+        ok: true,
+        data: {
+          count: rows.length,
+          programs: rows,
+          ...(withPast && !args?.include_past && rows.length
+            ? { note: 'No open program matches; these have already departed (status shows it). Say so, with the date, and suggest the open programs or contacting the agency.' }
+            : {}),
+        },
+      };
     },
   },
   {
