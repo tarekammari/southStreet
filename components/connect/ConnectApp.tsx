@@ -7,6 +7,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { Ban, Bell, BellOff, Download, Info, Loader2, LogOut, RefreshCw, MessageCircle, Phone, PhoneIncoming, PhoneMissed, PhoneOutgoing, Search, Star, UserPlus, Users } from 'lucide-react';
 import { authHeaders, jsonAuthHeaders } from '@/lib/api-client';
@@ -773,7 +774,7 @@ export default function ConnectApp() {
           {!loginOpen && (
             <div className="cn-login-actions">
               <button type="button" className="cn-sheet-btn cn-login-primary" onClick={() => setLoginOpen(true)}>تسجيل الدخول</button>
-              <a href="/" className="cn-sheet-btn">العودة إلى الموقع</a>
+              <Link href="/" className="cn-sheet-btn">العودة إلى الموقع</Link>
             </div>
           )}
         </div>
