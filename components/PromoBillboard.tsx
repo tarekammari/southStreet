@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { PageContentRow, pickPageContent } from '@/lib/page-content';
 
@@ -26,7 +27,8 @@ export default function PromoBillboard({ content }: { content?: PageContentRow[]
       className="w-full my-4 md:my-6 px-3 sm:px-6 font-tajawal"
     >
       {/* ── FULL WIDTH CONTAINER WITH RAW AIR ALGÉRIE BACKGROUND ── */}
-      <div className="relative w-full h-[500px] sm:h-[600px] md:h-[700px] rounded-2xl md:rounded-3xl overflow-hidden flex items-end justify-center pb-8 sm:pb-12 text-center group">
+      {/* The whole picture opens the flights page (booking coming soon). */}
+      <Link href="/flights" aria-label={`${promo.title} — حجز الطيران`} className="relative w-full h-[500px] sm:h-[600px] md:h-[700px] rounded-2xl md:rounded-3xl overflow-hidden flex items-end justify-center pb-8 sm:pb-12 text-center group cursor-pointer">
 
         {/* RAW BACKGROUND IMAGE — FULL BLEED WITH SMOOTH ENTRANCE ZOOM EFFECT */}
         <motion.img
@@ -52,7 +54,7 @@ export default function PromoBillboard({ content }: { content?: PageContentRow[]
           </h2>
         </motion.div>
 
-      </div>
+      </Link>
     </motion.section>
   );
 }
