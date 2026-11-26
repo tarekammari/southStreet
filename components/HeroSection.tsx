@@ -40,6 +40,11 @@ function formatOfferDate(value?: string, seasonName?: string): string {
   return seasonName || '';
 }
 
+/** The calligraphy font has only Arabic digits (٠-٩): the date in the hero title uses them so the whole line is in one font. */
+function calligraphyDigits(text: string): string {
+  return text.replace(/[0-9]/g, (d) => String.fromCharCode(0x0660 + Number(d)));
+}
+
 function lowestOfferPrice(prices: { amount?: number }[] | undefined): number | null {
   if (!Array.isArray(prices) || prices.length === 0) return null;
   const amounts = prices.map((p) => Number(p.amount)).filter((n) => Number.isFinite(n) && n > 0);
@@ -236,9 +241,12 @@ export function HeroOfferCopy() {
       <span className="ho-rule" aria-hidden><i /></span>
       {offer ? (
         <>
-          <h1 className={`ho-title is-offer${offer.kind === 'tourism' ? ' is-tourism' : ''}`}>{PROGRAM_KIND_LABEL[offer.kind]}</h1>
+          {/* The kind and the date on one line, both in the calligraphy. */}
+          <h1 className={`ho-title is-offer${offer.kind === 'tourism' ? ' is-tourism' : ''}`}>
+            <span>{PROGRAM_KIND_LABEL[offer.kind]}</span>
+            {offer.date ? <span className="ho-title-date">{calligraphyDigits(offer.date)}</span> : null}
+          </h1>
           {offer.kind === 'tourism' && offer.name ? <p className="ho-name">{offer.name}</p> : null}
-          {offer.date ? <p className="ho-date">{offer.date}</p> : null}
           {offer.priceFrom != null ? (
             <p className="ho-price">
               <span>ابتداءً من</span>
