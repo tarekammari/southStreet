@@ -5,8 +5,9 @@
  *    Arabic words: «مئة وستون ألفاً وستمئة دينار جزائري». A voice reading the
  *    digits says "one six zero six zero zero point zero zero" or gets the
  *    grouping dot wrong.
- *  - Emails and web addresses: «rh-tours@yahoo.fr» becomes «rh tours آت yahoo دوت fr»,
- *    so each part is read as a word instead of letter by letter.
+ *  - Emails: «rh-tours@yahoo.fr» becomes «rh tours آت ياهو دوت إف آر», so each part is
+ *    read as a word instead of letter by letter.
+ *  - Links (web addresses, page paths) are not read: they become «اضغط على الرابط».
  *
  * Pure and idempotent (a second pass changes nothing): used on the page before
  * the reply is cut into sentences, and again by the speech API.
@@ -110,7 +111,12 @@ const HOST_WORDS: Record<string, string> = {
 };
 const hostWords = (host: string) => host.split('.').map((p) => HOST_WORDS[p.toLowerCase()] || p.replace(/-/g, ' ')).join(' دوت ');
 
-/** Money, emails and web addresses → words a voice reads naturally. */
+/** What the voice says instead of reading a link. */
+const CLICK = 'اضغط على الرابط';
+const LINK_LABEL = new RegExp(`(?:الرابط|رابط|link|lien)\\s*[:：]?\\s*${CLICK}`, 'gi');
+const CLICK_REPEATS = new RegExp(`(${CLICK}[\\s،,.:]*){2,}`, 'g');
+
+/** Money and emails → words a voice reads naturally; links → «اضغط على الرابط». */
 export function spokenForms(text: string): string {
   // Unicode hyphens (the model sometimes writes «rh‑tours» with U+2011) count as plain hyphens.
   let s = toLatinDigits(text).replace(/[‐-―−]/g, '-');
@@ -119,10 +125,16 @@ export function spokenForms(text: string): string {
   s = s.replace(/\b([A-Za-z0-9._%+-]+)@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)\b/g, (_m, user: string, host: string) =>
     ` ${user.replace(/[._%+-]+/g, ' ').trim()} آت ${hostWords(host)} `
   );
-  // Web addresses: drop the scheme and "www", read the dots as «دوت».
-  s = s.replace(/\b(?:https?:\/\/)?(?:www\.)?([a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|dz|tech|fr|sa|info|io|app))(\/[^\s]*)?/gi, (_m, host: string) =>
-    ` ${hostWords(host)} `
-  );
+  // Links are never read out: a web address or a page path («/hotels/…?checkIn=…») becomes
+  // «اضغط على الرابط» (the link itself is on screen), and a «رابط:» label before it is dropped.
+  // When the reply already says «اضغط على الرابط …» itself, the links are simply left unsaid.
+  const saysClick = /اضغط على الرابط|انقر على الرابط/.test(s);
+  const link = saysClick ? ' ' : ` ${CLICK} `;
+  s = s.replace(/\b(?:https?:\/\/)?(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|dz|tech|fr|sa|info|io|app)(?:\/[^\s]*)?/gi, link);
+  s = s.replace(/(^|[\s(«"'])\/[a-z][\w\-./%]*(?:\?[^\s)»"']*)?/gi, `$1${link}`);
+  if (saysClick) s = s.replace(/(?:الرابط|رابط|link|lien)\s*[:：]\s*(?=\s|$)/gi, '');
+  s = s.replace(LINK_LABEL, CLICK);
+  s = s.replace(CLICK_REPEATS, `${CLICK} `);
 
   // Currency after the amount ("160600.00 دج") and before it ("دج 160600.00").
   s = s.replace(new RegExp(`(${NUM})\\s*(${CUR})`, 'g'), (m, num: string, cur: string) => {
