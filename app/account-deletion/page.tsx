@@ -22,7 +22,7 @@ export default function AccountDeletionPage() {
   const owner = b.legal_name || b.agency_name;
   const wa = brandWhatsapps(b)[0] || '';
   const mail = b.email ? `mailto:${b.email}?subject=${encodeURIComponent(SUBJECT)}&body=${encodeURIComponent(BODY)}` : '';
-  const whatsapp = wa ? `https://wa.me/${wa}?text=${encodeURIComponent(`${SUBJECT}\n${BODY}`)}` : '';
+  const whatsapp = wa ? waLink(wa, `${SUBJECT}\n${BODY}`) : '';
   return (
     <LegalPage title={`حذف حسابك في ${app}`} updated="2026-11-27">
       <div dir="rtl">
