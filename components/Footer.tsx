@@ -163,7 +163,7 @@ export default function Footer({ content, hideCta = false }: { content?: PageCon
           <span className="sf-status">الخدمة متاحة</span>
           <nav aria-label="روابط قانونية">
             <Link href="/about">شروط الخدمة</Link>
-            <Link href="/about">سياسة الخصوصية</Link>
+            <Link href="/privacy">سياسة الخصوصية</Link>
             <a href="#top" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="sf-top">
               للأعلى <ArrowLeft size={14} style={{ transform: 'rotate(90deg)' }} />
             </a>

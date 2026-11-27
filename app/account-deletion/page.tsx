@@ -3,6 +3,7 @@ import Link from 'next/link';
 import LegalPage from '@/components/legal/LegalPage';
 import { getBrand } from '@/lib/brand-server';
 import { brandWhatsapps, connectName } from '@/lib/brand';
+import { waLink } from '@/lib/social';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,7 +20,7 @@ export default function AccountDeletionPage() {
   const b = getBrand();
   const app = connectName(b);
   const owner = b.legal_name || b.agency_name;
-  const wa = brandWhatsapps(b)[0]?.replace(/[^\d]/g, '');
+  const wa = brandWhatsapps(b)[0] || '';
   const mail = b.email ? `mailto:${b.email}?subject=${encodeURIComponent(SUBJECT)}&body=${encodeURIComponent(BODY)}` : '';
   const whatsapp = wa ? `https://wa.me/${wa}?text=${encodeURIComponent(`${SUBJECT}\n${BODY}`)}` : '';
   return (
