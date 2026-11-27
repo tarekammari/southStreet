@@ -185,6 +185,17 @@ const older = (a: string, b: string) => {
   return false;
 };
 
+/** Where the Android app gets its updates: 'play' (Google Play), 'site' (this website), null otherwise. */
+export function nativeStore(): 'play' | 'site' | null {
+  const a = droid() as unknown as { store?: () => string } | undefined;
+  if (!a) return null;
+  try {
+    return a.store?.() === 'play' ? 'play' : 'site';
+  } catch {
+    return 'site';
+  }
+}
+
 /** Version of the app shell around this page ('' when unknown, null in a browser). */
 export function nativeVersion(): string | null {
   const w = win() as unknown as { version?: string } | undefined;

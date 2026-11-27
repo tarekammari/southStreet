@@ -12,9 +12,13 @@ export const CONNECT_VERSION = '1.8.1';
 export function nativeIdentity() {
   const raw = (process.env.CONNECT_APP_SLUG || '').trim().toLowerCase();
   const slug = /^[a-z][a-z0-9]{1,20}$/.test(raw) ? raw : '';
+  const androidPackage = slug ? `tech.southstreet.connect.${slug}` : 'tech.southstreet.connect';
+  // Once the app is published on Google Play (CONNECT_ON_PLAY=1), Android visitors install it from there.
+  const onPlay = /^(1|true|yes)$/i.test((process.env.CONNECT_ON_PLAY || '').trim());
   return {
-    androidPackage: slug ? `tech.southstreet.connect.${slug}` : 'tech.southstreet.connect',
+    androidPackage,
     scheme: slug ? `ssconnect-${slug}` : 'ssconnect',
+    playUrl: onPlay ? `https://play.google.com/store/apps/details?id=${androidPackage}` : '',
   };
 }
 

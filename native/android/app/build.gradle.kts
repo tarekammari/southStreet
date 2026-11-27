@@ -8,12 +8,18 @@ plugins {
 val hasFirebase = file("google-services.json").exists()
 if (hasFirebase) apply(plugin = "com.google.gms.google-services")
 
+// Google Play edition (SS_STORE=play): updates come from Play, and src/play/AndroidManifest.xml
+// takes out what Play restricts (APK installs, battery exemption, the always-on listener).
+// Play needs Firebase for calls to ring while the app is closed.
+val playStore = System.getenv("SS_STORE") == "play"
+if (playStore && !hasFirebase) throw GradleException("SS_STORE=play needs google-services.json (Firebase)")
+
 // Release signing: a PKCS12 key kept on the build server (never in git).
 val keyFile = System.getenv("SS_KEYSTORE")?.let { file(it) }
 
 android {
     namespace = "tech.southstreet.connect"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "tech.southstreet.connect"
@@ -28,7 +34,7 @@ android {
         manifestPlaceholders["appScheme"] = scheme
         buildConfigField("String", "APP_SCHEME", "\"$scheme\"")
         minSdk = 27
-        targetSdk = 35
+        targetSdk = 36
         versionCode = (System.getenv("SS_VERSION_CODE") ?: "1").toInt()
         versionName = System.getenv("SS_VERSION_NAME") ?: "1.5.0"
         val origin = System.getenv("SS_ORIGIN") ?: "https://southstreet.1zayd1.tech"
@@ -36,6 +42,7 @@ android {
         // Plain http only for a test build aimed at a local dev server (SS_ORIGIN=http://10.0.2.2:3001).
         manifestPlaceholders["cleartext"] = origin.startsWith("http://").toString()
         buildConfigField("boolean", "HAS_FIREBASE", hasFirebase.toString())
+        buildConfigField("boolean", "PLAY_STORE", playStore.toString())
         // Agency build (deploy/connect-agency-build.sh): the name under the icon and the
         // longer name on the call screen, notifications and the phone's calling account.
         resValue("string", "app_name", System.getenv("SS_APP_NAME")?.takeIf { it.isNotBlank() } ?: "SS Connect")
@@ -63,6 +70,8 @@ android {
 
     buildFeatures { buildConfig = true }
 
+    if (playStore) sourceSets.getByName("release").manifest.srcFile("src/play/AndroidManifest.xml")
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -77,4 +86,6 @@ dependencies {
     implementation("androidx.browser:browser:1.8.0")
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
     implementation("com.google.firebase:firebase-messaging")
+    // Play edition: "update available" and the download, handled by Google Play itself.
+    implementation("com.google.android.play:app-update-ktx:2.1.0")
 }

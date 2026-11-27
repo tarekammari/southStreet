@@ -8,6 +8,12 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.core.content.FileProvider
+import com.google.android.play.core.appupdate.AppUpdateManagerFactory
+import com.google.android.play.core.appupdate.AppUpdateOptions
+import com.google.android.play.core.install.InstallStateUpdatedListener
+import com.google.android.play.core.install.model.AppUpdateType
+import com.google.android.play.core.install.model.InstallStatus
+import com.google.android.play.core.install.model.UpdateAvailability
 import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
@@ -21,6 +27,9 @@ import kotlin.concurrent.thread
  * dialog asks "تحديث الآن". Android always shows its own install confirmation
  * for apps from outside the Play Store — that tap cannot be skipped.
  * Never during a call.
+ *
+ * Play edition (BuildConfig.PLAY_STORE): Google Play does the download (its own
+ * "update" sheet, in the background), then one dialog restarts into the new version.
  */
 object Updater {
     private const val CHECK_EVERY_MS = 6 * 60 * 60 * 1000L
@@ -40,6 +49,7 @@ object Updater {
      * from "التحقق من التحديثات" ([force] = true). [result]: latest | ready | busy | error.
      */
     fun check(activity: Activity, force: Boolean = false, result: ((state: String, version: String) -> Unit)? = null) {
+        if (BuildConfig.PLAY_STORE) return checkPlay(activity, force, result)
         if (waitingForPermission && canInstall(activity)) {
             waitingForPermission = false
             ready?.let { return install(activity, it) }
@@ -83,6 +93,68 @@ object Updater {
                 checking = false
             }
         }
+    }
+
+    // ---- Google Play edition ----
+    private var playListening = false
+
+    private fun checkPlay(activity: Activity, force: Boolean, result: ((state: String, version: String) -> Unit)?) {
+        val now = System.currentTimeMillis()
+        if (!force && now - lastCheck < CHECK_EVERY_MS) return
+        lastCheck = now
+        val mgr = AppUpdateManagerFactory.create(activity.applicationContext)
+        mgr.appUpdateInfo
+            .addOnSuccessListener { info ->
+                val code = info.availableVersionCode().toString()
+                when {
+                    // Downloaded earlier (maybe while the app was closed): restart into it.
+                    info.installStatus() == InstallStatus.DOWNLOADED -> {
+                        offerRestart(activity)
+                        result?.invoke("ready", code)
+                    }
+                    info.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE &&
+                        info.isUpdateTypeAllowed(AppUpdateType.FLEXIBLE) && !MainActivity.inCall -> {
+                        if (!playListening) {
+                            playListening = true
+                            mgr.registerListener(object : InstallStateUpdatedListener {
+                                override fun onStateUpdate(state: com.google.android.play.core.install.InstallState) {
+                                    if (state.installStatus() == InstallStatus.DOWNLOADED) {
+                                        val a = MainActivity.current()
+                                        if (a != null) a.runOnUiThread { offerRestart(a) }
+                                    }
+                                    if (state.installStatus() in listOf(InstallStatus.INSTALLED, InstallStatus.FAILED, InstallStatus.CANCELED)) {
+                                        mgr.unregisterListener(this)
+                                        playListening = false
+                                    }
+                                }
+                            })
+                        }
+                        try {
+                            mgr.startUpdateFlow(info, activity, AppUpdateOptions.defaultOptions(AppUpdateType.FLEXIBLE))
+                            result?.invoke("downloading", code)
+                        } catch (_: Exception) {
+                            result?.invoke("error", code)
+                        }
+                    }
+                    info.updateAvailability() == UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS ->
+                        result?.invoke("downloading", code)
+                    else -> result?.invoke("latest", BuildConfig.VERSION_NAME)
+                }
+            }
+            .addOnFailureListener {
+                lastCheck = 0L // offline, or not installed from Play: try again next time
+                result?.invoke("error", "")
+            }
+    }
+
+    private fun offerRestart(activity: Activity) {
+        if (activity.isFinishing || dialog?.isShowing == true || MainActivity.inCall) return
+        dialog = AlertDialog.Builder(activity)
+            .setTitle("تحديث جديد جاهز")
+            .setMessage("نزّل Google Play الإصدار الجديد من ${activity.getString(R.string.app_long_name)}. اضغط «تحديث الآن» ليُعاد تشغيل التطبيق خلال ثوانٍ — يبقى حسابك ومحادثاتك كما هي.")
+            .setPositiveButton("تحديث الآن") { _, _ -> AppUpdateManagerFactory.create(activity.applicationContext).completeUpdate() }
+            .setNegativeButton("لاحقاً", null)
+            .show()
     }
 
     private fun offer(activity: Activity) {

@@ -42,7 +42,7 @@ class ListenerService : Service() {
         channel()
         val n = NotificationCompat.Builder(this, CH)
             .setSmallIcon(R.drawable.ic_stat_call)
-            .setContentTitle("SS Connect جاهز لاستقبال المكالمات")
+            .setContentTitle("${getString(R.string.app_name)} جاهز لاستقبال المكالمات")
             .setContentText("يبقى التطبيق متصلاً ليرنّ الهاتف عند الاتصال")
             .setPriority(NotificationCompat.PRIORITY_MIN)
             .setOngoing(true)
@@ -169,6 +169,7 @@ class ListenerService : Service() {
         private const val ACTION_STOP = "stop"
 
         fun start(ctx: Context) {
+            if (BuildConfig.PLAY_STORE) return // Play edition: Firebase rings the closed app
             try {
                 ContextCompat.startForegroundService(ctx, Intent(ctx, ListenerService::class.java))
             } catch (_: Exception) { }

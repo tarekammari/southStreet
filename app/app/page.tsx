@@ -57,7 +57,7 @@ const PLATFORMS: Record<
     size: 'APK · 4 ميغابايت',
     steps: [
       'سجّل الدخول بحسابك ثم اضغط «تحميل لأندرويد» وافتح الملف واضغط «تثبيت».',
-      'افتح SS Connect وسجّل الدخول.',
+      'افتح التطبيق وسجّل الدخول.',
       'اضغط «موافق» مرة واحدة — يكمل التطبيق الإعداد بنفسه.',
     ],
   },
@@ -85,6 +85,17 @@ const PLATFORMS: Record<
     ],
     note: 'تطبيق الآيفون الكامل قادم قريباً.',
   },
+};
+
+/** Android once the app is on Google Play: install there (no sign-in, Play keeps it updated). */
+const ANDROID_PLAY = {
+  cta: 'التثبيت من Google Play',
+  size: 'Google Play · تحديثات تلقائية',
+  steps: [
+    'اضغط «التثبيت من Google Play» ثم «تثبيت».',
+    'افتح التطبيق وسجّل الدخول بحسابك.',
+    'اضغط «موافق» مرة واحدة — يكمل التطبيق الإعداد بنفسه. Google Play يحدّثه تلقائياً.',
+  ],
 };
 
 const FEATURES = [
@@ -211,6 +222,15 @@ export default function DownloadPage() {
   const [pendingInstall, setPendingInstall] = useState<Platform | 'auto' | null>(null);
   const [installNote, setInstallNote] = useState('');
   const [loginRedirect, setLoginRedirect] = useState('/app#install');
+  // This agency's app on Google Play ('' until it is published there).
+  const [playUrl, setPlayUrl] = useState('');
+  useEffect(() => {
+    void fetch('/api/connect/app-version', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((d) => setPlayUrl(/^https:\/\/play\.google\.com\//.test(String(d?.identity?.playUrl || '')) ? String(d.identity.playUrl) : ''))
+      .catch(() => undefined);
+  }, []);
+  const platformsNow: typeof PLATFORMS = playUrl ? { ...PLATFORMS, android: { ...PLATFORMS.android, ...ANDROID_PLAY, href: playUrl } } : PLATFORMS;
 
   useEffect(() => {
     setInApp(insideNativeApp());
@@ -243,9 +263,14 @@ export default function DownloadPage() {
     setPendingInstall(null);
     setPlatform(p);
     window.setTimeout(() => document.getElementById('install')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 400);
-    const target = PLATFORMS[p];
+    const target = platformsNow[p];
     if (inApp) {
       setInstallNote('Connect مثبّت على هذا الجهاز بالفعل.');
+      return;
+    }
+    if (p === 'android' && playUrl) {
+      window.location.href = playUrl;
+      setInstallNote('يُفتح Google Play — اضغط «تثبيت».');
       return;
     }
     if (!target.href) {
@@ -265,7 +290,7 @@ export default function DownloadPage() {
     link.click();
     link.remove();
     setInstallNote(`بدأ تنزيل Connect ${target.label}. افتح الملف عند انتهائه لإكمال التثبيت.`);
-  }, [pendingInstall, account, inApp]);
+  }, [pendingInstall, account, inApp, playUrl]);
 
   const checkUpdates = async () => {
     setChecking(true);
@@ -280,8 +305,8 @@ export default function DownloadPage() {
     void QRCode.toDataURL(`${window.location.origin}/app?utm_source=qr`, { margin: 1, width: 360, color: { dark: '#064e3b', light: '#ffffff' } }).then(setQr);
   }, []);
 
-  const main = PLATFORMS[detected];
-  const current = PLATFORMS[platform];
+  const main = platformsNow[detected];
+  const current = platformsNow[platform];
   const others = (Object.keys(PLATFORMS) as Platform[]).filter((p) => p !== detected);
 
   const primary = (p: Platform, className: string) =>
@@ -298,6 +323,10 @@ export default function DownloadPage() {
                 ? 'تعذّر التحقق — أعد المحاولة'
                 : 'التطبيق مثبّت · التحقق من التحديثات'}
       </button>
+    ) : p === 'android' && playUrl ? (
+      <a href={playUrl} target="_blank" rel="noopener noreferrer" className={className}>
+        <Download /> {ANDROID_PLAY.cta}
+      </a>
     ) : PLATFORMS[p].href && account !== 'in' ? (
       <button type="button" className={className} onClick={() => setLoginOpen(true)}>
         <Lock /> سجّل الدخول للتنزيل

@@ -6,7 +6,7 @@ import { relayOnly, saveRelayOnly } from '@/lib/connect/device-prefs';
 import { jsonAuthHeaders } from '@/lib/api-client';
 import { versionLabel } from '@/lib/connect/version';
 import RingtonePicker from './RingtonePicker';
-import { checkAppUpdate, downloadNewApp, nativePlatform, nativeVersion, onUpdateProgress, type UpdateCheck } from '@/lib/connect/native-bridge';
+import { checkAppUpdate, downloadNewApp, nativePlatform, nativeStore, nativeVersion, onUpdateProgress, type UpdateCheck } from '@/lib/connect/native-bridge';
 import { connectName } from '@/lib/brand';
 import { useBrand } from '@/components/social/useAgencyInfo';
 
@@ -59,6 +59,7 @@ export default function AboutSheet({
   useEffect(() => onUpdateProgress((p) => setProgress(p.pct >= 100 ? null : p)), []);
   const platform = nativePlatform();
   const shell = nativeVersion();
+  const store = nativeStore();
   const appLabel = platform ? `${platform === 'android' ? 'أندرويد' : 'ويندوز'} ${shell || 'قديم'}` : 'تطبيق الويب';
 
   const checkUpdates = async () => {
@@ -109,6 +110,7 @@ export default function AboutSheet({
 
         <dl className="cn-versions">
           <div><dt>التطبيق</dt><dd><bdi dir="ltr">{appLabel}</bdi></dd></div>
+          {store ? <div><dt>التحديثات</dt><dd>{store === 'play' ? 'تلقائية عبر Google Play' : 'من موقع الوكالة'}</dd></div> : null}
           <div><dt>الخدمة</dt><dd><bdi dir="ltr">{versionLabel()}</bdi></dd></div>
         </dl>
 
@@ -123,7 +125,7 @@ export default function AboutSheet({
         ) : null}
         {update ? (
           <p className={`cn-sheet-note${update.state === 'error' || update.state === 'old-app' ? ' is-error' : ''}`}>
-            {UPDATE_NOTE[update.state]}
+            {store === 'play' && update.state === 'downloading' ? 'يُنزّل Google Play التحديث — سيُطلب منك «تحديث الآن» عند جاهزيته' : UPDATE_NOTE[update.state]}
             {update.version && update.state !== 'latest' ? <> · <bdi dir="ltr">{update.version}</bdi></> : null}
           </p>
         ) : null}
@@ -176,6 +178,10 @@ export default function AboutSheet({
         </button>
         {testing === 'sent' ? <p className="cn-sheet-note">أغلق التطبيق الآن. بعد 5 ثوانٍ سيرنّ هاتفك كمكالمة واردة.</p> : null}
         {error ? <p className="cn-sheet-note is-error">{error}</p> : null}
+
+        <p className="cn-sheet-legal">
+          <a href="/privacy">سياسة الخصوصية</a> · <a href="/account-deletion">حذف الحساب</a>
+        </p>
       </div>
     </div>
   );

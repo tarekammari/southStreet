@@ -126,7 +126,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun notificationsOn() = androidx.core.app.NotificationManagerCompat.from(this).areNotificationsEnabled()
 
-    private fun batteryOk() = getSystemService(android.os.PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
+    // Play edition: no battery exemption (Play restricts it); Firebase high-priority pushes still ring.
+    private fun batteryOk() = BuildConfig.PLAY_STORE || getSystemService(android.os.PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
 
     private fun fullScreenOk(): Boolean =
         Build.VERSION.SDK_INT < 34 || getSystemService(NotificationManager::class.java).canUseFullScreenIntent()
@@ -204,6 +205,9 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface fun version() = BuildConfig.VERSION_NAME
         @JavascriptInterface fun token() = Prefs.token(this@MainActivity)
         @JavascriptInterface fun firebase() = BuildConfig.HAS_FIREBASE
+        /** Where updates come from: "play" (Google Play) or "site" (this website). */
+        @JavascriptInterface fun store() = if (BuildConfig.PLAY_STORE) "play" else "site"
+        @JavascriptInterface fun versionCode() = BuildConfig.VERSION_CODE
 
         /** The call screen shows «مكبّر الصوت» (earpiece / loudspeaker) only in apps that can switch. */
         @JavascriptInterface fun canSwitchSpeaker() = true
@@ -312,6 +316,9 @@ class MainActivity : AppCompatActivity() {
         /** A call is ringing or going on: no update dialog now. */
         @Volatile var inCall = false
         private var instance: WeakReference<MainActivity>? = null
+
+        /** The open app window, if any (e.g. for the "update ready" dialog). */
+        fun current(): MainActivity? = instance?.get()?.takeIf { !it.isFinishing }
 
         /** Sends a call button (hang up…) from a notification to the page. Returns false if the app is gone. */
         fun sendCallAction(action: String): Boolean {

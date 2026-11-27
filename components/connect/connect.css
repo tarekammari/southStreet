@@ -236,6 +236,8 @@
 .cn-sheet-btn:disabled { opacity: 0.5; }
 .cn-sheet-note { margin: 0; font-size: 0.82rem; text-align: center; color: #0f5132; }
 .cn-sheet-note.is-error { color: #b91c1c; }
+.cn-sheet-legal { margin: 4px 0 0; font-size: 0.8rem; text-align: center; color: #64748b; }
+.cn-sheet-legal a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
 .cn-update-progress { position: relative; overflow: hidden; padding: 9px 12px; border-radius: 12px; background: #f0faf6; font-size: 0.82rem; font-weight: 700; color: var(--cn-brand); text-align: center; }
 .cn-update-progress span { position: relative; z-index: 1; }
 .cn-update-progress i { position: absolute; inset-block: 0; inset-inline-start: 0; background: #c9eedf; transition: width 0.3s ease; }

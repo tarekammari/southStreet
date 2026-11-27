@@ -4,7 +4,7 @@
 # apps talk to the agency's server, carry its name and icon, and install next
 # to other agencies' apps.
 #
-#   deploy/connect-agency-build.sh <agency-folder> <install-slug> [android|windows|all]
+#   deploy/connect-agency-build.sh <agency-folder> <install-slug> [android|windows|all|play]
 #   e.g. deploy/connect-agency-build.sh deploy/agencies/hebla-tours hebla-tours
 #
 # Run from the project folder on the PC (Git Bash). Needs:
@@ -20,6 +20,11 @@
 # Firebase (calls ring while the Android app is closed): put the agency's
 # google-services.json (for package tech.southstreet.connect.<slug>) at
 # /home/builder/google-services-<slug>.json before building.
+#
+# play: the Google Play edition (SS_STORE=play, needs Firebase) as an .aab, signed
+# with the agency's own UPLOAD key /home/builder/keys/upload-<slug>.p12 (made on the
+# first run; keep it safe — Play signs the app itself with its own key). The .aab
+# lands in this PC's Downloads folder, ready to upload in Play Console.
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
@@ -55,6 +60,35 @@ build_android() {
     mkdir -p $DL && chmod 755 $DL
     cp $B/app/build/outputs/apk/release/app-release.apk $DL/SouthStreetConnect.apk && chmod 644 $DL/SouthStreetConnect.apk
     ls -la $DL/SouthStreetConnect.apk"
+}
+
+build_play() {
+  local B="/home/builder/connect-android-$SLUG-play"
+  echo "▶ Play: upload sources"
+  tar -czf - --exclude=build --exclude=.gradle -C native android | ssh "$VPS" "rm -rf $B /tmp/upp-$SLUG && mkdir -p /tmp/upp-$SLUG && tar -xzf - -C /tmp/upp-$SLUG && mv /tmp/upp-$SLUG/android $B && rmdir /tmp/upp-$SLUG"
+  ssh "$VPS" "cat > $B/app/src/main/res/mipmap-xxhdpi/ic_launcher.png" < "$AGENCY_DIR/connect/android-xxhdpi.png"
+  ssh "$VPS" "cat > $B/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" < "$AGENCY_DIR/connect/android-xxxhdpi.png"
+  printf 'export SS_STORE=play SS_APP_SLUG=%q SS_ORIGIN=%q SS_APP_NAME=%q SS_APP_LONG_NAME=%q SS_VERSION_CODE=%q SS_VERSION_NAME=%q
+'     "$SLUG" "$ORIGIN" "$NAME" "$LONG" "$VCODE" "$VNAME" | ssh "$VPS" "cat > $B/agency.env"
+  echo "▶ Play: build the .aab on the VPS (a few minutes)"
+  ssh "$VPS" "set -e
+    [ -f /home/builder/google-services-$SLUG.json ] || { echo 'Play needs Firebase: /home/builder/google-services-$SLUG.json is missing'; exit 1; }
+    cp /home/builder/google-services-$SLUG.json $B/app/google-services.json
+    chown -R builder:builder $B
+    su - builder -c 'set -e; K=~/keys/upload-$SLUG.p12; P=~/keys/upload-$SLUG-pass
+      if [ ! -f \$K ]; then
+        umask 077; head -c 24 /dev/urandom | base64 | tr -dc A-Za-z0-9 > \$P
+        keytool -genkeypair -storetype PKCS12 -keystore \$K -storepass \$(cat \$P) -alias upload -keyalg RSA -keysize 2048 -validity 10000 -dname \"CN=$SLUG Connect upload\" >/dev/null 2>&1
+        echo \"  New upload key: \$K (password in \$P) — back it up\"
+      fi
+      cd $B && . ./agency.env && echo sdk.dir=/opt/android-sdk > local.properties
+      SS_KEYSTORE=\$K SS_KEYSTORE_PASSWORD=\$(cat \$P) SS_KEY_ALIAS=upload /opt/gradle-8.11.1/bin/gradle --no-daemon -q bundleRelease'
+    ls -la $B/app/build/outputs/bundle/release/app-release.aab"
+  local DIR; DIR="$(cygpath -u "$USERPROFILE" 2>/dev/null || echo ~)/Downloads/${NAME//./} - Google Play"
+  mkdir -p "$DIR"
+  local OUT="$DIR/$FILE-$VNAME-$VCODE.aab"
+  ssh "$VPS" "cat $B/app/build/outputs/bundle/release/app-release.aab" > "$OUT"
+  echo "▶ Play: $OUT ($(stat -c %s "$OUT") bytes) — upload it in Play Console"
 }
 
 build_windows() {
@@ -96,7 +130,8 @@ case "$WHAT" in
   android) build_android ;;
   windows) build_windows ;;
   all) build_android; build_windows ;;
-  *) echo "android | windows | all"; exit 1 ;;
+  play) build_play; exit 0 ;;
+  *) echo "android | windows | all | play"; exit 1 ;;
 esac
 
 cat <<EOF
