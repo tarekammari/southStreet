@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
-import { BedDouble, Calendar, ChevronDown, Loader2, MoonStar, Plane, ShoppingBag, type LucideIcon } from 'lucide-react';
+import { BedDouble, Calendar, ChevronDown, Loader2, MoonStar, Plane, ShoppingBag, X, type LucideIcon } from 'lucide-react';
 import { Reservation, User } from '@/types';
 import { isCurrentReservation, reservationStatusLabel } from '@/lib/booking-catalog';
 import { BOOKING_KIND_LABEL, bookingDateLabel, bookingHref, bookingKindOf, bookingProgress, type BookingKind } from '@/lib/booking-progress';
@@ -58,6 +59,17 @@ export default function DemandBag({
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState<Reservation[]>([]);
   const ref = useRef<HTMLDivElement>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  /** Phones: the list opens as a bottom sheet above the whole page instead of a dropdown. */
+  const [isPhone, setIsPhone] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 640px)');
+    const sync = () => setIsPhone(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
 
   const portalRole = user ? toPortalRole(user.role, { email: user.email, roleName: user.roleName }) : null;
   const isPilgrim = portalRole === 'pilgrim';
@@ -105,11 +117,26 @@ export default function DemandBag({
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (ref.current?.contains(target) || sheetRef.current?.contains(target)) return;
+      setOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // While the phone sheet is open: Escape closes it and the page behind does not scroll.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('keydown', onKey);
+    const prevOverflow = document.body.style.overflow;
+    if (isPhone) document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [open, isPhone]);
 
   if (!isPilgrim && !isStaff) return null;
 
@@ -120,6 +147,85 @@ export default function DemandBag({
   const inbox = staffInboxHref(portalRole || 'pilgrim');
   const title = isStaff ? 'طلبات الحجز' : 'حجوزاتي';
   const close = () => setOpen(false);
+
+  const panelBody = (
+    <>
+      <div className="demand-bag-head">
+        <span className="demand-bag-grip" aria-hidden />
+        <strong>{title}</strong>
+        <span>{count} {isStaff ? 'بانتظار التأكيد' : count === 1 ? 'حجز' : 'حجوزات'}</span>
+        <button type="button" className="demand-bag-close" onClick={close} aria-label="إغلاق">
+          <X aria-hidden />
+        </button>
+      </div>
+      {loading && count === 0 ? (
+        <p className="demand-bag-empty">
+          <Loader2 className="w-4 h-4 animate-spin inline" /> جاري التحميل...
+        </p>
+      ) : count === 0 ? (
+        <div className="demand-bag-empty">
+          <p>{isStaff ? 'لا توجد طلبات معلّقة حالياً' : 'لا توجد حجوزات حالياً. اختر عمرة أو رحلة أو فندقاً، وتتابع حالة طلبك هنا خطوة بخطوة.'}</p>
+          {!isStaff ? (
+            <div className="demand-bag-empty-acts">
+              <Link href="/packages" onClick={close} className="demand-bag-cta">العمرة والرحلات</Link>
+              <Link href="/hotels" onClick={close} className="demand-bag-cta is-ghost">احجز فندقاً</Link>
+            </div>
+          ) : (
+            <Link href={inbox} onClick={close} className="demand-bag-cta">
+              فتح صندوق الطلبات
+            </Link>
+          )}
+        </div>
+      ) : (
+        <ul className="demand-bag-list">
+          {items.map((res) => {
+            const hotel = bookingKindOf(res) === 'hotel';
+            return (
+              <li key={res.reservation_id} className="demand-bag-item">
+                <div className="demand-bag-item-top">
+                  <span className="demand-bag-tags">
+                    <KindChip res={res} />
+                    <span className="demand-bag-status">{reservationStatusLabel(res.status)}</span>
+                  </span>
+                  <strong>{money(res.total_amount)}</strong>
+                </div>
+                <h4>{isStaff ? res.customer_name : res.hotel_stay?.hotel_name || res.package_name}</h4>
+                <p className="demand-bag-meta">
+                  <Calendar className="w-3 h-3 inline opacity-60" />
+                  {' '}
+                  {isStaff ? res.package_name : bookingDateLabel(res)} · {res.reservation_number}
+                </p>
+                {!isStaff ? <MiniSteps res={res} /> : null}
+                <div className="demand-bag-actions">
+                  {isStaff ? (
+                    <Link href={inbox} onClick={close}>مراجعة الطلب</Link>
+                  ) : (
+                    <>
+                      {!hotel && ['REQUESTED', 'PENDING'].includes(String(res.status).toUpperCase()) ? (
+                        <Link href="/book" onClick={close}>تعديل</Link>
+                      ) : null}
+                      <Link href={bookingHref(res)} onClick={close}>تابع الحالة</Link>
+                    </>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {count > 0 ? (
+        <Link
+          href={isStaff ? inbox : '/portal?tab=program'}
+          onClick={close}
+          className="demand-bag-foot"
+        >
+          {isStaff ? 'عرض كل الطلبات' : 'كل حجوزاتي'}
+          <ChevronDown className="w-3.5 h-3.5 rotate-90" />
+        </Link>
+      ) : null}
+    </>
+  );
 
   return (
     <div className="relative" ref={ref}>
@@ -134,81 +240,20 @@ export default function DemandBag({
         {count > 0 ? <span className="demand-bag-badge">{count > 9 ? '9+' : count}</span> : null}
       </button>
 
-      {open && (
-        <div className={`demand-bag-panel ${isLight ? 'demand-bag-panel-light' : 'demand-bag-panel-dark'}`}>
-          <div className="demand-bag-head">
-            <strong>{title}</strong>
-            <span>{count} {isStaff ? 'بانتظار التأكيد' : count === 1 ? 'حجز' : 'حجوزات'}</span>
+      {open && (isPhone ? createPortal(
+        <div className="demand-bag-sheet-layer" dir="rtl">
+          <div className="demand-bag-backdrop" aria-hidden />
+          <div ref={sheetRef} role="dialog" aria-modal="true" aria-label={title} className={`demand-bag-panel is-sheet ${isLight ? 'demand-bag-panel-light' : 'demand-bag-panel-dark'}`}>
+            {panelBody}
           </div>
-
-          {loading && count === 0 ? (
-            <p className="demand-bag-empty">
-              <Loader2 className="w-4 h-4 animate-spin inline" /> جاري التحميل...
-            </p>
-          ) : count === 0 ? (
-            <div className="demand-bag-empty">
-              <p>{isStaff ? 'لا توجد طلبات معلّقة حالياً' : 'لا توجد حجوزات حالياً. اختر عمرة أو رحلة أو فندقاً، وتتابع حالة طلبك هنا خطوة بخطوة.'}</p>
-              {!isStaff ? (
-                <div className="demand-bag-empty-acts">
-                  <Link href="/packages" onClick={close} className="demand-bag-cta">العمرة والرحلات</Link>
-                  <Link href="/hotels" onClick={close} className="demand-bag-cta is-ghost">احجز فندقاً</Link>
-                </div>
-              ) : (
-                <Link href={inbox} onClick={close} className="demand-bag-cta">
-                  فتح صندوق الطلبات
-                </Link>
-              )}
-            </div>
-          ) : (
-            <ul className="demand-bag-list">
-              {items.map((res) => {
-                const hotel = bookingKindOf(res) === 'hotel';
-                return (
-                  <li key={res.reservation_id} className="demand-bag-item">
-                    <div className="demand-bag-item-top">
-                      <span className="demand-bag-tags">
-                        <KindChip res={res} />
-                        <span className="demand-bag-status">{reservationStatusLabel(res.status)}</span>
-                      </span>
-                      <strong>{money(res.total_amount)}</strong>
-                    </div>
-                    <h4>{isStaff ? res.customer_name : res.hotel_stay?.hotel_name || res.package_name}</h4>
-                    <p className="demand-bag-meta">
-                      <Calendar className="w-3 h-3 inline opacity-60" />
-                      {' '}
-                      {isStaff ? res.package_name : bookingDateLabel(res)} · {res.reservation_number}
-                    </p>
-                    {!isStaff ? <MiniSteps res={res} /> : null}
-                    <div className="demand-bag-actions">
-                      {isStaff ? (
-                        <Link href={inbox} onClick={close}>مراجعة الطلب</Link>
-                      ) : (
-                        <>
-                          {!hotel && ['REQUESTED', 'PENDING'].includes(String(res.status).toUpperCase()) ? (
-                            <Link href="/book" onClick={close}>تعديل</Link>
-                          ) : null}
-                          <Link href={bookingHref(res)} onClick={close}>تابع الحالة</Link>
-                        </>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-
-          {count > 0 ? (
-            <Link
-              href={isStaff ? inbox : '/portal?tab=program'}
-              onClick={close}
-              className="demand-bag-foot"
-            >
-              {isStaff ? 'عرض كل الطلبات' : 'كل حجوزاتي'}
-              <ChevronDown className="w-3.5 h-3.5 rotate-90" />
-            </Link>
-          ) : null}
+        </div>,
+        document.body
+      ) : (
+        <div className={`demand-bag-panel ${isLight ? 'demand-bag-panel-light' : 'demand-bag-panel-dark'}`}>
+          {panelBody}
         </div>
-      )}
+      ))}
     </div>
   );
 }
+
