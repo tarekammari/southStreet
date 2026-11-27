@@ -14,7 +14,6 @@ import Footer from '@/components/Footer';
 import { BackToTop, HomeCta, ScrollProgress } from '@/components/home/HomeEffects';
 import SessionHeartbeat from '@/components/SessionHeartbeat';
 import PendingRequestBanner from '@/components/booking/PendingRequestBanner';
-import WelcomeBanner from '@/components/WelcomeBanner';
 import { User } from '@/types';
 import { publicList } from '@/lib/public-catalog';
 import type { PageContentRow } from '@/lib/page-content';
@@ -49,7 +48,6 @@ export default function HomePage() {
     <div className="page-shell page-shell-home min-h-screen bg-slate-app">
       <Navbar currentUser={currentUser} onLogout={handleLogout} onSelectRole={restoreUser} variant="light" />
       <PendingRequestBanner user={currentUser} variant="home" />
-      {currentUser ? <div className="max-w-5xl mx-auto px-4 pt-3"><WelcomeBanner /></div> : null}
       <main className="page-main relative overflow-x-clip pb-6">
         {/* First: the agency's calligraphy hero (as on /about); then the photo hero with the programs. */}
         <AgencyHero offer />

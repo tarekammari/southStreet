@@ -83,6 +83,10 @@
   .brand-name { font-size: 1rem; }
   .brand-tag { display: none; }
 }
+/* Phones and tablets: the menu bar shows the logo alone (the name stays in the side menu). */
+@media (max-width: 1023.98px) {
+  .nav-logo-link .brand-text { display: none; }
+}
 
 /* Scroll progress */
 .home-progress {

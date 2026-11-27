@@ -7816,7 +7816,8 @@ body.modal-open .sakhr-panel-shell {
   top: calc(var(--nav-height) + var(--promo-height) + 10px);
   left: 0;
   right: 0;
-  z-index: 45;
+  /* Always in front of the page (the hero's ring, cards, album), just under the menu bar and its menus (200). */
+  z-index: 199;
   display: flex;
   justify-content: center;
   padding: 0 16px;

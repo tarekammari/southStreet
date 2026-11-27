@@ -160,6 +160,14 @@
 }
 @keyframes gc-shine { 0%, 70% { transform: translateX(-130%); } 85%, 100% { transform: translateX(130%); } }
 .gc-hero-logo { display: block; width: 100%; height: 100%; object-fit: cover; background: #fff; }
+/* The Kaaba over the logo (phones only, see the media query below). */
+.gc-logo-kaaba { display: none; position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 55% 50%; }
+/* 40 s loop: Kaaba ~90 % of the time (36 s), logo ~10 % (4 s), with soft fades. */
+@keyframes gc-kaaba-swap {
+  0%, 86% { opacity: 1; }
+  89%, 97% { opacity: 0; }
+  100% { opacity: 1; }
+}
 .gc-hero-logo.is-letter { display: grid; place-items: center; color: var(--ar-emerald-deep); font-size: 2.6rem; font-weight: 800; }
 .gc-hero-mark:hover .gc-mark-glow { animation-duration: 1.6s; }
 .gc-hero-mark:hover .gi-petal { animation-duration: 2.4s; }
@@ -174,13 +182,14 @@
   .gc-hero-mark { margin: 70px 0 64px; }
   .gc-hero { min-height: max(520px, calc(100svh - 64px)); }
   .gc-callig-text { font-size: clamp(2.2rem, 11vw, 3rem); }
-  .gc-logo-wrap { width: 108px; height: 108px; }
+  .gc-logo-wrap { width: 120px; height: 120px; }
+  .gc-logo-kaaba { display: block; animation: gc-kaaba-swap 40s ease-in-out infinite; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .gc-in, .gc-hero-pattern svg, .gc-rosette, .gc-mark-glow, .gc-logo-wrap, .gc-logo-wrap::after, .gi-petal, .gc-petals { animation: none; }
   .gc-callig-text { animation: none; clip-path: none; }
-  .gc-ring, .gc-ring-kaaba img { animation: none; }
+  .gc-ring, .gc-ring-kaaba img, .gc-logo-kaaba { animation: none; }
   .gc-orn, .gc-orn-h { animation: none; opacity: 1; }
   .gc-hero-mark { transform: none; transition: none; }
   .gc-draw { animation: none; stroke-dashoffset: 0; }

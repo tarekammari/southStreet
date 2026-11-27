@@ -135,6 +135,8 @@ export default function AgencyHero({
             <IslamicRosette className="gc-rosette is-inner" inner />
             <span className="gc-logo-wrap">
               {logo ? <img src={logo} alt={name} className="gc-hero-logo" /> : <b className="gc-hero-logo is-letter">{name.slice(0, 1)}</b>}
+              {/* Phones: the Kaaba fills the circle most of the time; the logo shows through now and then. */}
+              <img src="/images/kaaba_ring_640.webp" alt="" aria-hidden className="gc-logo-kaaba" width={640} height={640} decoding="async" />
             </span>
           </div>
         </div>
