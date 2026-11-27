@@ -68,7 +68,7 @@
 <body>
 <div class="card is-incoming" id="card">
   <div class="bg" id="bg"></div>
-  <span class="brand"><img src="assets/icon.png" alt="">South Street Connect</span>
+  <span class="brand" id="brand"><img src="assets/icon.png" alt="">South Street Connect</span>
   <div class="top">
     <span class="av" id="av"><i class="ring"></i><i class="ring b"></i><i class="ring c"></i><span id="avin"></span></span>
     <div class="who"><b id="name"></b><div class="role" id="role"></div><small id="status">مكالمة صوتية واردة</small></div>
@@ -88,6 +88,13 @@
 </div>
 <audio id="ring" loop preload="auto"></audio>
 <script>
+// An agency build shows its own name and icon on the call card.
+try {
+  const b = document.getElementById('brand');
+  b.lastChild.textContent = window.card.brand;
+  b.querySelector('img').src = window.card.icon;
+  document.title = `مكالمة — ${window.card.brand}`;
+} catch { /* South Street's */ }
   const $ = (id) => document.getElementById(id);
   const ring = $('ring');
   let state = null;

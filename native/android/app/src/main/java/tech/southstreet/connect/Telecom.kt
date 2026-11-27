@@ -54,7 +54,7 @@ object Telecom {
             val app = ctx.applicationContext
             val tm = manager(app)
             tm?.registerPhoneAccount(
-                PhoneAccount.builder(handle(app), "South Street Connect")
+                PhoneAccount.builder(handle(app), app.getString(R.string.app_long_name))
                     .setCapabilities(PhoneAccount.CAPABILITY_SELF_MANAGED)
                     .setSupportedUriSchemes(listOf(PhoneAccount.SCHEME_SIP))
                     .setIcon(Icon.createWithResource(app, R.drawable.ic_stat_call))

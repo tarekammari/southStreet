@@ -19,13 +19,30 @@ const path = require('node:path');
 const fs = require('node:fs');
 const { spawn } = require('node:child_process');
 
-const ORIGIN = process.env.SS_CONNECT_ORIGIN || 'https://southstreet.1zayd1.tech';
+/**
+ * Agency build (deploy/connect-agency-build.sh): resources/brand.json next to app.asar
+ * names the server, the app and its link scheme; its icon is resources/brand-icon.png.
+ * Kept outside app.asar so the light update (same app.asar for every agency) keeps it.
+ */
+const BRAND = (() => {
+  try {
+    const file = app.isPackaged ? path.join(process.resourcesPath, 'brand.json') : path.join(__dirname, 'brand.json');
+    return JSON.parse(fs.readFileSync(file, 'utf8')) || {};
+  } catch {
+    return {};
+  }
+})();
+const ORIGIN = process.env.SS_CONNECT_ORIGIN || BRAND.origin || 'https://southstreet.1zayd1.tech';
+const APP_NAME = BRAND.name || 'South Street Connect';
+const SCHEME = /^[a-z][a-z0-9-]{1,30}$/.test(BRAND.scheme || '') ? BRAND.scheme : 'ssconnect';
+const APP_ID = BRAND.appId || 'tech.southstreet.connect';
 const updates = require('./updates');
 const { pathToFileURL } = require('url');
 /** Ringtones: resources/sounds in the installed app (outside app.asar), assets/ while developing. */
 const SOUNDS = app.isPackaged ? path.join(process.resourcesPath, 'sounds') : path.join(__dirname, 'assets');
 const START_URL = `${ORIGIN}/connect`;
-const ICON = path.join(__dirname, 'assets', 'icon.png');
+const BRAND_ICON = app.isPackaged ? path.join(process.resourcesPath, 'brand-icon.png') : '';
+const ICON = BRAND_ICON && fs.existsSync(BRAND_ICON) ? BRAND_ICON : path.join(__dirname, 'assets', 'icon.png');
 
 // Security suites (FortiClient, exploit protection…) kill Chromium's sandboxed
 // processes when the app runs from its install folder: blank window, then the
@@ -37,13 +54,13 @@ app.commandLine.appendSwitch('no-sandbox');
 app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 // Ringtone may play without a click (the call card is not clicked yet).
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
-app.setAppUserModelId('tech.southstreet.connect');
-// ssconnect://signin?code=… brings the browser's Google sign-in back to the app.
-if (process.defaultApp) app.setAsDefaultProtocolClient('ssconnect', process.execPath, [path.resolve(process.argv[1] || '.')]);
-else app.setAsDefaultProtocolClient('ssconnect');
+app.setAppUserModelId(APP_ID);
+// ssconnect://signin?code=… (ssconnect-<agency>:// for an agency build) brings the browser's Google sign-in back to the app.
+if (process.defaultApp) app.setAsDefaultProtocolClient(SCHEME, process.execPath, [path.resolve(process.argv[1] || '.')]);
+else app.setAsDefaultProtocolClient(SCHEME);
 
 const signInUrl = (argv) => {
-  const link = (argv || []).find((a) => typeof a === 'string' && a.startsWith('ssconnect://signin'));
+  const link = (argv || []).find((a) => typeof a === 'string' && a.startsWith(`${SCHEME}://signin`));
   if (!link) return null;
   try {
     const code = new URL(link).searchParams.get('code');
@@ -177,7 +194,7 @@ if (!app.requestSingleInstanceLock()) {
       updateAsking = true;
       const { response } = await dialog.showMessageBox(main, {
         type: 'info',
-        title: 'South Street Connect',
+        title: APP_NAME,
         message: `تحديث جديد جاهز (${update.version})`,
         detail: 'يُغلق التطبيق لثوانٍ ثم يعود بالإصدار الجديد. حسابك ومحادثاتك تبقى كما هي.',
         buttons: ['تحديث الآن', 'لاحقاً'],
@@ -216,7 +233,7 @@ if (!app.requestSingleInstanceLock()) {
       minWidth: 380,
       minHeight: 560,
       show: !hidden,
-      title: 'South Street Connect',
+      title: APP_NAME,
       icon: ICON,
       backgroundColor: '#f4f6f5',
       autoHideMenuBar: true,
@@ -272,10 +289,10 @@ if (!app.requestSingleInstanceLock()) {
 
   function createTray() {
     tray = new Tray(nativeImage.createFromPath(ICON).resize({ width: 16, height: 16 }));
-    tray.setToolTip('South Street Connect');
+    tray.setToolTip(APP_NAME);
     tray.setContextMenu(
       Menu.buildFromTemplate([
-        { label: 'فتح South Street Connect', click: showMain },
+        { label: `فتح ${APP_NAME}`, click: showMain },
         { type: 'separator' },
         {
           label: 'التشغيل مع ويندوز',
@@ -345,7 +362,7 @@ if (!app.requestSingleInstanceLock()) {
         contextIsolation: true,
         sandbox: false,
         // Where the ringtones are (outside the app files, so light updates stay small).
-        additionalArguments: [`--ss-sounds=${pathToFileURL(SOUNDS).href}`],
+        additionalArguments: [`--ss-sounds=${pathToFileURL(SOUNDS).href}`, `--ss-brand=${encodeURIComponent(APP_NAME)}`, `--ss-icon=${pathToFileURL(ICON).href}`],
       },
     });
     card.loadFile(path.join(__dirname, 'call.html'));

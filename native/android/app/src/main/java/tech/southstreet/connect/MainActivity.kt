@@ -112,7 +112,7 @@ class MainActivity : AppCompatActivity() {
     /** ssconnect://signin?code=… — finish the Google sign-in done in the browser. */
     private fun signInUrl(intent: Intent?): String? {
         val data = intent?.data ?: return null
-        if (data.scheme != "ssconnect" || data.host != "signin") return null
+        if (data.scheme != BuildConfig.APP_SCHEME || data.host != "signin") return null
         val code = data.getQueryParameter("code") ?: return null
         return "${Net.origin}/api/auth/app-handoff?code=${Uri.encode(code)}"
     }

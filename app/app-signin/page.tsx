@@ -16,12 +16,27 @@ import { useBrand } from '@/components/social/useAgencyInfo';
 
 const LoginModal = dynamic(() => import('@/components/LoginModal'), { ssr: false });
 
-function appLink(code: string, platform: string): string {
+type AppIdentity = { androidPackage: string; scheme: string };
+const DEFAULT_IDENTITY: AppIdentity = { androidPackage: 'tech.southstreet.connect', scheme: 'ssconnect' };
+
+/** This install's app (each agency has its own package and link scheme: /api/connect/app-version). */
+async function appIdentity(): Promise<AppIdentity> {
+  try {
+    const res = await fetch('/api/connect/app-version', { cache: 'no-store' });
+    const id = (await res.json())?.identity;
+    if (id && typeof id.androidPackage === 'string' && typeof id.scheme === 'string') return id;
+  } catch {
+    /* South Street's app */
+  }
+  return DEFAULT_IDENTITY;
+}
+
+function appLink(code: string, platform: string, id: AppIdentity): string {
   const q = `signin?code=${encodeURIComponent(code)}`;
   // Android: an intent link opens exactly this app (and works from Chrome).
   return platform === 'android'
-    ? `intent://${q}#Intent;scheme=ssconnect;package=tech.southstreet.connect;end`
-    : `ssconnect://${q}`;
+    ? `intent://${q}#Intent;scheme=${id.scheme};package=${id.androidPackage};end`
+    : `${id.scheme}://${q}`;
 }
 
 const btn: React.CSSProperties = {
@@ -52,7 +67,7 @@ export default function AppSignInPage() {
         setError(h.error || 'تعذر إكمال الدخول. أعد المحاولة.');
         return;
       }
-      const href = appLink(h.code, p);
+      const href = appLink(h.code, p, await appIdentity());
       setLink(href);
       window.location.href = href; // back to the app
     } catch {

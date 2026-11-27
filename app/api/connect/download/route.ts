@@ -23,6 +23,11 @@ const TYPES: Record<Platform, string> = { android: 'application/vnd.android.pack
 const LINK_ISSUER = 'south-street-download';
 
 const dir = () => process.env.CONNECT_DOWNLOADS_DIR?.trim() || '/var/www/connect-downloads';
+/** The name the file is saved under: an agency's own (CONNECT_DOWNLOAD_NAME, e.g. RHToursConnect). */
+function savedName(platform: Platform): string {
+  const base = (process.env.CONNECT_DOWNLOAD_NAME || '').trim();
+  return /^[A-Za-z][A-Za-z0-9]{1,40}$/.test(base) ? FILES[platform].replace('SouthStreetConnect', base) : FILES[platform];
+}
 const platformOf = (v: unknown): Platform | null => (v === 'android' || v === 'windows' || v === 'windows-app' ? v : null);
 
 function validLink(token: string, platform: Platform): boolean {
@@ -59,7 +64,7 @@ export async function GET(req: NextRequest) {
     headers: {
       'Content-Type': TYPES[platform],
       'Content-Length': String(size),
-      'Content-Disposition': `attachment; filename="${FILES[platform]}"`,
+      'Content-Disposition': `attachment; filename="${savedName(platform)}"`,
       'Cache-Control': 'private, no-store',
       'X-Content-Type-Options': 'nosniff',
     },

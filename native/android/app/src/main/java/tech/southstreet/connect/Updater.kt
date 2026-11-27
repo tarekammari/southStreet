@@ -90,7 +90,7 @@ object Updater {
         if (activity.isFinishing || dialog?.isShowing == true || MainActivity.inCall) return
         dialog = AlertDialog.Builder(activity)
             .setTitle("تحديث جديد جاهز")
-            .setMessage("الإصدار $readyName من South Street Connect تم تنزيله. اضغط «تحديث الآن» ثم «تثبيت» — يبقى حسابك ومحادثاتك كما هي.")
+            .setMessage("الإصدار $readyName من ${activity.getString(R.string.app_long_name)} تم تنزيله. اضغط «تحديث الآن» ثم «تثبيت» — يبقى حسابك ومحادثاتك كما هي.")
             .setPositiveButton("تحديث الآن") { _, _ -> install(activity, file) }
             .setNegativeButton("لاحقاً", null)
             .show()

@@ -19,6 +19,14 @@ android {
         applicationId = "tech.southstreet.connect"
         // A test build installs next to the real app (e.g. SS_APP_ID_SUFFIX=.test).
         System.getenv("SS_APP_ID_SUFFIX")?.takeIf { it.isNotBlank() }?.let { applicationIdSuffix = it }
+        // Agency build: SS_APP_SLUG=hebla → package tech.southstreet.connect.hebla and links
+        // ssconnect-hebla://, so each agency's app installs next to the others and the
+        // browser sign-in returns to the right one (the server's CONNECT_APP_SLUG matches it).
+        val slug = System.getenv("SS_APP_SLUG")?.trim()?.lowercase()?.takeIf { it.matches(Regex("[a-z][a-z0-9]{1,20}")) }
+        if (slug != null && System.getenv("SS_APP_ID_SUFFIX").isNullOrBlank()) applicationIdSuffix = ".$slug"
+        val scheme = if (slug != null) "ssconnect-$slug" else "ssconnect"
+        manifestPlaceholders["appScheme"] = scheme
+        buildConfigField("String", "APP_SCHEME", "\"$scheme\"")
         minSdk = 27
         targetSdk = 35
         versionCode = (System.getenv("SS_VERSION_CODE") ?: "1").toInt()
@@ -28,6 +36,10 @@ android {
         // Plain http only for a test build aimed at a local dev server (SS_ORIGIN=http://10.0.2.2:3001).
         manifestPlaceholders["cleartext"] = origin.startsWith("http://").toString()
         buildConfigField("boolean", "HAS_FIREBASE", hasFirebase.toString())
+        // Agency build (deploy/connect-agency-build.sh): the name under the icon and the
+        // longer name on the call screen, notifications and the phone's calling account.
+        resValue("string", "app_name", System.getenv("SS_APP_NAME")?.takeIf { it.isNotBlank() } ?: "SS Connect")
+        resValue("string", "app_long_name", System.getenv("SS_APP_LONG_NAME")?.takeIf { it.isNotBlank() } ?: "South Street Connect")
     }
 
     signingConfigs {

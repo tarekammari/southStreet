@@ -4,6 +4,20 @@
  */
 export const CONNECT_VERSION = '1.8.1';
 
+/**
+ * Identity of this install's native apps. One install per agency builds its own apps
+ * (deploy/connect-agency-build.sh) with CONNECT_APP_SLUG, e.g. `hebla`: Android package
+ * tech.southstreet.connect.hebla, sign-in links ssconnect-hebla://. Empty: South Street's.
+ */
+export function nativeIdentity() {
+  const raw = (process.env.CONNECT_APP_SLUG || '').trim().toLowerCase();
+  const slug = /^[a-z][a-z0-9]{1,20}$/.test(raw) ? raw : '';
+  return {
+    androidPackage: slug ? `tech.southstreet.connect.${slug}` : 'tech.southstreet.connect',
+    scheme: slug ? `ssconnect-${slug}` : 'ssconnect',
+  };
+}
+
 /** Build code of this deployment (git commit, set in next.config.js). */
 export const BUILD_CODE = (process.env.APP_VERSION || '').slice(0, 7);
 
