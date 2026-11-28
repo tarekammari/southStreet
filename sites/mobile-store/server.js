@@ -205,6 +205,7 @@ async function handle(req, res) {
     if (p === '/auth/google') return auth.googleStart(ctx);
     if (p === '/auth/google/callback') return await auth.googleCallback(ctx);
     if (p === '/auth/dev') return auth.devLogin(ctx);
+    if (p === '/auth/link') return auth.linkLogin(ctx);
     auth.loadSession(ctx);
     return pages(ctx, p, assets);
   } catch (e) {

@@ -32,6 +32,14 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 CREATE INDEX IF NOT EXISTS sessions_user ON sessions(user_id);
 
+CREATE TABLE IF NOT EXISTS login_links (
+  token_hash TEXT PRIMARY KEY,
+  email TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,
+  used_at INTEGER
+);
+
 CREATE TABLE IF NOT EXISTS qr_logins (
   id TEXT PRIMARY KEY,
   poll_hash TEXT NOT NULL,

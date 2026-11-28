@@ -203,6 +203,18 @@ test('QR sign-in: phone approves PC with the matching number', async () => {
   assert.equal((await phone.req('POST', '/api/qr/approve', { id: s2.id, code: s2.code })).status, 410);
 });
 
+test('one-time sign-in link', async () => {
+  const { stdout } = await import('node:child_process').then(({ execFileSync }) => ({ stdout: execFileSync(process.execPath,
+    ['--disable-warning=ExperimentalWarning', 'scripts/login-link.js', 'link@test.local'], { cwd: ROOT, env: { ...process.env, PUBLIC_URL: BASE, DATA_DIR: dir } }).toString() }));
+  const url = new URL(stdout.trim());
+  const c = new Client();
+  const r = await c.req('GET', url.pathname + url.search);
+  assert.equal(r.headers.get('location'), '/app');
+  assert.equal((await c.req('GET', '/api/me')).body.user.email, 'link@test.local');
+  const again = await new Client().req('GET', url.pathname + url.search);
+  assert.match(again.headers.get('location'), /e=state/);
+});
+
 test('pages and static assets', async () => {
   const home = await fetch(`${BASE}/?lang=fr`);
   assert.equal(home.status, 200);

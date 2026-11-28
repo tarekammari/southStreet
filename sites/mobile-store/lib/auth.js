@@ -157,6 +157,29 @@ export async function googleCallback(ctx) {
   ctx.redirect(st.n);
 }
 
+// One-time sign-in link, created only on the server: `node scripts/login-link.js <email>`.
+// Single use, 15 minutes. Lets the owner get in before (or without) Google sign-in.
+export function createLoginLink(email) {
+  email = str(email, 120).toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('bad email');
+  const token = rid(32), t = now();
+  run('DELETE FROM login_links WHERE expires_at < ?', t - 864e5);
+  run('INSERT INTO login_links (token_hash, email, created_at, expires_at) VALUES (?,?,?,?)', sha256(token), email, t, t + 15 * 60_000);
+  return `${config.publicUrl}/auth/link?t=${token}`;
+}
+
+export function linkLogin(ctx) {
+  rateLimit('link:' + ctx.ip, 10, 600_000);
+  const token = str(ctx.url.searchParams.get('t'), 60);
+  const row = token && get('SELECT * FROM login_links WHERE token_hash = ?', sha256(token));
+  if (!row || row.used_at || row.expires_at < now()) return ctx.redirect('/login?e=state');
+  if (run('UPDATE login_links SET used_at = ? WHERE token_hash = ? AND used_at IS NULL', now(), row.token_hash).changes !== 1) return ctx.redirect('/login?e=state');
+  const user = upsertUser({ sub: null, email: row.email, name: row.email.split('@')[0], picture: '' });
+  if (user.disabled) return ctx.redirect('/login?e=disabled');
+  createSession(ctx, user.id, 'link');
+  ctx.redirect('/app');
+}
+
 // Local testing only (DEV_LOGIN=1 and not production).
 export function devLogin(ctx) {
   if (!config.devLogin) fail(404, 'not_found');
