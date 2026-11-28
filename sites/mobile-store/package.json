@@ -1,0 +1,13 @@
+{
+  "name": "mobile-store-saas",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Multi-store SaaS for mobile phone shops: stock, IMEI, sales, online catalogue on a subdomain per store.",
+  "type": "module",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server.js",
+    "dev": "node --disable-warning=ExperimentalWarning --env-file-if-exists=.env server.js",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js"
+  }
+}

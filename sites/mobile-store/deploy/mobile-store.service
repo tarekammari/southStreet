@@ -1,0 +1,39 @@
+# /etc/systemd/system/mobile-store.service — https://mobile.1zayd1.tech (multi-store SaaS for phone shops)
+[Unit]
+Description=Mobile store SaaS (mobile.1zayd1.tech)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=mobilestore
+Group=mobilestore
+WorkingDirectory=/home/mobilestore/app
+ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning --env-file=/home/mobilestore/.env server.js
+Restart=always
+RestartSec=2
+Environment=NODE_ENV=production
+Environment=DATA_DIR=/var/lib/mobile-store
+MemoryMax=512M
+TasksMax=64
+LimitNOFILE=8192
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=read-only
+# Database, uploads and daily backups: /var/lib/mobile-store (owned by mobilestore, mode 750).
+StateDirectory=mobile-store
+StateDirectoryMode=0750
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictNamespaces=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target

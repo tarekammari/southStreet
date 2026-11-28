@@ -11,6 +11,12 @@
         "3001"
       ],
       "port": 3001
+    },
+    {
+      "name": "mobile-store",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["--disable-warning=ExperimentalWarning", "--env-file=sites/mobile-store/.env", "sites/mobile-store/server.js"],
+      "port": 3300
     }
   ]
 }
