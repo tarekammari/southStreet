@@ -8,6 +8,7 @@ const u = new URL(publicUrl);
 
 export const config = {
   appName: env.APP_NAME || 'Mobilo',
+  contactEmail: env.CONTACT_EMAIL || String(env.SUPER_ADMIN_EMAILS || '').split(/[\s,]+/)[0] || '',
   port: Number(env.PORT || 3300),
   host: env.HOST || '127.0.0.1',
   publicUrl,

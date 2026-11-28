@@ -99,7 +99,7 @@ function landing(ctx, assets) {
 <section class="wrap themes"><h2>${L.themes}</h2><div class="tgrid">${themes.map(([k, n]) => `<figure class="tprev t-${k}"><div><i></i><i></i><i></i><i></i></div><figcaption>${n}</figcaption></figure>`).join('')}</div></section>
 ${pricing ? `<section class="wrap"><h2>${L.pricing}</h2><p class="pricing">${esc(pricing).replace(/\n/g, '<br>')}</p></section>` : ''}
 <section class="wrap endcta">${cta}</section>
-<footer class="lfoot"><div class="wrap">© ${new Date().getFullYear()} ${esc(config.appName)} · <a href="https://1zayd1.tech" rel="noopener">1zayd1.tech</a></div></footer>`;
+<footer class="lfoot"><div class="wrap">© ${new Date().getFullYear()} ${esc(config.appName)} · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> · <a href="https://1zayd1.tech" rel="noopener">1zayd1.tech</a></div></footer>`;
   return html(ctx, shell(ctx, { lang, title: `${config.appName} — ${L.tag}`, body, assets, bodyClass: 'landing' }), 'public, max-age=60');
 }
 
@@ -143,7 +143,33 @@ function appShell(ctx, assets, which) {
   return html(ctx, shell(ctx, { lang, title: which === 'admin' ? `Admin — ${config.appName}` : config.appName, body, scripts: ['/static/js/core.js', `/static/js/${which}.js`], assets, bodyClass: which }));
 }
 
+
+const LEGAL = {
+  privacy: ['Privacy policy — سياسة الخصوصية', `
+<h2>What we collect</h2><p>When you sign in with Google we receive only your name, e-mail address and profile picture (scopes: openid, email, profile). We do not receive your Google password or access to your Gmail, Drive or contacts.</p>
+<p>Store owners and their staff enter their own business data (products, IMEI numbers, sales, customers, suppliers, expenses). Visitors of a store page who send an order give their name, phone number and city to that store.</p>
+<h2>How we use it</h2><p>Only to run the service: sign you in, show each store its own data, and let a store contact the customers who ordered. Each store's data is kept separate and is never shown to other stores. We do not sell data and do not use advertising trackers.</p>
+<h2>Storage and security</h2><p>Data is stored on our server in the European Union, over HTTPS, with daily backups kept for 14 days. Sessions use secure, HTTP-only cookies.</p>
+<h2>Your rights</h2><p>A store owner can export or delete products, sales and customers at any time. To delete your account or a whole store, contact us at the address below and it will be removed within 30 days.</p>
+<h2 dir="rtl">بالعربية</h2><p dir="rtl">عند الدخول بحساب Google نستلم فقط اسمك وبريدك وصورتك. بيانات كل متجر خاصة به ولا يراها أي متجر آخر، ولا نبيعها لأي جهة. يمكنك طلب حذف حسابك أو متجرك في أي وقت.</p>
+<h2>Contact</h2><p>${esc(config.contactEmail)}</p>`],
+  terms: ['Terms of service — شروط الاستخدام', `
+<p>${esc(config.appName)} is a tool for phone shops to manage sales, stock and an online catalogue. By creating a store you agree to:</p>
+<ul><li>enter only lawful products and true information, and never sell stolen or blacklisted devices;</li>
+<li>keep your Google account secure and remove staff who no longer work for you;</li>
+<li>respect your customers' privacy for the data you collect through your store page.</li></ul>
+<p>The trial is free; paid plans are agreed with the platform. A store that breaks these terms may be suspended. The service is provided "as is"; keep your own exports of important data.</p>
+<h2>Contact</h2><p>${esc(config.contactEmail)}</p>`],
+};
+function legalPage(ctx, assets, key) {
+  const [title, body] = LEGAL[key];
+  const html = `<header class="lnav"><div class="wrap lnav-in"><a class="logo" href="/"><img src="${assets['/static/img/icon.svg']}" alt="" width="32" height="32"><b>${esc(config.appName)}</b></a></div></header>
+<main class="wrap legal"><h1>${title}</h1>${body}<p class="muted">Last updated: 28 November 2026</p></main>`;
+  return ctx.send(200, shell(ctx, { lang: 'en', title: `${title} — ${config.appName}`, body: html, assets, bodyClass: 'landing' }), { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=300' });
+}
+
 export function pages(ctx, p, assets) {
+  if (p === '/privacy' || p === '/terms') return legalPage(ctx, assets, p.slice(1));
   if (p === '/' || p === '/index.html') return landing(ctx, assets);
   if (p === '/login') return login(ctx, assets);
   if (p === '/app' || p.startsWith('/app/')) return appShell(ctx, assets, 'app');
